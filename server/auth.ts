@@ -43,10 +43,16 @@ export function setupAuth(app: Express) {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
-        } else {
-          return done(null, user);
+          return done(null, false, { message: "Invalid email or password" });
         }
+        // Check account status
+        if (user.accountStatus === "PENDING") {
+          return done(null, false, { message: "Your account is pending approval" });
+        }
+        if (user.accountStatus === "REJECTED") {
+          return done(null, false, { message: "Your account has been rejected" });
+        }
+        return done(null, user);
       } catch (err) {
         return done(err);
       }
@@ -94,8 +100,17 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: User | false, info: { message?: string }) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        res.status(200).json(user);
+      });
+    })(req, res, next);
   });
 
   app.post("/api/auth/logout", (req, res, next) => {

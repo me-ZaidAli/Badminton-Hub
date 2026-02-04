@@ -111,3 +111,56 @@ export function useWithdrawSession() {
     },
   });
 }
+
+export function useAdminAddPlayer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, playerId }: { sessionId: number; playerId: number }) => {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to add player");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Player Added", description: "Player has been added to the session." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}
+
+export function useAdminRemovePlayer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, playerId }: { sessionId: number; playerId: number }) => {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/players/${playerId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to remove player");
+      }
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Player Removed", description: "Player has been removed from the session." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}

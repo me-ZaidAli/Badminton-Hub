@@ -34,7 +34,8 @@ export async function registerRoutes(
       email: "admin@badminton.club",
       password: hashedPassword,
       role: "ADMIN",
-      emailVerified: true
+      emailVerified: true,
+      accountStatus: "APPROVED" as any
     });
 
     await storage.createPlayerProfile({
@@ -171,6 +172,60 @@ export async function registerRoutes(
     const status = req.body;
     const updated = await storage.updateSignupStatus(Number(req.params.signupId), status);
     res.json(updated);
+  });
+
+  // Admin: Add player to session
+  app.post("/api/admin/sessions/:id/players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const sessionId = Number(req.params.id);
+      const { playerId } = req.body;
+      
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check if already signed up
+      const signups = await storage.getSessionSignups(sessionId);
+      if (signups.some(s => s.playerId === playerId)) {
+        return res.status(400).json({ message: "Player already in session" });
+      }
+
+      // Check capacity
+      if (signups.length >= session.maxPlayers) {
+        return res.status(400).json({ message: "Session is full" });
+      }
+
+      const signup = await storage.createSessionSignup(sessionId, playerId, 1000);
+      res.status(201).json(signup);
+    } catch (err: any) {
+      console.error("Error adding player to session:", err);
+      res.status(500).json({ message: err.message || "Failed to add player" });
+    }
+  });
+
+  // Admin: Remove player from session
+  app.delete("/api/admin/sessions/:id/players/:playerId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const sessionId = Number(req.params.id);
+      const playerId = Number(req.params.playerId);
+      
+      await storage.deleteSessionSignup(sessionId, playerId);
+      res.sendStatus(200);
+    } catch (err: any) {
+      console.error("Error removing player from session:", err);
+      res.status(500).json({ message: err.message || "Failed to remove player" });
+    }
   });
 
   // === Matches ===
@@ -343,6 +398,57 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error updating player:", err);
       res.status(500).json({ message: "Failed to update player" });
+    }
+  });
+
+  // === User Account Approval ===
+  app.get("/api/admin/pending-users", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const users = await storage.getPendingUsers();
+      res.json(users);
+    } catch (err: any) {
+      console.error("Error fetching pending users:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch pending users" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/approve", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const userId = Number(req.params.id);
+      const user = await storage.updateUser(userId, { accountStatus: "APPROVED" });
+      res.json(user);
+    } catch (err: any) {
+      console.error("Error approving user:", err);
+      res.status(500).json({ message: err.message || "Failed to approve user" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/reject", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const userId = Number(req.params.id);
+      const user = await storage.updateUser(userId, { accountStatus: "REJECTED" });
+      res.json(user);
+    } catch (err: any) {
+      console.error("Error rejecting user:", err);
+      res.status(500).json({ message: err.message || "Failed to reject user" });
     }
   });
 

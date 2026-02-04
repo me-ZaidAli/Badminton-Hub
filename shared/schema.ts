@@ -11,6 +11,7 @@ export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["ATTENDED", "NOT_ATTENDED"]);
 export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL"]);
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
+export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -20,6 +21,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: roleEnum("role").default("PLAYER").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  accountStatus: accountStatusEnum("account_status").default("PENDING").notNull(),
+  claimedProfileId: integer("claimed_profile_id"), // Reference to unclaimed profile if claiming existing
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

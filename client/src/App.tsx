@@ -25,6 +25,7 @@ import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
+import UserApproval from "@/pages/admin/UserApproval";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -122,6 +123,9 @@ function Router() {
       </Route>
       <Route path="/admin/calendar">
         <AdminRoute component={CalendarImport} />
+      </Route>
+      <Route path="/admin/approvals">
+        <AdminRoute component={UserApproval} />
       </Route>
       
       {/* Fallback */}

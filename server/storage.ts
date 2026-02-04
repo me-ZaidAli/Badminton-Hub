@@ -48,9 +48,10 @@ export interface IStorage {
   getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
   
   // Player Management
-  updateUser(id: number, updates: { fullName?: string; email?: string; role?: string }): Promise<User>;
+  updateUser(id: number, updates: { fullName?: string; email?: string; role?: string; accountStatus?: string }): Promise<User>;
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string }): Promise<{ user: User; profile: PlayerProfile }>;
+  getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -266,6 +267,14 @@ export class DatabaseStorage implements IStorage {
       category: profileData.category as any,
     }).returning();
     return { user, profile };
+  }
+
+  async getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]> {
+    const result = await db.select()
+      .from(users)
+      .leftJoin(playerProfiles, eq(users.id, playerProfiles.userId))
+      .where(eq(users.accountStatus, "PENDING"));
+    return result.map(r => ({ ...r.users, playerProfile: r.player_profiles }));
   }
 }
 

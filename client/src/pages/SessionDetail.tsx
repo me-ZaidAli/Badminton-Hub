@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { useParams } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer } from "@/hooks/use-sessions";
+import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSessionMatches, useGenerateMatches } from "@/hooks/use-matches";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy } from "lucide-react";
+import { Loader2, Users, Trophy, UserPlus, X } from "lucide-react";
 
 export default function SessionDetail() {
   const params = useParams();
@@ -17,11 +20,39 @@ export default function SessionDetail() {
   const { data: user } = useUser();
   const { data: session, isLoading: isLoadingSession } = useSession(id);
   const { data: signups, isLoading: isLoadingSignups } = useSessionSignups(id);
+  const { data: allPlayers } = usePlayers();
   const { mutate: join, isPending: isJoining } = useJoinSession();
   const { mutate: withdraw, isPending: isWithdrawing } = useWithdrawSession();
+  const { mutate: adminAddPlayer, isPending: isAdding } = useAdminAddPlayer();
+  const { mutate: adminRemovePlayer } = useAdminRemovePlayer();
+  
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
 
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
+  
+  const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
+  // allPlayers returns users with playerProfile, filter those with profiles
+  const availablePlayers = allPlayers
+    ?.filter(u => u.playerProfile && !signedUpPlayerIds.has(u.playerProfile.id))
+    .map(u => ({ 
+      id: u.playerProfile!.id, 
+      fullName: u.fullName, 
+      gender: u.playerProfile!.gender, 
+      category: u.playerProfile!.category 
+    })) || [];
+
+  const handleAddPlayer = () => {
+    if (selectedPlayerId) {
+      adminAddPlayer({ sessionId: id, playerId: Number(selectedPlayerId) }, {
+        onSuccess: () => {
+          setAddDialogOpen(false);
+          setSelectedPlayerId("");
+        }
+      });
+    }
+  };
 
   if (isLoadingSession || isLoadingSignups) return <div className="flex justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
   if (!session) return <div>Session not found</div>;
@@ -79,20 +110,72 @@ export default function SessionDetail() {
         </TabsList>
         
         <TabsContent value="signups" className="mt-6">
+          {isOrganiser && (
+            <div className="mb-4 flex justify-end">
+              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-add-player">
+                    <UserPlus className="w-4 h-4 mr-2" /> Add Player
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Player to Session</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <Select value={selectedPlayerId} onValueChange={setSelectedPlayerId}>
+                      <SelectTrigger data-testid="select-player">
+                        <SelectValue placeholder="Select a player..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePlayers.map(player => (
+                          <SelectItem key={player.id} value={String(player.id)}>
+                            {player.fullName} ({player.gender || "?"} - {player.category})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      className="w-full" 
+                      onClick={handleAddPlayer} 
+                      disabled={!selectedPlayerId || isAdding}
+                      data-testid="button-confirm-add-player"
+                    >
+                      {isAdding ? "Adding..." : "Add to Session"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {signups?.map((signup) => (
-              <div key={signup.id} className="flex items-center p-4 bg-card rounded-xl border border-border/50 shadow-sm">
-                <Avatar className="h-10 w-10 mr-4">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
-                  <AvatarFallback>P</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold">{signup.player.user.fullName}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs h-5">Rank {signup.player.rankingPoints}</Badge>
-                    <span className="text-xs text-muted-foreground">Level {signup.player.category}</span>
+              <div key={signup.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm" data-testid={`signup-${signup.id}`}>
+                <div className="flex items-center">
+                  <Avatar className="h-10 w-10 mr-4">
+                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
+                    <AvatarFallback>P</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold">{signup.player.user.fullName}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs h-5">{signup.player.gender || "?"}</Badge>
+                      <Badge variant="outline" className="text-xs h-5">Rank {signup.player.rankingPoints}</Badge>
+                      <span className="text-xs text-muted-foreground">Level {signup.player.category}</span>
+                    </div>
                   </div>
                 </div>
+                {isOrganiser && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => adminRemovePlayer({ sessionId: id, playerId: signup.playerId })}
+                    data-testid={`button-remove-player-${signup.playerId}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
