@@ -61,7 +61,12 @@ export async function registerRoutes(
 
   // === Users ===
   app.get(api.users.list.path, async (req, res) => {
-    // Ideally restricted to ADMIN/COACH/ORGANISER
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    // Restrict to ADMIN/OWNER/ORGANISER/COACH roles
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(role)) {
+      return res.sendStatus(403);
+    }
     const users = await storage.getAllUsers();
     res.json(users);
   });
@@ -253,6 +258,91 @@ export async function registerRoutes(
     }
     const allSignups = await storage.getAllSignups();
     res.json(allSignups);
+  });
+
+  // === Player Management ===
+  app.post("/api/admin/players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { fullName, email, password, role: playerRole, gender, category } = req.body;
+      
+      // Check if email already exists
+      const existing = await storage.getUserByUsername(email);
+      if (existing) {
+        return res.status(400).json({ message: "Email already in use" });
+      }
+
+      const hashedPassword = await hashPassword(password || "password123");
+      const result = await storage.createUserWithProfile(
+        { fullName, email, password: hashedPassword, role: playerRole || "PLAYER" },
+        { gender, category }
+      );
+      
+      res.status(201).json({ ...result.user, playerProfile: result.profile });
+    } catch (err) {
+      console.error("Error creating player:", err);
+      res.status(500).json({ message: "Failed to create player" });
+    }
+  });
+
+  app.patch("/api/admin/players/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const userId = Number(req.params.id);
+      const { fullName, email, role: newRole, gender, category, rankingPoints } = req.body;
+
+      // Check email uniqueness if changing email
+      if (email) {
+        const existingUser = await storage.getUserByUsername(email);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(400).json({ message: "Email already in use by another user" });
+        }
+      }
+
+      // Update user
+      const userUpdates: any = {};
+      if (fullName) userUpdates.fullName = fullName;
+      if (email) userUpdates.email = email;
+      if (newRole) userUpdates.role = newRole;
+      
+      const updatedUser = await storage.updateUser(userId, userUpdates);
+
+      // Update profile - create if it doesn't exist
+      let profile = await storage.getPlayerProfile(userId);
+      if (profile) {
+        const profileUpdates: any = {};
+        if (gender) profileUpdates.gender = gender;
+        if (category) profileUpdates.category = category;
+        if (rankingPoints !== undefined) profileUpdates.rankingPoints = rankingPoints;
+        
+        await storage.updatePlayerProfile(profile.id, profileUpdates);
+      } else if (gender || category) {
+        // Create profile if any profile fields are provided
+        await storage.createPlayerProfile({
+          userId,
+          gender: gender as any,
+          category: category as any,
+          membershipId: null
+        });
+      }
+
+      const users = await storage.getAllUsers();
+      const fullUser = users.find(u => u.id === userId);
+      res.json(fullUser);
+    } catch (err) {
+      console.error("Error updating player:", err);
+      res.status(500).json({ message: "Failed to update player" });
+    }
   });
 
   return httpServer;

@@ -46,6 +46,11 @@ export interface IStorage {
 
   // Admin
   getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
+  
+  // Player Management
+  updateUser(id: number, updates: { fullName?: string; email?: string; role?: string }): Promise<User>;
+  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile>;
+  createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string }): Promise<{ user: User; profile: PlayerProfile }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -241,6 +246,26 @@ export class DatabaseStorage implements IStorage {
       player: { ...r.player_profiles, user: r.users },
       session: r.sessions
     }));
+  }
+
+  async updateUser(id: number, updates: { fullName?: string; email?: string; role?: string }): Promise<User> {
+    const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile> {
+    const [updated] = await db.update(playerProfiles).set(updates).where(eq(playerProfiles.id, id)).returning();
+    return updated;
+  }
+
+  async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string }): Promise<{ user: User; profile: PlayerProfile }> {
+    const [user] = await db.insert(users).values(userData).returning();
+    const [profile] = await db.insert(playerProfiles).values({
+      userId: user.id,
+      gender: profileData.gender as any,
+      category: profileData.category as any,
+    }).returning();
+    return { user, profile };
   }
 }
 

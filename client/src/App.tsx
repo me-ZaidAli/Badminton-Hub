@@ -21,6 +21,7 @@ import NotFound from "@/pages/not-found";
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import UserManagement from "@/pages/admin/UserManagement";
+import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import Announcements from "@/pages/admin/Announcements";
 
@@ -108,6 +109,9 @@ function Router() {
       </Route>
       <Route path="/admin/users">
         <AdminRoute component={UserManagement} />
+      </Route>
+      <Route path="/admin/players">
+        <AdminRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/financials">
         <AdminRoute component={Financials} />
