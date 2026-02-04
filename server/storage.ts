@@ -33,6 +33,7 @@ export interface IStorage {
   getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]>;
   getSession(id: number): Promise<Session | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
+  updateSession(id: number, updates: Partial<Session>): Promise<Session>;
   getSessionSignups(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
   createSessionSignup(sessionId: number, playerId: number, fee: number): Promise<SessionSignup>;
   deleteSessionSignup(sessionId: number, playerId: number): Promise<void>;
@@ -176,6 +177,11 @@ export class DatabaseStorage implements IStorage {
   async createSession(session: InsertSession & { createdBy: number }): Promise<Session> {
     const [newSession] = await db.insert(sessions).values(session).returning();
     return newSession;
+  }
+
+  async updateSession(id: number, updates: Partial<Session>): Promise<Session> {
+    const [updated] = await db.update(sessions).set(updates).where(eq(sessions.id, id)).returning();
+    return updated;
   }
 
   async getSessionSignups(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]> {

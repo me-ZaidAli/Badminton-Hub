@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +32,9 @@ export default function SessionDetail() {
   
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editCourts, setEditCourts] = useState(0);
+  const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
 
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
@@ -68,10 +71,53 @@ export default function SessionDetail() {
           <div className="flex items-center gap-3 mb-2">
             <Badge variant="outline">{session.matchMode}</Badge>
             <Badge variant="secondary" className="bg-primary/10 text-primary">{session.status}</Badge>
+            {isOrganiser && (
+              <Dialog open={settingsOpen} onOpenChange={(open) => {
+                setSettingsOpen(open);
+                if (open) setEditCourts(session.courtsAvailable);
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1" data-testid="button-session-settings">
+                    <Settings2 className="w-4 h-4" /> Settings
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Session Settings</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label>Number of Courts (1-10)</Label>
+                      <Input 
+                        type="number" 
+                        min={1} 
+                        max={10}
+                        value={editCourts}
+                        onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
+                        className="mt-2"
+                        data-testid="input-edit-courts"
+                      />
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => {
+                        updateSession({ sessionId: id, updates: { courtsAvailable: editCourts } }, {
+                          onSuccess: () => setSettingsOpen(false)
+                        });
+                      }}
+                      disabled={isUpdating}
+                      data-testid="button-save-settings"
+                    >
+                      {isUpdating ? "Saving..." : "Save Settings"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
           <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
           <p className="text-xl text-muted-foreground">
-            {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime}
+            {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
           </p>
         </div>
 

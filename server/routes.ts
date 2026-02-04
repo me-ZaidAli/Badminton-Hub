@@ -211,6 +211,31 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // Update session settings (courts, max players, etc.)
+  app.patch("/api/sessions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const sessionId = Number(req.params.id);
+      const { courtsAvailable, maxPlayers, matchMode } = req.body;
+
+      const updates: any = {};
+      if (courtsAvailable !== undefined) updates.courtsAvailable = courtsAvailable;
+      if (maxPlayers !== undefined) updates.maxPlayers = maxPlayers;
+      if (matchMode !== undefined) updates.matchMode = matchMode;
+
+      const updated = await storage.updateSession(sessionId, updates);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating session:", err);
+      res.status(500).json({ message: err.message || "Failed to update session" });
+    }
+  });
+
   // Admin: Add player to session
   app.post("/api/admin/sessions/:id/players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

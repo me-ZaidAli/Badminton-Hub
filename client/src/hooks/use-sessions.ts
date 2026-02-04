@@ -63,6 +63,31 @@ export function useCreateSession() {
   });
 }
 
+export function useUpdateSession() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, updates }: { sessionId: number; updates: { courtsAvailable?: number; maxPlayers?: number; matchMode?: string } }) => {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update session");
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Session Updated", description: "Settings have been saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update session.", variant: "destructive" });
+    }
+  });
+}
+
 export function useJoinSession() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
