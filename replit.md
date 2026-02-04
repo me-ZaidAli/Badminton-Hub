@@ -65,6 +65,14 @@ Core entities:
 - **announcements**: Club communications with visibility controls
 - **memberships**: Membership tiers with session rates
 
+## Recent Changes
+
+### Google Calendar Integration (Feb 2026)
+- Added Google Calendar connection via Replit integration
+- New admin page at `/admin/calendar` for importing calendar events as sessions
+- Admins can select a calendar, preview upcoming events, and import selected events with configurable session settings (max players, courts, match mode)
+- Backend endpoints with role-based access control (OWNER/ADMIN/ORGANISER only)
+
 ## External Dependencies
 
 ### Database
