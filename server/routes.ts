@@ -224,6 +224,11 @@ export async function registerRoutes(
 
   app.post(api.announcements.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    // Only admins can create announcements
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
     const input = api.announcements.create.input.parse(req.body);
     const announcement = await storage.createAnnouncement({
       ...input,

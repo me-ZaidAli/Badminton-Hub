@@ -48,6 +48,36 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
   );
 }
 
+function AdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!user) {
+    setLocation("/login");
+    return null;
+  }
+
+  const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER";
+  if (!isAdmin) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
+        <Component />
+      </main>
+      <MobileNav />
+    </div>
+  );
+}
+
 function Router() {
   return (
     <Switch>
@@ -74,16 +104,16 @@ function Router() {
 
       {/* Admin Routes */}
       <Route path="/admin">
-        <PrivateRoute component={AdminDashboard} />
+        <AdminRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/users">
-        <PrivateRoute component={UserManagement} />
+        <AdminRoute component={UserManagement} />
       </Route>
       <Route path="/admin/financials">
-        <PrivateRoute component={Financials} />
+        <AdminRoute component={Financials} />
       </Route>
       <Route path="/admin/announcements">
-        <PrivateRoute component={Announcements} />
+        <AdminRoute component={Announcements} />
       </Route>
       
       {/* Fallback */}
