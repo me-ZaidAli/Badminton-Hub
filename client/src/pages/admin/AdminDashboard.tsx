@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useUser } from "@/hooks/use-auth";
-import { usePlayers } from "@/hooks/use-players";
+import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +11,14 @@ export default function AdminDashboard() {
   const { data: user } = useUser();
   const { data: players } = usePlayers();
   const { data: sessions } = useSessions();
+  const { data: pendingUsers } = usePendingUsers();
 
   const isOwner = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || isOwner;
 
   const totalPlayers = players?.length || 0;
   const upcomingSessions = sessions?.filter(s => new Date(s.date) >= new Date()).length || 0;
+  const pendingCount = pendingUsers?.length || 0;
 
   return (
     <div className="space-y-8">
@@ -203,6 +205,11 @@ export default function AdminDashboard() {
                   <span className="flex items-center gap-2">
                     <UserCheck className="h-5 w-5 text-cyan-500" />
                     User Approval
+                    {pendingCount > 0 && (
+                      <Badge variant="destructive" className="ml-1 text-xs px-2 py-0.5" data-testid="badge-pending-count">
+                        {pendingCount}
+                      </Badge>
+                    )}
                   </span>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />
                 </CardTitle>

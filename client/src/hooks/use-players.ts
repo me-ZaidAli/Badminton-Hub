@@ -2,6 +2,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 
+export function usePendingUsers() {
+  return useQuery({
+    queryKey: ["/api/admin/pending-users"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/pending-users", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+}
+
 export function usePlayers() {
   return useQuery({
     queryKey: [api.users.list.path],
