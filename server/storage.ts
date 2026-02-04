@@ -45,6 +45,7 @@ export interface IStorage {
     teamBPlayer1: PlayerProfile & { user: User },
     teamBPlayer2: PlayerProfile & { user: User } | null,
   })[]>;
+  getMatch(id: number): Promise<Match | undefined>;
   createMatch(match: any): Promise<Match>; // Simplified type for bulk insert usually
   updateMatch(id: number, updates: Partial<Match>): Promise<Match>;
 
@@ -263,6 +264,11 @@ export class DatabaseStorage implements IStorage {
   async createMatch(match: any): Promise<Match> {
     const [newMatch] = await db.insert(matches).values(match).returning();
     return newMatch;
+  }
+
+  async getMatch(id: number): Promise<Match | undefined> {
+    const [match] = await db.select().from(matches).where(eq(matches.id, id));
+    return match;
   }
 
   async updateMatch(id: number, updates: Partial<Match>): Promise<Match> {

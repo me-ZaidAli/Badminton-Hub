@@ -359,7 +359,16 @@ export async function registerRoutes(
       if (scoreA === undefined || scoreB === undefined) {
         return res.status(400).json({ message: "Scores are required" });
       }
+
+      // Get the match to find its sessionId and courtNumber
+      const currentMatch = await storage.getMatch(matchId);
+      if (!currentMatch) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+
+      const freedCourt = currentMatch.courtNumber;
       
+      // Complete the current match
       const updated = await storage.updateMatch(matchId, {
         status: "COMPLETED",
         scoreA,
@@ -368,6 +377,25 @@ export async function registerRoutes(
         completedAt: new Date(),
         courtNumber: null
       });
+
+      // Auto-progress: Find next queued match and assign to the freed court
+      if (freedCourt && currentMatch.sessionId) {
+        const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+        const queuedMatches = sessionMatches
+          .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
+          .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+        if (queuedMatches.length > 0) {
+          const nextMatch = queuedMatches[0];
+          await storage.updateMatch(nextMatch.id, {
+            status: "LIVE",
+            courtNumber: freedCourt,
+            startedAt: new Date(),
+            queuePosition: null
+          });
+        }
+      }
+
       res.json(updated);
     } catch (err: any) {
       console.error("Error completing match:", err);
@@ -414,9 +442,11 @@ export async function registerRoutes(
       const sessionId = Number(req.params.sessionId);
       const { numberOfMatches, courtsToUse } = req.body;
 
-      // Get all signups (regardless of attendance for now)
+      // Get signups - prefer ATTENDED players, fall back to all if none marked
       const signups = await storage.getSessionSignups(sessionId);
-      const players = signups.map(s => s.player);
+      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= 4 ? attendedSignups : signups;
+      const players = eligibleSignups.map(s => s.player);
 
       if (players.length < 4) {
         return res.status(400).json({ message: "Need at least 4 players to generate matches" });
