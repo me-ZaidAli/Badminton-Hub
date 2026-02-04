@@ -23,11 +23,13 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>; // Using email as username
   createUser(user: InsertUser): Promise<User>;
   getPlayerProfile(userId: number, clubId?: number): Promise<(PlayerProfile & { user: User }) | undefined>;
+  getPlayerProfileById(id: number): Promise<(PlayerProfile & { user: User }) | undefined>;
   getPlayerProfilesByUser(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
   createPlayerProfile(profile: InsertPlayerProfile): Promise<PlayerProfile>;
   getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getAllPlayerProfiles(): Promise<(PlayerProfile & { user: User })[]>;
   getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]>;
+  getSignupsByPlayerId(playerId: number): Promise<(SessionSignup & { session: Session })[]>;
 
   // Sessions
   getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]>;
@@ -235,6 +237,19 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getSignupsByPlayerId(playerId: number): Promise<(SessionSignup & { session: Session })[]> {
+    const signupsList = await db.select()
+      .from(sessionSignups)
+      .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+      .where(eq(sessionSignups.playerId, playerId))
+      .orderBy(desc(sessions.date));
+    
+    return signupsList.map(row => ({
+      ...row.session_signups,
+      session: row.sessions
+    }));
+  }
+
   async getSessionMatches(sessionId: number): Promise<(Match & { 
     teamAPlayer1: PlayerProfile & { user: User },
     teamAPlayer2: PlayerProfile & { user: User } | null,
@@ -272,7 +287,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper for internal use
-  private async getPlayerProfileById(id: number): Promise<(PlayerProfile & { user: User }) | undefined> {
+  async getPlayerProfileById(id: number): Promise<(PlayerProfile & { user: User }) | undefined> {
     const result = await db.select()
       .from(playerProfiles)
       .innerJoin(users, eq(playerProfiles.userId, users.id))

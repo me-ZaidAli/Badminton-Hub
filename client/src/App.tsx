@@ -32,6 +32,7 @@ import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
+import PlayerProfile from "@/pages/admin/PlayerProfile";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -168,6 +169,9 @@ function Router() {
       </Route>
       <Route path="/admin/players">
         <AdminRoute component={PlayerManagement} />
+      </Route>
+      <Route path="/admin/players/:playerId">
+        <AdminRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
         <AdminRoute component={Financials} />

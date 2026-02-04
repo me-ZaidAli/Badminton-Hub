@@ -378,7 +378,10 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updatePayment.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Add role check here (ADMIN+)
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
 
     const status = req.body;
     const updated = await storage.updateSignupStatus(Number(req.params.signupId), status);
@@ -1060,6 +1063,36 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error importing events:", err);
       res.status(500).json({ message: err.message || "Failed to import events" });
+    }
+  });
+
+  // Get player session history with payment info
+  app.get("/api/admin/players/:playerId/sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const playerId = Number(req.params.playerId);
+      const playerProfile = await storage.getPlayerProfileById(playerId);
+      if (!playerProfile) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const signups = await storage.getSignupsByPlayerId(playerId);
+      
+      res.json({
+        player: {
+          ...playerProfile,
+          user: playerProfile.user ? { id: playerProfile.user.id, fullName: playerProfile.user.fullName, email: playerProfile.user.email } : null
+        },
+        signups
+      });
+    } catch (err: any) {
+      console.error("Error fetching player sessions:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch player sessions" });
     }
   });
 
