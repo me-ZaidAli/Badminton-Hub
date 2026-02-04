@@ -67,6 +67,14 @@ Core entities:
 
 ## Recent Changes
 
+### Multi-Club Support (Feb 2026)
+- Added `clubs` table to support multiple badminton clubs
+- Player profiles are now club-specific - one user can have different profiles for different clubs
+- Public leaderboard at `/rankings` accessible without login with club filter dropdown
+- Club selection during registration - new users must select which club to join
+- Admin club management page at `/admin/clubs` for creating and managing clubs (OWNER/ADMIN only)
+- All sessions, memberships, and player profiles are linked to specific clubs
+
 ### Google Calendar Integration (Feb 2026)
 - Added Google Calendar connection via Replit integration
 - New admin page at `/admin/calendar` for importing calendar events as sessions
