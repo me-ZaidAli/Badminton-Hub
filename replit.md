@@ -1,0 +1,92 @@
+# SmashClub - Badminton Club Management System
+
+## Overview
+
+SmashClub is a full-stack web application for managing badminton club operations. It provides session scheduling, player rankings using an Elo rating system, match management, member profiles, and administrative tools. The platform supports different user roles (Owner, Admin, Organiser, Coach, Player) with role-based access control.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React 18 with TypeScript
+- **Routing**: Wouter (lightweight React router)
+- **State Management**: TanStack React Query for server state, local React state for UI
+- **Styling**: Tailwind CSS with CSS variables for theming, shadcn/ui component library (New York style)
+- **Form Handling**: React Hook Form with Zod validation via @hookform/resolvers
+- **Build Tool**: Vite with path aliases (@/ for client/src, @shared/ for shared)
+
+### Backend Architecture
+- **Runtime**: Node.js with Express.js
+- **Language**: TypeScript with ES modules
+- **Authentication**: Passport.js with local strategy, express-session for session management
+- **Password Hashing**: Node.js crypto module (scrypt)
+- **API Design**: REST endpoints defined in shared/routes.ts with Zod schemas for type-safe contracts
+
+### Data Storage
+- **Database**: PostgreSQL
+- **ORM**: Drizzle ORM with drizzle-zod for schema-to-validation integration
+- **Session Store**: connect-pg-simple for persistent sessions in PostgreSQL
+- **Schema Location**: shared/schema.ts contains all table definitions and relations
+
+### Project Structure
+```
+client/           # React frontend
+  src/
+    components/   # UI components (shadcn/ui based)
+    hooks/        # Custom React hooks for data fetching
+    pages/        # Route components
+    lib/          # Utilities (queryClient, utils)
+server/           # Express backend
+  auth.ts         # Passport authentication setup
+  db.ts           # Database connection
+  routes.ts       # API route handlers
+  storage.ts      # Data access layer
+shared/           # Shared between client and server
+  schema.ts       # Drizzle database schema
+  routes.ts       # API contract definitions with Zod
+```
+
+### Key Design Patterns
+- **Shared Types**: Schema and route definitions in shared/ folder ensure type safety across client and server
+- **Storage Abstraction**: IStorage interface in storage.ts abstracts database operations
+- **API Contracts**: Routes defined with method, path, input schema, and response schemas enable type-safe API calls
+- **Role-Based Access**: User roles control access to admin features and certain operations
+
+### Database Schema
+Core entities:
+- **users**: Authentication and profile info with role-based permissions
+- **playerProfiles**: Player-specific data (ranking points, category, gender, membership)
+- **sessions**: Scheduled badminton sessions with capacity limits
+- **sessionSignups**: Player registrations for sessions with payment/attendance tracking
+- **matches**: Individual games with scores and player assignments
+- **announcements**: Club communications with visibility controls
+- **memberships**: Membership tiers with session rates
+
+## External Dependencies
+
+### Database
+- **PostgreSQL**: Primary database, connection via DATABASE_URL environment variable
+- **Drizzle Kit**: Database migrations via `npm run db:push`
+
+### Authentication
+- **express-session**: Session management
+- **connect-pg-simple**: PostgreSQL session store
+- **passport / passport-local**: Username/password authentication
+
+### Frontend Libraries
+- **@tanstack/react-query**: Server state management and caching
+- **date-fns**: Date formatting and manipulation
+- **recharts**: Data visualization for player stats (noted in requirements)
+- **Radix UI primitives**: Accessible component primitives for shadcn/ui
+
+### Build & Development
+- **Vite**: Frontend bundling with HMR
+- **esbuild**: Server bundling for production
+- **tsx**: TypeScript execution for development
+
+### Environment Variables Required
+- `DATABASE_URL`: PostgreSQL connection string
+- `SESSION_SECRET`: Secret for session encryption (defaults to "secret" in development)
