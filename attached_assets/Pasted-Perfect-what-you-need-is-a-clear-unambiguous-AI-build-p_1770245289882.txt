@@ -1,0 +1,206 @@
+Perfect — what you need is a **clear, unambiguous “AI build prompt”** that explains **multi-tenant club logic**, **roles**, and **approval flows**, without the AI accidentally building a single-club app again.
+
+Below is a **copy-paste ready prompt** you can use with an app-builder AI (Cursor, Lovable, Replit, Bolt, etc.). It’s written to avoid ambiguity and force the correct architecture.
+
+---
+
+## AI APP CREATION PROMPT
+
+**Multi-Club Badminton Matchmaking Platform (Commercial SaaS)**
+
+### Core Concept
+
+Create a **multi-tenant badminton club platform** that allows multiple clubs to operate independently inside one system, using **the exact same features, logic, and settings** as the original club (the “template club”).
+
+The platform owner (me) is the **Super Admin**.
+
+---
+
+## Authentication & Entry Flow
+
+### First Page (Mandatory)
+
+* The **first screen must always be a Login / Sign Up page**
+* Options:
+
+  * Sign in
+  * Create account
+
+After login, users are routed based on their club status.
+
+---
+
+## Post-Login Logic
+
+### Case 1: User is NOT part of any club
+
+Show a **Club Gateway Screen** with two options:
+
+1. **Create a Club**
+2. **Request Access to an Existing Club**
+
+User cannot access any club features until one of these is approved.
+
+---
+
+### Case 2: User is already part of a club
+
+* User is taken directly into their **club dashboard**
+* They only see data, sessions, players, rankings, and settings for their own club
+
+---
+
+## Club Creation Flow
+
+When a user selects **Create a Club**:
+
+* They must complete a **Club Application Form**:
+
+  * Club name
+  * Location
+  * Country
+  * Primary contact
+  * Intended use (social / competitive / performance)
+  * Estimated number of players
+
+### Important:
+
+* Club is created in **“Pending Approval”** state
+* Club is NOT active until approved by Super Admin
+
+---
+
+## Super Admin Controls (Platform Owner)
+
+### Admin Panel must include:
+
+* Club Requests Queue
+
+  * View pending club applications
+  * Approve or reject clubs
+* On approval:
+
+  * Club becomes active
+  * Club creator is assigned **Club Admin** role
+  * Club receives a **full cloned copy** of the system configuration
+
+---
+
+## Club Template & Inheritance (CRITICAL)
+
+Every approved club must automatically inherit:
+
+* The **same features**
+* The **same settings**
+* The **same matchmaking logic**
+* The **same ranking system**
+* The **same session booking rules**
+* The **same payment logic**
+* The **same role permissions**
+
+Clubs must operate in **isolated environments**:
+
+* No club can see or access another club’s data
+* Each club has its own:
+
+  * Players
+  * Sessions
+  * Matches
+  * Rankings
+  * Payments
+  * Coaches
+  * Admins
+
+This is a **true multi-tenant SaaS**, not shared data.
+
+---
+
+## Roles & Permissions
+
+### Global Roles
+
+* **Super Admin**
+
+  * Full access to all clubs
+  * Approve/reject clubs
+  * Suspend clubs
+  * Override permissions
+
+### Club-Level Roles
+
+* Club Admin
+* Coach
+* Player
+* Viewer (optional)
+
+Club Admins can:
+
+* Manage users
+* Manage sessions
+* Manage matchmaking
+* Manage rankings
+* Configure club-specific settings (within allowed limits)
+
+---
+
+## Club Access Requests
+
+If a logged-in user selects **Request Access to a Club**:
+
+* They can search for a club
+* Submit an access request
+* Club Admin receives notification
+* Club Admin can approve or reject
+
+Until approved:
+
+* User has **no access** to club data
+
+---
+
+## Platform Behaviour Rules
+
+* One user account can belong to **multiple clubs**, but must switch clubs explicitly
+* All actions are always scoped to the **active club**
+* UI must clearly show which club is currently active
+
+---
+
+## Commercial Readiness
+
+The system must be built so that:
+
+* New clubs can be added indefinitely
+* Clubs can be disabled or suspended by Super Admin
+* Platform can later support:
+
+  * Subscription plans
+  * Per-club billing
+  * Feature tiers
+
+---
+
+## Non-Negotiable Constraints
+
+* Do NOT build this as a single-club app
+* Do NOT hardcode club data
+* Do NOT mix data between clubs
+* All clubs must use the **same base system**
+* First screen must always be login
+
+---
+
+## Goal
+
+This platform is intended to be **commercialised**, allowing badminton clubs to create and run their own matchmaking systems using a proven structure, while remaining fully controlled and governed by the platform owner.
+
+---
+
+If you want, next I can:
+
+* Convert this into a **technical architecture diagram**
+* Add **database schema (tables & relationships)**
+* Write a **separate AI prompt just for UI/UX**
+* Adapt this specifically for **Flutter / React / Supabase / Firebase**
+
+Just tell me what’s next.
