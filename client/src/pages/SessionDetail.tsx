@@ -16,7 +16,7 @@ import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useA
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2 } from "lucide-react";
+import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus } from "lucide-react";
 
 export default function SessionDetail() {
   const params = useParams();
@@ -303,9 +303,33 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signu
   return (
     <div className="space-y-8">
       {isOrganiser && (
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            Using {courtsToUse} of {courtsAvailable} courts
+        <div className="flex justify-between items-center flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Courts:</span>
+            <div className="flex items-center gap-1">
+              <Button 
+                size="icon" 
+                variant="outline" 
+                onClick={() => setCourtsToUse(Math.max(1, courtsToUse - 1))}
+                disabled={courtsToUse <= 1}
+                data-testid="button-decrease-courts"
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+              <Badge variant="secondary" className="text-lg px-4 py-1 min-w-[3rem] justify-center" data-testid="badge-courts-count">
+                {courtsToUse}
+              </Badge>
+              <Button 
+                size="icon" 
+                variant="outline" 
+                onClick={() => setCourtsToUse(Math.min(courtsAvailable, 10, courtsToUse + 1))}
+                disabled={courtsToUse >= Math.min(courtsAvailable, 10)}
+                data-testid="button-increase-courts"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            <span className="text-xs text-muted-foreground">(max {Math.min(courtsAvailable, 10)})</span>
           </div>
           <div className="flex gap-2">
             <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
