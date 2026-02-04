@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRegister } from "@/hooks/use-auth";
+import { useClubs } from "@/hooks/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,11 +16,13 @@ const formSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   gender: z.enum(["MALE", "FEMALE"]),
   category: z.enum(["A", "B", "C", "D"]),
+  clubId: z.string().min(1, "Please select a club"),
 });
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const { mutate: register, isPending } = useRegister();
+  const { data: clubs, isLoading: clubsLoading } = useClubs();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -29,13 +32,32 @@ export default function Register() {
       password: "",
       gender: "MALE",
       category: "D",
+      clubId: "",
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    register({ ...values, email: values.username }, {
-      onSuccess: () => setLocation("/login"), // Or auto login
-    });
+    // Register with clubId - send directly to API
+    fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: values.fullName,
+        email: values.username,
+        password: values.password,
+        gender: values.gender,
+        category: values.category,
+        clubId: Number(values.clubId)
+      }),
+      credentials: "include"
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Registration failed");
+        setLocation("/login");
+      })
+      .catch(err => {
+        console.error(err);
+      });
   }
 
   return (
@@ -122,6 +144,30 @@ export default function Register() {
               </div>
               <FormField
                 control={form.control}
+                name="clubId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Club</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-11" data-testid="select-club">
+                          <SelectValue placeholder={clubsLoading ? "Loading clubs..." : "Choose a club"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {clubs?.map(club => (
+                          <SelectItem key={club.id} value={club.id.toString()}>
+                            {club.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
@@ -133,7 +179,7 @@ export default function Register() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending}>
+              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending || clubsLoading}>
                 {isPending ? "Creating Account..." : "Create Account"}
               </Button>
             </form>

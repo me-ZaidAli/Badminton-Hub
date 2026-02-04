@@ -489,6 +489,28 @@ export async function registerRoutes(
     }
   });
 
+  // === Admin: Club Management ===
+  app.post("/api/admin/clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { name, slug, description } = req.body;
+      if (!name || !slug) {
+        return res.status(400).json({ message: "Name and slug are required" });
+      }
+      
+      const club = await storage.createClub({ name, slug, description, isActive: true });
+      res.status(201).json(club);
+    } catch (err: any) {
+      console.error("Error creating club:", err);
+      res.status(500).json({ message: err.message || "Failed to create club" });
+    }
+  });
+
   // === Google Calendar Integration ===
   app.get("/api/admin/calendar/calendars", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

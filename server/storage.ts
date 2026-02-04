@@ -58,7 +58,7 @@ export interface IStorage {
   // Player Management
   updateUser(id: number, updates: { fullName?: string; email?: string; role?: string; accountStatus?: string }): Promise<User>;
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile>;
-  createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string }): Promise<{ user: User; profile: PlayerProfile }>;
+  createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
 }
 
