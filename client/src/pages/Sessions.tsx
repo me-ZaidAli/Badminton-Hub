@@ -14,8 +14,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin } from "lucide-react";
+import { Plus, Users, MapPin, Calendar } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 // Helper for schema refinement if needed, usually direct import works
 const createSessionSchema = insertSessionSchema.extend({
@@ -26,6 +27,7 @@ const createSessionSchema = insertSessionSchema.extend({
 export default function Sessions() {
   const { data: user } = useUser();
   const { data: sessions, isLoading } = useSessions();
+  const [, setLocation] = useLocation();
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
 
   return (
@@ -33,7 +35,18 @@ export default function Sessions() {
       <PageHeader 
         title="Sessions" 
         description="Book your spot for upcoming games."
-        action={isOrganiser && <CreateSessionDialog />}
+        action={isOrganiser && (
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setLocation("/admin/calendar")}
+              data-testid="button-import-from-calendar"
+            >
+              <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
+            </Button>
+            <CreateSessionDialog />
+          </div>
+        )}
       />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
