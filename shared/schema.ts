@@ -26,18 +26,32 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// === CLUBS ===
+export const clubs = pgTable("clubs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // URL-friendly identifier
+  description: text("description"),
+  logoUrl: text("logo_url"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === MEMBERSHIPS ===
 export const memberships = pgTable("memberships", {
   id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id), // Optional: link to club
   name: text("name").notNull(), // e.g., "Annual", "Drop-in", "Monthly"
   sessionRate: integer("session_rate").notNull(), // in cents
   isDefault: boolean("is_default").default(false).notNull(),
 });
 
 // === PLAYER PROFILES ===
+// Each user can have one profile per club
 export const playerProfiles = pgTable("player_profiles", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
   gender: genderEnum("gender"),
   category: categoryEnum("category").default("D"),
   rankingPoints: integer("ranking_points").default(1000).notNull(),
@@ -49,6 +63,7 @@ export const playerProfiles = pgTable("player_profiles", {
 // === SESSIONS ===
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
   title: text("title").notNull(),
   date: timestamp("date").notNull(),
   startTime: text("start_time").notNull(), // HH:mm
@@ -99,17 +114,24 @@ export const announcements = pgTable("announcements", {
 });
 
 // === RELATIONS ===
-export const usersRelations = relations(users, ({ one }) => ({
-  playerProfile: one(playerProfiles, {
-    fields: [users.id],
-    references: [playerProfiles.userId],
-  }),
+export const clubsRelations = relations(clubs, ({ many }) => ({
+  playerProfiles: many(playerProfiles),
+  sessions: many(sessions),
+  memberships: many(memberships),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  playerProfiles: many(playerProfiles), // User can have profiles in multiple clubs
 }));
 
 export const playerProfilesRelations = relations(playerProfiles, ({ one, many }) => ({
   user: one(users, {
     fields: [playerProfiles.userId],
     references: [users.id],
+  }),
+  club: one(clubs, {
+    fields: [playerProfiles.clubId],
+    references: [clubs.id],
   }),
   membership: one(memberships, {
     fields: [playerProfiles.membershipId],
@@ -122,6 +144,10 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   creator: one(users, {
     fields: [sessions.createdBy],
     references: [users.id],
+  }),
+  club: one(clubs, {
+    fields: [sessions.clubId],
+    references: [clubs.id],
   }),
   signups: many(sessionSignups),
   matches: many(matches),
@@ -151,13 +177,15 @@ export const matchesRelations = relations(matches, ({ one }) => ({
 
 // === SCHEMAS ===
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, emailVerified: true });
-export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, userId: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
+export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
+export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type User = typeof users.$inferSelect;
+export type Club = typeof clubs.$inferSelect;
 export type PlayerProfile = typeof playerProfiles.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionSignup = typeof sessionSignups.$inferSelect;
@@ -166,5 +194,6 @@ export type Announcement = typeof announcements.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;
 export type InsertSession = z.infer<typeof insertSessionSchema>;

@@ -40,12 +40,14 @@ export async function registerRoutes(
 
     await storage.createPlayerProfile({
       userId: admin.id,
+      clubId: 1, // Default club
       gender: "MALE",
       category: "A",
       membershipId: null
     });
 
     await storage.createSession({
+      clubId: 1, // Default club
       title: "Friday Night Social",
       date: new Date(Date.now() + 86400000 * 5), // +5 days
       startTime: "19:00",
@@ -60,6 +62,41 @@ export async function registerRoutes(
     
     console.log("Database seeded!");
   }
+
+  // === PUBLIC: Clubs ===
+  app.get("/api/clubs", async (req, res) => {
+    const clubs = await storage.getClubs();
+    res.json(clubs);
+  });
+
+  app.get("/api/clubs/:id", async (req, res) => {
+    const club = await storage.getClub(Number(req.params.id));
+    if (!club) return res.status(404).json({ message: "Club not found" });
+    res.json(club);
+  });
+
+  app.get("/api/clubs/slug/:slug", async (req, res) => {
+    const club = await storage.getClubBySlug(req.params.slug);
+    if (!club) return res.status(404).json({ message: "Club not found" });
+    res.json(club);
+  });
+
+  // === PUBLIC: Leaderboard (no auth required) ===
+  app.get("/api/leaderboard/:clubId", async (req, res) => {
+    const clubId = Number(req.params.clubId);
+    const leaderboard = await storage.getClubLeaderboard(clubId);
+    // Return public-safe data (no email/password)
+    const safeLeaderboard = leaderboard.map(player => ({
+      id: player.id,
+      fullName: player.user.fullName,
+      gender: player.gender,
+      category: player.category,
+      rankingPoints: player.rankingPoints,
+      matchesPlayed: player.matchesPlayed,
+      matchesWon: player.matchesWon
+    }));
+    res.json(safeLeaderboard);
+  });
 
   // === Users ===
   app.get(api.users.list.path, async (req, res) => {

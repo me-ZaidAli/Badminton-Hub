@@ -1,9 +1,9 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships,
+  users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
-  type Match, type Announcement, type InsertAnnouncement
+  type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub
 } from "@shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -12,14 +12,22 @@ import connectPgSimple from "connect-pg-simple";
 const PgSession = connectPgSimple(session);
 
 export interface IStorage {
+  // Clubs
+  getClubs(): Promise<Club[]>;
+  getClub(id: number): Promise<Club | undefined>;
+  getClubBySlug(slug: string): Promise<Club | undefined>;
+  createClub(club: InsertClub): Promise<Club>;
+  
   // Users & Profiles
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>; // Using email as username
   createUser(user: InsertUser): Promise<User>;
-  getPlayerProfile(userId: number): Promise<(PlayerProfile & { user: User }) | undefined>;
-  createPlayerProfile(profile: InsertPlayerProfile & { userId: number }): Promise<PlayerProfile>;
+  getPlayerProfile(userId: number, clubId?: number): Promise<(PlayerProfile & { user: User }) | undefined>;
+  getPlayerProfilesByUser(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
+  createPlayerProfile(profile: InsertPlayerProfile): Promise<PlayerProfile>;
   getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getAllPlayerProfiles(): Promise<(PlayerProfile & { user: User })[]>;
+  getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]>;
 
   // Sessions
   getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]>;
@@ -61,6 +69,26 @@ export class DatabaseStorage implements IStorage {
     createTableIfMissing: true,
   });
 
+  // Club methods
+  async getClubs(): Promise<Club[]> {
+    return db.select().from(clubs).where(eq(clubs.isActive, true));
+  }
+
+  async getClub(id: number): Promise<Club | undefined> {
+    const [club] = await db.select().from(clubs).where(eq(clubs.id, id));
+    return club;
+  }
+
+  async getClubBySlug(slug: string): Promise<Club | undefined> {
+    const [club] = await db.select().from(clubs).where(eq(clubs.slug, slug));
+    return club;
+  }
+
+  async createClub(club: InsertClub): Promise<Club> {
+    const [newClub] = await db.insert(clubs).values(club).returning();
+    return newClub;
+  }
+
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -76,17 +104,29 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getPlayerProfile(userId: number): Promise<(PlayerProfile & { user: User }) | undefined> {
+  async getPlayerProfile(userId: number, clubId?: number): Promise<(PlayerProfile & { user: User }) | undefined> {
+    const conditions = clubId 
+      ? and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId))
+      : eq(playerProfiles.userId, userId);
+    
     const result = await db.select()
       .from(playerProfiles)
       .innerJoin(users, eq(playerProfiles.userId, users.id))
-      .where(eq(playerProfiles.userId, userId));
+      .where(conditions);
     
     if (result.length === 0) return undefined;
     return { ...result[0].player_profiles, user: result[0].users };
   }
 
-  async createPlayerProfile(profile: InsertPlayerProfile & { userId: number }): Promise<PlayerProfile> {
+  async getPlayerProfilesByUser(userId: number): Promise<(PlayerProfile & { club: Club })[]> {
+    const result = await db.select()
+      .from(playerProfiles)
+      .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+      .where(eq(playerProfiles.userId, userId));
+    return result.map(r => ({ ...r.player_profiles, club: r.clubs }));
+  }
+
+  async createPlayerProfile(profile: InsertPlayerProfile): Promise<PlayerProfile> {
     const [newProfile] = await db.insert(playerProfiles).values(profile).returning();
     return newProfile;
   }
@@ -100,6 +140,15 @@ export class DatabaseStorage implements IStorage {
     const result = await db.select()
       .from(playerProfiles)
       .innerJoin(users, eq(playerProfiles.userId, users.id));
+    return result.map(r => ({ ...r.player_profiles, user: r.users }));
+  }
+
+  async getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]> {
+    const result = await db.select()
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(eq(playerProfiles.clubId, clubId))
+      .orderBy(desc(playerProfiles.rankingPoints));
     return result.map(r => ({ ...r.player_profiles, user: r.users }));
   }
 
@@ -259,10 +308,12 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string }): Promise<{ user: User; profile: PlayerProfile }> {
+  async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }> {
     const [user] = await db.insert(users).values(userData).returning();
+    // Default to club 1 if not specified
     const [profile] = await db.insert(playerProfiles).values({
       userId: user.id,
+      clubId: profileData.clubId || 1,
       gender: profileData.gender as any,
       category: profileData.category as any,
     }).returning();

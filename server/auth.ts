@@ -83,9 +83,10 @@ export function setupAuth(app: Express) {
         emailVerified: false // Default to false as per requirements
       });
 
-      // Create profile automatically
+      // Create profile automatically for the selected club (default to club 1)
       await storage.createPlayerProfile({
         userId: user.id,
+        clubId: req.body.clubId || 1,
         gender: req.body.gender,
         category: req.body.category || "D",
         membershipId: null // No membership by default

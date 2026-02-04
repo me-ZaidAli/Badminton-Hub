@@ -81,6 +81,39 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   );
 }
 
+function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user } = useUser();
+  
+  // Public route - show with sidebar if logged in, otherwise show standalone
+  if (user) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
+          <Component />
+        </main>
+        <MobileNav />
+      </div>
+    );
+  }
+
+  // Not logged in - show standalone page with simple header
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card px-6 py-4 flex justify-between items-center">
+        <a href="/" className="text-xl font-bold text-primary">SmashClub</a>
+        <div className="flex gap-2">
+          <a href="/login" className="px-4 py-2 text-sm font-medium rounded-md hover:bg-muted transition-colors">Login</a>
+          <a href="/register" className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">Register</a>
+        </div>
+      </header>
+      <main className="p-4 md:p-8 max-w-7xl mx-auto">
+        <Component />
+      </main>
+    </div>
+  );
+}
+
 function Router() {
   return (
     <Switch>
@@ -99,7 +132,7 @@ function Router() {
         <PrivateRoute component={SessionDetail} />
       </Route>
       <Route path="/rankings">
-        <PrivateRoute component={Rankings} />
+        <PublicRoute component={Rankings} />
       </Route>
       <Route path="/players">
         <PrivateRoute component={Players} />
