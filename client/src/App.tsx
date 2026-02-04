@@ -18,6 +18,10 @@ import Rankings from "@/pages/Rankings";
 import Players from "@/pages/Players";
 import NotFound from "@/pages/not-found";
 import CreateClub from "@/pages/CreateClub";
+import Clubs from "@/pages/Clubs";
+import JoinClub from "@/pages/JoinClub";
+import ClubAdmin from "@/pages/ClubAdmin";
+import PendingApproval from "@/pages/PendingApproval";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -141,6 +145,18 @@ function Router() {
       </Route>
       <Route path="/create-club">
         <PrivateRoute component={CreateClub} />
+      </Route>
+      <Route path="/clubs">
+        <PublicRoute component={Clubs} />
+      </Route>
+      <Route path="/clubs/:id/join">
+        <PrivateRoute component={JoinClub} />
+      </Route>
+      <Route path="/club-admin">
+        <PrivateRoute component={ClubAdmin} />
+      </Route>
+      <Route path="/pending-approval">
+        <PrivateRoute component={PendingApproval} />
       </Route>
 
       {/* Admin Routes */}

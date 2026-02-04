@@ -5,6 +5,8 @@ import { z } from "zod";
 
 // === ENUMS ===
 export const roleEnum = pgEnum("role", ["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"]);
+export const clubRoleEnum = pgEnum("club_role", ["OWNER", "ADMIN", "PLAYER"]); // Club-scoped roles
+export const membershipStatusEnum = pgEnum("membership_status", ["PENDING", "APPROVED", "REJECTED"]); // Club membership status
 export const genderEnum = pgEnum("gender", ["MALE", "FEMALE"]);
 export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
@@ -54,6 +56,8 @@ export const playerProfiles = pgTable("player_profiles", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
+  clubRole: clubRoleEnum("club_role").default("PLAYER").notNull(), // Role within this club
+  membershipStatus: membershipStatusEnum("membership_status").default("PENDING").notNull(), // Approval status
   gender: genderEnum("gender"),
   category: categoryEnum("category").default("D"),
   rankingPoints: integer("ranking_points").default(1000).notNull(),

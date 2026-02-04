@@ -155,6 +155,19 @@ export class DatabaseStorage implements IStorage {
     return result.map(r => ({ ...r.player_profiles, user: r.users }));
   }
 
+  async getClubMembers(clubId: number): Promise<(PlayerProfile & { user: User })[]> {
+    const result = await db.select()
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(eq(playerProfiles.clubId, clubId));
+    return result.map(r => ({ ...r.player_profiles, user: r.users }));
+  }
+
+  async updatePlayerProfileStatus(profileId: number, updates: { membershipStatus?: string; clubRole?: string }): Promise<PlayerProfile> {
+    const [updated] = await db.update(playerProfiles).set(updates as any).where(eq(playerProfiles.id, profileId)).returning();
+    return updated;
+  }
+
   async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]> {
     // Simple implementation for now, ignoring dates
     const allSessions = await db.select().from(sessions).orderBy(desc(sessions.date));

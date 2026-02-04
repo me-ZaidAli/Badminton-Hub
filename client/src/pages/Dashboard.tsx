@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { format } from "date-fns";
 import { Calendar, Trophy, Zap, Target, TrendingUp, Info, Building2, Plus } from "lucide-react";
 
@@ -14,6 +14,29 @@ export default function Dashboard() {
   const { data: sessions, isLoading } = useSessions();
   const clubId = user?.playerProfile?.clubId;
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(clubId ?? null);
+
+  // Check if user has an approved membership status
+  const playerProfile = user?.playerProfile;
+  const membershipStatus = playerProfile?.membershipStatus;
+  
+  // Redirect pending members to waiting page
+  if (membershipStatus === "PENDING") {
+    return <Redirect to="/pending-approval" />;
+  }
+  
+  // Redirect rejected members to browse clubs
+  if (membershipStatus === "REJECTED") {
+    return <Redirect to="/clubs" />;
+  }
+  
+  // Users without a player profile OR without approved status should browse/create clubs
+  // Only allow APPROVED members to access full dashboard
+  const isApprovedMember = playerProfile && membershipStatus === "APPROVED";
+  
+  // If user has no profile at all, redirect to clubs page to join one
+  if (!playerProfile) {
+    return <Redirect to="/clubs" />;
+  }
 
   const stats = [
     { label: "Matches Played", value: user?.playerProfile?.matchesPlayed || 0, icon: Zap, color: "text-blue-500", bg: "bg-blue-500/10" },

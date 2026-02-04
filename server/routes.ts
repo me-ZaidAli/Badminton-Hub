@@ -137,10 +137,12 @@ export async function registerRoutes(
         isActive: true 
       });
 
-      // Create a player profile for the owner in this club
+      // Create a player profile for the owner in this club with OWNER role and APPROVED status
       await storage.createPlayerProfile({
         userId,
         clubId: club.id,
+        clubRole: "OWNER",
+        membershipStatus: "APPROVED",
         gender: null,
         category: "A",
         membershipId: null
@@ -150,6 +152,52 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error creating club:", err);
       res.status(500).json({ message: err.message || "Failed to create club" });
+    }
+  });
+
+  // === Join Club Request ===
+  app.post("/api/clubs/join", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const { clubId, gender } = req.body;
+      
+      if (!clubId || typeof clubId !== 'number') {
+        return res.status(400).json({ message: "Club ID is required" });
+      }
+
+      // Validate gender if provided
+      if (gender && !["MALE", "FEMALE"].includes(gender)) {
+        return res.status(400).json({ message: "Gender must be MALE or FEMALE" });
+      }
+
+      // Check if club exists
+      const club = await storage.getClub(clubId);
+      if (!club) {
+        return res.status(404).json({ message: "Club not found" });
+      }
+
+      // Check if user already has a profile in this club
+      const existingProfile = await storage.getPlayerProfile(req.user!.id, clubId);
+      if (existingProfile) {
+        return res.status(400).json({ message: "You already have a profile in this club" });
+      }
+
+      // Create pending player profile
+      const profile = await storage.createPlayerProfile({
+        userId: req.user!.id,
+        clubId,
+        clubRole: "PLAYER",
+        membershipStatus: "PENDING",
+        gender: gender || null,
+        category: "D",
+        membershipId: null
+      });
+
+      res.status(201).json(profile);
+    } catch (err: any) {
+      console.error("Error joining club:", err);
+      res.status(500).json({ message: err.message || "Failed to join club" });
     }
   });
 
@@ -877,6 +925,56 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error creating club:", err);
       res.status(500).json({ message: err.message || "Failed to create club" });
+    }
+  });
+
+  // === Club Member Management (for club owners/admins) ===
+  app.get("/api/clubs/:clubId/members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Check if user has admin access to this club
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const members = await storage.getClubMembers(clubId);
+      res.json(members);
+    } catch (err: any) {
+      console.error("Error fetching club members:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch members" });
+    }
+  });
+
+  app.patch("/api/clubs/:clubId/members/:profileId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    const profileId = Number(req.params.profileId);
+    
+    // Check if user has admin access to this club
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { membershipStatus, clubRole } = req.body;
+      
+      // Validate inputs
+      if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
+        return res.status(400).json({ message: "Invalid membership status" });
+      }
+      if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
+        return res.status(400).json({ message: "Invalid club role" });
+      }
+
+      const updated = await storage.updatePlayerProfileStatus(profileId, { membershipStatus, clubRole });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating member:", err);
+      res.status(500).json({ message: err.message || "Failed to update member" });
     }
   });
 

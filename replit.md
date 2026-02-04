@@ -110,6 +110,23 @@ Core entities:
 - API endpoints: POST /api/matches/:id/start, /api/matches/:id/complete, /api/matches/:id/swap-player
 - Role-based access: Match management restricted to OWNER/ADMIN/ORGANISER roles OR club owners
 
+### Club Membership System (Feb 2026)
+- Club-scoped roles: OWNER, ADMIN, PLAYER stored in playerProfiles.clubRole field
+- Membership status: PENDING, APPROVED, REJECTED stored in playerProfiles.membershipStatus field
+- Public clubs browsing page at `/clubs` with search functionality for non-authenticated users
+- Join club workflow: Users can request to join clubs via `/clubs/:id/join` page
+- Club admin panel at `/club-admin` for club owners to:
+  - View pending join requests with approve/reject buttons
+  - Manage approved members and assign club-scoped roles
+  - View rejected members with option to re-approve
+- Sidebar shows "My Club" link for users who own clubs
+- Dashboard redirects pending members to `/pending-approval` waiting page
+- Super admin club management at `/admin/clubs` allows global management of all clubs and members
+- API endpoints:
+  - POST /api/clubs/join - Submit join request to a club
+  - GET /api/clubs/:clubId/members - List all members in a club (admin only)
+  - PATCH /api/clubs/:clubId/members/:profileId - Update member status/role
+
 ## External Dependencies
 
 ### Database

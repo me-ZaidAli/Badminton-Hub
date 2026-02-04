@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
+import { useClubs } from "@/hooks/use-clubs";
 import { 
   Trophy, 
   Calendar, 
@@ -9,7 +10,8 @@ import {
   LogOut, 
   LayoutDashboard,
   ShieldCheck,
-  Activity
+  Activity,
+  Building2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,8 +20,11 @@ export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
+  const { data: clubs } = useClubs();
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "ORGANISER";
+  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
+  const isClubOwner = ownedClubs.length > 0;
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +32,10 @@ export function Sidebar() {
     { href: "/rankings", label: "Rankings", icon: Trophy },
     { href: "/players", label: "Players", icon: Users },
   ];
+
+  if (isClubOwner) {
+    navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
+  }
 
   if (isAdmin) {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
@@ -107,13 +116,20 @@ export function Sidebar() {
 export function MobileNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
+  const { data: clubs } = useClubs();
   const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "ORGANISER";
+  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
+  const isClubOwner = ownedClubs.length > 0;
 
   const navItems = [
     { href: "/dashboard", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
     { href: "/rankings", icon: Trophy },
   ];
+
+  if (isClubOwner) {
+    navItems.push({ href: "/club-admin", icon: Building2 });
+  }
 
   if (isAdmin) {
     navItems.push({ href: "/admin", icon: ShieldCheck });
