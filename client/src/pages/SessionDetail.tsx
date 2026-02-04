@@ -16,7 +16,7 @@ import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useA
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus } from "lucide-react";
+import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle } from "lucide-react";
 
 export default function SessionDetail() {
   const params = useParams();
@@ -127,7 +127,11 @@ export default function SessionDetail() {
               <span className="text-muted-foreground">Capacity</span>
               <span className="font-bold">{signups?.length} / {session.maxPlayers}</span>
             </div>
-            {isSignedUp ? (
+            {session.status === "COMPLETED" ? (
+              <Badge variant="secondary" className="w-full justify-center py-2 text-base">
+                <CheckCircle className="w-4 h-4 mr-2" /> Session Completed
+              </Badge>
+            ) : isSignedUp ? (
               <Button 
                 variant="destructive" 
                 className="w-full" 
@@ -143,6 +147,22 @@ export default function SessionDetail() {
                 disabled={isJoining || (signups?.length || 0) >= session.maxPlayers}
               >
                 {isJoining ? "Joining..." : "Join Session"}
+              </Button>
+            )}
+            {isOrganiser && session.status !== "COMPLETED" && (
+              <Button 
+                variant="outline" 
+                className="w-full mt-3 gap-2" 
+                onClick={() => {
+                  if (confirm("Are you sure you want to finish this session? This will archive all matches.")) {
+                    updateSession({ sessionId: id, updates: { status: "COMPLETED" } });
+                  }
+                }}
+                disabled={isUpdating}
+                data-testid="button-finish-session"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {isUpdating ? "Finishing..." : "Finish Session"}
               </Button>
             )}
           </CardContent>
@@ -275,8 +295,8 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signu
     teamBPlayer2: m.teamBPlayer2,
     scoreA: m.scoreA,
     scoreB: m.scoreB,
-    startedAt: m.startedAt,
-    completedAt: m.completedAt,
+    startedAt: m.startedAt ? (m.startedAt instanceof Date ? m.startedAt.toISOString() : m.startedAt) : null,
+    completedAt: m.completedAt ? (m.completedAt instanceof Date ? m.completedAt.toISOString() : m.completedAt) : null,
     queuePosition: m.queuePosition,
   }));
 

@@ -221,12 +221,13 @@ export async function registerRoutes(
 
     try {
       const sessionId = Number(req.params.id);
-      const { courtsAvailable, maxPlayers, matchMode } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status } = req.body;
 
       const updates: any = {};
       if (courtsAvailable !== undefined) updates.courtsAvailable = courtsAvailable;
       if (maxPlayers !== undefined) updates.maxPlayers = maxPlayers;
       if (matchMode !== undefined) updates.matchMode = matchMode;
+      if (status !== undefined) updates.status = status;
 
       const updated = await storage.updateSession(sessionId, updates);
       res.json(updated);

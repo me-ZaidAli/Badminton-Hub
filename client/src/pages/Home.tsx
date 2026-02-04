@@ -1,13 +1,29 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, Trophy, Users, Calendar } from "lucide-react";
 import { useUser } from "@/hooks/use-auth";
+import { useClubs, useLeaderboard } from "@/hooks/use-clubs";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const { data: user } = useUser();
+  const { data: clubs } = useClubs();
+  const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
+  
+  // Set default club when clubs load (in useEffect to avoid render-time state update)
+  useEffect(() => {
+    if (clubs?.length && !selectedClubId) {
+      setSelectedClubId(clubs[0].id);
+    }
+  }, [clubs, selectedClubId]);
+  
+  const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(selectedClubId);
+  const topPlayers = leaderboard?.slice(0, 10) || [];
 
   if (user) {
-    // Redirect logic handled in App router or component redirect
     window.location.href = "/dashboard";
     return null;
   }
@@ -59,8 +75,101 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Leaderboard Section */}
+        <section className="py-24 bg-muted/30" data-testid="section-leaderboard">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">Club Leaderboard</h2>
+              <p className="text-muted-foreground text-lg">See how players are ranked across our clubs</p>
+            </div>
+            
+            <Card className="overflow-hidden border-border/50" data-testid="card-public-leaderboard">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-amber-500" />
+                    Top Players
+                  </CardTitle>
+                  {clubs && clubs.length > 1 && (
+                    <Select 
+                      value={selectedClubId?.toString() || ""} 
+                      onValueChange={(v) => setSelectedClubId(Number(v))}
+                    >
+                      <SelectTrigger className="w-48" data-testid="select-club">
+                        <SelectValue placeholder="Select Club" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clubs.map(club => (
+                          <SelectItem key={club.id} value={club.id.toString()}>
+                            {club.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <CardDescription>Ranked by Elo points</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="relative bg-green-600 p-6 min-h-[400px]">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[2px] h-full bg-white/30" />
+                  </div>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border-2 border-white/30 pointer-events-none" />
+                  <div className="absolute top-2 bottom-2 left-2 right-2 border-2 border-white/40 pointer-events-none" />
+                  <div className="absolute top-2 bottom-2 left-2 right-[calc(50%-1px)] border-r-0 border-2 border-white/20 pointer-events-none" />
+                  <div className="absolute top-2 bottom-2 right-2 left-[calc(50%+1px)] border-l-0 border-2 border-white/20 pointer-events-none" />
+                  
+                  <div className="relative z-10 flex flex-col items-center gap-2 py-4">
+                    {leaderboardLoading ? (
+                      <div className="text-white/80 text-sm py-8">Loading leaderboard...</div>
+                    ) : topPlayers.length > 0 ? (
+                      topPlayers.map((player, index) => (
+                        <div 
+                          key={player.id} 
+                          className="flex items-center gap-3 bg-background/95 rounded-lg px-4 py-2 shadow-lg w-full max-w-md"
+                          data-testid={`public-leaderboard-player-${player.id}`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            index === 0 ? "bg-amber-500 text-white" : 
+                            index === 1 ? "bg-gray-400 text-white" : 
+                            index === 2 ? "bg-amber-700 text-white" : 
+                            "bg-muted text-muted-foreground"
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">{player.fullName}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs py-0">{player.category || "?"}</Badge>
+                              <span>{player.matchesWon}W / {player.matchesPlayed}P</span>
+                            </div>
+                          </div>
+                          <div className="text-right font-bold text-primary">{player.rankingPoints}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-background/90 rounded-lg px-6 py-8 text-center">
+                        <p className="text-muted-foreground">No players ranked yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <div className="text-center mt-8">
+              <Link href="/rankings">
+                <Button variant="outline" size="lg" className="rounded-full">
+                  View Full Rankings <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* Features */}
-        <section className="py-24 bg-muted/30">
+        <section className="py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid md:grid-cols-3 gap-8">
               <FeatureCard 
