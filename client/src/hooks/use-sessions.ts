@@ -82,6 +82,7 @@ export function useJoinSession() {
     onSuccess: (_, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Joined!", description: "You are signed up for this session." });
     },
     onError: (err) => {
@@ -105,6 +106,7 @@ export function useWithdrawSession() {
     onSuccess: (_, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Withdrawn", description: "You have been removed from the session." });
     },
   });

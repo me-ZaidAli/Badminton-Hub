@@ -123,6 +123,12 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Session full" });
     }
 
+    // Check if already signed up - prevent duplicates
+    const alreadySignedUp = signups.some(s => s.playerId === profile.id);
+    if (alreadySignedUp) {
+      return res.status(400).json({ message: "You are already signed up for this session" });
+    }
+
     // Check category
     if (profile.category && !session.allowedCategories.includes(profile.category)) {
       // Allow anyway if admin? Strict for now.
