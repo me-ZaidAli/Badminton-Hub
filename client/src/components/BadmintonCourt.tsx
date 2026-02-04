@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, Play, Square, Clock, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import courtImage from "@assets/image_1770246183034.png";
 
 type Player = {
   id: number;
@@ -192,15 +193,10 @@ export function BadmintonCourt({
         ) : (
           <>
             <div className="relative">
-              <div className="bg-green-600 p-4 min-h-[180px]">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-[2px] h-full bg-white/30" />
-                </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border-2 border-white/30 pointer-events-none" />
-                <div className="absolute top-2 bottom-2 left-2 right-2 border-2 border-white/40 pointer-events-none" />
-                <div className="absolute top-2 bottom-2 left-2 right-[calc(50%-1px)] border-r-0 border-2 border-white/20 pointer-events-none" />
-                <div className="absolute top-2 bottom-2 right-2 left-[calc(50%+1px)] border-l-0 border-2 border-white/20 pointer-events-none" />
-                
+              <div 
+                className="p-4 min-h-[180px] bg-cover bg-center bg-no-repeat"
+                style={{ backgroundImage: `url(${courtImage})` }}
+              >
                 <div className="relative z-10 flex h-full">
                   <div className="flex-1 flex flex-col justify-around items-center gap-2 px-2">
                     <PlayerSlot
