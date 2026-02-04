@@ -5,7 +5,7 @@ import {
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub
 } from "@shared/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 
@@ -62,6 +62,7 @@ export interface IStorage {
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
+  getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -338,6 +339,24 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(playerProfiles, eq(users.id, playerProfiles.userId))
       .where(eq(users.accountStatus, "PENDING"));
     return result.map(r => ({ ...r.users, playerProfile: r.player_profiles }));
+  }
+
+  async getPlayerMatchHistory(playerProfileId: number): Promise<Match[]> {
+    const result = await db.select()
+      .from(matches)
+      .where(
+        and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, playerProfileId),
+            eq(matches.teamAPlayer2Id, playerProfileId),
+            eq(matches.teamBPlayer1Id, playerProfileId),
+            eq(matches.teamBPlayer2Id, playerProfileId)
+          )
+        )
+      )
+      .orderBy(desc(matches.completedAt));
+    return result;
   }
 }
 

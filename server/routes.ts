@@ -170,6 +170,53 @@ export async function registerRoutes(
     res.json(safeLeaderboard);
   });
 
+  // === Personal Match History (requires auth) ===
+  app.get("/api/personal-ranking/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Get user's player profile for this club
+    const profile = await storage.getPlayerProfile(req.user!.id, clubId);
+    if (!profile) {
+      return res.status(404).json({ message: "No player profile in this club" });
+    }
+
+    // Get match history
+    const matches = await storage.getPlayerMatchHistory(profile.id);
+    
+    // Calculate points for each match (simplified: +10 for wins, -10 for losses)
+    const matchHistory = matches.map(match => {
+      const isTeamA = match.teamAPlayer1Id === profile.id || match.teamAPlayer2Id === profile.id;
+      const won = isTeamA 
+        ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
+        : (match.scoreB ?? 0) > (match.scoreA ?? 0);
+      // Simple point change estimation (actual Elo would be more complex)
+      const pointsChange = won ? 15 : -10;
+      
+      return {
+        id: match.id,
+        completedAt: match.completedAt,
+        scoreA: match.scoreA,
+        scoreB: match.scoreB,
+        isTeamA,
+        won,
+        pointsChange
+      };
+    });
+
+    res.json({
+      profile: {
+        id: profile.id,
+        fullName: profile.user.fullName,
+        rankingPoints: profile.rankingPoints,
+        matchesPlayed: profile.matchesPlayed,
+        matchesWon: profile.matchesWon,
+        category: profile.category
+      },
+      matchHistory
+    });
+  });
+
   // === Users ===
   app.get(api.users.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

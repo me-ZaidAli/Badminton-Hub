@@ -58,3 +58,43 @@ export function useCreateClub() {
     },
   });
 }
+
+export type PersonalMatchHistory = {
+  id: number;
+  completedAt: string | null;
+  scoreA: number | null;
+  scoreB: number | null;
+  isTeamA: boolean;
+  won: boolean;
+  pointsChange: number;
+};
+
+export type PersonalRankingData = {
+  profile: {
+    id: number;
+    fullName: string;
+    rankingPoints: number;
+    matchesPlayed: number;
+    matchesWon: number;
+    category: string | null;
+  };
+  matchHistory: PersonalMatchHistory[];
+};
+
+export function usePersonalRanking(clubId: number | null) {
+  return useQuery<PersonalRankingData>({
+    queryKey: ["/api/personal-ranking", clubId],
+    queryFn: async () => {
+      const res = await fetch(`/api/personal-ranking/${clubId}`, {
+        credentials: "include"
+      });
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Please log in to view personal ranking");
+        if (res.status === 404) throw new Error("No profile in this club");
+        throw new Error("Failed to fetch personal ranking");
+      }
+      return res.json();
+    },
+    enabled: clubId !== null,
+  });
+}
