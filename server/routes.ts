@@ -7,6 +7,7 @@ import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
+import { listCalendars, listUpcomingEvents } from "./google-calendar";
 
 const scryptAsync = promisify(scrypt);
 
@@ -342,6 +343,85 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error updating player:", err);
       res.status(500).json({ message: "Failed to update player" });
+    }
+  });
+
+  // === Google Calendar Integration ===
+  app.get("/api/admin/calendar/calendars", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const calendars = await listCalendars();
+      res.json(calendars);
+    } catch (err: any) {
+      console.error("Error fetching calendars:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch calendars" });
+    }
+  });
+
+  app.get("/api/admin/calendar/events", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const calendarId = (req.query.calendarId as string) || "primary";
+      const events = await listUpcomingEvents(calendarId, 50);
+      res.json(events);
+    } catch (err: any) {
+      console.error("Error fetching events:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch events" });
+    }
+  });
+
+  app.post("/api/admin/calendar/import", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { events, settings } = req.body;
+      // events: array of CalendarEvent
+      // settings: { maxPlayers, courtsAvailable, matchMode, allowedCategories }
+      
+      const createdSessions = [];
+      for (const event of events) {
+        const startDate = new Date(event.start);
+        const endDate = new Date(event.end);
+        const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+        
+        // Format time as HH:mm
+        const hours = startDate.getHours().toString().padStart(2, '0');
+        const minutes = startDate.getMinutes().toString().padStart(2, '0');
+        const startTime = `${hours}:${minutes}`;
+
+        const session = await storage.createSession({
+          title: event.summary,
+          date: startDate,
+          startTime,
+          durationMinutes: durationMinutes > 0 ? durationMinutes : 120,
+          maxPlayers: settings?.maxPlayers || 24,
+          courtsAvailable: settings?.courtsAvailable || 4,
+          allowedCategories: settings?.allowedCategories || ["A", "B", "C", "D"],
+          matchMode: settings?.matchMode || "SOCIAL",
+          isPrivate: false,
+          createdBy: req.user!.id
+        });
+        createdSessions.push(session);
+      }
+      
+      res.status(201).json({ imported: createdSessions.length, sessions: createdSessions });
+    } catch (err: any) {
+      console.error("Error importing events:", err);
+      res.status(500).json({ message: err.message || "Failed to import events" });
     }
   });
 

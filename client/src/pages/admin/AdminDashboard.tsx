@@ -5,7 +5,7 @@ import { useSessions } from "@/hooks/use-sessions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus } from "lucide-react";
 
 export default function AdminDashboard() {
   const { data: user } = useUser();
@@ -175,6 +175,25 @@ export default function AdminDashboard() {
             </Link>
           </Card>
         )}
+
+        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-calendar-import">
+          <Link href="/admin/calendar">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CalendarPlus className="h-5 w-5 text-teal-500" />
+                  Calendar Import
+                </span>
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Import sessions from Google Calendar automatically.
+              </p>
+            </CardContent>
+          </Link>
+        </Card>
       </div>
     </div>
   );
