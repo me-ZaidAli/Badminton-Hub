@@ -17,6 +17,7 @@ import SessionDetail from "@/pages/SessionDetail";
 import Rankings from "@/pages/Rankings";
 import Players from "@/pages/Players";
 import NotFound from "@/pages/not-found";
+import CreateClub from "@/pages/CreateClub";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -137,6 +138,9 @@ function Router() {
       </Route>
       <Route path="/players">
         <PrivateRoute component={Players} />
+      </Route>
+      <Route path="/create-club">
+        <PrivateRoute component={CreateClub} />
       </Route>
 
       {/* Admin Routes */}

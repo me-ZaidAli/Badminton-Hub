@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Club } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function useClubs() {
   return useQuery<Club[]>({
@@ -43,5 +44,17 @@ export function useLeaderboard(clubId: number | null) {
       return res.json();
     },
     enabled: clubId !== null,
+  });
+}
+
+export function useCreateClub() {
+  return useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      const res = await apiRequest("POST", "/api/clubs", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs"] });
+    },
   });
 }

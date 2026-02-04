@@ -81,6 +81,50 @@ export async function registerRoutes(
     res.json(club);
   });
 
+  // === Create Club (any authenticated user) ===
+  app.post("/api/clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const { name, description } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Club name is required" });
+      }
+
+      // Generate slug from name
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      
+      // Check if slug already exists
+      const existingClub = await storage.getClubBySlug(slug);
+      if (existingClub) {
+        return res.status(400).json({ message: "A club with a similar name already exists" });
+      }
+
+      const userId = req.user!.id;
+      const club = await storage.createClub({ 
+        name, 
+        slug, 
+        description: description || null,
+        ownerId: userId,
+        isActive: true 
+      });
+
+      // Create a player profile for the owner in this club
+      await storage.createPlayerProfile({
+        userId,
+        clubId: club.id,
+        gender: null,
+        category: "A",
+        membershipId: null
+      });
+
+      res.status(201).json(club);
+    } catch (err: any) {
+      console.error("Error creating club:", err);
+      res.status(500).json({ message: err.message || "Failed to create club" });
+    }
+  });
+
   // === PUBLIC: Leaderboard (no auth required) ===
   app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);

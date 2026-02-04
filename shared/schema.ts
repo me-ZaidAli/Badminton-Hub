@@ -34,6 +34,7 @@ export const clubs = pgTable("clubs", {
   slug: text("slug").notNull().unique(), // URL-friendly identifier
   description: text("description"),
   logoUrl: text("logo_url"),
+  ownerId: integer("owner_id").references(() => users.id), // User who created/owns this club
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

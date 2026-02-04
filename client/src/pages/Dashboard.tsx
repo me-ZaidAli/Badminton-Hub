@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { Calendar, Trophy, Zap, Target, TrendingUp, Info } from "lucide-react";
+import { Calendar, Trophy, Zap, Target, TrendingUp, Info, Building2, Plus } from "lucide-react";
 
 export default function Dashboard() {
   const { data: user } = useUser();
@@ -207,6 +207,27 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Create Your Own Club */}
+      <Card className="border-border/50 bg-gradient-to-r from-primary/5 to-primary/10" data-testid="card-create-club">
+        <CardContent className="p-6 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/20 rounded-xl">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">Start Your Own Club</h3>
+              <p className="text-sm text-muted-foreground">Create a badminton club and invite players to join</p>
+            </div>
+          </div>
+          <Link href="/create-club">
+            <Button data-testid="button-create-club">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Club
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }
