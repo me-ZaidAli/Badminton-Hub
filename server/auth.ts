@@ -45,13 +45,9 @@ export function setupAuth(app: Express) {
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false, { message: "Invalid email or password" });
         }
-        // Check account status
-        if (user.accountStatus === "PENDING") {
-          return done(null, false, { message: "Your account is pending approval" });
-        }
-        if (user.accountStatus === "REJECTED") {
-          return done(null, false, { message: "Your account has been rejected" });
-        }
+        // Note: We now use club-specific membership approval (playerProfiles.membershipStatus)
+        // instead of global account status. Login is allowed, but dashboard access is 
+        // controlled by club membership status.
         return done(null, user);
       } catch (err) {
         return done(err);
