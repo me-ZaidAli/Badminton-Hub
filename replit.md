@@ -81,6 +81,18 @@ Core entities:
 - Admins can select a calendar, preview upcoming events, and import selected events with configurable session settings (max players, courts, match mode)
 - Backend endpoints with role-based access control (OWNER/ADMIN/ORGANISER only)
 
+### Match Management System (Feb 2026)
+- Visual badminton court component displaying 2v2 player positions with court markings
+- Match lifecycle: QUEUED → LIVE (with timer) → COMPLETED (archived)
+- Live match timer showing elapsed time (minutes:seconds) calculated from startedAt timestamp
+- Match queue system supporting up to 8 queued matches with dynamic court assignment (max 10 courts)
+- Auto-generate matches feature with configurable court count and match quantity
+- Player swap functionality via dropdown for both queued and live matches
+- Auto-progression: when completing a match, the next queued match automatically moves to the freed court
+- Match completion flow with score entry dialog and automatic archiving
+- API endpoints: POST /api/matches/:id/start, /api/matches/:id/complete, /api/matches/:id/swap-player
+- Role-based access: Match management restricted to OWNER/ADMIN/ORGANISER roles
+
 ## External Dependencies
 
 ### Database
