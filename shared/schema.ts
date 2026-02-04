@@ -10,6 +10,7 @@ export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["ATTENDED", "NOT_ATTENDED"]);
 export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL"]);
+export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED"]);
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED"]);
 
@@ -92,7 +93,9 @@ export const sessionSignups = pgTable("session_signups", {
 export const matches = pgTable("matches", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").references(() => sessions.id).notNull(),
-  courtNumber: integer("court_number").notNull(),
+  courtNumber: integer("court_number"), // Null when queued, assigned when live
+  queuePosition: integer("queue_position"), // Position in queue, null when live/completed
+  status: matchStatusEnum("status").default("QUEUED").notNull(),
   teamAPlayer1Id: integer("team_a_player_1_id").references(() => playerProfiles.id).notNull(),
   teamAPlayer2Id: integer("team_a_player_2_id").references(() => playerProfiles.id), // Nullable for singles
   teamBPlayer1Id: integer("team_b_player_1_id").references(() => playerProfiles.id).notNull(),
@@ -100,6 +103,8 @@ export const matches = pgTable("matches", {
   scoreA: integer("score_a").default(0),
   scoreB: integer("score_b").default(0),
   isCompleted: boolean("is_completed").default(false).notNull(),
+  startedAt: timestamp("started_at"), // When match went live
+  completedAt: timestamp("completed_at"), // When match was completed
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -55,8 +55,90 @@ export function useUpdateMatch() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
-      // We don't have sessionId directly in the response to invalidate efficiently without fetching,
-      // but query key structure allows fuzzy invalidation if needed.
+    },
+  });
+}
+
+export function useStartMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, courtNumber }: { matchId: number; courtNumber: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to start match");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Started", description: "Timer is now running." });
+    },
+  });
+}
+
+export function useCompleteMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: number; scoreA: number; scoreB: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scoreA, scoreB }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to complete match");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Completed", description: "Scores have been recorded." });
+    },
+  });
+}
+
+export function useSwapPlayer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, position, newPlayerId }: { matchId: number; position: string; newPlayerId: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/swap-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position, newPlayerId }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to swap player");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Player Swapped", description: "Match lineup updated." });
+    },
+  });
+}
+
+export function useAutoGenerateMatches() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, numberOfMatches, courtsToUse }: { sessionId: number; numberOfMatches: number; courtsToUse: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/auto-generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numberOfMatches, courtsToUse }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to generate matches");
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      toast({ title: "Matches Generated", description: "New matches added to queue." });
     },
   });
 }

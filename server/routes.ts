@@ -320,6 +320,150 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // === Match Management Endpoints ===
+  app.post("/api/matches/:id/start", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const matchId = Number(req.params.id);
+      const { courtNumber } = req.body;
+      
+      const updated = await storage.updateMatch(matchId, {
+        status: "LIVE",
+        courtNumber,
+        startedAt: new Date(),
+        queuePosition: null
+      });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error starting match:", err);
+      res.status(500).json({ message: err.message || "Failed to start match" });
+    }
+  });
+
+  app.post("/api/matches/:id/complete", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const matchId = Number(req.params.id);
+      const { scoreA, scoreB } = req.body;
+
+      if (scoreA === undefined || scoreB === undefined) {
+        return res.status(400).json({ message: "Scores are required" });
+      }
+      
+      const updated = await storage.updateMatch(matchId, {
+        status: "COMPLETED",
+        scoreA,
+        scoreB,
+        isCompleted: true,
+        completedAt: new Date(),
+        courtNumber: null
+      });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error completing match:", err);
+      res.status(500).json({ message: err.message || "Failed to complete match" });
+    }
+  });
+
+  app.post("/api/matches/:id/swap-player", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const matchId = Number(req.params.id);
+      const { position, newPlayerId } = req.body;
+
+      if (!position || !newPlayerId) {
+        return res.status(400).json({ message: "Position and newPlayerId are required" });
+      }
+
+      const validPositions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"];
+      if (!validPositions.includes(position)) {
+        return res.status(400).json({ message: "Invalid position" });
+      }
+
+      const updated = await storage.updateMatch(matchId, { [position]: newPlayerId });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error swapping player:", err);
+      res.status(500).json({ message: err.message || "Failed to swap player" });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/matches/auto-generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { numberOfMatches, courtsToUse } = req.body;
+
+      // Get all signups (regardless of attendance for now)
+      const signups = await storage.getSessionSignups(sessionId);
+      const players = signups.map(s => s.player);
+
+      if (players.length < 4) {
+        return res.status(400).json({ message: "Need at least 4 players to generate matches" });
+      }
+
+      // Get existing queued matches to determine next queue position
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const maxQueuePos = Math.max(0, ...existingMatches
+        .filter(m => m.queuePosition !== null)
+        .map(m => m.queuePosition || 0));
+
+      // Generate matches using round-robin style pairing
+      const shuffled = [...players].sort(() => 0.5 - Math.random());
+      const generatedMatches = [];
+      const matchCount = Math.min(numberOfMatches || 8, Math.floor(shuffled.length / 4) * 2);
+
+      for (let i = 0; i < matchCount; i++) {
+        // Rotate players for variety
+        const offset = (i * 2) % shuffled.length;
+        const p1 = shuffled[offset % shuffled.length];
+        const p2 = shuffled[(offset + 1) % shuffled.length];
+        const p3 = shuffled[(offset + 2) % shuffled.length];
+        const p4 = shuffled[(offset + 3) % shuffled.length];
+
+        generatedMatches.push({
+          sessionId,
+          courtNumber: null,
+          queuePosition: maxQueuePos + i + 1,
+          status: "QUEUED" as const,
+          teamAPlayer1Id: p1.id,
+          teamAPlayer2Id: p2.id,
+          teamBPlayer1Id: p3.id,
+          teamBPlayer2Id: p4.id,
+          scoreA: 0,
+          scoreB: 0,
+          isCompleted: false
+        });
+      }
+
+      const createdMatches = await Promise.all(generatedMatches.map(m => storage.createMatch(m)));
+      res.status(201).json(createdMatches);
+    } catch (err: any) {
+      console.error("Error auto-generating matches:", err);
+      res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
   // === Announcements ===
   app.get(api.announcements.list.path, async (req, res) => {
     const announcements = await storage.getAnnouncements();

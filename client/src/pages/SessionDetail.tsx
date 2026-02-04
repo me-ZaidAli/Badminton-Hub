@@ -10,9 +10,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSessionMatches, useGenerateMatches } from "@/hooks/use-matches";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches } from "@/hooks/use-matches";
+import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
+import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy, UserPlus, X } from "lucide-react";
+import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2 } from "lucide-react";
 
 export default function SessionDetail() {
   const params = useParams();
@@ -182,72 +186,172 @@ export default function SessionDetail() {
         </TabsContent>
 
         <TabsContent value="matches" className="mt-6">
-          <MatchesView sessionId={id} isOrganiser={isOrganiser} matchMode={session.matchMode} />
+          <MatchesView 
+            sessionId={id} 
+            isOrganiser={isOrganiser} 
+            matchMode={session.matchMode} 
+            courtsAvailable={session.courtsAvailable}
+            signups={signups || []}
+          />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, matchMode }: { sessionId: number, isOrganiser: boolean, matchMode: "COMPETITIVE" | "SOCIAL" }) {
+function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signups }: { 
+  sessionId: number; 
+  isOrganiser: boolean; 
+  matchMode: "COMPETITIVE" | "SOCIAL";
+  courtsAvailable: number;
+  signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];
+}) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
-  const { mutate: generate, isPending: isGenerating } = useGenerateMatches();
+  const { mutate: startMatch } = useStartMatch();
+  const { mutate: completeMatch } = useCompleteMatch();
+  const { mutate: swapPlayer } = useSwapPlayer();
+  const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();
+
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
+  const [matchesToGenerate, setMatchesToGenerate] = useState(8);
 
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
+  // Transform matches to CourtMatch type
+  const typedMatches: CourtMatch[] = (matches || []).map(m => ({
+    id: m.id,
+    courtNumber: m.courtNumber,
+    status: (m.status as "QUEUED" | "LIVE" | "COMPLETED") || (m.isCompleted ? "COMPLETED" : "QUEUED"),
+    teamAPlayer1: m.teamAPlayer1,
+    teamAPlayer2: m.teamAPlayer2,
+    teamBPlayer1: m.teamBPlayer1,
+    teamBPlayer2: m.teamBPlayer2,
+    scoreA: m.scoreA,
+    scoreB: m.scoreB,
+    startedAt: m.startedAt,
+    completedAt: m.completedAt,
+    queuePosition: m.queuePosition,
+  }));
+
+  // Get live matches assigned to courts
+  const liveMatches = typedMatches.filter(m => m.status === "LIVE");
+  
+  // Available courts (not currently occupied)
+  const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
+  const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
+    .filter(c => !occupiedCourts.has(c));
+
+  // Available players for swapping (those signed up)
+  const availablePlayers = signups.map(s => ({
+    id: s.player.id,
+    fullName: s.player.user.fullName,
+    category: s.player.category,
+  }));
+
+  const handleGenerate = () => {
+    autoGenerate({ sessionId, numberOfMatches: matchesToGenerate, courtsToUse });
+    setShowGenerateDialog(false);
+  };
+
   return (
-    <div>
+    <div className="space-y-8">
       {isOrganiser && (
-        <div className="mb-6 flex justify-end">
-          <Button 
-            onClick={() => generate({ sessionId, mode: matchMode })} 
-            disabled={isGenerating}
-            className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-          >
-            {isGenerating ? "Generating..." : "Generate Next Round"}
-          </Button>
-        </div>
-      )}
-
-      {!matches || matches.length === 0 ? (
-        <div className="text-center py-12 border border-dashed rounded-xl">
-          <p className="text-muted-foreground">No matches generated yet.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {matches.map((match) => (
-            <Card key={match.id} className="overflow-hidden border-border/60">
-              <div className="bg-muted/40 p-2 text-center text-sm font-medium border-b border-border/60">
-                Court {match.courtNumber}
-              </div>
-              <CardContent className="p-0">
-                <div className="flex items-stretch">
-                  {/* Team A */}
-                  <div className="flex-1 p-4 border-r border-border/40">
-                    <div className="space-y-2 mb-4">
-                      <div className="font-semibold text-sm">{match.teamAPlayer1.user.fullName}</div>
-                      {match.teamAPlayer2 && <div className="font-semibold text-sm">{match.teamAPlayer2.user.fullName}</div>}
-                    </div>
-                    <div className="text-3xl font-bold font-display text-center text-primary">{match.scoreA || 0}</div>
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            Using {courtsToUse} of {courtsAvailable} courts
+          </div>
+          <div className="flex gap-2">
+            <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" data-testid="button-generate-matches">
+                  <Shuffle className="w-4 h-4" />
+                  Generate Matches
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Generate Matches</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <Label>Number of Courts to Use (max {courtsAvailable})</Label>
+                    <Input 
+                      type="number" 
+                      min={1} 
+                      max={Math.min(courtsAvailable, 10)}
+                      value={courtsToUse}
+                      onChange={(e) => setCourtsToUse(Math.min(Number(e.target.value), courtsAvailable, 10))}
+                      className="mt-2"
+                      data-testid="input-courts-to-use"
+                    />
                   </div>
-
-                  {/* VS */}
-                  <div className="flex items-center justify-center px-2 bg-muted/10 text-xs font-bold text-muted-foreground">VS</div>
-
-                  {/* Team B */}
-                  <div className="flex-1 p-4">
-                    <div className="space-y-2 mb-4 text-right">
-                      <div className="font-semibold text-sm">{match.teamBPlayer1.user.fullName}</div>
-                      {match.teamBPlayer2 && <div className="font-semibold text-sm">{match.teamBPlayer2.user.fullName}</div>}
-                    </div>
-                    <div className="text-3xl font-bold font-display text-center text-secondary">{match.scoreB || 0}</div>
+                  <div>
+                    <Label>Number of Matches to Queue (max 8)</Label>
+                    <Input 
+                      type="number" 
+                      min={1} 
+                      max={8}
+                      value={matchesToGenerate}
+                      onChange={(e) => setMatchesToGenerate(Math.min(Number(e.target.value), 8))}
+                      className="mt-2"
+                      data-testid="input-matches-to-generate"
+                    />
                   </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    data-testid="button-confirm-generate"
+                  >
+                    {isGenerating ? "Generating..." : "Generate Matches"}
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       )}
+
+      {/* Live Courts */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Trophy className="w-5 h-5 text-primary" />
+          Live Courts
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
+            const match = liveMatches.find(m => m.courtNumber === courtNum) || 
+                         (availableCourts.includes(courtNum) ? null : null);
+            return (
+              <BadmintonCourt
+                key={courtNum}
+                courtNumber={courtNum}
+                match={match}
+                availablePlayers={availablePlayers}
+                isOrganiser={isOrganiser}
+                onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
+                onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+                onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Match Queue */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MatchQueue
+          matches={typedMatches}
+          availablePlayers={availablePlayers}
+          isOrganiser={isOrganiser}
+          onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+          onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+          availableCourts={availableCourts}
+        />
+        
+        <CompletedMatches matches={typedMatches} />
+      </div>
     </div>
   );
 }
