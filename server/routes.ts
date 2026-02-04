@@ -1020,9 +1020,14 @@ export async function registerRoutes(
     }
 
     try {
-      const { events, settings } = req.body;
-      // events: array of CalendarEvent
-      // settings: { maxPlayers, courtsAvailable, matchMode, allowedCategories }
+      const { events } = req.body;
+      
+      // Get user's club from their player profile
+      const playerProfile = await storage.getPlayerProfileByUserId(req.user!.id);
+      if (!playerProfile) {
+        return res.status(400).json({ message: "You must be a member of a club to import sessions" });
+      }
+      const clubId = playerProfile.clubId;
       
       const createdSessions = [];
       for (const event of events) {
@@ -1040,12 +1045,13 @@ export async function registerRoutes(
           date: startDate,
           startTime,
           durationMinutes: durationMinutes > 0 ? durationMinutes : 120,
-          maxPlayers: settings?.maxPlayers || 24,
-          courtsAvailable: settings?.courtsAvailable || 4,
-          allowedCategories: settings?.allowedCategories || ["A", "B", "C", "D"],
-          matchMode: settings?.matchMode || "SOCIAL",
+          maxPlayers: 24,
+          courtsAvailable: 4,
+          allowedCategories: ["A", "B", "C", "D"],
+          matchMode: "SOCIAL",
           isPrivate: false,
-          createdBy: req.user!.id
+          createdBy: req.user!.id,
+          clubId: clubId
         });
         createdSessions.push(session);
       }
