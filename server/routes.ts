@@ -17,6 +17,20 @@ async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
+// Helper to check if user has admin access (global role OR club owner)
+async function hasAdminAccess(userId: number, userRole: string, clubId?: number): Promise<boolean> {
+  if (["OWNER", "ADMIN", "ORGANISER"].includes(userRole)) {
+    return true;
+  }
+  if (clubId) {
+    const club = await storage.getClub(clubId);
+    if (club && club.ownerId === userId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -87,24 +101,38 @@ export async function registerRoutes(
 
     try {
       const { name, description } = req.body;
-      if (!name) {
+      
+      // Validate name
+      if (!name || typeof name !== 'string') {
         return res.status(400).json({ message: "Club name is required" });
       }
+      const trimmedName = name.trim();
+      if (trimmedName.length < 3 || trimmedName.length > 50) {
+        return res.status(400).json({ message: "Club name must be between 3 and 50 characters" });
+      }
 
-      // Generate slug from name
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      // Generate base slug from name
+      let baseSlug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      if (!baseSlug || baseSlug.length < 2) {
+        baseSlug = 'club';
+      }
       
-      // Check if slug already exists
-      const existingClub = await storage.getClubBySlug(slug);
-      if (existingClub) {
-        return res.status(400).json({ message: "A club with a similar name already exists" });
+      // Generate unique slug with suffix if needed
+      let slug = baseSlug;
+      let suffix = 1;
+      while (await storage.getClubBySlug(slug)) {
+        slug = `${baseSlug}-${suffix}`;
+        suffix++;
+        if (suffix > 100) {
+          return res.status(400).json({ message: "Could not generate unique slug" });
+        }
       }
 
       const userId = req.user!.id;
       const club = await storage.createClub({ 
-        name, 
+        name: trimmedName, 
         slug, 
-        description: description || null,
+        description: description?.trim() || null,
         ownerId: userId,
         isActive: true 
       });
@@ -171,6 +199,13 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const input = api.sessions.create.input.parse(req.body);
+      
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, input.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
       const session = await storage.createSession({ 
         ...input, 
         createdBy: req.user!.id 
@@ -258,13 +293,18 @@ export async function registerRoutes(
   // Update session settings (courts, max players, etc.)
   app.patch("/api/sessions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
       const { courtsAvailable, maxPlayers, matchMode, status } = req.body;
 
       const updates: any = {};
@@ -284,10 +324,6 @@ export async function registerRoutes(
   // Admin: Add player to session
   app.post("/api/admin/sessions/:id/players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const sessionId = Number(req.params.id);
@@ -295,6 +331,12 @@ export async function registerRoutes(
       
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
 
       // Check if already signed up
       const signups = await storage.getSessionSignups(sessionId);
@@ -318,14 +360,19 @@ export async function registerRoutes(
   // Admin: Remove player from session
   app.delete("/api/admin/sessions/:id/players/:playerId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const sessionId = Number(req.params.id);
       const playerId = Number(req.params.playerId);
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
       
       await storage.deleteSessionSignup(sessionId, playerId);
       res.sendStatus(200);
@@ -393,13 +440,22 @@ export async function registerRoutes(
   // === Match Management Endpoints ===
   app.post("/api/matches/:id/start", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const matchId = Number(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      // Get session to check club ownership
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
       const { courtNumber } = req.body;
       
       const updated = await storage.updateMatch(matchId, {
@@ -417,10 +473,6 @@ export async function registerRoutes(
 
   app.post("/api/matches/:id/complete", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const matchId = Number(req.params.id);
@@ -434,6 +486,16 @@ export async function registerRoutes(
       const currentMatch = await storage.getMatch(matchId);
       if (!currentMatch) {
         return res.status(404).json({ message: "Match not found" });
+      }
+
+      // Get session to check club ownership
+      const session = await storage.getSession(currentMatch.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
       }
 
       const freedCourt = currentMatch.courtNumber;
@@ -475,10 +537,6 @@ export async function registerRoutes(
 
   app.post("/api/matches/:id/swap-player", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const matchId = Number(req.params.id);
@@ -486,6 +544,19 @@ export async function registerRoutes(
 
       if (!position || !newPlayerId) {
         return res.status(400).json({ message: "Position and newPlayerId are required" });
+      }
+
+      // Get match and session for permission check
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
       }
 
       const validPositions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"];
@@ -503,13 +574,20 @@ export async function registerRoutes(
 
   app.post("/api/sessions/:sessionId/matches/auto-generate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
 
     try {
       const sessionId = Number(req.params.sessionId);
+      
+      // Get session first to check permissions
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
       const { numberOfMatches, courtsToUse } = req.body;
 
       // Get signups - prefer ATTENDED players, fall back to all if none marked

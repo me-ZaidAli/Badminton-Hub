@@ -81,6 +81,15 @@ Core entities:
 - Admins can select a calendar, preview upcoming events, and import selected events with configurable session settings (max players, courts, match mode)
 - Backend endpoints with role-based access control (OWNER/ADMIN/ORGANISER only)
 
+### User Club Creation (Feb 2026)
+- Any authenticated user can create their own badminton club via POST /api/clubs
+- Club creators become the owner (tracked via `clubs.ownerId` field)
+- Auto-generates unique URL slug from club name (with suffix if duplicate)
+- Auto-creates player profile for owner in new club
+- Club owners have admin access to manage their clubs (sessions, matches, players) via `hasAdminAccess` helper
+- "Create Club" page at `/create-club` with form validation
+- "Start Your Own Club" card on Dashboard linking to creation page
+
 ### Match Management System (Feb 2026)
 - Visual badminton court component displaying 2v2 player positions with court markings
 - Match lifecycle: QUEUED → LIVE (with timer) → COMPLETED (archived)
@@ -91,7 +100,7 @@ Core entities:
 - Auto-progression: when completing a match, the next queued match automatically moves to the freed court
 - Match completion flow with score entry dialog and automatic archiving
 - API endpoints: POST /api/matches/:id/start, /api/matches/:id/complete, /api/matches/:id/swap-player
-- Role-based access: Match management restricted to OWNER/ADMIN/ORGANISER roles
+- Role-based access: Match management restricted to OWNER/ADMIN/ORGANISER roles OR club owners
 
 ## External Dependencies
 
