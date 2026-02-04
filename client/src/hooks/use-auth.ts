@@ -30,8 +30,9 @@ export function useLogin() {
       }
       return api.auth.login.responses[200].parse(await res.json());
     },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/auth/me"], user);
+    onSuccess: () => {
+      // Invalidate to refetch complete user data including playerProfile
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
   });
 }

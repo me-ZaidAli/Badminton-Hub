@@ -10,10 +10,19 @@ import { format } from "date-fns";
 import { Calendar, Trophy, Zap, Target, TrendingUp, Info, Building2, Plus } from "lucide-react";
 
 export default function Dashboard() {
-  const { data: user } = useUser();
+  const { data: user, isLoading: userLoading } = useUser();
   const { data: sessions, isLoading } = useSessions();
   const clubId = user?.playerProfile?.clubId;
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(clubId ?? null);
+
+  // Wait for user data to load before making redirect decisions
+  if (userLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Loading..." description="Please wait while we load your dashboard." />
+      </div>
+    );
+  }
 
   // Check if user has an approved membership status
   const playerProfile = user?.playerProfile;
@@ -28,10 +37,6 @@ export default function Dashboard() {
   if (membershipStatus === "REJECTED") {
     return <Redirect to="/clubs" />;
   }
-  
-  // Users without a player profile OR without approved status should browse/create clubs
-  // Only allow APPROVED members to access full dashboard
-  const isApprovedMember = playerProfile && membershipStatus === "APPROVED";
   
   // If user has no profile at all, redirect to clubs page to join one
   if (!playerProfile) {
