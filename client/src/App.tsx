@@ -15,7 +15,14 @@ import Dashboard from "@/pages/Dashboard";
 import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
 import Rankings from "@/pages/Rankings";
+import Players from "@/pages/Players";
 import NotFound from "@/pages/not-found";
+
+// Admin Pages
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import UserManagement from "@/pages/admin/UserManagement";
+import Financials from "@/pages/admin/Financials";
+import Announcements from "@/pages/admin/Announcements";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -60,6 +67,23 @@ function Router() {
       </Route>
       <Route path="/rankings">
         <PrivateRoute component={Rankings} />
+      </Route>
+      <Route path="/players">
+        <PrivateRoute component={Players} />
+      </Route>
+
+      {/* Admin Routes */}
+      <Route path="/admin">
+        <PrivateRoute component={AdminDashboard} />
+      </Route>
+      <Route path="/admin/users">
+        <PrivateRoute component={UserManagement} />
+      </Route>
+      <Route path="/admin/financials">
+        <PrivateRoute component={Financials} />
+      </Route>
+      <Route path="/admin/announcements">
+        <PrivateRoute component={Announcements} />
       </Route>
       
       {/* Fallback */}

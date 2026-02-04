@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { 
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
@@ -6,6 +6,10 @@ import {
   type Match, type Announcement, type InsertAnnouncement
 } from "@shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+
+const PgSession = connectPgSimple(session);
 
 export interface IStorage {
   // Users & Profiles
@@ -39,9 +43,18 @@ export interface IStorage {
   // Announcements
   getAnnouncements(): Promise<(Announcement & { author: User })[]>;
   createAnnouncement(announcement: InsertAnnouncement & { authorId: number }): Promise<Announcement>;
+
+  // Admin
+  getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
+  sessionStore = new PgSession({
+    pool: pool,
+    tableName: "user_sessions",
+    createTableIfMissing: true,
+  });
+
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -213,6 +226,21 @@ export class DatabaseStorage implements IStorage {
   async createAnnouncement(announcement: InsertAnnouncement & { authorId: number }): Promise<Announcement> {
     const [newAnnouncement] = await db.insert(announcements).values(announcement).returning();
     return newAnnouncement;
+  }
+
+  async getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]> {
+    const result = await db.select()
+      .from(sessionSignups)
+      .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+      .orderBy(desc(sessionSignups.signupTime));
+    
+    return result.map(r => ({
+      ...r.session_signups,
+      player: { ...r.player_profiles, user: r.users },
+      session: r.sessions
+    }));
   }
 }
 

@@ -232,5 +232,17 @@ export async function registerRoutes(
     res.status(201).json(announcement);
   });
 
+  // === Admin Endpoints ===
+  app.get("/api/admin/signups", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    // Check role (ADMIN, OWNER, ORGANISER)
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      return res.sendStatus(403);
+    }
+    const allSignups = await storage.getAllSignups();
+    res.json(allSignups);
+  });
+
   return httpServer;
 }
