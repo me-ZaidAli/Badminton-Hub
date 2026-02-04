@@ -34,6 +34,7 @@ export default function SessionDetail() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCourts, setEditCourts] = useState(0);
+  const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
 
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
@@ -74,7 +75,10 @@ export default function SessionDetail() {
             {isOrganiser && (
               <Dialog open={settingsOpen} onOpenChange={(open) => {
                 setSettingsOpen(open);
-                if (open) setEditCourts(session.courtsAvailable);
+                if (open) {
+                  setEditCourts(session.courtsAvailable);
+                  setEditShuttleTubes(session.shuttleTubesUsed || 0);
+                }
               }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1" data-testid="button-session-settings">
@@ -98,10 +102,21 @@ export default function SessionDetail() {
                         data-testid="input-edit-courts"
                       />
                     </div>
+                    <div>
+                      <Label>Shuttle Tubes Used</Label>
+                      <Input 
+                        type="number" 
+                        min={0}
+                        value={editShuttleTubes}
+                        onChange={(e) => setEditShuttleTubes(Math.max(0, Number(e.target.value)))}
+                        className="mt-2"
+                        data-testid="input-shuttle-tubes"
+                      />
+                    </div>
                     <Button 
                       className="w-full" 
                       onClick={() => {
-                        updateSession({ sessionId: id, updates: { courtsAvailable: editCourts } }, {
+                        updateSession({ sessionId: id, updates: { courtsAvailable: editCourts, shuttleTubesUsed: editShuttleTubes } }, {
                           onSuccess: () => setSettingsOpen(false)
                         });
                       }}
@@ -118,6 +133,7 @@ export default function SessionDetail() {
           <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
           <p className="text-xl text-muted-foreground">
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
+            {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Shuttle Tubes`}
           </p>
         </div>
 

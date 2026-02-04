@@ -67,7 +67,7 @@ export function useUpdateSession() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, updates }: { sessionId: number; updates: { courtsAvailable?: number; maxPlayers?: number; matchMode?: string; status?: string } }) => {
+    mutationFn: async ({ sessionId, updates }: { sessionId: number; updates: { courtsAvailable?: number; maxPlayers?: number; matchMode?: string; status?: string; shuttleTubesUsed?: number } }) => {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

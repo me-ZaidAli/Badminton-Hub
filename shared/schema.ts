@@ -81,6 +81,7 @@ export const sessions = pgTable("sessions", {
   isPrivate: boolean("is_private").default(false).notNull(),
   createdBy: integer("created_by").references(() => users.id).notNull(),
   status: text("status").default("UPCOMING"), // UPCOMING, COMPLETED, CANCELLED
+  shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
 });
 
 // === SESSION SIGNUPS ===
