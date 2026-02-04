@@ -81,6 +81,14 @@ Core entities:
 - Admins can select a calendar, preview upcoming events, and import selected events with configurable session settings (max players, courts, match mode)
 - Backend endpoints with role-based access control (OWNER/ADMIN/ORGANISER only)
 
+### Personal Ranking View (Feb 2026)
+- Rankings page now has toggle between "Club Ranking" and "Personal Ranking" views
+- Personal ranking view (requires login) displays:
+  - Left half: Line chart showing ranking points progress over completed matches (using recharts)
+  - Right half: Match history list with win/loss indicator, score, date, and points earned/lost
+- Profile header shows avatar, name, current ranking points, category, and win/loss stats
+- API endpoint: GET /api/personal-ranking/:clubId returns profile and match history with calculated points changes
+
 ### User Club Creation (Feb 2026)
 - Any authenticated user can create their own badminton club via POST /api/clubs
 - Club creators become the owner (tracked via `clubs.ownerId` field)
