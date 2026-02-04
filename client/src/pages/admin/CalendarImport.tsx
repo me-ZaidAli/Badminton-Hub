@@ -144,6 +144,19 @@ export default function CalendarImport() {
                 {selectedEvents.size === events.length ? "Deselect All" : "Select All"}
               </Button>
             )}
+            {selectedEvents.size > 0 && (
+              <Button 
+                onClick={() => importMutation.mutate()}
+                disabled={importMutation.isPending}
+                data-testid="button-import-sessions"
+              >
+                {importMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importing...</>
+                ) : (
+                  <><Import className="w-4 h-4 mr-2" /> Import {selectedEvents.size} Event(s)</>
+                )}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -202,21 +215,6 @@ export default function CalendarImport() {
             </div>
           )}
 
-          {selectedEvents.size > 0 && (
-            <div className="mt-6 pt-4 border-t flex justify-end">
-              <Button 
-                onClick={() => importMutation.mutate()}
-                disabled={importMutation.isPending}
-                data-testid="button-import-sessions"
-              >
-                {importMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importing...</>
-                ) : (
-                  <><Import className="w-4 h-4 mr-2" /> Import {selectedEvents.size} Event(s)</>
-                )}
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

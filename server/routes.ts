@@ -1025,12 +1025,12 @@ export async function registerRoutes(
     try {
       const { events } = req.body;
       
-      // Get user's club from their player profile
-      const playerProfile = await storage.getPlayerProfileByUserId(req.user!.id);
-      if (!playerProfile) {
+      // Get user's club from their player profiles
+      const playerProfiles = await storage.getPlayerProfilesByUser(req.user!.id);
+      if (!playerProfiles || playerProfiles.length === 0) {
         return res.status(400).json({ message: "You must be a member of a club to import sessions" });
       }
-      const clubId = playerProfile.clubId;
+      const clubId = playerProfiles[0].clubId;
       
       const createdSessions = [];
       for (const event of events) {
