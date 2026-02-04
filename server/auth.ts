@@ -76,6 +76,13 @@ export function setupAuth(app: Express) {
         return res.status(400).send("Email already exists");
       }
 
+      // Validate club exists
+      const clubId = req.body.clubId ? Number(req.body.clubId) : 1;
+      const club = await storage.getClub(clubId);
+      if (!club) {
+        return res.status(400).send("Invalid club selected");
+      }
+
       const hashedPassword = await hashPassword(req.body.password);
       const user = await storage.createUser({
         ...req.body,
@@ -83,10 +90,10 @@ export function setupAuth(app: Express) {
         emailVerified: false // Default to false as per requirements
       });
 
-      // Create profile automatically for the selected club (default to club 1)
+      // Create profile automatically for the selected club
       await storage.createPlayerProfile({
         userId: user.id,
-        clubId: req.body.clubId || 1,
+        clubId: clubId,
         gender: req.body.gender,
         category: req.body.category || "D",
         membershipId: null // No membership by default
