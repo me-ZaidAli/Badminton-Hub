@@ -1,19 +1,30 @@
 import { usePlayers } from "@/hooks/use-players";
+import { useUser } from "@/hooks/use-auth";
+import { useClubs } from "@/hooks/use-clubs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Trophy, Search, Users } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trophy, Search, Users, Filter } from "lucide-react";
 import { useState } from "react";
 
 export default function Players() {
+  const { data: user } = useUser();
   const { data: players, isLoading } = usePlayers();
+  const { data: clubs } = useClubs();
   const [search, setSearch] = useState("");
+  const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const isSuperUser = user?.role === "OWNER";
 
-  const filteredPlayers = players?.filter(p => 
-    p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    p.email.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filter by search and optionally by club for super users
+  const filteredPlayers = players?.filter(p => {
+    const matchesSearch = p.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      p.email.toLowerCase().includes(search.toLowerCase());
+    const matchesClub = selectedClubId === "all" || 
+      p.playerProfile?.clubId === Number(selectedClubId);
+    return matchesSearch && matchesClub;
+  });
 
   const getCategoryColor = (category: string | null) => {
     switch (category) {
@@ -35,15 +46,32 @@ export default function Players() {
           </h1>
           <p className="text-muted-foreground">Browse all club members.</p>
         </div>
-        <div className="relative max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search players..." 
-            className="pl-10" 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)}
-            data-testid="input-search-players"
-          />
+        <div className="flex items-center gap-4">
+          {isSuperUser && clubs && clubs.length > 0 && (
+            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
+                <SelectValue placeholder="All Clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clubs</SelectItem>
+                {clubs.map(club => (
+                  <SelectItem key={club.id} value={club.id.toString()}>
+                    {club.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search players..." 
+              className="pl-10" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="input-search-players"
+            />
+          </div>
         </div>
       </div>
 

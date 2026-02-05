@@ -1,5 +1,6 @@
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
+import { useClubs } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2 } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -35,8 +36,24 @@ const createSessionSchema = insertSessionSchema.extend({
 export default function Sessions() {
   const { data: user } = useUser();
   const { data: sessions, isLoading } = useSessions();
+  const { data: clubs } = useClubs();
   const [, setLocation] = useLocation();
+  const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
+  const isSuperUser = user?.role === "OWNER";
+
+  // Filter sessions by selected club for super users
+  const filteredSessions = selectedClubId === "all" 
+    ? sessions 
+    : sessions?.filter(s => s.clubId === Number(selectedClubId));
+
+  // Group sessions by club for super user view
+  const sessionsByClub = sessions?.reduce((acc, session) => {
+    const clubId = session.clubId;
+    if (!acc[clubId]) acc[clubId] = [];
+    acc[clubId].push(session);
+    return acc;
+  }, {} as Record<number, typeof sessions>);
 
   return (
     <div className="space-y-8">
@@ -57,10 +74,33 @@ export default function Sessions() {
         )}
       />
 
+      {isSuperUser && clubs && clubs.length > 0 && (
+        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+          <Filter className="h-5 w-5 text-muted-foreground" />
+          <label className="text-sm font-medium">Filter by Club:</label>
+          <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+            <SelectTrigger className="w-[250px]" data-testid="select-club-filter">
+              <SelectValue placeholder="All Clubs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clubs</SelectItem>
+              {clubs.map(club => (
+                <SelectItem key={club.id} value={club.id.toString()}>
+                  {club.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-muted-foreground">
+            Showing {filteredSessions?.length || 0} sessions
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
-        {sessions?.map((session) => (
+        {filteredSessions?.map((session) => (
           <Link key={session.id} href={`/sessions/${session.id}`}>
             <Card className="h-full hover-card-effect cursor-pointer border-border/50 group overflow-hidden">
               <div className="h-2 bg-gradient-to-r from-primary to-secondary" />
