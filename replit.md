@@ -30,6 +30,13 @@ Key design patterns include:
 - **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues.
 - **Public Viewing System**: Provides public access to club information, upcoming sessions, and match details without requiring authentication, while safeguarding sensitive data.
 - **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
+- **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
+  - Club selector to view players from any club (including pending/inactive clubs)
+  - Bulk actions: suspend, archive, activate, or delete multiple players at once
+  - Individual player actions via dropdown menu
+  - Player status management (ACTIVE, SUSPENDED, ARCHIVED)
+  - Cross-club player allocation to add players to multiple clubs
+  - Club customization: edit club name and logo URL
 
 ## External Dependencies
 
