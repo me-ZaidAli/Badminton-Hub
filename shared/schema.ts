@@ -15,6 +15,7 @@ export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL"]);
 export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED"]);
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED"]);
+export const clubStatusEnum = pgEnum("club_status", ["PENDING", "APPROVED", "REJECTED"]); // Club approval status
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -37,6 +38,7 @@ export const clubs = pgTable("clubs", {
   description: text("description"),
   logoUrl: text("logo_url"),
   ownerId: integer("owner_id").references(() => users.id), // User who created/owns this club
+  status: clubStatusEnum("status").default("PENDING").notNull(), // Club approval status
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
