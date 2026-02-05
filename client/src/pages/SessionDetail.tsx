@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useParams } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession } from "@/hooks/use-sessions";
+import { useParams, useLocation } from "wouter";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +18,12 @@ import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle } from "lucide-react";
+import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2 } from "lucide-react";
 
 export default function SessionDetail() {
   const params = useParams();
   const id = Number(params.id);
+  const [, setLocation] = useLocation();
   const { data: user } = useUser();
   const { data: session, isLoading: isLoadingSession } = useSession(id);
   const { data: signups, isLoading: isLoadingSignups } = useSessionSignups(id);
@@ -31,6 +32,7 @@ export default function SessionDetail() {
   const { mutate: withdraw, isPending: isWithdrawing } = useWithdrawSession();
   const { mutate: adminAddPlayer, isPending: isAdding } = useAdminAddPlayer();
   const { mutate: adminRemovePlayer } = useAdminRemovePlayer();
+  const { mutate: deleteSession, isPending: isDeleting } = useDeleteSession();
   
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
@@ -39,6 +41,7 @@ export default function SessionDetail() {
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
 
   const CATEGORIES = [
@@ -170,6 +173,44 @@ export default function SessionDetail() {
                       {isUpdating ? "Saving..." : "Save Settings"}
                     </Button>
                   </div>
+                </DialogContent>
+              </Dialog>
+            )}
+            {isOrganiser && (
+              <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" data-testid="button-delete-session">
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Session</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete "{session.title}"? This will also remove all signups and matches. This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        deleteSession(id, {
+                          onSuccess: () => {
+                            setDeleteDialogOpen(false);
+                            setLocation("/sessions");
+                          }
+                        });
+                      }}
+                      disabled={isDeleting}
+                      data-testid="button-confirm-delete-session"
+                    >
+                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Delete Session
+                    </Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             )}

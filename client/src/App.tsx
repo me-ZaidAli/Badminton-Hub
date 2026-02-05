@@ -37,6 +37,7 @@ import CalendarImport from "@/pages/admin/CalendarImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
+import Venues from "@/pages/Venues";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -203,6 +204,9 @@ function Router() {
       </Route>
       <Route path="/admin/clubs">
         <AdminRoute component={ClubManagement} />
+      </Route>
+      <Route path="/admin/venues">
+        <AdminRoute component={Venues} />
       </Route>
       
       {/* Fallback */}

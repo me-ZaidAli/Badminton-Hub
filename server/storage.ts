@@ -1,9 +1,10 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs,
+  users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
-  type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub
+  type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
+  type Venue, type InsertVenue
 } from "@shared/schema";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -35,11 +36,20 @@ export interface IStorage {
   getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]>;
   getSignupsByPlayerId(playerId: number): Promise<(SessionSignup & { session: Session })[]>;
 
+  // Venues
+  getVenues(clubId: number): Promise<Venue[]>;
+  getVenue(id: number): Promise<Venue | undefined>;
+  createVenue(venue: InsertVenue): Promise<Venue>;
+  updateVenue(id: number, updates: Partial<Venue>): Promise<Venue>;
+  deleteVenue(id: number): Promise<void>;
+
   // Sessions
   getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]>;
   getSession(id: number): Promise<Session | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
   updateSession(id: number, updates: Partial<Session>): Promise<Session>;
+  deleteSession(id: number): Promise<void>;
+  deleteSessions(ids: number[]): Promise<void>;
   getSessionSignups(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
   createSessionSignup(sessionId: number, playerId: number, fee: number): Promise<SessionSignup>;
   deleteSessionSignup(sessionId: number, playerId: number): Promise<void>;
@@ -272,6 +282,46 @@ export class DatabaseStorage implements IStorage {
   async updateSession(id: number, updates: Partial<Session>): Promise<Session> {
     const [updated] = await db.update(sessions).set(updates).where(eq(sessions.id, id)).returning();
     return updated;
+  }
+
+  async deleteSession(id: number): Promise<void> {
+    // Delete related signups and matches first
+    await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, id));
+    await db.delete(matches).where(eq(matches.sessionId, id));
+    await db.delete(sessions).where(eq(sessions.id, id));
+  }
+
+  async deleteSessions(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, ids));
+    await db.delete(matches).where(inArray(matches.sessionId, ids));
+    await db.delete(sessions).where(inArray(sessions.id, ids));
+  }
+
+  // Venue CRUD
+  async getVenues(clubId: number): Promise<Venue[]> {
+    return db.select().from(venues).where(eq(venues.clubId, clubId)).orderBy(desc(venues.createdAt));
+  }
+
+  async getVenue(id: number): Promise<Venue | undefined> {
+    const [venue] = await db.select().from(venues).where(eq(venues.id, id));
+    return venue;
+  }
+
+  async createVenue(venue: InsertVenue): Promise<Venue> {
+    const [newVenue] = await db.insert(venues).values(venue).returning();
+    return newVenue;
+  }
+
+  async updateVenue(id: number, updates: Partial<Venue>): Promise<Venue> {
+    const [updated] = await db.update(venues).set(updates).where(eq(venues.id, id)).returning();
+    return updated;
+  }
+
+  async deleteVenue(id: number): Promise<void> {
+    // First, unlink any sessions using this venue
+    await db.update(sessions).set({ venueId: null }).where(eq(sessions.venueId, id));
+    await db.delete(venues).where(eq(venues.id, id));
   }
 
   async getSessionSignups(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]> {

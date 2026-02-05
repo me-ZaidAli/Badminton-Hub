@@ -189,3 +189,55 @@ export function useAdminRemovePlayer() {
     }
   });
 }
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to delete session");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Session Deleted", description: "The session has been removed." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}
+
+export function useDeleteSessions() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (sessionIds: number[]) => {
+      const res = await fetch(`/api/sessions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionIds }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to delete sessions");
+      }
+      return res.json();
+    },
+    onSuccess: (_, sessionIds) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Sessions Deleted", description: `${sessionIds.length} sessions have been removed.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}

@@ -11,7 +11,8 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Activity,
-  Building2
+  Building2,
+  MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +41,10 @@ export function Sidebar() {
 
   if (isClubOwner) {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
+  }
+
+  if (isAdmin || isClubOwner) {
+    navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
   if (isAdmin || isOrganiser) {

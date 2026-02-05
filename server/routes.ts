@@ -618,14 +618,26 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updatePayment.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      return res.sendStatus(403);
-    }
+    
+    try {
+      // Get the session to check admin access
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
 
-    const status = req.body;
-    const updated = await storage.updateSignupStatus(Number(req.params.signupId), status);
-    res.json(updated);
+      // Convert { status: "PAID" } to { paymentStatus: "PAID" }
+      const { status } = req.body;
+      const updated = await storage.updateSignupStatus(Number(req.params.signupId), { paymentStatus: status });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating payment status:", err);
+      res.status(500).json({ message: err.message || "Failed to update payment" });
+    }
   });
 
   // Update session settings (courts, max players, etc.)
@@ -664,6 +676,159 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating session:", err);
       res.status(500).json({ message: err.message || "Failed to update session" });
+    }
+  });
+
+  // Delete session
+  app.delete("/api/sessions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
+      await storage.deleteSession(sessionId);
+      res.json({ message: "Session deleted" });
+    } catch (err: any) {
+      console.error("Error deleting session:", err);
+      res.status(500).json({ message: err.message || "Failed to delete session" });
+    }
+  });
+
+  // Bulk delete sessions
+  app.delete("/api/sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const { sessionIds } = req.body;
+      if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+        return res.status(400).json({ message: "sessionIds must be a non-empty array" });
+      }
+
+      // Verify all sessions belong to clubs user has access to
+      for (const sessionId of sessionIds) {
+        const session = await storage.getSession(Number(sessionId));
+        if (!session) continue;
+        const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+        if (!canAccess) {
+          return res.status(403).json({ message: "No access to one or more sessions" });
+        }
+      }
+
+      await storage.deleteSessions(sessionIds.map(Number));
+      res.json({ message: `Deleted ${sessionIds.length} sessions` });
+    } catch (err: any) {
+      console.error("Error bulk deleting sessions:", err);
+      res.status(500).json({ message: err.message || "Failed to delete sessions" });
+    }
+  });
+
+  // === Venues ===
+  app.get("/api/clubs/:clubId/venues", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Check admin access for viewing venues
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) {
+      return res.sendStatus(403);
+    }
+    
+    try {
+      const venues = await storage.getVenues(clubId);
+      res.json(venues);
+    } catch (err: any) {
+      console.error("Error fetching venues:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch venues" });
+    }
+  });
+
+  app.post("/api/clubs/:clubId/venues", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { name, address, city, postcode, googleMapsUrl, isDefault } = req.body;
+      
+      if (!name || !address) {
+        return res.status(400).json({ message: "Name and address are required" });
+      }
+
+      const venue = await storage.createVenue({
+        clubId,
+        name,
+        address,
+        city: city || null,
+        postcode: postcode || null,
+        googleMapsUrl: googleMapsUrl || null,
+        isDefault: isDefault || false,
+      });
+      res.status(201).json(venue);
+    } catch (err: any) {
+      console.error("Error creating venue:", err);
+      res.status(500).json({ message: err.message || "Failed to create venue" });
+    }
+  });
+
+  app.patch("/api/venues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const venueId = Number(req.params.id);
+      const venue = await storage.getVenue(venueId);
+      if (!venue) return res.status(404).json({ message: "Venue not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, venue.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
+      const { name, address, city, postcode, googleMapsUrl, isDefault } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (address !== undefined) updates.address = address;
+      if (city !== undefined) updates.city = city;
+      if (postcode !== undefined) updates.postcode = postcode;
+      if (googleMapsUrl !== undefined) updates.googleMapsUrl = googleMapsUrl;
+      if (isDefault !== undefined) updates.isDefault = isDefault;
+
+      const updated = await storage.updateVenue(venueId, updates);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating venue:", err);
+      res.status(500).json({ message: err.message || "Failed to update venue" });
+    }
+  });
+
+  app.delete("/api/venues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const venueId = Number(req.params.id);
+      const venue = await storage.getVenue(venueId);
+      if (!venue) return res.status(404).json({ message: "Venue not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, venue.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
+      await storage.deleteVenue(venueId);
+      res.json({ message: "Venue deleted" });
+    } catch (err: any) {
+      console.error("Error deleting venue:", err);
+      res.status(500).json({ message: err.message || "Failed to delete venue" });
     }
   });
 

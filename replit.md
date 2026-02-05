@@ -67,6 +67,26 @@ Core entities:
 
 ## Recent Changes
 
+### Venue Management & Session Deletion (Feb 2026)
+- Added `venues` table for managing club locations: name, address, city, postcode, googleMapsUrl, isDefault
+- Sessions can be linked to venues via optional `venueId` field
+- Venue management page at `/admin/venues` for club owners and admins:
+  - Create/edit/delete venues with full CRUD operations
+  - Club selector for managing multiple clubs
+  - Google Maps URL integration for each venue
+  - Default venue designation
+- Session deletion feature:
+  - Single session delete via SessionDetail page for admins/organizers
+  - Bulk session delete endpoint at DELETE `/api/sessions` with `sessionIds` array
+  - Cascade deletes signups and matches when deleting sessions
+- API endpoints:
+  - GET `/api/clubs/:clubId/venues` - List venues
+  - POST `/api/clubs/:clubId/venues` - Create venue
+  - PATCH `/api/venues/:id` - Update venue
+  - DELETE `/api/venues/:id` - Delete venue (unlinks sessions)
+  - DELETE `/api/sessions/:id` - Delete single session
+  - DELETE `/api/sessions` with body `{sessionIds: []}` - Bulk delete
+
 ### Club Location & Map Feature (Feb 2026)
 - Added location fields to clubs: address, city, postcode, latitude, longitude
 - Club creation form includes optional location section with address, city, and postcode fields

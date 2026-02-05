@@ -74,10 +74,24 @@ export const playerProfiles = pgTable("player_profiles", {
   membershipId: integer("membership_id").references(() => memberships.id),
 });
 
+// === VENUES ===
+export const venues = pgTable("venues", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  address: text("address").notNull(),
+  city: text("city"),
+  postcode: text("postcode"),
+  googleMapsUrl: text("google_maps_url"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === SESSIONS ===
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
+  venueId: integer("venue_id").references(() => venues.id), // Optional venue
   title: text("title").notNull(),
   date: timestamp("date").notNull(),
   startTime: text("start_time").notNull(), // HH:mm
@@ -198,6 +212,7 @@ export const matchesRelations = relations(matches, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, emailVerified: true });
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
 export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
+export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
@@ -206,11 +221,13 @@ export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, cr
 export type User = typeof users.$inferSelect;
 export type Club = typeof clubs.$inferSelect;
 export type PlayerProfile = typeof playerProfiles.$inferSelect;
+export type Venue = typeof venues.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionSignup = typeof sessionSignups.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
+export type InsertVenue = z.infer<typeof insertVenueSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
