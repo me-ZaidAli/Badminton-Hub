@@ -1369,6 +1369,171 @@ export async function registerRoutes(
     }
   });
 
+  // === Get all players for a specific club (Super Admin) ===
+  app.get("/api/admin/clubs/:clubId/players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.clubId);
+      const players = await storage.getClubPlayersWithDetails(clubId);
+      res.json(players);
+    } catch (err: any) {
+      console.error("Error fetching club players:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch players" });
+    }
+  });
+
+  // === Bulk action on players (suspend, archive, delete) ===
+  app.post("/api/admin/players/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { profileIds, action } = req.body;
+      
+      if (!Array.isArray(profileIds) || profileIds.length === 0) {
+        return res.status(400).json({ message: "Profile IDs are required" });
+      }
+      
+      if (!["suspend", "archive", "activate", "delete"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Use: suspend, archive, activate, or delete" });
+      }
+
+      const results: any[] = [];
+      for (const profileId of profileIds) {
+        try {
+          if (action === "delete") {
+            await storage.deletePlayerProfile(Number(profileId));
+            results.push({ profileId, success: true });
+          } else {
+            const statusMap: Record<string, string> = {
+              suspend: "SUSPENDED",
+              archive: "ARCHIVED",
+              activate: "ACTIVE"
+            };
+            await storage.updatePlayerProfile(Number(profileId), { playerStatus: statusMap[action] as any });
+            results.push({ profileId, success: true });
+          }
+        } catch (e: any) {
+          results.push({ profileId, success: false, error: e.message });
+        }
+      }
+
+      res.json({ results, message: `Bulk ${action} completed` });
+    } catch (err: any) {
+      console.error("Error in bulk player action:", err);
+      res.status(500).json({ message: err.message || "Failed to perform bulk action" });
+    }
+  });
+
+  // === Delete a single player profile ===
+  app.delete("/api/admin/players/:profileId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const profileId = Number(req.params.profileId);
+      await storage.deletePlayerProfile(profileId);
+      res.json({ message: "Player profile deleted successfully" });
+    } catch (err: any) {
+      console.error("Error deleting player profile:", err);
+      res.status(500).json({ message: err.message || "Failed to delete player profile" });
+    }
+  });
+
+  // === Allocate player to additional clubs ===
+  app.post("/api/admin/players/:userId/allocate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const userId = Number(req.params.userId);
+      const { clubIds, gender, category } = req.body;
+      
+      if (!Array.isArray(clubIds) || clubIds.length === 0) {
+        return res.status(400).json({ message: "Club IDs are required" });
+      }
+
+      const results: any[] = [];
+      for (const clubId of clubIds) {
+        try {
+          // Check if profile already exists
+          const existingProfile = await storage.getPlayerProfile(userId, Number(clubId));
+          if (existingProfile) {
+            results.push({ clubId, success: false, error: "Profile already exists" });
+            continue;
+          }
+
+          const profile = await storage.createPlayerProfile({
+            userId,
+            clubId: Number(clubId),
+            clubRole: "PLAYER",
+            membershipStatus: "APPROVED",
+            gender: gender || null,
+            category: category || "D",
+            membershipId: null
+          });
+          results.push({ clubId, success: true, profileId: profile.id });
+        } catch (e: any) {
+          results.push({ clubId, success: false, error: e.message });
+        }
+      }
+
+      res.json({ results, message: "Player allocation completed" });
+    } catch (err: any) {
+      console.error("Error allocating player to clubs:", err);
+      res.status(500).json({ message: err.message || "Failed to allocate player" });
+    }
+  });
+
+  // === Update club (name, logo) ===
+  app.patch("/api/clubs/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Allow super admin or club owner
+    const isSuperAdmin = req.user!.role === "OWNER";
+    const club = await storage.getClub(clubId);
+    if (!club) {
+      return res.status(404).json({ message: "Club not found" });
+    }
+    const isClubOwner = club.ownerId === req.user!.id;
+    
+    if (!isSuperAdmin && !isClubOwner) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { name, logoUrl } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim().length < 3) {
+          return res.status(400).json({ message: "Club name must be at least 3 characters" });
+        }
+        updates.name = name.trim();
+      }
+      if (logoUrl !== undefined) {
+        updates.logoUrl = logoUrl || null;
+      }
+      
+      const updatedClub = await storage.updateClub(clubId, updates);
+      res.json(updatedClub);
+    } catch (err: any) {
+      console.error("Error updating club:", err);
+      res.status(500).json({ message: err.message || "Failed to update club" });
+    }
+  });
+
   // === User Account Approval ===
   app.get("/api/admin/pending-users", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -1590,7 +1755,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid gender" });
       }
 
-      const updated = await storage.updatePlayerProfile(profileId, { membershipStatus, clubRole, category, gender }, fullName);
+      const updated = await storage.updatePlayerProfileWithFullName(profileId, { membershipStatus, clubRole, category, gender }, fullName);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating member:", err);

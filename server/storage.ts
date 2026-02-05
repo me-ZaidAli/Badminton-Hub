@@ -19,8 +19,10 @@ export interface IStorage {
   getClub(id: number): Promise<Club | undefined>;
   getClubBySlug(slug: string): Promise<Club | undefined>;
   createClub(club: InsertClub): Promise<Club>;
+  updateClub(id: number, updates: Partial<Club>): Promise<Club>;
   updateClubStatus(id: number, status: string): Promise<Club>;
   deleteClub(id: number): Promise<void>;
+  getClubPlayersWithDetails(clubId: number): Promise<any[]>;
   getUserPlayerProfiles(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
   
   // Users & Profiles
@@ -75,7 +77,9 @@ export interface IStorage {
   
   // Player Management
   updateUser(id: number, updates: { fullName?: string; email?: string; role?: string; accountStatus?: string }): Promise<User>;
-  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile>;
+  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string }): Promise<PlayerProfile>;
+  updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
+  deletePlayerProfile(id: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
@@ -118,6 +122,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(clubs.id, id))
       .returning();
     return updated;
+  }
+
+  async updateClub(id: number, updates: Partial<Club>): Promise<Club> {
+    const [updated] = await db.update(clubs)
+      .set(updates as any)
+      .where(eq(clubs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getClubPlayersWithDetails(clubId: number): Promise<any[]> {
+    const result = await db
+      .select({
+        profile: playerProfiles,
+        user: users
+      })
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(eq(playerProfiles.clubId, clubId));
+    
+    return result.map(r => ({
+      ...r.profile,
+      user: r.user
+    }));
   }
 
   async deleteClub(id: number): Promise<void> {
@@ -222,7 +250,7 @@ export class DatabaseStorage implements IStorage {
     return result.map(r => ({ ...r.player_profiles, user: r.users }));
   }
 
-  async updatePlayerProfile(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile> {
+  async updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile> {
     const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
     const [updated] = await db.update(playerProfiles).set(cleanUpdates as any).where(eq(playerProfiles.id, profileId)).returning();
     
@@ -468,9 +496,16 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number }): Promise<PlayerProfile> {
-    const [updated] = await db.update(playerProfiles).set(updates).where(eq(playerProfiles.id, id)).returning();
+  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string }): Promise<PlayerProfile> {
+    const [updated] = await db.update(playerProfiles).set(updates as any).where(eq(playerProfiles.id, id)).returning();
     return updated;
+  }
+
+  async deletePlayerProfile(id: number): Promise<void> {
+    // First delete related session signups
+    await db.delete(sessionSignups).where(eq(sessionSignups.playerId, id));
+    // Then delete the player profile
+    await db.delete(playerProfiles).where(eq(playerProfiles.id, id));
   }
 
   async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }> {

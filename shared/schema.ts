@@ -16,6 +16,7 @@ export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLE
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED"]);
 export const clubStatusEnum = pgEnum("club_status", ["PENDING", "APPROVED", "REJECTED"]); // Club approval status
+export const playerStatusEnum = pgEnum("player_status", ["ACTIVE", "SUSPENDED", "ARCHIVED"]); // Player profile status
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -81,6 +82,7 @@ export const playerProfiles = pgTable("player_profiles", {
   clubId: integer("club_id").references(() => clubs.id).notNull(),
   clubRole: clubRoleEnum("club_role").default("PLAYER").notNull(), // Role within this club
   membershipStatus: membershipStatusEnum("membership_status").default("PENDING").notNull(), // Approval status
+  playerStatus: playerStatusEnum("player_status").default("ACTIVE").notNull(), // Active, Suspended, or Archived
   gender: genderEnum("gender"),
   category: categoryEnum("category").default("D"),
   rankingPoints: integer("ranking_points").default(1000).notNull(),
