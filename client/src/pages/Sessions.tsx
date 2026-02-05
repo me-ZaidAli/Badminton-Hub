@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -87,6 +87,18 @@ export default function Sessions() {
                     <MapPin className="h-4 w-4" />
                     <span>{session.courtsAvailable} Courts Available</span>
                   </div>
+                  {session.sessionFee != null && (
+                    <div className="flex items-center gap-2">
+                      <PoundSterling className="h-4 w-4" />
+                      <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
+                    </div>
+                  )}
+                  {session.shuttlecockType && (
+                    <div className="flex items-center gap-2">
+                      <CircleDot className="h-4 w-4" />
+                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
@@ -121,6 +133,8 @@ function CreateSessionDialog() {
       isPrivate: false,
       durationMinutes: 120,
       allowedCategories: ["A", "B", "C", "D"],
+      sessionFee: undefined,
+      shuttlecockType: undefined,
     }
   });
 
@@ -292,6 +306,52 @@ function CreateSessionDialog() {
                 </FormItem>
               )}
             />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="sessionFee"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Session Fee (£)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 5.00" 
+                        {...field}
+                        value={field.value != null ? field.value / 100 : ""}
+                        onChange={e => field.onChange(e.target.value ? Math.round(parseFloat(e.target.value) * 100) : undefined)}
+                        data-testid="input-session-fee"
+                      />
+                    </FormControl>
+                    <FormDescription>Leave empty to use club default</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="shuttlecockType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Shuttlecock Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-shuttlecock-type">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="feather">Feather</SelectItem>
+                        <SelectItem value="plastic">Plastic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-create-session">
               {isPending ? "Creating..." : "Create Session"}
             </Button>

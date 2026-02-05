@@ -207,39 +207,39 @@ function Router() {
         <Profile />
       </Route>
 
-      {/* Admin Routes */}
+      {/* Admin Routes - OWNER only */}
       <Route path="/admin">
-        <AdminRoute component={AdminDashboard} />
+        <OwnerRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/users">
-        <AdminRoute component={UserManagement} />
+        <OwnerRoute component={UserManagement} />
       </Route>
       <Route path="/admin/players">
-        <AdminRoute component={PlayerManagement} />
+        <OwnerRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/players/:playerId">
-        <AdminRoute component={PlayerProfile} />
+        <OwnerRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
-        <AdminRoute component={Financials} />
+        <OwnerRoute component={Financials} />
       </Route>
       <Route path="/admin/announcements">
-        <AdminRoute component={Announcements} />
+        <OwnerRoute component={Announcements} />
       </Route>
       <Route path="/admin/calendar">
-        <AdminRoute component={CalendarImport} />
+        <OwnerRoute component={CalendarImport} />
       </Route>
       <Route path="/admin/approvals">
-        <AdminRoute component={UserApproval} />
+        <OwnerRoute component={UserApproval} />
       </Route>
       <Route path="/admin/clubs">
-        <AdminRoute component={ClubManagement} />
+        <OwnerRoute component={ClubManagement} />
       </Route>
       <Route path="/admin/club-approvals">
         <OwnerRoute component={ClubApprovals} />
       </Route>
       <Route path="/admin/venues">
-        <AdminRoute component={Venues} />
+        <OwnerRoute component={Venues} />
       </Route>
       
       {/* Fallback */}

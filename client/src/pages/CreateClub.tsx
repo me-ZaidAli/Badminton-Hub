@@ -21,6 +21,20 @@ const AGE_GROUPS = [
   { id: "mixed", label: "Mixed Age Groups" },
 ];
 
+const PLAYER_LEVELS = [
+  { id: "beginner", label: "Beginner" },
+  { id: "intermediate", label: "Intermediate" },
+  { id: "advanced", label: "Advanced" },
+  { id: "pro", label: "Pro" },
+  { id: "all", label: "All Levels Welcome" },
+];
+
+const SHUTTLECOCK_TYPES = [
+  { id: "feather", label: "Feather Shuttlecocks" },
+  { id: "plastic", label: "Plastic Shuttlecocks" },
+  { id: "both", label: "Both (Feather & Plastic)" },
+];
+
 const createClubSchema = z.object({
   name: z.string().min(3, "Club name must be at least 3 characters").max(50, "Club name must be less than 50 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
@@ -38,6 +52,9 @@ const createClubSchema = z.object({
   hasMembership: z.boolean().default(false),
   membershipFee: z.string().optional(),
   ageGroups: z.array(z.string()).default([]),
+  playerLevels: z.array(z.string()).default([]),
+  shuttlecockType: z.string().optional(),
+  providesClubTShirts: z.boolean().default(false),
 }).refine((data) => {
   if (data.isRegisteredWithBE && !data.beRegistrationNumber) {
     return false;
@@ -90,6 +107,9 @@ export default function CreateClub() {
       hasMembership: false,
       membershipFee: "",
       ageGroups: [],
+      playerLevels: [],
+      shuttlecockType: "",
+      providesClubTShirts: false,
     },
   });
 
@@ -416,6 +436,113 @@ export default function CreateClub() {
                           ))}
                         </div>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="playerLevels"
+                    render={() => (
+                      <FormItem>
+                        <div className="mb-4">
+                          <FormLabel>Player Skill Levels</FormLabel>
+                          <FormDescription>
+                            What skill levels does your club accept?
+                          </FormDescription>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {PLAYER_LEVELS.map((item) => (
+                            <FormField
+                              key={item.id}
+                              control={form.control}
+                              name="playerLevels"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(item.id)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...field.value, item.id])
+                                          : field.onChange(field.value?.filter((v) => v !== item.id));
+                                      }}
+                                      data-testid={`checkbox-level-${item.id}`}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal">{item.label}</FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="border-t pt-6 space-y-6">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Trophy className="w-5 h-5" />
+                    Equipment & Extras
+                  </h3>
+
+                  <FormField
+                    control={form.control}
+                    name="shuttlecockType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shuttlecock Type *</FormLabel>
+                        <FormDescription>
+                          What type of shuttlecocks does your club use?
+                        </FormDescription>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                          {SHUTTLECOCK_TYPES.map((item) => (
+                            <div
+                              key={item.id}
+                              className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                                field.value === item.id
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-muted-foreground"
+                              }`}
+                              onClick={() => field.onChange(item.id)}
+                              data-testid={`radio-shuttlecock-${item.id}`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 ${
+                                  field.value === item.id
+                                    ? "border-primary bg-primary"
+                                    : "border-muted-foreground"
+                                }`}
+                              />
+                              <span className="text-sm">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="providesClubTShirts"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Provides Club T-Shirts</FormLabel>
+                          <FormDescription>
+                            Does your club provide branded T-shirts for members?
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-tshirts"
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

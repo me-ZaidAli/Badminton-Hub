@@ -219,7 +219,7 @@ export async function registerRoutes(
         hasCompetitions, hasSocialGames, socialGameTimings,
         providesTraining, trainingDetails,
         sessionFee, hasMembership, membershipFee,
-        ageGroups
+        ageGroups, playerLevels, shuttlecockType, providesClubTShirts
       } = req.body;
       
       // Validate name
@@ -276,6 +276,22 @@ export async function registerRoutes(
         validatedAgeGroups = ageGroups.filter(
           (ag: unknown) => typeof ag === 'string' && ALLOWED_AGE_GROUPS.includes(ag)
         );
+      }
+
+      // Validate playerLevels against allowed values
+      const ALLOWED_PLAYER_LEVELS = ["beginner", "intermediate", "advanced", "pro", "all"];
+      let validatedPlayerLevels: string[] = [];
+      if (Array.isArray(playerLevels)) {
+        validatedPlayerLevels = playerLevels.filter(
+          (pl: unknown) => typeof pl === 'string' && ALLOWED_PLAYER_LEVELS.includes(pl)
+        );
+      }
+
+      // Validate shuttlecockType
+      const ALLOWED_SHUTTLECOCK_TYPES = ["feather", "plastic", "both"];
+      let validatedShuttlecockType: string | null = null;
+      if (shuttlecockType && typeof shuttlecockType === 'string' && ALLOWED_SHUTTLECOCK_TYPES.includes(shuttlecockType)) {
+        validatedShuttlecockType = shuttlecockType;
       }
 
       // Generate base slug from name
@@ -340,7 +356,10 @@ export async function registerRoutes(
         sessionFee: parsedSessionFee,
         hasMembership: hasMembershipBool,
         membershipFee: parsedMembershipFee,
-        ageGroups: validatedAgeGroups
+        ageGroups: validatedAgeGroups,
+        playerLevels: validatedPlayerLevels,
+        shuttlecockType: validatedShuttlecockType,
+        providesClubTShirts: Boolean(providesClubTShirts)
       });
 
       // Create a player profile for the owner in this club with OWNER role and APPROVED status
@@ -659,7 +678,14 @@ export async function registerRoutes(
       }
     }
 
-    const signup = await storage.createSessionSignup(sessionId, profile.id, 1000); // 1000 cents default fee
+    // Use session fee or club default fee or fallback to 1000 pence
+    let fee = session.sessionFee;
+    if (fee == null) {
+      const club = await storage.getClub(session.clubId);
+      fee = club?.sessionFee ?? 1000;
+    }
+    
+    const signup = await storage.createSessionSignup(sessionId, profile.id, fee);
     res.status(201).json(signup);
   });
 
@@ -926,7 +952,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Session is full" });
       }
 
-      const signup = await storage.createSessionSignup(sessionId, playerId, 1000);
+      // Use session fee or club default fee or fallback to 1000 pence
+      let fee = session.sessionFee;
+      if (fee == null) {
+        const club = await storage.getClub(session.clubId);
+        fee = club?.sessionFee ?? 1000;
+      }
+
+      const signup = await storage.createSessionSignup(sessionId, playerId, fee);
       res.status(201).json(signup);
     } catch (err: any) {
       console.error("Error adding player to session:", err);

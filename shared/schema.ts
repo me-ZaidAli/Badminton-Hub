@@ -62,6 +62,10 @@ export const clubs = pgTable("clubs", {
   membershipFee: integer("membership_fee"), // in pence (GBP) per year
   // Target Players
   ageGroups: jsonb("age_groups").$type<string[]>().default([]), // ["Adult", "Junior", "Senior"]
+  playerLevels: jsonb("player_levels").$type<string[]>().default([]), // ["beginner", "intermediate", "advanced", "pro", "all"]
+  // Equipment & Extras
+  shuttlecockType: text("shuttlecock_type"), // "feather", "plastic", or "both"
+  providesClubTShirts: boolean("provides_club_tshirts").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -121,6 +125,8 @@ export const sessions = pgTable("sessions", {
   createdBy: integer("created_by").references(() => users.id).notNull(),
   status: text("status").default("UPCOMING"), // UPCOMING, COMPLETED, CANCELLED
   shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
+  sessionFee: integer("session_fee"), // in pence (GBP) - overrides club default if set
+  shuttlecockType: text("shuttlecock_type"), // "feather", "plastic" - inherits from club if not set
 });
 
 // === SESSION SIGNUPS ===

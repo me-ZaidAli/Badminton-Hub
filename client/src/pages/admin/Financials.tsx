@@ -68,7 +68,7 @@ export default function Financials() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">${(totalPaid / 100).toFixed(2)}</div>
+            <div className="text-3xl font-bold text-green-600">£{(totalPaid / 100).toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">{paidSignups.length} payments</p>
           </CardContent>
         </Card>
@@ -81,7 +81,7 @@ export default function Financials() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600">${(totalUnpaid / 100).toFixed(2)}</div>
+            <div className="text-3xl font-bold text-orange-600">£{(totalUnpaid / 100).toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">{unpaidSignups.length} unpaid</p>
           </CardContent>
         </Card>
@@ -142,7 +142,7 @@ export default function Financials() {
                           : "N/A"
                         }
                       </TableCell>
-                      <TableCell className="font-bold">${((signup.fee || 0) / 100).toFixed(2)}</TableCell>
+                      <TableCell className="font-bold">£{((signup.fee || 0) / 100).toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
                           UNPAID
@@ -216,7 +216,7 @@ export default function Financials() {
                           : "N/A"
                         }
                       </TableCell>
-                      <TableCell className="font-bold">${((signup.fee || 0) / 100).toFixed(2)}</TableCell>
+                      <TableCell className="font-bold">£{((signup.fee || 0) / 100).toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
                           PAID

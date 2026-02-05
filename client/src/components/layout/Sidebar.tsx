@@ -47,13 +47,8 @@ export function Sidebar() {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
-  if (isAdmin || isOrganiser) {
-    if (isAdmin) {
-      navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
-    }
-  }
-
   if (user?.role === "OWNER") {
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
   }
 
