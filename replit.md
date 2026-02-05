@@ -38,6 +38,12 @@ Key design patterns include:
   - Cross-club player allocation to add players to multiple clubs
   - Club customization: edit club name and logo URL
 - **Admin Panel Access Control**: The entire Admin Panel (`/admin/*`) is restricted to OWNER role only. Regular ADMINs cannot access super admin functions.
+- **Club Admin Management**: Super admins can manage all club administrators through `/admin/club-admins`. Features include:
+  - View all admins across all clubs with club filtering
+  - Add new admins by email to any club
+  - Change club roles (OWNER, ADMIN, ORGANISER, COACH, PLAYER)
+  - Role hierarchy: OWNER (full access) > ADMIN (club management) > ORGANISER/COACH (session management) > PLAYER (basic)
+  - Permission checks require APPROVED membership status for club-level access
 - **Club Equipment & Skill Settings**: Clubs can specify:
   - Shuttlecock type: feather, plastic, or both
   - Whether they provide club T-shirts

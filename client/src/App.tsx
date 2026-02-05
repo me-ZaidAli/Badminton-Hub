@@ -37,6 +37,7 @@ import CalendarImport from "@/pages/admin/CalendarImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
 import ClubApprovals from "@/pages/admin/ClubApprovals";
+import ClubAdmins from "@/pages/admin/ClubAdmins";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Venues from "@/pages/Venues";
 
@@ -237,6 +238,9 @@ function Router() {
       </Route>
       <Route path="/admin/club-approvals">
         <OwnerRoute component={ClubApprovals} />
+      </Route>
+      <Route path="/admin/club-admins">
+        <OwnerRoute component={ClubAdmins} />
       </Route>
       <Route path="/admin/venues">
         <OwnerRoute component={Venues} />

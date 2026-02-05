@@ -34,10 +34,12 @@ async function hasAdminAccess(userId: number, userRole: string, clubId?: number)
       return true;
     }
     
-    // Check club-level role (OWNER or ADMIN can manage club)
+    // Check club-level role (OWNER or ADMIN can manage club) - must be approved
     const profiles = await storage.getUserPlayerProfiles(userId);
     const clubProfile = profiles.find(p => p.clubId === clubId);
-    if (clubProfile && ["OWNER", "ADMIN"].includes(clubProfile.clubRole)) {
+    if (clubProfile && 
+        clubProfile.membershipStatus === "APPROVED" && 
+        ["OWNER", "ADMIN"].includes(clubProfile.clubRole)) {
       return true;
     }
   }
@@ -51,11 +53,13 @@ async function canManageSessions(userId: number, userRole: string, clubId: numbe
     return true;
   }
   
-  // Check club-level role
+  // Check club-level role - must be approved AND have appropriate role
   const profiles = await storage.getUserPlayerProfiles(userId);
   const clubProfile = profiles.find(p => p.clubId === clubId);
   
-  if (clubProfile && ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubProfile.clubRole)) {
+  if (clubProfile && 
+      clubProfile.membershipStatus === "APPROVED" && 
+      ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubProfile.clubRole)) {
     return true;
   }
   
@@ -652,8 +656,8 @@ export async function registerRoutes(
     try {
       const input = api.sessions.create.input.parse(req.body);
       
-      // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, input.clubId);
+      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, input.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -775,8 +779,8 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -814,7 +818,8 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -1769,6 +1774,136 @@ export async function registerRoutes(
     }
   });
 
+  // === Club Admins Management (super admin only) ===
+  // Get all club admins across all clubs
+  app.get("/api/admin/club-admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = req.query.club;
+      // Get all player profiles with user info
+      let allMembers: any[] = [];
+      
+      if (clubId && clubId !== "all") {
+        allMembers = await storage.getClubMembers(Number(clubId));
+      } else {
+        // Get all clubs and their members
+        const clubs = await storage.getAllClubs();
+        for (const club of clubs) {
+          const members = await storage.getClubMembers(club.id);
+          allMembers.push(...members.map(m => ({
+            ...m,
+            club: { id: club.id, name: club.name, slug: club.slug }
+          })));
+        }
+      }
+      
+      res.json(allMembers);
+    } catch (err: any) {
+      console.error("Error fetching club admins:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch club admins" });
+    }
+  });
+
+  // Add a user as club admin (super admin only)
+  app.post("/api/admin/club-admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { email, clubId, role } = req.body;
+      
+      if (!email || !clubId || !role) {
+        return res.status(400).json({ message: "Email, club ID, and role are required" });
+      }
+      
+      if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      
+      // Find user by email
+      const allUsers = await storage.getAllUsers();
+      const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found with that email" });
+      }
+      
+      // Check if user already has a profile for this club
+      const profiles = await storage.getUserPlayerProfiles(user.id);
+      const existingProfile = profiles.find(p => p.clubId === clubId);
+      
+      if (existingProfile) {
+        // Update existing profile's role
+        const updated = await storage.updatePlayerProfile(existingProfile.id, { 
+          clubRole: role,
+          membershipStatus: "APPROVED"
+        });
+        return res.json(updated);
+      }
+      
+      // Create new profile for this club
+      const club = await storage.getClub(clubId);
+      if (!club) {
+        return res.status(404).json({ message: "Club not found" });
+      }
+      
+      const newProfile = await storage.createPlayerProfile({
+        userId: user.id,
+        clubId,
+        fullName: user.fullName,
+        gender: "MALE" as const, // Default gender
+        category: "C" as const, // Default category
+        rankingPoints: 1000,
+        membershipStatus: "APPROVED" as const,
+        clubRole: role as any,
+      });
+      
+      res.status(201).json(newProfile);
+    } catch (err: any) {
+      console.error("Error adding club admin:", err);
+      res.status(500).json({ message: err.message || "Failed to add club admin" });
+    }
+  });
+
+  // Update club admin profile role (super admin only)
+  app.patch("/api/admin/profiles/:profileId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const profileId = Number(req.params.profileId);
+      const { clubRole, membershipStatus } = req.body;
+      
+      const updates: any = {};
+      if (clubRole) {
+        if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
+          return res.status(400).json({ message: "Invalid club role" });
+        }
+        updates.clubRole = clubRole;
+      }
+      if (membershipStatus) {
+        if (!["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
+          return res.status(400).json({ message: "Invalid membership status" });
+        }
+        updates.membershipStatus = membershipStatus;
+      }
+      
+      const updated = await storage.updatePlayerProfile(profileId, updates);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating profile:", err);
+      res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
+  });
+
   // === Club Member Management (for club owners/admins) ===
   app.get("/api/clubs/:clubId/members", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -1814,7 +1949,7 @@ export async function registerRoutes(
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
-      if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
+      if (clubRole && !["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
       }
       if (category && !["A", "B", "C", "D"].includes(category)) {
