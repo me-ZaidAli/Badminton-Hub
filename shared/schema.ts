@@ -5,7 +5,7 @@ import { z } from "zod";
 
 // === ENUMS ===
 export const roleEnum = pgEnum("role", ["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"]);
-export const clubRoleEnum = pgEnum("club_role", ["OWNER", "ADMIN", "PLAYER"]); // Club-scoped roles
+export const clubRoleEnum = pgEnum("club_role", ["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"]); // Club-scoped roles
 export const membershipStatusEnum = pgEnum("membership_status", ["PENDING", "APPROVED", "REJECTED"]); // Club membership status
 export const genderEnum = pgEnum("gender", ["MALE", "FEMALE"]);
 export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);

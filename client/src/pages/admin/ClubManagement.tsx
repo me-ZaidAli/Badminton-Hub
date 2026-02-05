@@ -418,13 +418,15 @@ export default function ClubManagement() {
                           value={member.clubRole || "PLAYER"} 
                           onValueChange={(role) => handleRoleChange(member.id, role)}
                         >
-                          <SelectTrigger className="w-[120px]" data-testid={`role-select-${member.id}`}>
+                          <SelectTrigger className="w-[130px]" data-testid={`role-select-${member.id}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="PLAYER">Player</SelectItem>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
                             <SelectItem value="OWNER">Owner</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="ORGANISER">Organiser</SelectItem>
+                            <SelectItem value="COACH">Coach</SelectItem>
+                            <SelectItem value="PLAYER">Player</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>

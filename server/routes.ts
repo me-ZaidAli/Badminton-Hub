@@ -20,17 +20,51 @@ async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-// Helper to check if user has admin access (global role OR club owner)
+// Helper to check if user has admin access (global role OR club owner/admin)
 async function hasAdminAccess(userId: number, userRole: string, clubId?: number): Promise<boolean> {
-  if (["OWNER", "ADMIN", "ORGANISER"].includes(userRole)) {
+  // Platform-level super admins have access to everything
+  if (userRole === "OWNER") {
     return true;
   }
+  
   if (clubId) {
+    // Check if user is the club owner
     const club = await storage.getClub(clubId);
     if (club && club.ownerId === userId) {
       return true;
     }
+    
+    // Check club-level role (OWNER or ADMIN can manage club)
+    const profiles = await storage.getUserPlayerProfiles(userId);
+    const clubProfile = profiles.find(p => p.clubId === clubId);
+    if (clubProfile && ["OWNER", "ADMIN"].includes(clubProfile.clubRole)) {
+      return true;
+    }
   }
+  return false;
+}
+
+// Helper to check if user can manage sessions (ORGANISER, COACH, ADMIN, OWNER roles)
+async function canManageSessions(userId: number, userRole: string, clubId: number): Promise<boolean> {
+  // Platform-level super admins can manage all sessions
+  if (userRole === "OWNER") {
+    return true;
+  }
+  
+  // Check club-level role
+  const profiles = await storage.getUserPlayerProfiles(userId);
+  const clubProfile = profiles.find(p => p.clubId === clubId);
+  
+  if (clubProfile && ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubProfile.clubRole)) {
+    return true;
+  }
+  
+  // Check if user owns the club
+  const club = await storage.getClub(clubId);
+  if (club && club.ownerId === userId) {
+    return true;
+  }
+  
   return false;
 }
 
