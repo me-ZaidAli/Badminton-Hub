@@ -17,6 +17,7 @@ import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle } from "lucide-react";
 
 export default function SessionDetail() {
@@ -36,8 +37,16 @@ export default function SessionDetail() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCourts, setEditCourts] = useState(0);
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+  const [editCategories, setEditCategories] = useState<string[]>([]);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
+
+  const CATEGORIES = [
+    { value: "A", label: "Category A" },
+    { value: "B", label: "Category B" },
+    { value: "C", label: "Category C" },
+    { value: "D", label: "Category D" },
+  ];
 
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
@@ -80,6 +89,7 @@ export default function SessionDetail() {
                 if (open) {
                   setEditCourts(session.courtsAvailable);
                   setEditShuttleTubes(session.shuttleTubesUsed || 0);
+                  setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
                 }
               }}>
                 <DialogTrigger asChild>
@@ -87,7 +97,7 @@ export default function SessionDetail() {
                     <Settings2 className="w-4 h-4" /> Settings
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Session Settings</DialogTitle>
                   </DialogHeader>
@@ -115,14 +125,46 @@ export default function SessionDetail() {
                         data-testid="input-shuttle-tubes"
                       />
                     </div>
+                    <div>
+                      <Label>Allowed Categories</Label>
+                      <p className="text-sm text-muted-foreground mb-2">Select which player categories can join this session.</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {CATEGORIES.map((cat) => (
+                          <div key={cat.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`cat-${cat.value}`}
+                              checked={editCategories.includes(cat.value)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setEditCategories([...editCategories, cat.value]);
+                                } else {
+                                  setEditCategories(editCategories.filter(c => c !== cat.value));
+                                }
+                              }}
+                              data-testid={`checkbox-edit-category-${cat.value}`}
+                            />
+                            <label htmlFor={`cat-${cat.value}`} className="text-sm cursor-pointer">
+                              {cat.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <Button 
                       className="w-full" 
                       onClick={() => {
-                        updateSession({ sessionId: id, updates: { courtsAvailable: editCourts, shuttleTubesUsed: editShuttleTubes } }, {
+                        updateSession({ 
+                          sessionId: id, 
+                          updates: { 
+                            courtsAvailable: editCourts, 
+                            shuttleTubesUsed: editShuttleTubes,
+                            allowedCategories: editCategories 
+                          } 
+                        }, {
                           onSuccess: () => setSettingsOpen(false)
                         });
                       }}
-                      disabled={isUpdating}
+                      disabled={isUpdating || editCategories.length === 0}
                       data-testid="button-save-settings"
                     >
                       {isUpdating ? "Saving..." : "Save Settings"}

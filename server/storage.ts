@@ -212,9 +212,21 @@ export class DatabaseStorage implements IStorage {
     return result.map(r => ({ ...r.player_profiles, user: r.users }));
   }
 
-  async updatePlayerProfileStatus(profileId: number, updates: { membershipStatus?: string; clubRole?: string }): Promise<PlayerProfile> {
-    const [updated] = await db.update(playerProfiles).set(updates as any).where(eq(playerProfiles.id, profileId)).returning();
+  async updatePlayerProfile(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile> {
+    const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
+    const [updated] = await db.update(playerProfiles).set(cleanUpdates as any).where(eq(playerProfiles.id, profileId)).returning();
+    
+    // If fullName is provided, update the associated user as well
+    if (fullName && updated.userId) {
+      await db.update(users).set({ fullName }).where(eq(users.id, updated.userId));
+    }
+    
     return updated;
+  }
+
+  async deletePlayerProfiles(profileIds: number[]): Promise<void> {
+    if (profileIds.length === 0) return;
+    await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
   }
 
   async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]> {

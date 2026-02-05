@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -17,6 +18,13 @@ import { insertSessionSchema } from "@shared/schema";
 import { Plus, Users, MapPin, Calendar } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+
+const CATEGORIES = [
+  { value: "A", label: "Category A (Advanced)" },
+  { value: "B", label: "Category B (Intermediate+)" },
+  { value: "C", label: "Category C (Intermediate)" },
+  { value: "D", label: "Category D (Beginner)" },
+] as const;
 
 // Helper for schema refinement if needed, usually direct import works
 const createSessionSchema = insertSessionSchema.extend({
@@ -241,7 +249,50 @@ function CreateSessionDialog() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isPending}>
+            <FormField
+              control={form.control}
+              name="allowedCategories"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Allowed Categories</FormLabel>
+                  <FormDescription>
+                    Select which player categories can join this session.
+                  </FormDescription>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {CATEGORIES.map((category) => (
+                      <FormField
+                        key={category.value}
+                        control={form.control}
+                        name="allowedCategories"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(category.value)}
+                                onCheckedChange={(checked) => {
+                                  const currentValue = (field.value || []) as string[];
+                                  if (checked) {
+                                    field.onChange([...currentValue, category.value]);
+                                  } else {
+                                    field.onChange(currentValue.filter(v => v !== category.value));
+                                  }
+                                }}
+                                data-testid={`checkbox-category-${category.value}`}
+                              />
+                            </FormControl>
+                            <FormLabel className="text-sm font-normal cursor-pointer">
+                              {category.label}
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" className="w-full" disabled={isPending} data-testid="button-create-session">
               {isPending ? "Creating..." : "Create Session"}
             </Button>
           </form>

@@ -559,10 +559,12 @@ export async function registerRoutes(
       return res.status(400).json({ message: "You are already signed up for this session" });
     }
 
-    // Check category
-    if (profile.category && !session.allowedCategories.includes(profile.category)) {
-      // Allow anyway if admin? Strict for now.
-      // return res.status(400).json({ message: "Category not allowed" });
+    // Check category restriction
+    if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 4) {
+      // Only enforce if restricted (not all categories allowed)
+      if (profile.category && !session.allowedCategories.includes(profile.category)) {
+        return res.status(400).json({ message: `This session is only open to categories: ${session.allowedCategories.join(", ")}` });
+      }
     }
 
     const signup = await storage.createSessionSignup(sessionId, profile.id, 1000); // 1000 cents default fee
@@ -615,13 +617,21 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories } = req.body;
 
       const updates: any = {};
       if (courtsAvailable !== undefined) updates.courtsAvailable = courtsAvailable;
       if (maxPlayers !== undefined) updates.maxPlayers = maxPlayers;
       if (matchMode !== undefined) updates.matchMode = matchMode;
       if (status !== undefined) updates.status = status;
+      if (allowedCategories !== undefined) {
+        // Validate categories
+        const validCategories = ["A", "B", "C", "D"];
+        if (!Array.isArray(allowedCategories) || !allowedCategories.every(c => validCategories.includes(c))) {
+          return res.status(400).json({ message: "Invalid categories" });
+        }
+        updates.allowedCategories = allowedCategories;
+      }
 
       const updated = await storage.updateSession(sessionId, updates);
       res.json(updated);
@@ -1300,7 +1310,14 @@ export async function registerRoutes(
     }
 
     try {
-      const { membershipStatus, clubRole } = req.body;
+      // Verify the profile belongs to this club
+      const members = await storage.getClubMembers(clubId);
+      const profile = members.find(m => m.id === profileId);
+      if (!profile) {
+        return res.status(404).json({ message: "Member not found in this club" });
+      }
+
+      const { membershipStatus, clubRole, category, gender, fullName } = req.body;
       
       // Validate inputs
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
@@ -1309,12 +1326,51 @@ export async function registerRoutes(
       if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
       }
+      if (category && !["A", "B", "C", "D"].includes(category)) {
+        return res.status(400).json({ message: "Invalid category" });
+      }
+      if (gender && !["MALE", "FEMALE"].includes(gender)) {
+        return res.status(400).json({ message: "Invalid gender" });
+      }
 
-      const updated = await storage.updatePlayerProfileStatus(profileId, { membershipStatus, clubRole });
+      const updated = await storage.updatePlayerProfile(profileId, { membershipStatus, clubRole, category, gender }, fullName);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating member:", err);
       res.status(500).json({ message: err.message || "Failed to update member" });
+    }
+  });
+
+  // === Bulk delete members (club owner/admin only) ===
+  app.delete("/api/clubs/:clubId/members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { profileIds } = req.body;
+      if (!Array.isArray(profileIds) || profileIds.length === 0) {
+        return res.status(400).json({ message: "profileIds must be a non-empty array" });
+      }
+
+      // Verify all profiles belong to this club
+      const members = await storage.getClubMembers(clubId);
+      const memberIds = new Set(members.map(m => m.id));
+      const validIds = profileIds.map(Number).filter(id => memberIds.has(id));
+      
+      if (validIds.length === 0) {
+        return res.status(400).json({ message: "No valid members found in this club" });
+      }
+
+      await storage.deletePlayerProfiles(validIds);
+      res.json({ message: `Deleted ${validIds.length} members` });
+    } catch (err: any) {
+      console.error("Error deleting members:", err);
+      res.status(500).json({ message: err.message || "Failed to delete members" });
     }
   });
 
