@@ -37,6 +37,12 @@ Key design patterns include:
   - Player status management (ACTIVE, SUSPENDED, ARCHIVED)
   - Cross-club player allocation to add players to multiple clubs
   - Club customization: edit club name and logo URL
+- **Admin Panel Access Control**: The entire Admin Panel (`/admin/*`) is restricted to OWNER role only. Regular ADMINs cannot access super admin functions.
+- **Club Equipment & Skill Settings**: Clubs can specify:
+  - Shuttlecock type: feather, plastic, or both
+  - Whether they provide club T-shirts
+  - Accepted player skill levels: beginner, intermediate, advanced, pro, all
+- **Session Fee Management**: Sessions can have custom fees that override club defaults. Session cards display the fee (in £) and shuttlecock type so players know before joining. Financials are displayed in British Pounds (£).
 
 ## External Dependencies
 
