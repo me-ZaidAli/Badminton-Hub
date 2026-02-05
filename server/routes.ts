@@ -34,6 +34,30 @@ async function hasAdminAccess(userId: number, userRole: string, clubId?: number)
   return false;
 }
 
+// Check if a user is a member of a specific club (for access control)
+async function hasClubMembership(userId: number, userRole: string, clubId: number): Promise<boolean> {
+  // Super admins have access to all clubs
+  if (userRole === "OWNER") {
+    return true;
+  }
+  
+  // Check if user has an approved profile in this club
+  const profiles = await storage.getUserPlayerProfiles(userId);
+  const clubProfile = profiles.find(p => p.clubId === clubId);
+  
+  if (clubProfile && clubProfile.membershipStatus === "APPROVED") {
+    return true;
+  }
+  
+  // Check if user owns this club
+  const club = await storage.getClub(clubId);
+  if (club && club.ownerId === userId) {
+    return true;
+  }
+  
+  return false;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -81,20 +105,57 @@ export async function registerRoutes(
   }
 
   // === PUBLIC: Clubs ===
+  // Public clubs list - only approved clubs for browsing
   app.get("/api/clubs", async (req, res) => {
-    const clubs = await storage.getClubs();
-    res.json(clubs);
+    const allClubs = await storage.getClubs();
+    // Filter to only show approved clubs for public viewing
+    const approvedClubs = allClubs.filter((c: any) => c.status === "APPROVED");
+    res.json(approvedClubs);
+  });
+
+  // Get clubs the current user belongs to (for authenticated users)
+  app.get("/api/my-clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      // Filter to only include clubs where membership is approved
+      const myClubs = userProfiles
+        .filter(p => p.membershipStatus === "APPROVED" && p.club.isActive)
+        .map(p => p.club);
+      res.json(myClubs);
+    } catch (err: any) {
+      console.error("Error fetching user clubs:", err);
+      res.status(500).json({ message: "Failed to fetch clubs" });
+    }
   });
 
   app.get("/api/clubs/:id", async (req, res) => {
     const club = await storage.getClub(Number(req.params.id));
     if (!club) return res.status(404).json({ message: "Club not found" });
+    
+    // For public access, only show approved and active clubs
+    // Super admins can see all clubs
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+      const clubAny = club as any;
+      if (!club.isActive || clubAny.status !== "APPROVED") {
+        return res.status(404).json({ message: "Club not found" });
+      }
+    }
     res.json(club);
   });
 
   app.get("/api/clubs/slug/:slug", async (req, res) => {
     const club = await storage.getClubBySlug(req.params.slug);
     if (!club) return res.status(404).json({ message: "Club not found" });
+    
+    // For public access, only show approved and active clubs
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+      const clubAny = club as any;
+      if (!club.isActive || clubAny.status !== "APPROVED") {
+        return res.status(404).json({ message: "Club not found" });
+      }
+    }
     res.json(club);
   });
 
@@ -186,6 +247,7 @@ export async function registerRoutes(
         slug, 
         description: description?.trim() || null,
         ownerId: userId,
+        status: "PENDING" as any, // Requires super admin approval
         isActive: true 
       });
 
@@ -257,6 +319,13 @@ export async function registerRoutes(
   app.get("/api/public/clubs/:clubId/sessions", async (req, res) => {
     try {
       const clubId = Number(req.params.clubId);
+      
+      // Verify club is approved and active
+      const club = await storage.getClub(clubId);
+      if (!club || !club.isActive || (club as any).status !== "APPROVED") {
+        return res.status(404).json({ message: "Club not found" });
+      }
+      
       const sessions = await storage.getSessionsByClub(clubId);
       // Filter to only public, non-cancelled sessions
       const publicSessions = sessions.filter(s => s.status !== "CANCELLED" && !s.isPrivate);
@@ -273,6 +342,12 @@ export async function registerRoutes(
       const sessionId = Number(req.params.id);
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
+      
+      // Verify club is approved and active
+      const club = await storage.getClub(session.clubId);
+      if (!club || !club.isActive || (club as any).status !== "APPROVED") {
+        return res.status(404).json({ message: "Session not found" });
+      }
       
       // Don't expose private sessions to public
       if (session.isPrivate) {
@@ -334,6 +409,13 @@ export async function registerRoutes(
   // === PUBLIC: Leaderboard (no auth required) ===
   app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);
+    
+    // Verify club is approved and active for public access
+    const club = await storage.getClub(clubId);
+    if (!club || !club.isActive || (club as any).status !== "APPROVED") {
+      return res.status(404).json({ message: "Club not found" });
+    }
+    
     const leaderboard = await storage.getClubLeaderboard(clubId);
     // Return public-safe data (no email/password)
     const safeLeaderboard = leaderboard.map(player => ({
@@ -1085,11 +1167,104 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Name and slug are required" });
       }
       
-      const club = await storage.createClub({ name, slug, description, isActive: true });
+      const club = await storage.createClub({ name, slug, description, isActive: true, status: "APPROVED" as any });
       res.status(201).json(club);
     } catch (err: any) {
       console.error("Error creating club:", err);
       res.status(500).json({ message: err.message || "Failed to create club" });
+    }
+  });
+
+  // Get all clubs for super admin (includes pending/rejected)
+  app.get("/api/admin/clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const allClubs = await storage.getAllClubsForAdmin();
+      res.json(allClubs);
+    } catch (err: any) {
+      console.error("Error fetching all clubs:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch clubs" });
+    }
+  });
+
+  // Approve or reject a club
+  app.patch("/api/admin/clubs/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.id);
+      const { status } = req.body;
+      if (!["PENDING", "APPROVED", "REJECTED"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      const updated = await storage.updateClubStatus(clubId, status);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating club status:", err);
+      res.status(500).json({ message: err.message || "Failed to update club status" });
+    }
+  });
+
+  // Delete a club (soft delete)
+  app.delete("/api/admin/clubs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.id);
+      await storage.deleteClub(clubId);
+      res.sendStatus(204);
+    } catch (err: any) {
+      console.error("Error deleting club:", err);
+      res.status(500).json({ message: err.message || "Failed to delete club" });
+    }
+  });
+
+  // Get all users for super admin
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (err: any) {
+      console.error("Error fetching all users:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch users" });
+    }
+  });
+
+  // Update a user's platform role (super admin only)
+  app.patch("/api/admin/users/:id/role", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const userId = Number(req.params.id);
+      const { role } = req.body;
+      if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      
+      const updated = await storage.updateUser(userId, { role });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating user role:", err);
+      res.status(500).json({ message: err.message || "Failed to update user role" });
     }
   });
 

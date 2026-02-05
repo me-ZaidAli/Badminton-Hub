@@ -13,6 +13,21 @@ export function useClubs() {
   });
 }
 
+// Get clubs the current user belongs to (with approved membership)
+export function useMyClubs() {
+  return useQuery<Club[]>({
+    queryKey: ["/api/my-clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch my clubs");
+      }
+      return res.json();
+    },
+  });
+}
+
 export function useClub(id: number | null) {
   return useQuery<Club>({
     queryKey: ["/api/clubs", id],

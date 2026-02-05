@@ -14,9 +14,13 @@ const PgSession = connectPgSimple(session);
 export interface IStorage {
   // Clubs
   getClubs(): Promise<Club[]>;
+  getAllClubsForAdmin(): Promise<Club[]>; // All clubs including inactive for super admin
   getClub(id: number): Promise<Club | undefined>;
   getClubBySlug(slug: string): Promise<Club | undefined>;
   createClub(club: InsertClub): Promise<Club>;
+  updateClubStatus(id: number, status: string): Promise<Club>;
+  deleteClub(id: number): Promise<void>;
+  getUserPlayerProfiles(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
   
   // Users & Profiles
   getUser(id: number): Promise<User | undefined>;
@@ -92,6 +96,49 @@ export class DatabaseStorage implements IStorage {
   async createClub(club: InsertClub): Promise<Club> {
     const [newClub] = await db.insert(clubs).values(club).returning();
     return newClub;
+  }
+
+  async getAllClubsForAdmin(): Promise<Club[]> {
+    return db.select().from(clubs).orderBy(desc(clubs.createdAt));
+  }
+
+  async updateClubStatus(id: number, status: string): Promise<Club> {
+    const [updated] = await db.update(clubs)
+      .set({ status: status as any })
+      .where(eq(clubs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteClub(id: number): Promise<void> {
+    // Soft delete by setting isActive to false
+    await db.update(clubs).set({ isActive: false }).where(eq(clubs.id, id));
+  }
+
+  async getUserPlayerProfiles(userId: number): Promise<(PlayerProfile & { club: Club })[]> {
+    const result = await db
+      .select({
+        ...playerProfiles,
+        club: clubs
+      })
+      .from(playerProfiles)
+      .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+      .where(eq(playerProfiles.userId, userId));
+    
+    return result.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      clubId: r.clubId,
+      clubRole: r.clubRole,
+      membershipStatus: r.membershipStatus,
+      gender: r.gender,
+      category: r.category,
+      rankingPoints: r.rankingPoints,
+      matchesPlayed: r.matchesPlayed,
+      matchesWon: r.matchesWon,
+      membershipId: r.membershipId,
+      club: r.club
+    }));
   }
 
   async getUser(id: number): Promise<User | undefined> {
