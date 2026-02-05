@@ -66,6 +66,10 @@ export const clubs = pgTable("clubs", {
   // Equipment & Extras
   shuttlecockType: text("shuttlecock_type"), // "feather", "plastic", or "both"
   providesClubTShirts: boolean("provides_club_tshirts").default(false).notNull(),
+  // Contact Information (visible only to super admin)
+  contactFullName: text("contact_full_name"),
+  contactPhone: text("contact_phone"),
+  contactAddress: text("contact_address"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

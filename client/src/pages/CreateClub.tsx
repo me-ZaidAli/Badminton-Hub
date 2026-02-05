@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateClub } from "@/hooks/use-clubs";
-import { ArrowLeft, Building2, Loader2, Trophy, Users, GraduationCap, Clock, PoundSterling, AlertCircle } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Trophy, Users, GraduationCap, Clock, PoundSterling, AlertCircle, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AGE_GROUPS = [
@@ -55,6 +55,10 @@ const createClubSchema = z.object({
   playerLevels: z.array(z.string()).default([]),
   shuttlecockType: z.string().optional(),
   providesClubTShirts: z.boolean().default(false),
+  // Contact information (visible only to super admin)
+  contactFullName: z.string().min(2, "Full name is required").max(100, "Name too long"),
+  contactPhone: z.string().min(5, "Phone number is required").max(20, "Phone number too long"),
+  contactAddress: z.string().min(5, "Address is required").max(300, "Address too long"),
 }).refine((data) => {
   if (data.isRegisteredWithBE && !data.beRegistrationNumber) {
     return false;
@@ -110,6 +114,9 @@ export default function CreateClub() {
       playerLevels: [],
       shuttlecockType: "",
       providesClubTShirts: false,
+      contactFullName: "",
+      contactPhone: "",
+      contactAddress: "",
     },
   });
 
@@ -701,6 +708,74 @@ export default function CreateClub() {
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="border-t pt-6 space-y-6">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-muted-foreground" />
+                    <h3 className="font-semibold text-lg">Your Contact Information</h3>
+                  </div>
+                  <Alert>
+                    <Lock className="h-4 w-4" />
+                    <AlertDescription>
+                      This information is private and only visible to platform administrators (super users). It will not be displayed publicly.
+                    </AlertDescription>
+                  </Alert>
+
+                  <FormField
+                    control={form.control}
+                    name="contactFullName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Full Name *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., John Smith"
+                            data-testid="input-contact-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="contactPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Phone Number *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="e.g., 07123 456789"
+                            data-testid="input-contact-phone"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="contactAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Home Address *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., 123 Main Street, London, SW1A 1AA"
+                            data-testid="input-contact-address"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <div className="flex gap-4 pt-4">
