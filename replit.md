@@ -1,231 +1,58 @@
 # SmashClub - Badminton Club Management System
 
 ## Overview
-
-SmashClub is a full-stack web application for managing badminton club operations. It provides session scheduling, player rankings using an Elo rating system, match management, member profiles, and administrative tools. The platform supports different user roles (Owner, Admin, Organiser, Coach, Player) with role-based access control.
+SmashClub is a full-stack web application designed for comprehensive badminton club management. It offers functionalities such as session scheduling, a player ranking system utilizing Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles including Owner, Admin, Organiser, Coach, and Player, ensuring secure and differentiated access to features. The project aims to streamline club operations, enhance player engagement through competitive rankings, and provide a centralized platform for all club-related activities.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight React router)
-- **State Management**: TanStack React Query for server state, local React state for UI
-- **Styling**: Tailwind CSS with CSS variables for theming, shadcn/ui component library (New York style)
-- **Form Handling**: React Hook Form with Zod validation via @hookform/resolvers
-- **Build Tool**: Vite with path aliases (@/ for client/src, @shared/ for shared)
+### Frontend
+The frontend is built with React 18 and TypeScript, using Wouter for routing and TanStack React Query for server state management. Styling is handled by Tailwind CSS, augmented with shadcn/ui components (New York style) and CSS variables for theming. Form handling is managed with React Hook Form, incorporating Zod for validation. Vite is used as the build tool, configured with path aliases.
 
-### Backend Architecture
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript with ES modules
-- **Authentication**: Passport.js with local strategy, express-session for session management
-- **Password Hashing**: Node.js crypto module (scrypt)
-- **API Design**: REST endpoints defined in shared/routes.ts with Zod schemas for type-safe contracts
+### Backend
+The backend runs on Node.js with Express.js, developed in TypeScript using ES modules. Authentication is implemented with Passport.js (local strategy) and `express-session` for session management. Passwords are hashed using Node.js's native crypto module (scrypt). The API follows a RESTful design, with endpoints defined in `shared/routes.ts` utilizing Zod schemas for type-safe contracts.
 
 ### Data Storage
-- **Database**: PostgreSQL
-- **ORM**: Drizzle ORM with drizzle-zod for schema-to-validation integration
-- **Session Store**: connect-pg-simple for persistent sessions in PostgreSQL
-- **Schema Location**: shared/schema.ts contains all table definitions and relations
+PostgreSQL serves as the primary database, managed by Drizzle ORM. `drizzle-zod` is used for integrating Zod validation with Drizzle schemas. Session persistence is achieved through `connect-pg-simple`, storing sessions in PostgreSQL. The database schema, including all table definitions and relations, is centrally located in `shared/schema.ts`.
 
-### Project Structure
-```
-client/           # React frontend
-  src/
-    components/   # UI components (shadcn/ui based)
-    hooks/        # Custom React hooks for data fetching
-    pages/        # Route components
-    lib/          # Utilities (queryClient, utils)
-server/           # Express backend
-  auth.ts         # Passport authentication setup
-  db.ts           # Database connection
-  routes.ts       # API route handlers
-  storage.ts      # Data access layer
-shared/           # Shared between client and server
-  schema.ts       # Drizzle database schema
-  routes.ts       # API contract definitions with Zod
-```
-
-### Key Design Patterns
-- **Shared Types**: Schema and route definitions in shared/ folder ensure type safety across client and server
-- **Storage Abstraction**: IStorage interface in storage.ts abstracts database operations
-- **API Contracts**: Routes defined with method, path, input schema, and response schemas enable type-safe API calls
-- **Role-Based Access**: User roles control access to admin features and certain operations
-
-### Database Schema
-Core entities:
-- **users**: Authentication and profile info with role-based permissions
-- **playerProfiles**: Player-specific data (ranking points, category, gender, membership)
-- **sessions**: Scheduled badminton sessions with capacity limits
-- **sessionSignups**: Player registrations for sessions with payment/attendance tracking
-- **matches**: Individual games with scores and player assignments
-- **announcements**: Club communications with visibility controls
-- **memberships**: Membership tiers with session rates
-
-## Recent Changes
-
-### Venue Management & Session Deletion (Feb 2026)
-- Added `venues` table for managing club locations: name, address, city, postcode, googleMapsUrl, isDefault
-- Sessions can be linked to venues via optional `venueId` field
-- Venue management page at `/admin/venues` for club owners and admins:
-  - Create/edit/delete venues with full CRUD operations
-  - Club selector for managing multiple clubs
-  - Google Maps URL integration for each venue
-  - Default venue designation
-- Session deletion feature:
-  - Single session delete via SessionDetail page for admins/organizers
-  - Bulk session delete endpoint at DELETE `/api/sessions` with `sessionIds` array
-  - Cascade deletes signups and matches when deleting sessions
-- API endpoints:
-  - GET `/api/clubs/:clubId/venues` - List venues
-  - POST `/api/clubs/:clubId/venues` - Create venue
-  - PATCH `/api/venues/:id` - Update venue
-  - DELETE `/api/venues/:id` - Delete venue (unlinks sessions)
-  - DELETE `/api/sessions/:id` - Delete single session
-  - DELETE `/api/sessions` with body `{sessionIds: []}` - Bulk delete
-
-### Club Location & Map Feature (Feb 2026)
-- Added location fields to clubs: address, city, postcode, latitude, longitude
-- Club creation form includes optional location section with address, city, and postcode fields
-- Backend geocoding using OpenStreetMap Nominatim API converts addresses to coordinates
-- Clubs page at `/clubs` features:
-  - Search by city, postcode, club name, or address
-  - Toggle between list view and map view
-  - Interactive Leaflet map showing clubs with location markers
-  - Click markers to see club info popup
-  - "On Map" badge for clubs with location data
-- Map component uses DOM API for popup content to prevent XSS vulnerabilities
-
-### Public Viewing System (Feb 2026)
-- Public home page at `/` shows upcoming sessions per club without authentication
-- Session cards display date, time, courts, and match mode with links to detail pages
-- Public session detail page at `/public/session/:id` shows:
-  - Session info header with player count and sign-up prompt
-  - Players tab with attendee list (click for player stats popup)
-  - Courts & Matches tab with live matches, queued matches, and completed matches
-- Live polling (10s interval) for real-time match updates
-- Security: Private sessions are filtered out; sensitive user data (email/password) is never exposed
-- API endpoints: GET `/api/public/clubs/:clubId/sessions`, GET `/api/public/sessions/:id`
-
-### Multi-Club Support (Feb 2026)
-- Added `clubs` table to support multiple badminton clubs
-- Player profiles are now club-specific - one user can have different profiles for different clubs
-- Public leaderboard at `/rankings` accessible without login with club filter dropdown
-- Club selection during registration - new users must select which club to join
-- Admin club management page at `/admin/clubs` for creating and managing clubs (OWNER/ADMIN only)
-- All sessions, memberships, and player profiles are linked to specific clubs
-
-### Google Calendar Integration (Feb 2026)
-- Added Google Calendar connection via Replit integration
-- New admin page at `/admin/calendar` for importing calendar events as sessions
-- Admins can select a calendar, preview upcoming events, and import selected events with configurable session settings (max players, courts, match mode)
-- Backend endpoints with role-based access control (OWNER/ADMIN/ORGANISER only)
-
-### Personal Ranking View (Feb 2026)
-- Rankings page now has toggle between "Club Ranking" and "Personal Ranking" views
-- Personal ranking view (requires login) displays:
-  - Left half: Line chart showing ranking points progress over completed matches (using recharts)
-  - Right half: Match history list with win/loss indicator, score, date, and points earned/lost
-- Profile header shows avatar, name, current ranking points, category, and win/loss stats
-- API endpoint: GET /api/personal-ranking/:clubId returns profile and match history with calculated points changes
-
-### User Club Creation (Feb 2026)
-- Any authenticated user can create their own badminton club via POST /api/clubs
-- Club creators become the owner (tracked via `clubs.ownerId` field)
-- Auto-generates unique URL slug from club name (with suffix if duplicate)
-- Auto-creates player profile for owner in new club
-- Club owners have admin access to manage their clubs (sessions, matches, players) via `hasAdminAccess` helper
-- "Create Club" page at `/create-club` with form validation
-- "Start Your Own Club" card on Dashboard linking to creation page
-
-### Match Management System (Feb 2026)
-- Visual badminton court component displaying 2v2 player positions with court markings
-- Match lifecycle: QUEUED → LIVE (with timer) → COMPLETED (archived)
-- Live match timer showing elapsed time (minutes:seconds) calculated from startedAt timestamp
-- Match queue system supporting up to 8 queued matches with dynamic court assignment (max 10 courts)
-- Auto-generate matches feature with configurable court count and match quantity
-- Player swap functionality via dropdown for both queued and live matches
-- Auto-progression: when completing a match, the next queued match automatically moves to the freed court
-- Match completion flow with score entry dialog and automatic archiving
-- API endpoints: POST /api/matches/:id/start, /api/matches/:id/complete, /api/matches/:id/swap-player
-- Role-based access: Match management restricted to OWNER/ADMIN/ORGANISER roles OR club owners
-
-### Club Membership System (Feb 2026)
-- Club-scoped roles: OWNER, ADMIN, PLAYER stored in playerProfiles.clubRole field
-- Membership status: PENDING, APPROVED, REJECTED stored in playerProfiles.membershipStatus field
-- Public clubs browsing page at `/clubs` with search functionality for non-authenticated users
-- Join club workflow: Users can request to join clubs via `/clubs/:id/join` page
-- Club admin panel at `/club-admin` for club owners to:
-  - View pending join requests with approve/reject buttons
-  - Manage approved members and assign club-scoped roles
-  - View rejected members with option to re-approve
-- Sidebar shows "My Club" link for users who own clubs
-- Dashboard redirects pending members to `/pending-approval` waiting page
-- Super admin club management at `/admin/clubs` allows global management of all clubs and members
-- API endpoints:
-  - POST /api/clubs/join - Submit join request to a club
-  - GET /api/clubs/:clubId/members - List all members in a club (admin only)
-  - PATCH /api/clubs/:clubId/members/:profileId - Update member status/role
-
-### Organizer Management System (Feb 2026)
-- Club owners/admins can create organizer accounts with restricted permissions
-- Organizer management page at `/club-admin/:clubId/organizers` for creating and viewing organizers
-- Organizers have access to session and match management only (not admin features)
-- Dedicated organizer dashboard at `/organizer` with simplified navigation
-- Mobile navigation updated to route organizers to their specific dashboard
-- Security: Organizers cannot create other organizers or access admin panels
-- API endpoints:
-  - POST /api/clubs/:clubId/organizers - Create organizer account (club owner/admin only)
-  - GET /api/clubs/:clubId/organizers - List club organizers (club owner/admin only)
-
-### Super Admin System (Feb 2026)
-- Platform-level super admin role (OWNER) has dedicated admin section at `/admin/clubs`
-- Club approval workflow: New clubs created with PENDING status, require super admin approval
-- Club Management page with tabbed interface:
-  - All Clubs: Complete list with status badges
-  - Pending: Clubs awaiting approval with Approve/Reject buttons
-  - Approved: Active approved clubs
-  - Rejected: Rejected clubs with re-approval option
-  - Deleted: Soft-deleted (inactive) clubs
-- User role management: Super admin can assign platform-level roles (OWNER, ADMIN, PLAYER)
-- Access control:
-  - Only OWNER role users can access /admin/* routes
-  - Public endpoints filter to show only APPROVED and active clubs
-  - Users see only clubs they belong to via /api/my-clubs
-  - hasClubMembership helper for future endpoint access control
-- Security: Soft delete for clubs (sets isActive to false) instead of hard deletion
-- API endpoints (OWNER role only):
-  - GET /api/admin/clubs - List all clubs including pending/rejected/inactive
-  - PATCH /api/admin/clubs/:id/status - Update club status (APPROVED/REJECTED)
-  - DELETE /api/admin/clubs/:id - Soft delete club
-  - GET /api/admin/users - List all users for role management
-  - PATCH /api/admin/users/:id/role - Update user's platform role
+### Project Structure and Key Design Patterns
+The project structure separates concerns into `client/`, `server/`, and `shared/` directories.
+Key design patterns include:
+- **Shared Types**: Centralized schema and route definitions in `shared/` ensure type safety across the entire application.
+- **Storage Abstraction**: An `IStorage` interface abstracts database operations, promoting modularity.
+- **API Contracts**: API routes are defined with clear method, path, input, and response schemas for robust, type-safe communication.
+- **Role-Based Access Control**: Granular permissions based on user roles (`OWNER`, `ADMIN`, `PLAYER`, `ORGANISER`, `COACH`) govern access to features and data.
+- **Multi-Club Support**: The system inherently supports multiple badminton clubs, with club-specific player profiles and administrative capabilities. Clubs undergo an approval workflow (PENDING to APPROVED) by a super admin.
+- **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation capabilities.
+- **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED), allows users to join clubs, and provides an admin panel for membership requests and role assignments.
+- **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues.
+- **Public Viewing System**: Provides public access to club information, upcoming sessions, and match details without requiring authentication, while safeguarding sensitive data.
+- **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
 
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary database, connection via DATABASE_URL environment variable
-- **Drizzle Kit**: Database migrations via `npm run db:push`
+- **PostgreSQL**: Core relational database.
+- **Drizzle Kit**: Used for database schema migrations.
 
 ### Authentication
-- **express-session**: Session management
-- **connect-pg-simple**: PostgreSQL session store
-- **passport / passport-local**: Username/password authentication
+- **express-session**: For managing user sessions.
+- **connect-pg-simple**: PostgreSQL store for session data.
+- **passport / passport-local**: User authentication framework.
 
 ### Frontend Libraries
-- **@tanstack/react-query**: Server state management and caching
-- **date-fns**: Date formatting and manipulation
-- **recharts**: Data visualization for player stats (noted in requirements)
-- **Radix UI primitives**: Accessible component primitives for shadcn/ui
+- **@tanstack/react-query**: For efficient server state management and data fetching.
+- **date-fns**: Utility library for date manipulation and formatting.
+- **recharts**: For rendering charts and data visualizations.
+- **Radix UI primitives**: Provides accessible, unstyled components that `shadcn/ui` builds upon.
 
-### Build & Development
-- **Vite**: Frontend bundling with HMR
-- **esbuild**: Server bundling for production
-- **tsx**: TypeScript execution for development
+### Build & Development Tools
+- **Vite**: Frontend build tool with hot module replacement.
+- **esbuild**: Used for bundling the backend for production.
+- **tsx**: For running TypeScript files directly in development.
 
-### Environment Variables Required
-- `DATABASE_URL`: PostgreSQL connection string
-- `SESSION_SECRET`: Secret for session encryption (defaults to "secret" in development)
+### APIs / Integrations
+- **OpenStreetMap Nominatim API**: Used for geocoding addresses to coordinates for club locations.
+- **Google Calendar**: Integration for importing calendar events as sessions.
