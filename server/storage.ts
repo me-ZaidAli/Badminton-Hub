@@ -46,8 +46,8 @@ export interface IStorage {
   deleteVenue(id: number): Promise<void>;
 
   // Sessions
-  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]>;
-  getSession(id: number): Promise<Session | undefined>;
+  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; venue?: Venue })[]>;
+  getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
   updateSession(id: number, updates: Partial<Session>): Promise<Session>;
   deleteSession(id: number): Promise<void>;
@@ -267,39 +267,61 @@ export class DatabaseStorage implements IStorage {
     await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
   }
 
-  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number })[]> {
+  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; venue?: Venue })[]> {
     // Simple implementation for now, ignoring dates
     const allSessions = await db.select().from(sessions).orderBy(desc(sessions.date));
     
-    // Get signup counts (could be optimized with a group by query)
-    const sessionsWithCounts = await Promise.all(allSessions.map(async (s) => {
+    // Get signup counts and venue data
+    const sessionsWithData = await Promise.all(allSessions.map(async (s) => {
       const countResult = await db.select({ count: sql<number>`count(*)` })
         .from(sessionSignups)
         .where(eq(sessionSignups.sessionId, s.id));
-      return { ...s, signupCount: Number(countResult[0]?.count || 0) };
+      
+      let venue: Venue | undefined;
+      if (s.venueId) {
+        const [v] = await db.select().from(venues).where(eq(venues.id, s.venueId));
+        venue = v;
+      }
+      
+      return { ...s, signupCount: Number(countResult[0]?.count || 0), venue };
     }));
 
-    return sessionsWithCounts;
+    return sessionsWithData;
   }
 
-  async getSessionsByClub(clubId: number): Promise<(Session & { signupCount: number })[]> {
+  async getSessionsByClub(clubId: number): Promise<(Session & { signupCount: number; venue?: Venue })[]> {
     const clubSessions = await db.select().from(sessions)
       .where(eq(sessions.clubId, clubId))
       .orderBy(desc(sessions.date));
     
-    const sessionsWithCounts = await Promise.all(clubSessions.map(async (s) => {
+    const sessionsWithData = await Promise.all(clubSessions.map(async (s) => {
       const countResult = await db.select({ count: sql<number>`count(*)` })
         .from(sessionSignups)
         .where(eq(sessionSignups.sessionId, s.id));
-      return { ...s, signupCount: Number(countResult[0]?.count || 0) };
+      
+      let venue: Venue | undefined;
+      if (s.venueId) {
+        const [v] = await db.select().from(venues).where(eq(venues.id, s.venueId));
+        venue = v;
+      }
+      
+      return { ...s, signupCount: Number(countResult[0]?.count || 0), venue };
     }));
 
-    return sessionsWithCounts;
+    return sessionsWithData;
   }
 
-  async getSession(id: number): Promise<Session | undefined> {
+  async getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined> {
     const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
-    return session;
+    if (!session) return undefined;
+    
+    let venue: Venue | undefined;
+    if (session.venueId) {
+      const [v] = await db.select().from(venues).where(eq(venues.id, session.venueId));
+      venue = v;
+    }
+    
+    return { ...session, venue };
   }
 
   async createSession(session: InsertSession & { createdBy: number }): Promise<Session> {

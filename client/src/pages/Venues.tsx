@@ -26,6 +26,7 @@ const venueFormSchema = z.object({
   postcode: z.string().optional(),
   googleMapsUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   isDefault: z.boolean().optional(),
+  courtNames: z.string().optional(),
 });
 
 type VenueFormValues = z.infer<typeof venueFormSchema>;
@@ -57,10 +58,14 @@ export default function Venues() {
       postcode: "",
       googleMapsUrl: "",
       isDefault: false,
+      courtNames: "",
     },
   });
 
   const handleCreate = (values: VenueFormValues) => {
+    const courtNamesArray = values.courtNames 
+      ? values.courtNames.split(',').map(n => n.trim()).filter(n => n)
+      : null;
     createVenueMutation.mutate(
       {
         name: values.name,
@@ -69,6 +74,7 @@ export default function Venues() {
         postcode: values.postcode || null,
         googleMapsUrl: values.googleMapsUrl || null,
         isDefault: values.isDefault || false,
+        courtNames: courtNamesArray,
       },
       {
         onSuccess: () => {
@@ -85,6 +91,9 @@ export default function Venues() {
 
   const handleUpdate = (values: VenueFormValues) => {
     if (!editingVenue) return;
+    const courtNamesArray = values.courtNames 
+      ? values.courtNames.split(',').map(n => n.trim()).filter(n => n)
+      : null;
     updateVenueMutation.mutate(
       {
         venueId: editingVenue.id,
@@ -95,6 +104,7 @@ export default function Venues() {
           postcode: values.postcode || null,
           googleMapsUrl: values.googleMapsUrl || null,
           isDefault: values.isDefault || false,
+          courtNames: courtNamesArray,
         },
       },
       {
@@ -132,6 +142,7 @@ export default function Venues() {
       postcode: venue.postcode || "",
       googleMapsUrl: venue.googleMapsUrl || "",
       isDefault: venue.isDefault,
+      courtNames: venue.courtNames ? venue.courtNames.join(', ') : "",
     });
   };
 
@@ -230,6 +241,20 @@ export default function Venues() {
                         <FormControl>
                           <Input placeholder="https://maps.google.com/..." {...field} data-testid="input-venue-maps-url" />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="courtNames"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Court Names</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Court 1, Main Court, Back Court" {...field} data-testid="input-venue-court-names" />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Separate court names with commas</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -441,6 +466,20 @@ export default function Venues() {
                     <FormControl>
                       <Input {...field} data-testid="input-edit-venue-maps-url" />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="courtNames"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Court Names</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Court 1, Main Court, Back Court" {...field} data-testid="input-edit-venue-court-names" />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">Separate court names with commas</p>
                     <FormMessage />
                   </FormItem>
                 )}

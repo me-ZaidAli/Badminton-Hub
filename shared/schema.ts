@@ -105,6 +105,7 @@ export const venues = pgTable("venues", {
   postcode: text("postcode"),
   googleMapsUrl: text("google_maps_url"),
   isDefault: boolean("is_default").default(false).notNull(),
+  courtNames: jsonb("court_names").$type<string[]>(), // e.g. ["Court 1", "Main Court", "Back Court"]
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

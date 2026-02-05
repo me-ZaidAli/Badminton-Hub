@@ -851,7 +851,7 @@ export async function registerRoutes(
     }
 
     try {
-      const { name, address, city, postcode, googleMapsUrl, isDefault } = req.body;
+      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames } = req.body;
       
       if (!name || !address) {
         return res.status(400).json({ message: "Name and address are required" });
@@ -865,6 +865,7 @@ export async function registerRoutes(
         postcode: postcode || null,
         googleMapsUrl: googleMapsUrl || null,
         isDefault: isDefault || false,
+        courtNames: courtNames || null,
       });
       res.status(201).json(venue);
     } catch (err: any) {
@@ -886,7 +887,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { name, address, city, postcode, googleMapsUrl, isDefault } = req.body;
+      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames } = req.body;
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (address !== undefined) updates.address = address;
@@ -894,6 +895,7 @@ export async function registerRoutes(
       if (postcode !== undefined) updates.postcode = postcode;
       if (googleMapsUrl !== undefined) updates.googleMapsUrl = googleMapsUrl;
       if (isDefault !== undefined) updates.isDefault = isDefault;
+      if (courtNames !== undefined) updates.courtNames = courtNames;
 
       const updated = await storage.updateVenue(venueId, updates);
       res.json(updated);

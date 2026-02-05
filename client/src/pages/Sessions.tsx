@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -87,6 +87,12 @@ export default function Sessions() {
                     <MapPin className="h-4 w-4" />
                     <span>{session.courtsAvailable} Courts Available</span>
                   </div>
+                  {session.venue && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      <span>{session.venue.name}{session.venue.city ? `, ${session.venue.city}` : ''}</span>
+                    </div>
+                  )}
                   {session.sessionFee != null && (
                     <div className="flex items-center gap-2">
                       <PoundSterling className="h-4 w-4" />
