@@ -142,6 +142,26 @@ export async function registerRoutes(
     console.log("Database seeded!");
   }
 
+  // Ensure super admin account exists
+  const superAdminEmail = "Bpgbirmingham@gmail.com";
+  let superAdmin = await storage.getUserByUsername(superAdminEmail);
+  if (!superAdmin) {
+    console.log("Creating super admin account...");
+    const hashedPassword = await hashPassword("SuperAdmin123!");
+    superAdmin = await storage.createUser({
+      fullName: "Super Admin",
+      email: superAdminEmail,
+      password: hashedPassword,
+      role: "OWNER",
+      accountStatus: "APPROVED"
+    });
+    console.log("Super admin account created!");
+  } else if ((superAdmin as any).role !== "OWNER") {
+    // Upgrade existing user to OWNER if not already
+    await storage.updateUser((superAdmin as any).id, { role: "OWNER" });
+    console.log("Super admin account upgraded to OWNER!");
+  }
+
   // === PUBLIC: Clubs ===
   // Public clubs list - only approved clubs for browsing
   app.get("/api/clubs", async (req, res) => {
