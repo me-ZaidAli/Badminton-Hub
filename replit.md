@@ -149,6 +149,29 @@ Core entities:
   - POST /api/clubs/:clubId/organizers - Create organizer account (club owner/admin only)
   - GET /api/clubs/:clubId/organizers - List club organizers (club owner/admin only)
 
+### Super Admin System (Feb 2026)
+- Platform-level super admin role (OWNER) has dedicated admin section at `/admin/clubs`
+- Club approval workflow: New clubs created with PENDING status, require super admin approval
+- Club Management page with tabbed interface:
+  - All Clubs: Complete list with status badges
+  - Pending: Clubs awaiting approval with Approve/Reject buttons
+  - Approved: Active approved clubs
+  - Rejected: Rejected clubs with re-approval option
+  - Deleted: Soft-deleted (inactive) clubs
+- User role management: Super admin can assign platform-level roles (OWNER, ADMIN, PLAYER)
+- Access control:
+  - Only OWNER role users can access /admin/* routes
+  - Public endpoints filter to show only APPROVED and active clubs
+  - Users see only clubs they belong to via /api/my-clubs
+  - hasClubMembership helper for future endpoint access control
+- Security: Soft delete for clubs (sets isActive to false) instead of hard deletion
+- API endpoints (OWNER role only):
+  - GET /api/admin/clubs - List all clubs including pending/rejected/inactive
+  - PATCH /api/admin/clubs/:id/status - Update club status (APPROVED/REJECTED)
+  - DELETE /api/admin/clubs/:id - Soft delete club
+  - GET /api/admin/users - List all users for role management
+  - PATCH /api/admin/users/:id/role - Update user's platform role
+
 ## External Dependencies
 
 ### Database
