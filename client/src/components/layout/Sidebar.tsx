@@ -53,6 +53,10 @@ export function Sidebar() {
     }
   }
 
+  if (user?.role === "OWNER") {
+    navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
+  }
+
   return (
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
       {/* Brand */}

@@ -36,6 +36,7 @@ import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
+import ClubApprovals from "@/pages/admin/ClubApprovals";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Venues from "@/pages/Venues";
 
@@ -78,6 +79,35 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 
   const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER";
   if (!isAdmin) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
+        <Component />
+      </main>
+      <MobileNav />
+    </div>
+  );
+}
+
+function OwnerRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!user) {
+    setLocation("/login");
+    return null;
+  }
+
+  if (user.role !== "OWNER") {
     setLocation("/dashboard");
     return null;
   }
@@ -204,6 +234,9 @@ function Router() {
       </Route>
       <Route path="/admin/clubs">
         <AdminRoute component={ClubManagement} />
+      </Route>
+      <Route path="/admin/club-approvals">
+        <OwnerRoute component={ClubApprovals} />
       </Route>
       <Route path="/admin/venues">
         <AdminRoute component={Venues} />
