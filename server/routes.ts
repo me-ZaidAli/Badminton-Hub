@@ -213,7 +213,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const { name, description } = req.body;
+      const { name, description, address, city, postcode } = req.body;
       
       // Validate name
       if (!name || typeof name !== 'string') {
@@ -242,10 +242,36 @@ export async function registerRoutes(
       }
 
       const userId = req.user!.id;
+      
+      // Geocode the address if provided
+      let latitude: string | null = null;
+      let longitude: string | null = null;
+      if (address || city || postcode) {
+        try {
+          const geocodeQuery = [address, city, postcode].filter(Boolean).join(", ");
+          const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(geocodeQuery)}&limit=1`;
+          const geocodeResponse = await fetch(geocodeUrl, {
+            headers: { 'User-Agent': 'SmashClub/1.0' }
+          });
+          const geocodeData = await geocodeResponse.json();
+          if (geocodeData && geocodeData.length > 0) {
+            latitude = geocodeData[0].lat;
+            longitude = geocodeData[0].lon;
+          }
+        } catch (err) {
+          console.log("Geocoding failed, continuing without coordinates:", err);
+        }
+      }
+
       const club = await storage.createClub({ 
         name: trimmedName, 
         slug, 
         description: description?.trim() || null,
+        address: address?.trim() || null,
+        city: city?.trim() || null,
+        postcode: postcode?.trim() || null,
+        latitude,
+        longitude,
         ownerId: userId,
         status: "PENDING" as any, // Requires super admin approval
         isActive: true 

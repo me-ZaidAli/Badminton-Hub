@@ -40,6 +40,12 @@ export const clubs = pgTable("clubs", {
   ownerId: integer("owner_id").references(() => users.id), // User who created/owns this club
   status: clubStatusEnum("status").default("PENDING").notNull(), // Club approval status
   isActive: boolean("is_active").default(true).notNull(),
+  // Location fields
+  address: text("address"),
+  city: text("city"),
+  postcode: text("postcode"),
+  latitude: text("latitude"), // Stored as text to avoid floating point issues
+  longitude: text("longitude"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

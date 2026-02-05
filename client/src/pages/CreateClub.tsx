@@ -14,6 +14,9 @@ import { ArrowLeft, Building2, Loader2 } from "lucide-react";
 const createClubSchema = z.object({
   name: z.string().min(3, "Club name must be at least 3 characters").max(50, "Club name must be less than 50 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
+  address: z.string().max(200, "Address must be less than 200 characters").optional(),
+  city: z.string().max(100, "City must be less than 100 characters").optional(),
+  postcode: z.string().max(20, "Postcode must be less than 20 characters").optional(),
 });
 
 type CreateClubFormData = z.infer<typeof createClubSchema>;
@@ -28,6 +31,9 @@ export default function CreateClub() {
     defaultValues: {
       name: "",
       description: "",
+      address: "",
+      city: "",
+      postcode: "",
     },
   });
 
@@ -121,6 +127,71 @@ export default function CreateClub() {
                     </FormItem>
                   )}
                 />
+
+                <div className="border-t pt-6 mt-6">
+                  <h3 className="font-medium mb-4">Location (Optional)</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Adding a location helps players find your club on the map
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., 123 Sports Center Drive"
+                              data-testid="input-club-address"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>City</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., London"
+                                data-testid="input-club-city"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="postcode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Postcode</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., SW1A 1AA"
+                                data-testid="input-club-postcode"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 <div className="flex gap-4">
                   <Button
