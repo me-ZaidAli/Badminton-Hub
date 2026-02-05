@@ -68,14 +68,32 @@ export function ClubMap({ clubs, center = [51.5074, -0.1278], zoom = 10, onClubC
       if (!isNaN(lat) && !isNaN(lng)) {
         const marker = L.marker([lat, lng]).addTo(mapInstanceRef.current!);
         
-        const popupContent = `
-          <div style="min-width: 150px;">
-            <strong>${club.name}</strong>
-            ${club.city ? `<br><span style="color: #666;">${club.city}</span>` : ''}
-            ${club.postcode ? `<br><span style="color: #888; font-size: 0.9em;">${club.postcode}</span>` : ''}
-          </div>
-        `;
-        marker.bindPopup(popupContent);
+        // Create popup content safely using DOM API to prevent XSS
+        const container = document.createElement('div');
+        container.style.minWidth = '150px';
+        
+        const nameEl = document.createElement('strong');
+        nameEl.textContent = club.name;
+        container.appendChild(nameEl);
+        
+        if (club.city) {
+          container.appendChild(document.createElement('br'));
+          const cityEl = document.createElement('span');
+          cityEl.style.color = '#666';
+          cityEl.textContent = club.city;
+          container.appendChild(cityEl);
+        }
+        
+        if (club.postcode) {
+          container.appendChild(document.createElement('br'));
+          const postcodeEl = document.createElement('span');
+          postcodeEl.style.color = '#888';
+          postcodeEl.style.fontSize = '0.9em';
+          postcodeEl.textContent = club.postcode;
+          container.appendChild(postcodeEl);
+        }
+        
+        marker.bindPopup(container);
         
         if (onClubClick) {
           marker.on('click', () => onClubClick(club.id));

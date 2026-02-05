@@ -67,6 +67,18 @@ Core entities:
 
 ## Recent Changes
 
+### Club Location & Map Feature (Feb 2026)
+- Added location fields to clubs: address, city, postcode, latitude, longitude
+- Club creation form includes optional location section with address, city, and postcode fields
+- Backend geocoding using OpenStreetMap Nominatim API converts addresses to coordinates
+- Clubs page at `/clubs` features:
+  - Search by city, postcode, club name, or address
+  - Toggle between list view and map view
+  - Interactive Leaflet map showing clubs with location markers
+  - Click markers to see club info popup
+  - "On Map" badge for clubs with location data
+- Map component uses DOM API for popup content to prevent XSS vulnerabilities
+
 ### Public Viewing System (Feb 2026)
 - Public home page at `/` shows upcoming sessions per club without authentication
 - Session cards display date, time, courts, and match mode with links to detail pages
