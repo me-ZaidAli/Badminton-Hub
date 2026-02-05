@@ -138,6 +138,17 @@ Core entities:
   - GET /api/clubs/:clubId/members - List all members in a club (admin only)
   - PATCH /api/clubs/:clubId/members/:profileId - Update member status/role
 
+### Organizer Management System (Feb 2026)
+- Club owners/admins can create organizer accounts with restricted permissions
+- Organizer management page at `/club-admin/:clubId/organizers` for creating and viewing organizers
+- Organizers have access to session and match management only (not admin features)
+- Dedicated organizer dashboard at `/organizer` with simplified navigation
+- Mobile navigation updated to route organizers to their specific dashboard
+- Security: Organizers cannot create other organizers or access admin panels
+- API endpoints:
+  - POST /api/clubs/:clubId/organizers - Create organizer account (club owner/admin only)
+  - GET /api/clubs/:clubId/organizers - List club organizers (club owner/admin only)
+
 ## External Dependencies
 
 ### Database
