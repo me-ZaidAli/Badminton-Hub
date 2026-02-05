@@ -27,7 +27,7 @@ Key design patterns include:
 - **Multi-Club Support**: The system inherently supports multiple badminton clubs, with club-specific player profiles and administrative capabilities. Clubs undergo an approval workflow (PENDING to APPROVED) by a super admin.
 - **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation capabilities.
 - **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED), allows users to join clubs, and provides an admin panel for membership requests and role assignments.
-- **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues.
+- **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues. Club admins (OWNER or ADMIN club role) can add and manage venues for their clubs. Super admins see all venues across all clubs.
 - **Public Viewing System**: Provides public access to club information, upcoming sessions, and match details without requiring authentication, while safeguarding sensitive data.
 - **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
 - **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
@@ -44,6 +44,7 @@ Key design patterns include:
   - Change club roles (OWNER, ADMIN, ORGANISER, COACH, PLAYER)
   - Role hierarchy: OWNER (full access) > ADMIN (club management) > ORGANISER/COACH (session management) > PLAYER (basic)
   - Permission checks require APPROVED membership status for club-level access
+  - Venues navigation in sidebar/mobile nav only visible to users with actual admin access
 - **Club Equipment & Skill Settings**: Clubs can specify:
   - Shuttlecock type: feather, plastic, or both
   - Whether they provide club T-shirts

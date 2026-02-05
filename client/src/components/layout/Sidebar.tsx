@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import { 
   Trophy, 
   Calendar, 
@@ -24,11 +24,14 @@ export function Sidebar() {
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
   const { data: clubs } = useClubs();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
   const isOrganiser = user?.role === "ORGANISER";
+  const isSuperAdmin = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
   const isClubOwner = ownedClubs.length > 0;
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
   // Organizers get a simplified navigation focused on session management
   const navItems = isOrganiser ? [
@@ -47,7 +50,8 @@ export function Sidebar() {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
   }
 
-  if (isAdmin || isClubOwner) {
+  // Show Venues to platform super admins, club owners, or club admins
+  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
@@ -133,10 +137,13 @@ export function MobileNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { data: clubs } = useClubs();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiser = user?.role === "ORGANISER";
+  const isSuperAdmin = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
   const isClubOwner = ownedClubs.length > 0;
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
   // Organizers get simplified navigation
   const navItems = isOrganiser ? [
@@ -152,6 +159,11 @@ export function MobileNav() {
 
   if (isClubOwner) {
     navItems.push({ href: "/club-admin", icon: Building2 });
+  }
+
+  // Show Venues to platform super admins, club owners, or club admins
+  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
+    navItems.push({ href: "/admin/venues", icon: MapPin });
   }
 
   if (isAdmin) {

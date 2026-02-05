@@ -118,7 +118,16 @@ export default function ClubAdmins() {
     }
   };
 
+  if (clubsLoading || adminsLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
   const filteredAdmins = admins?.filter(admin => {
+    if (!admin.club || !admin.user) return false;
     const matchesClub = selectedClub === "all" || admin.clubId === Number(selectedClub);
     const matchesSearch = !searchQuery || 
       admin.user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -134,14 +143,6 @@ export default function ClubAdmins() {
     acc[clubName].push(admin);
     return acc;
   }, {} as Record<string, ClubAdmin[]>);
-
-  if (clubsLoading || adminsLoading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useMyAdminClubs, useAllClubsForAdmin } from "@/hooks/use-clubs";
 import { useUser } from "@/hooks/use-auth";
 import { useVenues, useCreateVenue, useUpdateVenue, useDeleteVenue } from "@/hooks/use-venues";
 import { PageHeader } from "@/components/ui/page-header";
@@ -40,8 +40,12 @@ export default function Venues() {
   const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
   const [deleteVenue, setDeleteVenue] = useState<Venue | null>(null);
 
-  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
-  const adminClubs = ["OWNER", "ADMIN"].includes(user?.role || "") ? clubs : ownedClubs;
+  const isSuperAdmin = user?.role === "OWNER";
+  const { data: myAdminClubs } = useMyAdminClubs(!!user && !isSuperAdmin);
+  const { data: allAdminClubs } = useAllClubsForAdmin(!!user && isSuperAdmin);
+  
+  // Super admins see all clubs (including pending/inactive), regular admins see their admin clubs
+  const adminClubs = isSuperAdmin ? allAdminClubs : myAdminClubs;
   const clubId = selectedClubId ?? adminClubs?.[0]?.id ?? null;
 
   const { data: venues, isLoading } = useVenues(clubId);

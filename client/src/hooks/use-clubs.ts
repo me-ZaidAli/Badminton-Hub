@@ -28,6 +28,39 @@ export function useMyClubs() {
   });
 }
 
+// Get clubs where the current user has admin access (club OWNER or ADMIN role)
+// Pass isAuthenticated=true when user is logged in to enable the query
+export function useMyAdminClubs(isAuthenticated: boolean = false) {
+  return useQuery<Club[]>({
+    queryKey: ["/api/my-admin-clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-admin-clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch admin clubs");
+      }
+      return res.json();
+    },
+    enabled: isAuthenticated,
+  });
+}
+
+// Get all clubs for super admin (includes pending/inactive clubs)
+export function useAllClubsForAdmin(enabled: boolean = false) {
+  return useQuery<Club[]>({
+    queryKey: ["/api/admin/clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) return [];
+        throw new Error("Failed to fetch admin clubs");
+      }
+      return res.json();
+    },
+    enabled,
+  });
+}
+
 export function useClub(id: number | null) {
   return useQuery<Club>({
     queryKey: ["/api/clubs", id],

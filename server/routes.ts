@@ -168,6 +168,41 @@ export async function registerRoutes(
     }
   });
 
+  // Get clubs where the current user has admin access (club OWNER or ADMIN role)
+  app.get("/api/my-admin-clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      
+      // Filter to clubs where user has admin role (OWNER or ADMIN) and is approved
+      const adminClubs = userProfiles
+        .filter(p => 
+          p.membershipStatus === "APPROVED" && 
+          p.club.isActive &&
+          ["OWNER", "ADMIN"].includes(p.clubRole)
+        )
+        .map(p => p.club);
+      
+      // Also include clubs the user owns (via club.ownerId)
+      const allClubs = await storage.getClubs();
+      const ownedClubs = allClubs.filter(c => c.ownerId === req.user!.id && c.isActive);
+      
+      // Merge and deduplicate
+      const clubIds = new Set(adminClubs.map(c => c.id));
+      for (const club of ownedClubs) {
+        if (!clubIds.has(club.id)) {
+          adminClubs.push(club);
+        }
+      }
+      
+      res.json(adminClubs);
+    } catch (err: any) {
+      console.error("Error fetching admin clubs:", err);
+      res.status(500).json({ message: "Failed to fetch admin clubs" });
+    }
+  });
+
   app.get("/api/clubs/:id", async (req, res) => {
     const club = await storage.getClub(Number(req.params.id));
     if (!club) return res.status(404).json({ message: "Club not found" });
