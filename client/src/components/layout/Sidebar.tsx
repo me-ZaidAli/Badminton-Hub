@@ -22,11 +22,16 @@ export function Sidebar() {
   const { mutate: logout } = useLogout();
   const { data: clubs } = useClubs();
 
-  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "ORGANISER";
+  const isOrganiser = user?.role === "ORGANISER";
+  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
   const isClubOwner = ownedClubs.length > 0;
 
-  const navItems = [
+  // Organizers get a simplified navigation focused on session management
+  const navItems = isOrganiser ? [
+    { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/sessions", label: "Sessions", icon: Calendar },
+  ] : [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
     { href: "/rankings", label: "Rankings", icon: Trophy },
@@ -37,8 +42,10 @@ export function Sidebar() {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
   }
 
-  if (isAdmin) {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+  if (isAdmin || isOrganiser) {
+    if (isAdmin) {
+      navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+    }
   }
 
   return (
@@ -117,11 +124,16 @@ export function MobileNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { data: clubs } = useClubs();
-  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "ORGANISER";
+  const isOrganiser = user?.role === "ORGANISER";
+  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
   const isClubOwner = ownedClubs.length > 0;
 
-  const navItems = [
+  // Organizers get simplified navigation
+  const navItems = isOrganiser ? [
+    { href: "/organizer", icon: LayoutDashboard },
+    { href: "/sessions", icon: Calendar },
+  ] : [
     { href: "/dashboard", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
     { href: "/rankings", icon: Trophy },

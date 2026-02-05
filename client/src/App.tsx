@@ -22,6 +22,8 @@ import CreateClub from "@/pages/CreateClub";
 import Clubs from "@/pages/Clubs";
 import JoinClub from "@/pages/JoinClub";
 import ClubAdmin from "@/pages/ClubAdmin";
+import ManageOrganizers from "@/pages/ManageOrganizers";
+import OrganizerDashboard from "@/pages/OrganizerDashboard";
 import PendingApproval from "@/pages/PendingApproval";
 
 // Admin Pages
@@ -159,6 +161,12 @@ function Router() {
       </Route>
       <Route path="/club-admin">
         <PrivateRoute component={ClubAdmin} />
+      </Route>
+      <Route path="/club-admin/:clubId/organizers">
+        <PrivateRoute component={ManageOrganizers} />
+      </Route>
+      <Route path="/organizer">
+        <PrivateRoute component={OrganizerDashboard} />
       </Route>
       <Route path="/pending-approval">
         <PrivateRoute component={PendingApproval} />

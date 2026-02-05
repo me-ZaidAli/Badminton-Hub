@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, Check, X, Shield, User, Clock, Loader2 } from "lucide-react";
+import { Users, Check, X, Shield, User, Clock, Loader2, UserPlus } from "lucide-react";
 import { PlayerProfile, User as UserType } from "@shared/schema";
+import { Link } from "wouter";
 
 type MemberWithUser = PlayerProfile & { user: UserType };
 
@@ -83,10 +84,19 @@ export default function ClubAdmin() {
 
   return (
     <div className="space-y-8">
-      <PageHeader 
-        title="Club Admin" 
-        description="Manage your club members and approve join requests."
-      />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <PageHeader 
+          title="Club Admin" 
+          description="Manage your club members and approve join requests."
+        />
+        {clubId && (
+          <Link href={`/club-admin/${clubId}/organizers`}>
+            <Button data-testid="button-manage-organizers">
+              <UserPlus className="w-4 h-4 mr-2" /> Manage Organizers
+            </Button>
+          </Link>
+        )}
+      </div>
 
       {ownedClubs.length > 1 && (
         <div className="flex items-center gap-4">

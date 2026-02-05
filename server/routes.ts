@@ -1091,6 +1091,92 @@ export async function registerRoutes(
     }
   });
 
+  // === Create Organizer (club owner/admin only - NOT organizers) ===
+  app.post("/api/clubs/:clubId/organizers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Only OWNER/ADMIN roles or club owner can create organizers (NOT organizers themselves)
+    const isGlobalAdmin = ["OWNER", "ADMIN"].includes(req.user!.role);
+    const club = await storage.getClub(clubId);
+    const isClubOwner = club && club.ownerId === req.user!.id;
+    
+    if (!isGlobalAdmin && !isClubOwner) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { fullName, email, password } = req.body;
+      
+      if (!fullName || !email || !password) {
+        return res.status(400).json({ message: "Full name, email, and password are required" });
+      }
+
+      // Check if email already exists
+      const existingUser = await storage.getUserByUsername(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already in use" });
+      }
+
+      // Hash password
+      const hashedPassword = await hashPassword(password);
+
+      // Create user with ORGANISER role
+      const { user, profile } = await storage.createUserWithProfile(
+        {
+          fullName,
+          email,
+          password: hashedPassword,
+          role: "ORGANISER",
+          accountStatus: "APPROVED", // Auto-approve since admin is creating
+        },
+        {
+          clubId,
+          category: "D", // Default category
+        }
+      );
+
+      // Update profile to be approved
+      await storage.updatePlayerProfileStatus(profile.id, { 
+        membershipStatus: "APPROVED",
+        clubRole: "ADMIN" // Club-level admin role for organizers
+      });
+
+      res.status(201).json({ 
+        message: "Organizer created successfully",
+        user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role }
+      });
+    } catch (err: any) {
+      console.error("Error creating organizer:", err);
+      res.status(500).json({ message: err.message || "Failed to create organizer" });
+    }
+  });
+
+  // === Get Club Organizers (club owner/admin only - NOT organizers) ===
+  app.get("/api/clubs/:clubId/organizers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    
+    // Only OWNER/ADMIN roles or club owner can view organizers list
+    const isGlobalAdmin = ["OWNER", "ADMIN"].includes(req.user!.role);
+    const club = await storage.getClub(clubId);
+    const isClubOwner = club && club.ownerId === req.user!.id;
+    
+    if (!isGlobalAdmin && !isClubOwner) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      // Get all members of the club where the user has ORGANISER role
+      const members = await storage.getClubMembers(clubId);
+      const organizers = members.filter(m => m.user.role === "ORGANISER");
+      res.json(organizers);
+    } catch (err: any) {
+      console.error("Error fetching organizers:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch organizers" });
+    }
+  });
+
   // === Google Calendar Integration ===
   app.get("/api/admin/calendar/calendars", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
