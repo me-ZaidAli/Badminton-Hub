@@ -46,6 +46,21 @@ export const clubs = pgTable("clubs", {
   postcode: text("postcode"),
   latitude: text("latitude"), // Stored as text to avoid floating point issues
   longitude: text("longitude"),
+  // Registration & Affiliation
+  isRegisteredWithBE: boolean("is_registered_with_be").default(false).notNull(), // Badminton England
+  beRegistrationNumber: text("be_registration_number"), // Optional BE reg number
+  // Club Activities
+  hasCompetitions: boolean("has_competitions").default(false).notNull(),
+  hasSocialGames: boolean("has_social_games").default(false).notNull(),
+  socialGameTimings: text("social_game_timings"), // e.g., "Sundays 2pm-5pm"
+  providesTraining: boolean("provides_training").default(false).notNull(),
+  trainingDetails: text("training_details"), // e.g., "Coaching available for all levels"
+  // Fees
+  sessionFee: integer("session_fee"), // in pence (GBP)
+  hasMembership: boolean("has_membership").default(false).notNull(),
+  membershipFee: integer("membership_fee"), // in pence (GBP) per year
+  // Target Players
+  ageGroups: jsonb("age_groups").$type<string[]>().default([]), // ["Adult", "Junior", "Senior"]
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

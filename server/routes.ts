@@ -213,7 +213,14 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const { name, description, address, city, postcode } = req.body;
+      const { 
+        name, description, address, city, postcode,
+        isRegisteredWithBE, beRegistrationNumber,
+        hasCompetitions, hasSocialGames, socialGameTimings,
+        providesTraining, trainingDetails,
+        sessionFee, hasMembership, membershipFee,
+        ageGroups
+      } = req.body;
       
       // Validate name
       if (!name || typeof name !== 'string') {
@@ -222,6 +229,53 @@ export async function registerRoutes(
       const trimmedName = name.trim();
       if (trimmedName.length < 3 || trimmedName.length > 50) {
         return res.status(400).json({ message: "Club name must be between 3 and 50 characters" });
+      }
+
+      // Validate conditional fields
+      const isRegisteredWithBEBool = Boolean(isRegisteredWithBE);
+      if (isRegisteredWithBEBool && (!beRegistrationNumber || typeof beRegistrationNumber !== 'string' || !beRegistrationNumber.trim())) {
+        return res.status(400).json({ message: "Badminton England registration number is required when registered" });
+      }
+
+      const hasSocialGamesBool = Boolean(hasSocialGames);
+      if (hasSocialGamesBool && (!socialGameTimings || typeof socialGameTimings !== 'string' || !socialGameTimings.trim())) {
+        return res.status(400).json({ message: "Social game timings are required when social games are offered" });
+      }
+
+      const hasMembershipBool = Boolean(hasMembership);
+      if (hasMembershipBool) {
+        const membershipFeeNum = Number(membershipFee);
+        if (isNaN(membershipFeeNum) || membershipFeeNum < 0) {
+          return res.status(400).json({ message: "Valid membership fee is required when membership is offered" });
+        }
+      }
+
+      // Validate and parse numeric fees
+      let parsedSessionFee: number | null = null;
+      if (sessionFee !== undefined && sessionFee !== null && sessionFee !== '') {
+        const sessionFeeNum = Number(sessionFee);
+        if (isNaN(sessionFeeNum) || sessionFeeNum < 0) {
+          return res.status(400).json({ message: "Session fee must be a valid positive number" });
+        }
+        parsedSessionFee = Math.round(sessionFeeNum);
+      }
+
+      let parsedMembershipFee: number | null = null;
+      if (membershipFee !== undefined && membershipFee !== null && membershipFee !== '') {
+        const membershipFeeNum = Number(membershipFee);
+        if (isNaN(membershipFeeNum) || membershipFeeNum < 0) {
+          return res.status(400).json({ message: "Membership fee must be a valid positive number" });
+        }
+        parsedMembershipFee = Math.round(membershipFeeNum);
+      }
+
+      // Validate ageGroups against allowed values
+      const ALLOWED_AGE_GROUPS = ["junior", "adult", "senior", "mixed"];
+      let validatedAgeGroups: string[] = [];
+      if (Array.isArray(ageGroups)) {
+        validatedAgeGroups = ageGroups.filter(
+          (ag: unknown) => typeof ag === 'string' && ALLOWED_AGE_GROUPS.includes(ag)
+        );
       }
 
       // Generate base slug from name
@@ -274,7 +328,19 @@ export async function registerRoutes(
         longitude,
         ownerId: userId,
         status: "PENDING" as any, // Requires super admin approval
-        isActive: true 
+        isActive: true,
+        // New fields (validated)
+        isRegisteredWithBE: isRegisteredWithBEBool,
+        beRegistrationNumber: isRegisteredWithBEBool ? beRegistrationNumber.trim() : null,
+        hasCompetitions: Boolean(hasCompetitions),
+        hasSocialGames: hasSocialGamesBool,
+        socialGameTimings: hasSocialGamesBool ? socialGameTimings.trim() : null,
+        providesTraining: Boolean(providesTraining),
+        trainingDetails: providesTraining ? trainingDetails?.trim() || null : null,
+        sessionFee: parsedSessionFee,
+        hasMembership: hasMembershipBool,
+        membershipFee: parsedMembershipFee,
+        ageGroups: validatedAgeGroups
       });
 
       // Create a player profile for the owner in this club with OWNER role and APPROVED status
