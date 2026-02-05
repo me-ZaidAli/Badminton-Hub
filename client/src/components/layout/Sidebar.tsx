@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Activity,
   Building2,
-  MapPin
+  MapPin,
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,9 +31,11 @@ export function Sidebar() {
 
   // Organizers get a simplified navigation focused on session management
   const navItems = isOrganiser ? [
+    { href: "/", label: "Home", icon: Home },
     { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
   ] : [
+    { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
     { href: "/rankings", label: "Rankings", icon: Trophy },
@@ -135,9 +138,11 @@ export function MobileNav() {
 
   // Organizers get simplified navigation
   const navItems = isOrganiser ? [
+    { href: "/", icon: Home },
     { href: "/organizer", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
   ] : [
+    { href: "/", icon: Home },
     { href: "/dashboard", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
     { href: "/rankings", icon: Trophy },
