@@ -25,6 +25,7 @@ import ClubAdmin from "@/pages/ClubAdmin";
 import ManageOrganizers from "@/pages/ManageOrganizers";
 import OrganizerDashboard from "@/pages/OrganizerDashboard";
 import PendingApproval from "@/pages/PendingApproval";
+import Profile from "@/pages/Profile";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -170,6 +171,9 @@ function Router() {
       </Route>
       <Route path="/pending-approval">
         <PrivateRoute component={PendingApproval} />
+      </Route>
+      <Route path="/profile">
+        <Profile />
       </Route>
 
       {/* Admin Routes */}

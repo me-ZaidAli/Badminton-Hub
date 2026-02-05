@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -93,6 +96,55 @@ export async function registerRoutes(
     const club = await storage.getClubBySlug(req.params.slug);
     if (!club) return res.status(404).json({ message: "Club not found" });
     res.json(club);
+  });
+
+  // === Player Profiles (current user) ===
+  app.get("/api/player-profiles", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await storage.getUserPlayerProfiles(req.user!.id);
+      res.json(profiles);
+    } catch (err: any) {
+      console.error("Error fetching player profiles:", err);
+      res.status(500).json({ message: "Failed to fetch profiles" });
+    }
+  });
+
+  app.patch("/api/player-profiles/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const profileId = Number(req.params.id);
+      const profiles = await storage.getUserPlayerProfiles(req.user!.id);
+      const profile = profiles.find(p => p.id === profileId);
+      
+      // Verify the profile belongs to the current user
+      if (!profile) {
+        return res.status(403).json({ message: "You can only update your own profile" });
+      }
+      
+      const { fullName, gender, category } = req.body;
+      
+      // Update user's fullName if provided
+      if (fullName && typeof fullName === 'string') {
+        await db.update(users).set({ fullName: fullName.trim() }).where(eq(users.id, req.user!.id));
+      }
+      
+      // Update profile if gender or category provided
+      if (gender || category) {
+        await storage.updatePlayerProfile(profileId, { 
+          gender: gender || undefined,
+          category: category || undefined 
+        });
+      }
+      
+      // Return updated profile
+      const updatedProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      res.json(updatedProfiles.find(p => p.id === profileId));
+    } catch (err: any) {
+      console.error("Error updating player profile:", err);
+      res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
   });
 
   // === Create Club (any authenticated user) ===
