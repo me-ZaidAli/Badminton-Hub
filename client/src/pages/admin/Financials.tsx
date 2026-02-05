@@ -1,22 +1,36 @@
+import { useState } from "react";
 import { useSessions } from "@/hooks/use-sessions";
 import { useAllSignups, useUpdatePaymentStatus } from "@/hooks/use-admin";
+import { useUser } from "@/hooks/use-auth";
+import { useClubs } from "@/hooks/use-clubs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, DollarSign, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, DollarSign, AlertCircle, CheckCircle, Loader2, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Financials() {
+  const { data: user } = useUser();
   const { data: sessions } = useSessions();
+  const { data: clubs } = useClubs();
   const { data: allSignups, isLoading } = useAllSignups();
   const updatePayment = useUpdatePaymentStatus();
   const { toast } = useToast();
+  const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const isSuperUser = user?.role === "OWNER";
 
-  const unpaidSignups = allSignups?.filter((s: any) => s.paymentStatus === "UNPAID") || [];
-  const paidSignups = allSignups?.filter((s: any) => s.paymentStatus === "PAID") || [];
+  // Filter signups by club for super user
+  const filterByClub = (signups: any[]) => {
+    if (selectedClubId === "all") return signups;
+    return signups.filter((s: any) => s.session?.clubId === Number(selectedClubId));
+  };
+
+  const unpaidSignups = filterByClub(allSignups?.filter((s: any) => s.paymentStatus === "UNPAID") || []);
+  const paidSignups = filterByClub(allSignups?.filter((s: any) => s.paymentStatus === "PAID") || []);
 
   const totalUnpaid = unpaidSignups.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
   const totalPaid = paidSignups.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
@@ -42,21 +56,48 @@ export default function Financials() {
     );
   };
 
+  // Filter sessions by club
+  const filteredSessions = selectedClubId === "all" 
+    ? sessions 
+    : sessions?.filter(s => s.clubId === Number(selectedClubId));
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/admin">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <DollarSign className="h-6 w-6 text-green-500" />
-            Financials
-          </h1>
-          <p className="text-muted-foreground">Track payments and outstanding fees.</p>
+      <div className="flex flex-col md:flex-row md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/admin">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+              <DollarSign className="h-6 w-6 text-green-500" />
+              Financials
+            </h1>
+            <p className="text-muted-foreground">Track payments and outstanding fees.</p>
+          </div>
         </div>
+        
+        {isSuperUser && clubs && clubs.length > 0 && (
+          <div className="flex items-center gap-4 ml-auto p-3 bg-muted/50 rounded-lg">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <label className="text-sm font-medium">Filter by Club:</label>
+            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
+                <SelectValue placeholder="All Clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clubs</SelectItem>
+                {clubs.map(club => (
+                  <SelectItem key={club.id} value={club.id.toString()}>
+                    {club.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -91,8 +132,10 @@ export default function Financials() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{sessions?.length || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">All time</p>
+            <div className="text-3xl font-bold">{filteredSessions?.length || 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedClubId === "all" ? "All clubs" : "Selected club"}
+            </p>
           </CardContent>
         </Card>
       </div>
