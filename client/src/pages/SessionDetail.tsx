@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches } from "@/hooks/use-matches";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
+import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle } from "lucide-react";
 
@@ -35,6 +36,7 @@ export default function SessionDetail() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCourts, setEditCourts] = useState(0);
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+  const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
 
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
@@ -236,8 +238,12 @@ export default function SessionDetail() {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {signups?.map((signup) => (
-              <div key={signup.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm" data-testid={`signup-${signup.id}`}>
-                <div className="flex items-center">
+              <div key={signup.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate cursor-pointer" data-testid={`signup-${signup.id}`}>
+                <div 
+                  className="flex items-center flex-1"
+                  onClick={() => setStatsPlayerId(signup.playerId)}
+                  data-testid={`button-player-stats-${signup.playerId}`}
+                >
                   <Avatar className="h-10 w-10 mr-4">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
                     <AvatarFallback>P</AvatarFallback>
@@ -256,7 +262,10 @@ export default function SessionDetail() {
                     variant="ghost" 
                     size="icon" 
                     className="text-destructive hover:bg-destructive/10"
-                    onClick={() => adminRemovePlayer({ sessionId: id, playerId: signup.playerId })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      adminRemovePlayer({ sessionId: id, playerId: signup.playerId });
+                    }}
                     data-testid={`button-remove-player-${signup.playerId}`}
                   >
                     <X className="w-4 h-4" />
@@ -265,6 +274,12 @@ export default function SessionDetail() {
               </div>
             ))}
           </div>
+          
+          <PlayerStatsPopup 
+            profileId={statsPlayerId} 
+            open={statsPlayerId !== null}
+            onOpenChange={(open) => !open && setStatsPlayerId(null)}
+          />
         </TabsContent>
 
         <TabsContent value="matches" className="mt-6">
@@ -456,7 +471,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signu
           availableCourts={availableCourts}
         />
         
-        <CompletedMatches matches={typedMatches} />
+        <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} />
       </div>
     </div>
   );

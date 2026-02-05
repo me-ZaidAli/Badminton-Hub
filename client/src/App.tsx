@@ -15,6 +15,7 @@ import Dashboard from "@/pages/Dashboard";
 import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
 import Rankings from "@/pages/Rankings";
+import PublicSession from "@/pages/PublicSession";
 import Players from "@/pages/Players";
 import NotFound from "@/pages/not-found";
 import CreateClub from "@/pages/CreateClub";
@@ -140,6 +141,9 @@ function Router() {
       </Route>
       <Route path="/rankings">
         <PublicRoute component={Rankings} />
+      </Route>
+      <Route path="/public/session/:id">
+        <PublicRoute component={PublicSession} />
       </Route>
       <Route path="/players">
         <PrivateRoute component={Players} />

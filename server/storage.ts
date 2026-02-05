@@ -185,6 +185,21 @@ export class DatabaseStorage implements IStorage {
     return sessionsWithCounts;
   }
 
+  async getSessionsByClub(clubId: number): Promise<(Session & { signupCount: number })[]> {
+    const clubSessions = await db.select().from(sessions)
+      .where(eq(sessions.clubId, clubId))
+      .orderBy(desc(sessions.date));
+    
+    const sessionsWithCounts = await Promise.all(clubSessions.map(async (s) => {
+      const countResult = await db.select({ count: sql<number>`count(*)` })
+        .from(sessionSignups)
+        .where(eq(sessionSignups.sessionId, s.id));
+      return { ...s, signupCount: Number(countResult[0]?.count || 0) };
+    }));
+
+    return sessionsWithCounts;
+  }
+
   async getSession(id: number): Promise<Session | undefined> {
     const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
     return session;

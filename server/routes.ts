@@ -201,6 +201,84 @@ export async function registerRoutes(
     }
   });
 
+  // === PUBLIC: Sessions for a club (no auth required) ===
+  app.get("/api/public/clubs/:clubId/sessions", async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      const sessions = await storage.getSessionsByClub(clubId);
+      // Filter to only public, non-cancelled sessions
+      const publicSessions = sessions.filter(s => s.status !== "CANCELLED" && !s.isPrivate);
+      res.json(publicSessions);
+    } catch (err: any) {
+      console.error("Error fetching public sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  // === PUBLIC: Session details with signups and matches (no auth required) ===
+  app.get("/api/public/sessions/:id", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      
+      // Don't expose private sessions to public
+      if (session.isPrivate) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const matches = await storage.getSessionMatches(sessionId);
+
+      // Return public-safe data - exclude sensitive user info like email/password
+      const publicSignups = signups.map(s => ({
+        id: s.id,
+        playerId: s.playerId,
+        player: {
+          id: s.player.id,
+          fullName: s.player.user.fullName,
+          category: s.player.category,
+          gender: s.player.gender,
+          rankingPoints: s.player.rankingPoints
+        }
+      }));
+
+      // Sanitize match data to exclude sensitive user info
+      const sanitizePlayer = (p: any) => p ? ({
+        id: p.id,
+        category: p.category,
+        gender: p.gender,
+        rankingPoints: p.rankingPoints,
+        user: { fullName: p.user?.fullName }
+      }) : null;
+
+      const publicMatches = matches.map(m => ({
+        id: m.id,
+        sessionId: m.sessionId,
+        status: m.status,
+        courtNumber: m.courtNumber,
+        queuePosition: m.queuePosition,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        startedAt: m.startedAt,
+        completedAt: m.completedAt,
+        teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
+        teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+        teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
+        teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+      }));
+
+      res.json({
+        session,
+        signups: publicSignups,
+        matches: publicMatches
+      });
+    } catch (err: any) {
+      console.error("Error fetching public session:", err);
+      res.status(500).json({ message: "Failed to fetch session details" });
+    }
+  });
+
   // === PUBLIC: Leaderboard (no auth required) ===
   app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);
@@ -670,6 +748,38 @@ export async function registerRoutes(
     }
   });
 
+  // Edit completed match score
+  app.patch("/api/matches/:id/edit-score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const { scoreA, scoreB } = req.body;
+
+      if (scoreA === undefined || scoreB === undefined) {
+        return res.status(400).json({ message: "Both scores are required" });
+      }
+
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Check admin access (global role OR club owner)
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.sendStatus(403);
+      }
+
+      const updated = await storage.updateMatch(matchId, { scoreA, scoreB });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error editing match score:", err);
+      res.status(500).json({ message: err.message || "Failed to edit match score" });
+    }
+  });
+
   app.post("/api/sessions/:sessionId/matches/auto-generate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -1063,6 +1173,49 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error importing events:", err);
       res.status(500).json({ message: err.message || "Failed to import events" });
+    }
+  });
+
+  // Get player stats (public endpoint)
+  app.get("/api/players/:profileId/stats", async (req, res) => {
+    try {
+      const profileId = Number(req.params.profileId);
+      const profile = await storage.getPlayerProfileById(profileId);
+      if (!profile) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      // Get match history for this player
+      const matches = await storage.getPlayerMatchHistory(profileId);
+      
+      // Calculate recent form (last 5 matches)
+      const recentMatches = matches.slice(0, 5);
+      const recentForm = recentMatches.map(match => {
+        const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
+        return isTeamA 
+          ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
+          : (match.scoreB ?? 0) > (match.scoreA ?? 0);
+      });
+
+      const winRatio = profile.matchesPlayed > 0 
+        ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) 
+        : 0;
+
+      res.json({
+        id: profile.id,
+        fullName: profile.user.fullName,
+        category: profile.category,
+        gender: profile.gender,
+        rankingPoints: profile.rankingPoints,
+        matchesPlayed: profile.matchesPlayed,
+        matchesWon: profile.matchesWon,
+        matchesLost: profile.matchesPlayed - profile.matchesWon,
+        winRatio,
+        recentForm, // Array of booleans [W, L, W, W, L]
+      });
+    } catch (err: any) {
+      console.error("Error fetching player stats:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch player stats" });
     }
   });
 

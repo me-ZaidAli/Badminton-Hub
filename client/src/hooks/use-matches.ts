@@ -142,3 +142,24 @@ export function useAutoGenerateMatches() {
     },
   });
 }
+
+export function useEditMatchScore() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: number; scoreA: number; scoreB: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/edit-score`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scoreA, scoreB }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to edit match score");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Score Updated", description: "Match score has been corrected." });
+    },
+  });
+}

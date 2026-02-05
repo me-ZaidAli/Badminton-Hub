@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Trophy, Users, Calendar } from "lucide-react";
+import { ArrowRight, Trophy, Users, Calendar, Clock, MapPin } from "lucide-react";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs, useLeaderboard } from "@/hooks/use-clubs";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -22,6 +24,20 @@ export default function Home() {
   
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(selectedClubId);
   const topPlayers = leaderboard?.slice(0, 10) || [];
+
+  // Fetch public sessions for selected club
+  const { data: sessions, isLoading: sessionsLoading } = useQuery<any[]>({
+    queryKey: ["/api/public/clubs", selectedClubId, "sessions"],
+    queryFn: async () => {
+      const res = await fetch(`/api/public/clubs/${selectedClubId}/sessions`);
+      if (!res.ok) throw new Error("Failed to fetch sessions");
+      return res.json();
+    },
+    enabled: selectedClubId !== null,
+  });
+
+  // Filter to upcoming sessions
+  const upcomingSessions = sessions?.filter(s => s.status === "UPCOMING").slice(0, 5) || [];
 
   if (user) {
     window.location.href = "/dashboard";
@@ -165,6 +181,88 @@ export default function Home() {
                 </Button>
               </Link>
             </div>
+          </div>
+        </section>
+
+        {/* Sessions Section */}
+        <section className="py-24" data-testid="section-public-sessions">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">Upcoming Sessions</h2>
+              <p className="text-muted-foreground text-lg">View and join badminton sessions at our clubs</p>
+            </div>
+            
+            <Card className="overflow-hidden border-border/50">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Sessions
+                  </CardTitle>
+                  {clubs && clubs.length > 1 && (
+                    <Select 
+                      value={selectedClubId?.toString() || ""} 
+                      onValueChange={(v) => setSelectedClubId(Number(v))}
+                    >
+                      <SelectTrigger className="w-48" data-testid="select-club-sessions">
+                        <SelectValue placeholder="Select Club" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clubs.map(club => (
+                          <SelectItem key={club.id} value={club.id.toString()}>
+                            {club.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <CardDescription>Click on a session to see more details</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {sessionsLoading ? (
+                  <div className="text-muted-foreground text-sm py-8 text-center">Loading sessions...</div>
+                ) : upcomingSessions.length > 0 ? (
+                  <div className="space-y-3">
+                    {upcomingSessions.map((session) => (
+                      <Link key={session.id} href={`/public/session/${session.id}`}>
+                        <div 
+                          className="flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate cursor-pointer"
+                          data-testid={`public-session-${session.id}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold truncate">{session.title}</p>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                {format(new Date(session.date), "EEE, MMM d")}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {session.startTime}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4" />
+                                {session.courtsAvailable} courts
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{session.matchMode}</Badge>
+                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No upcoming sessions</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </section>
 

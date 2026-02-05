@@ -67,6 +67,17 @@ Core entities:
 
 ## Recent Changes
 
+### Public Viewing System (Feb 2026)
+- Public home page at `/` shows upcoming sessions per club without authentication
+- Session cards display date, time, courts, and match mode with links to detail pages
+- Public session detail page at `/public/session/:id` shows:
+  - Session info header with player count and sign-up prompt
+  - Players tab with attendee list (click for player stats popup)
+  - Courts & Matches tab with live matches, queued matches, and completed matches
+- Live polling (10s interval) for real-time match updates
+- Security: Private sessions are filtered out; sensitive user data (email/password) is never exposed
+- API endpoints: GET `/api/public/clubs/:clubId/sessions`, GET `/api/public/sessions/:id`
+
 ### Multi-Club Support (Feb 2026)
 - Added `clubs` table to support multiple badminton clubs
 - Player profiles are now club-specific - one user can have different profiles for different clubs

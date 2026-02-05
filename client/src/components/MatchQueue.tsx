@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, GripVertical, ArrowRight, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, GripVertical, ArrowRight, Users, Pencil } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
+import { useEditMatchScore } from "@/hooks/use-matches";
 
 type Player = {
   id: number;
@@ -217,46 +219,127 @@ export function MatchQueue({
   );
 }
 
-export function CompletedMatches({ matches }: { matches: CourtMatch[] }) {
+export function CompletedMatches({ matches, isOrganiser = false }: { matches: CourtMatch[]; isOrganiser?: boolean }) {
+  const [editMatch, setEditMatch] = useState<CourtMatch | null>(null);
+  const [editScoreA, setEditScoreA] = useState(0);
+  const [editScoreB, setEditScoreB] = useState(0);
+  const { mutate: editScore, isPending } = useEditMatchScore();
+
   const completedMatches = matches
     .filter(m => m.status === "COMPLETED")
     .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
 
   if (completedMatches.length === 0) return null;
 
+  const openEditDialog = (match: CourtMatch) => {
+    setEditMatch(match);
+    setEditScoreA(match.scoreA || 0);
+    setEditScoreB(match.scoreB || 0);
+  };
+
+  const handleSaveScore = () => {
+    if (editMatch) {
+      editScore({ matchId: editMatch.id, scoreA: editScoreA, scoreB: editScoreB }, {
+        onSuccess: () => setEditMatch(null)
+      });
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Completed Matches ({completedMatches.length})</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[200px]">
-          <div className="space-y-2 p-4">
-            {completedMatches.map((match) => (
-              <div
-                key={match.id}
-                className="flex items-center justify-between p-3 bg-muted/20 rounded-lg"
-                data-testid={`completed-match-${match.id}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">
-                    {match.teamAPlayer1.user.fullName}
-                    {match.teamAPlayer2 && ` & ${match.teamAPlayer2.user.fullName}`}
-                  </span>
-                  <span className="text-xs text-muted-foreground">vs</span>
-                  <span className="text-sm">
-                    {match.teamBPlayer1.user.fullName}
-                    {match.teamBPlayer2 && ` & ${match.teamBPlayer2.user.fullName}`}
-                  </span>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Completed Matches ({completedMatches.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[200px]">
+            <div className="space-y-2 p-4">
+              {completedMatches.map((match) => (
+                <div
+                  key={match.id}
+                  className="flex items-center justify-between p-3 bg-muted/20 rounded-lg"
+                  data-testid={`completed-match-${match.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">
+                      {match.teamAPlayer1.user.fullName}
+                      {match.teamAPlayer2 && ` & ${match.teamAPlayer2.user.fullName}`}
+                    </span>
+                    <span className="text-xs text-muted-foreground">vs</span>
+                    <span className="text-sm">
+                      {match.teamBPlayer1.user.fullName}
+                      {match.teamBPlayer2 && ` & ${match.teamBPlayer2.user.fullName}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
+                      {match.scoreA} - {match.scoreB}
+                    </Badge>
+                    {isOrganiser && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7"
+                        onClick={() => openEditDialog(match)}
+                        data-testid={`button-edit-match-${match.id}`}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
-                  {match.scoreA} - {match.scoreB}
-                </Badge>
+              ))}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!editMatch} onOpenChange={(open) => !open && setEditMatch(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Match Score</DialogTitle>
+          </DialogHeader>
+          {editMatch && (
+            <div className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {editMatch.teamAPlayer1.user.fullName}
+                    {editMatch.teamAPlayer2 && ` & ${editMatch.teamAPlayer2.user.fullName}`}
+                  </label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    max="30"
+                    value={editScoreA} 
+                    onChange={(e) => setEditScoreA(Number(e.target.value))}
+                    className="text-2xl text-center font-bold h-14"
+                    data-testid="input-edit-score-a"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {editMatch.teamBPlayer1.user.fullName}
+                    {editMatch.teamBPlayer2 && ` & ${editMatch.teamBPlayer2.user.fullName}`}
+                  </label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    max="30"
+                    value={editScoreB} 
+                    onChange={(e) => setEditScoreB(Number(e.target.value))}
+                    className="text-2xl text-center font-bold h-14"
+                    data-testid="input-edit-score-b"
+                  />
+                </div>
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+              <Button className="w-full" onClick={handleSaveScore} disabled={isPending} data-testid="button-save-edit-score">
+                {isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
