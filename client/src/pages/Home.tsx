@@ -51,7 +51,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 bg-gradient-to-br from-primary to-secondary rounded-lg" />
-            <span className="font-display font-bold text-xl">Dragon Badminton Club</span>
+            <span className="font-display font-bold text-xl">Badminton Management</span>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/login">
@@ -82,7 +82,7 @@ export default function Home() {
                   Get Started <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Link href="/public-rankings">
+              <Link href="/rankings">
                 <Button variant="outline" size="lg" className="h-14 px-8 text-lg rounded-full bg-background/50 backdrop-blur-sm">
                   View Leaderboard
                 </Button>
@@ -291,7 +291,7 @@ export default function Home() {
       </main>
 
       <footer className="py-12 border-t border-border text-center text-muted-foreground">
-        <p>© 2024 Dragon Badminton Club. Built for champions.</p>
+        <p>© 2024 Badminton Management. Built for champions.</p>
       </footer>
     </div>
   );

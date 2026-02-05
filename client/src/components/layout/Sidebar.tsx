@@ -63,8 +63,8 @@ export function Sidebar() {
               <Activity className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Dragon Badminton</h1>
-              <p className="text-xs text-muted-foreground font-medium">Club Manager</p>
+              <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Badminton</h1>
+              <p className="text-xs text-muted-foreground font-medium">Management</p>
             </div>
           </div>
         </Link>

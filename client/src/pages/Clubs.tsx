@@ -34,7 +34,7 @@ export default function Clubs() {
       {!user && (
         <header className="border-b bg-card px-6 py-4 flex justify-between items-center">
           <Link href="/">
-            <span className="text-xl font-bold text-primary cursor-pointer">Dragon Badminton Club</span>
+            <span className="text-xl font-bold text-primary cursor-pointer">Badminton Management</span>
           </Link>
           <div className="flex gap-2">
             <Link href="/login">

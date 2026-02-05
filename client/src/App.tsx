@@ -113,7 +113,7 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card px-6 py-4 flex justify-between items-center">
-        <a href="/" className="text-xl font-bold text-primary">Dragon Badminton Club</a>
+        <a href="/" className="text-xl font-bold text-primary">Badminton Management</a>
         <div className="flex gap-2">
           <a href="/login" className="px-4 py-2 text-sm font-medium rounded-md hover:bg-muted transition-colors">Login</a>
           <a href="/register" className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">Register</a>
