@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
@@ -18,7 +18,8 @@ import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -55,7 +56,8 @@ export default function SessionDetail() {
   
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addGuestDialogOpen, setAddGuestDialogOpen] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [addingPlayerIds, setAddingPlayerIds] = useState<Set<number>>(new Set());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCourts, setEditCourts] = useState(0);
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
@@ -71,6 +73,8 @@ export default function SessionDetail() {
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [pairPlayer1, setPairPlayer1] = useState<string>("");
   const [pairPlayer2, setPairPlayer2] = useState<string>("");
+  const [pairSearch1, setPairSearch1] = useState("");
+  const [pairSearch2, setPairSearch2] = useState("");
 
   const CATEGORIES = [
     { value: "A", label: "Category A" },
@@ -96,15 +100,25 @@ export default function SessionDetail() {
       category: u.playerProfile!.category 
     })) || [];
 
-  const handleAddPlayer = () => {
-    if (selectedPlayerId) {
-      adminAddPlayer({ sessionId: id, playerId: Number(selectedPlayerId) }, {
-        onSuccess: () => {
-          setAddDialogOpen(false);
-          setSelectedPlayerId("");
-        }
-      });
-    }
+  const handleAddPlayer = (playerId: number) => {
+    if (addingPlayerIds.has(playerId)) return;
+    setAddingPlayerIds(prev => new Set(prev).add(playerId));
+    adminAddPlayer({ sessionId: id, playerId }, {
+      onSuccess: () => {
+        setAddingPlayerIds(prev => {
+          const next = new Set(prev);
+          next.delete(playerId);
+          return next;
+        });
+      },
+      onError: () => {
+        setAddingPlayerIds(prev => {
+          const next = new Set(prev);
+          next.delete(playerId);
+          return next;
+        });
+      }
+    });
   };
 
   const handleAddGuest = () => {
@@ -399,38 +413,65 @@ export default function SessionDetail() {
           </h2>
           {isOrganiser && (
             <div className="flex items-center gap-2 flex-wrap">
-              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <Dialog open={addDialogOpen} onOpenChange={(open) => {
+                setAddDialogOpen(open);
+                if (!open) setPlayerSearchQuery("");
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="gap-2" data-testid="button-add-existing-player">
-                    <UserPlus className="w-4 h-4" /> Add Existing Player
+                    <UserPlus className="w-4 h-4" /> Add Players
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Add Existing Player</DialogTitle>
+                    <DialogTitle>Add Players to Session</DialogTitle>
+                    <DialogDescription>Search and click players to add them instantly</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <Select value={selectedPlayerId} onValueChange={setSelectedPlayerId}>
-                      <SelectTrigger data-testid="select-player">
-                        <SelectValue placeholder="Select a player..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availablePlayers.map(player => (
-                          <SelectItem key={player.id} value={String(player.id)}>
-                            {player.fullName} ({player.gender || "?"} - {player.category})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button 
-                      className="w-full" 
-                      onClick={handleAddPlayer} 
-                      disabled={!selectedPlayerId || isAdding}
-                      data-testid="button-confirm-add-player"
-                    >
-                      {isAdding ? "Adding..." : "Add to Session"}
-                    </Button>
-                  </div>
+                  <Command className="rounded-lg border shadow-md" shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Search players by name..." 
+                      value={playerSearchQuery}
+                      onValueChange={setPlayerSearchQuery}
+                      data-testid="input-search-add-player"
+                    />
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty>No players found.</CommandEmpty>
+                      <CommandGroup>
+                        {availablePlayers
+                          .filter(p => {
+                            if (!playerSearchQuery) return true;
+                            const q = playerSearchQuery.toLowerCase();
+                            return p.fullName.toLowerCase().includes(q) || 
+                              (p.gender || "").toLowerCase().includes(q) ||
+                              (p.category || "").toLowerCase().includes(q);
+                          })
+                          .map(player => {
+                            const isCurrentlyAdding = addingPlayerIds.has(player.id);
+                            return (
+                              <CommandItem
+                                key={player.id}
+                                value={String(player.id)}
+                                onSelect={() => handleAddPlayer(player.id)}
+                                className="flex items-center justify-between gap-2 cursor-pointer"
+                                disabled={isCurrentlyAdding}
+                                data-testid={`select-player-${player.id}`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{player.fullName}</span>
+                                  <Badge variant="outline" className="text-xs">{player.gender || "?"}</Badge>
+                                  <Badge variant="secondary" className="text-xs">Cat {player.category}</Badge>
+                                </div>
+                                {isCurrentlyAdding ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                ) : (
+                                  <Plus className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
                 </DialogContent>
               </Dialog>
 
@@ -586,7 +627,10 @@ export default function SessionDetail() {
                 <Link2 className="w-5 h-5" />
                 Pair Management
               </h3>
-              <Dialog open={pairDialogOpen} onOpenChange={setPairDialogOpen}>
+              <Dialog open={pairDialogOpen} onOpenChange={(open) => {
+                setPairDialogOpen(open);
+                if (!open) { setPairSearch1(""); setPairSearch2(""); setPairPlayer1(""); setPairPlayer2(""); }
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="gap-2" data-testid="button-create-pair">
                     <Link2 className="w-4 h-4" /> Create Pair
@@ -599,33 +643,65 @@ export default function SessionDetail() {
                   <div className="space-y-4 pt-4">
                     <div>
                       <Label>Player 1</Label>
-                      <Select value={pairPlayer1} onValueChange={setPairPlayer1}>
-                        <SelectTrigger className="mt-2" data-testid="select-pair-player-1">
-                          <SelectValue placeholder="Select player..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {unpairedSignups.filter(s => String(s.id) !== pairPlayer2).map(s => (
-                            <SelectItem key={s.id} value={String(s.id)}>
-                              {s.player.user.fullName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Command className="rounded-lg border mt-2" shouldFilter={false}>
+                        <CommandInput 
+                          placeholder="Search player..." 
+                          value={pairSearch1}
+                          onValueChange={setPairSearch1}
+                          data-testid="input-search-pair-player-1"
+                        />
+                        <CommandList className="max-h-[150px]">
+                          <CommandEmpty>No players found.</CommandEmpty>
+                          <CommandGroup>
+                            {unpairedSignups
+                              .filter(s => String(s.id) !== pairPlayer2)
+                              .filter(s => !pairSearch1 || s.player.user.fullName.toLowerCase().includes(pairSearch1.toLowerCase()))
+                              .map(s => (
+                                <CommandItem
+                                  key={s.id}
+                                  value={String(s.id)}
+                                  onSelect={() => { setPairPlayer1(String(s.id)); setPairSearch1(s.player.user.fullName); }}
+                                  className="cursor-pointer"
+                                  data-testid={`select-pair-1-player-${s.id}`}
+                                >
+                                  <span>{s.player.user.fullName}</span>
+                                  {pairPlayer1 === String(s.id) && <Check className="w-4 h-4 ml-auto text-primary" />}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
                     </div>
                     <div>
                       <Label>Player 2</Label>
-                      <Select value={pairPlayer2} onValueChange={setPairPlayer2}>
-                        <SelectTrigger className="mt-2" data-testid="select-pair-player-2">
-                          <SelectValue placeholder="Select player..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {unpairedSignups.filter(s => String(s.id) !== pairPlayer1).map(s => (
-                            <SelectItem key={s.id} value={String(s.id)}>
-                              {s.player.user.fullName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Command className="rounded-lg border mt-2" shouldFilter={false}>
+                        <CommandInput 
+                          placeholder="Search player..." 
+                          value={pairSearch2}
+                          onValueChange={setPairSearch2}
+                          data-testid="input-search-pair-player-2"
+                        />
+                        <CommandList className="max-h-[150px]">
+                          <CommandEmpty>No players found.</CommandEmpty>
+                          <CommandGroup>
+                            {unpairedSignups
+                              .filter(s => String(s.id) !== pairPlayer1)
+                              .filter(s => !pairSearch2 || s.player.user.fullName.toLowerCase().includes(pairSearch2.toLowerCase()))
+                              .map(s => (
+                                <CommandItem
+                                  key={s.id}
+                                  value={String(s.id)}
+                                  onSelect={() => { setPairPlayer2(String(s.id)); setPairSearch2(s.player.user.fullName); }}
+                                  className="cursor-pointer"
+                                  data-testid={`select-pair-2-player-${s.id}`}
+                                >
+                                  <span>{s.player.user.fullName}</span>
+                                  {pairPlayer2 === String(s.id) && <Check className="w-4 h-4 ml-auto text-primary" />}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
                     </div>
                     <Button 
                       className="w-full" 
