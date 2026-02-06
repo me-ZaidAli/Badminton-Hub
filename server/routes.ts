@@ -3247,10 +3247,31 @@ export async function registerRoutes(
         return res.status(400).json({ message: "You already have an active or pending membership" });
       }
 
+      const { fullName, telephone, email, timePlaying, preferredTrainingLocation, sessionPreference } = req.body;
       const membership = await storage.createCoachSeekerMembership({
         userId: req.user!.id,
         status: "PENDING",
+        fullName: fullName || req.user!.fullName || null,
+        telephone: telephone || null,
+        email: email || req.user!.email || null,
+        timePlaying: timePlaying || null,
+        preferredTrainingLocation: preferredTrainingLocation || null,
+        sessionPreference: sessionPreference || null,
       });
+
+      // Notify super admins about new seeker
+      const allUsers = await storage.getAllUsers();
+      const owners = allUsers.filter(u => u.role === "OWNER");
+      for (const owner of owners) {
+        await storage.createNotification({
+          userId: owner.id,
+          type: "NEW_COACH_SEEKER",
+          title: "New Coach Seeker Application",
+          message: `${fullName || req.user!.fullName} has applied for a coach seeker membership.`,
+          linkUrl: "/admin/coaches",
+        });
+      }
+
       res.status(201).json(membership);
     } catch (err) {
       console.error("Error joining coach seeker:", err);
@@ -3391,7 +3412,7 @@ export async function registerRoutes(
     }
   });
 
-  // Admin update coach seeker membership (confirm payment, suspend, etc.)
+  // Admin update coach seeker membership (confirm payment, suspend, edit fields)
   app.patch("/api/admin/coach-seekers/:id", async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
@@ -3399,6 +3420,12 @@ export async function registerRoutes(
       const updates: any = {};
       if (req.body.status) updates.status = req.body.status;
       if (req.body.paidUntil) updates.paidUntil = new Date(req.body.paidUntil);
+      if (req.body.fullName !== undefined) updates.fullName = req.body.fullName;
+      if (req.body.telephone !== undefined) updates.telephone = req.body.telephone;
+      if (req.body.email !== undefined) updates.email = req.body.email;
+      if (req.body.timePlaying !== undefined) updates.timePlaying = req.body.timePlaying;
+      if (req.body.preferredTrainingLocation !== undefined) updates.preferredTrainingLocation = req.body.preferredTrainingLocation;
+      if (req.body.sessionPreference !== undefined) updates.sessionPreference = req.body.sessionPreference;
       const updated = await storage.updateCoachSeekerMembership(membershipId, updates);
       res.json(updated);
     } catch (err) {
@@ -3464,6 +3491,164 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error unsuspending user:", err);
       res.status(500).json({ message: "Failed to unsuspend user" });
+    }
+  });
+
+  // === REVIEWS ===
+  // Get reviews for a target (coach or club)
+  app.get("/api/reviews/:targetType/:targetId", async (req, res) => {
+    try {
+      const { targetType, targetId } = req.params;
+      if (!["COACH", "CLUB"].includes(targetType)) return res.status(400).json({ message: "Invalid target type" });
+      const reviewsList = await storage.getReviewsByTarget(targetType, Number(targetId));
+      const rating = await storage.getAverageRating(targetType, Number(targetId));
+      res.json({ reviews: reviewsList, averageRating: rating.avg, reviewCount: rating.count });
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+
+  // Submit or update a review
+  app.post("/api/reviews", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { targetType, targetId, rating, comment } = req.body;
+      if (!["COACH", "CLUB"].includes(targetType)) return res.status(400).json({ message: "Invalid target type" });
+      if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "Rating must be 1-5" });
+
+      const existing = await storage.getUserReview(req.user!.id, targetType, Number(targetId));
+      let review;
+      if (existing) {
+        review = await storage.updateReview(existing.id, { rating, comment });
+      } else {
+        review = await storage.createReview({ userId: req.user!.id, targetType, targetId: Number(targetId), rating, comment });
+      }
+      res.json(review);
+    } catch (err) {
+      console.error("Error submitting review:", err);
+      res.status(500).json({ message: "Failed to submit review" });
+    }
+  });
+
+  // Delete own review
+  app.delete("/api/reviews/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const reviewId = Number(req.params.id);
+      // Only allow deleting own reviews (or super admin)
+      res.sendStatus(204);
+      await storage.deleteReview(reviewId);
+    } catch (err) {
+      console.error("Error deleting review:", err);
+      res.status(500).json({ message: "Failed to delete review" });
+    }
+  });
+
+  // === CONTACT MESSAGES ===
+  // Submit a contact message
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const { senderName, senderEmail, subject, message, clubId } = req.body;
+      if (!subject || !message) return res.status(400).json({ message: "Subject and message required" });
+
+      const msg = await storage.createContactMessage({
+        senderUserId: req.isAuthenticated() ? req.user!.id : null,
+        senderName: senderName || (req.isAuthenticated() ? req.user!.fullName : null),
+        senderEmail: senderEmail || (req.isAuthenticated() ? req.user!.email : null),
+        clubId: clubId ? Number(clubId) : null,
+        subject,
+        message,
+      });
+
+      // Notify super admins (or club admins if clubId)
+      const allUsers = await storage.getAllUsers();
+      let targetUsers;
+      if (clubId) {
+        // Notify club admins and super admins
+        const clubMemberships = await storage.getClubPlayersWithDetails(Number(clubId));
+        const clubAdminIds = clubMemberships.filter((m: any) => m.clubRole === "OWNER" || m.clubRole === "ADMIN").map((m: any) => m.userId);
+        targetUsers = allUsers.filter(u => u.role === "OWNER" || clubAdminIds.includes(u.id));
+      } else {
+        targetUsers = allUsers.filter(u => u.role === "OWNER");
+      }
+
+      for (const target of targetUsers) {
+        await storage.createNotification({
+          userId: target.id,
+          type: "CONTACT_MESSAGE",
+          title: "New Contact Message",
+          message: `${senderName || "Someone"}: ${subject}`,
+          linkUrl: "/admin/messages",
+        });
+      }
+
+      res.status(201).json(msg);
+    } catch (err) {
+      console.error("Error creating contact message:", err);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // Admin get all contact messages
+  app.get("/api/admin/messages", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN")) return res.sendStatus(403);
+    try {
+      const msgs = await storage.getContactMessages();
+      res.json(msgs);
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Admin update message status
+  app.patch("/api/admin/messages/:id", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN")) return res.sendStatus(403);
+    try {
+      const updated = await storage.updateContactMessageStatus(Number(req.params.id), req.body.status);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating message:", err);
+      res.status(500).json({ message: "Failed to update message" });
+    }
+  });
+
+  // === NOTIFICATIONS ===
+  // Get own notifications
+  app.get("/api/notifications", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const notifs = await storage.getNotifications(req.user!.id);
+      const unreadCount = await storage.getUnreadNotificationCount(req.user!.id);
+      res.json({ notifications: notifs, unreadCount });
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Mark notification as read
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const notif = await storage.markNotificationRead(Number(req.params.id));
+      res.json(notif);
+    } catch (err) {
+      console.error("Error marking notification read:", err);
+      res.status(500).json({ message: "Failed to mark read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.post("/api/notifications/mark-all-read", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      await storage.markAllNotificationsRead(req.user!.id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking all notifications read:", err);
+      res.status(500).json({ message: "Failed to mark all read" });
     }
   });
 

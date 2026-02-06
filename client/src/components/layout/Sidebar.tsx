@@ -21,10 +21,12 @@ import {
   Trophy,
   DollarSign,
   GraduationCap,
-  Search
+  Search,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function Sidebar() {
   const [location] = useLocation();
@@ -70,6 +72,7 @@ export function Sidebar() {
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
     navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
     navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap });
+    navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
     navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
@@ -80,14 +83,19 @@ export function Sidebar() {
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
       {/* Brand */}
       <div className="p-6 border-b border-border/50">
-        <Link href="/">
-          <div className="flex items-center gap-3 cursor-pointer group">
-            <img src={logoPath} alt="Club Master" className="h-10 w-10 rounded-xl shadow-lg group-hover:shadow-primary/25 transition-all object-contain" />
-            <div>
-              <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Club Master</h1>
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <div className="flex items-center gap-3 cursor-pointer group">
+              <img src={logoPath} alt="Club Master" className="h-10 w-10 rounded-xl shadow-lg group-hover:shadow-primary/25 transition-all object-contain" />
+              <div>
+                <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Club Master</h1>
+              </div>
             </div>
+          </Link>
+          <div className="ml-auto">
+            <NotificationBell />
           </div>
-        </Link>
+        </div>
       </div>
 
       {/* Nav */}

@@ -1,0 +1,140 @@
+Badminton Master App – Quick Policy Summary
+
+Badminton Master is operated by Dragon Badminton Club – BPG Ltd.
+The app is used to book badminton sessions, manage attendance, process payments, and communicate club information.
+
+By using this app, you agree to:
+
+Provide accurate registration details
+
+Book and attend sessions responsibly
+
+Follow club rules and coach instructions
+
+Accept that badminton activities carry some risk
+
+Your personal data is used only to run the club, manage sessions, and communicate with you. We do not sell your data.
+
+Full Privacy Policy and Terms & Conditions are available within the app.
+
+2. Checkbox Consent (Signup Screen)
+
+Use all 3 checkboxes (this is GDPR-safe and standard):
+
+☐ I confirm that the information I have provided is accurate and up to date
+
+☐ I agree to the Terms & Conditions of using the Badminton Master app
+
+☐ I agree to the Privacy Policy and consent to my data being processed for club management, session booking, and communication purposes
+
+Button text example:
+Create Account
+
+3. Privacy Policy (Plain English, In-App)
+Privacy Policy – Badminton Master App
+
+Who we are
+Badminton Master is operated by Dragon Badminton Club – BPG Ltd, a UK registered company.
+
+What data we collect
+
+Name and contact details
+
+Date of birth (for age grouping and safeguarding)
+
+Emergency contact details
+
+Session bookings and attendance
+
+Payment and transaction records
+
+App usage information
+
+Why we need it
+We use your data to:
+
+Book and manage badminton sessions
+
+Communicate updates, changes, and announcements
+
+Manage payments and attendance
+
+Meet safeguarding and legal requirements
+
+Improve how the app works
+
+Who can see your data
+
+Club administrators and authorised coaches
+
+Trusted service providers (e.g. payment processors)
+We do not sell or misuse your personal data.
+
+How long we keep it
+We keep your data only as long as needed for club, legal, or safeguarding purposes.
+
+Your rights
+You can:
+
+Ask to see your data
+
+Ask for corrections
+
+Ask for deletion where legally possible
+
+Withdraw consent for non-essential communication
+
+Requests should be made to Dragon Badminton Club – BPG Ltd.
+
+4. Terms & Conditions (Plain English, In-App)
+Terms & Conditions – Badminton Master App
+
+Using the app
+
+Accounts are personal and must not be shared
+
+You must only attend sessions you are booked into
+
+Trial sessions may be required before regular attendance
+
+The club may limit session numbers
+
+Payments
+
+Some sessions or memberships require payment
+
+Payments must be completed to confirm booking
+
+Missed sessions are not refundable
+
+Sessions cancelled by the club may be refunded or credited
+
+Behaviour
+Users must:
+
+Respect coaches, players, and facilities
+
+Follow club rules and venue policies
+
+Avoid abusive, unsafe, or disruptive behaviour
+
+The club may refuse access or remove users who break these rules.
+
+Health & safety
+
+Badminton involves physical activity and some risk
+
+You participate at your own risk
+
+You are responsible for ensuring you are fit to play
+
+App availability
+
+The app may be updated or changed at any time
+
+We do not guarantee uninterrupted access
+
+We are not responsible for issues caused by devices or third-party services
+
+Account termination
+We may suspend or remove accounts for misuse, rule breaches, or safeguarding reasons.

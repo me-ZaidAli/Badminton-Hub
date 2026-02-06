@@ -315,11 +315,55 @@ export const coaches = pgTable("coaches", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const sessionPreferenceEnum = pgEnum("session_preference", ["GROUP", "ONE_TO_ONE", "BOTH"]);
+export const reviewTargetTypeEnum = pgEnum("review_target_type", ["COACH", "CLUB"]);
+export const messageStatusEnum = pgEnum("message_status", ["UNREAD", "READ", "ARCHIVED"]);
+
 export const coachSeekerMemberships = pgTable("coach_seeker_memberships", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  fullName: text("full_name"),
+  telephone: text("telephone"),
+  email: text("email"),
+  timePlaying: text("time_playing"),
+  preferredTrainingLocation: text("preferred_training_location"),
+  sessionPreference: text("session_preference"),
   status: coachSeekerStatusEnum("status").default("PENDING").notNull(),
   paidUntil: timestamp("paid_until"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const reviews = pgTable("reviews", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: integer("target_id").notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const contactMessages = pgTable("contact_messages", {
+  id: serial("id").primaryKey(),
+  senderUserId: integer("sender_user_id").references(() => users.id),
+  senderName: text("sender_name"),
+  senderEmail: text("sender_email"),
+  clubId: integer("club_id").references(() => clubs.id),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  status: text("status").default("UNREAD").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  linkUrl: text("link_url"),
+  readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -441,7 +485,10 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 export const insertCoachSchema = createInsertSchema(coaches).omit({ id: true, createdAt: true, status: true });
-export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true });
+export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true, joinedAt: true });
+export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export const insertContactMessageSchema = createInsertSchema(contactMessages).omit({ id: true, createdAt: true, status: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, readAt: true });
 
 export const insertTournamentSchema = createInsertSchema(tournaments).omit({ id: true, createdBy: true, createdAt: true }).extend({
   startDate: z.coerce.date(),
@@ -468,8 +515,14 @@ export type TournamentMatch = typeof tournamentMatches.$inferSelect;
 export type TournamentStanding = typeof tournamentStandings.$inferSelect;
 export type Coach = typeof coaches.$inferSelect;
 export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
+export type ContactMessage = typeof contactMessages.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 export type InsertCoach = z.infer<typeof insertCoachSchema>;
 export type InsertCoachSeekerMembership = z.infer<typeof insertCoachSeekerMembershipSchema>;
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

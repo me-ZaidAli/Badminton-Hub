@@ -1,5 +1,8 @@
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -7,28 +10,87 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { GraduationCap, CreditCard, CheckCircle, Shield, Users, MapPin, Phone, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  GraduationCap,
+  CreditCard,
+  CheckCircle,
+  Shield,
+  Users,
+  MapPin,
+  Phone,
+  Loader2,
+} from "lucide-react";
+
+const joinFormSchema = z.object({
+  fullName: z.string().min(1, "Full name is required"),
+  telephone: z.string().min(1, "Telephone number is required"),
+  email: z.string().email("Please enter a valid email address"),
+  timePlaying: z.string().min(1, "Please enter how long you have been playing"),
+  preferredTrainingLocation: z.string().min(1, "Please enter your preferred training location"),
+  sessionPreference: z.string().min(1, "Please select a session preference"),
+});
+
+type JoinFormValues = z.infer<typeof joinFormSchema>;
 
 export default function JoinCoachSeeker() {
   const [, navigate] = useLocation();
   const { data: user, isLoading: userLoading } = useUser();
   const { toast } = useToast();
 
-  const { data: membership, isLoading: membershipLoading, error: membershipError } = useQuery<any>({
+  const { data: membership, isLoading: membershipLoading } = useQuery<any>({
     queryKey: ["/api/coach-seeker/me"],
     enabled: !!user,
     retry: false,
   });
 
+  const form = useForm<JoinFormValues>({
+    resolver: zodResolver(joinFormSchema),
+    defaultValues: {
+      fullName: "",
+      telephone: "",
+      email: "",
+      timePlaying: "",
+      preferredTrainingLocation: "",
+      sessionPreference: "",
+    },
+    values: user
+      ? {
+          fullName: user.fullName || "",
+          telephone: "",
+          email: user.email || "",
+          timePlaying: "",
+          preferredTrainingLocation: "",
+          sessionPreference: "",
+        }
+      : undefined,
+  });
+
   const joinMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/coach-seeker/join");
+    mutationFn: async (data: JoinFormValues) => {
+      const res = await apiRequest("POST", "/api/coach-seeker/join", data);
       return res.json();
     },
     onSuccess: () => {
       toast({
         title: "Request Submitted",
-        description: "Your membership request has been submitted. An admin will contact you soon.",
+        description:
+          "Your membership request has been submitted. An admin will contact you soon.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/coach-seeker/me"] });
     },
@@ -62,6 +124,10 @@ export default function JoinCoachSeeker() {
     },
   });
 
+  function onSubmit(data: JoinFormValues) {
+    joinMutation.mutate(data);
+  }
+
   if (userLoading || membershipLoading) {
     return (
       <div className="flex items-center justify-center h-64" data-testid="loading-spinner">
@@ -77,7 +143,9 @@ export default function JoinCoachSeeker() {
           <CardContent className="p-8 text-center">
             <GraduationCap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-xl font-semibold mb-2">Not Logged In</h2>
-            <p className="text-muted-foreground mb-4">Please log in to join as a coach seeker.</p>
+            <p className="text-muted-foreground mb-4">
+              Please log in to join as a coach seeker.
+            </p>
             <Button onClick={() => navigate("/login")} data-testid="button-login">
               Log In
             </Button>
@@ -139,9 +207,12 @@ export default function JoinCoachSeeker() {
             <h2 className="text-xl font-semibold" data-testid="text-pending-membership">
               Membership Pending
             </h2>
-            <Badge variant="secondary" data-testid="badge-pending">Pending Approval</Badge>
+            <Badge variant="secondary" data-testid="badge-pending">
+              Pending Approval
+            </Badge>
             <p className="text-muted-foreground" data-testid="text-pending-message">
-              Your membership is pending admin approval. Admin will contact you to arrange payment.
+              Your membership is pending admin approval. Admin will contact you to
+              arrange payment.
             </p>
           </CardContent>
         </Card>
@@ -154,7 +225,7 @@ export default function JoinCoachSeeker() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            <div className="p-2 bg-primary/10 rounded-md">
               <GraduationCap className="w-6 h-6 text-primary" />
             </div>
             <div>
@@ -214,7 +285,7 @@ export default function JoinCoachSeeker() {
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <Badge variant="secondary">1</Badge>
-                <p className="text-sm">Sign up below</p>
+                <p className="text-sm">Fill in the form below</p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant="secondary">2</Badge>
@@ -232,29 +303,161 @@ export default function JoinCoachSeeker() {
               <Shield className="h-4 w-4" />
               <AlertTitle>Secure & Flexible</AlertTitle>
               <AlertDescription>
-                Your membership can be cancelled at any time. No long-term commitments.
+                Your membership can be cancelled at any time. No long-term
+                commitments.
               </AlertDescription>
             </Alert>
           </div>
 
-          <Button
-            className="w-full"
-            onClick={() => joinMutation.mutate()}
-            disabled={joinMutation.isPending}
-            data-testid="button-join-now"
-          >
-            {joinMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Join Now
-              </>
-            )}
-          </Button>
+          <div className="border-t pt-4">
+            <h3 className="font-semibold text-lg mb-4">Your Details</h3>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="fullName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your full name"
+                          data-testid="input-full-name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="telephone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telephone</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your telephone number"
+                          type="tel"
+                          data-testid="input-telephone"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your email address"
+                          type="email"
+                          data-testid="input-email"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="timePlaying"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Time Playing Badminton</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. 2 years, 6 months"
+                          data-testid="input-time-playing"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="preferredTrainingLocation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred Training Location</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter your preferred training location"
+                          data-testid="input-preferred-location"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="sessionPreference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Session Preference</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-session-preference">
+                            <SelectValue placeholder="Select your session preference" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="GROUP" data-testid="option-group">
+                            Group Sessions
+                          </SelectItem>
+                          <SelectItem value="ONE_TO_ONE" data-testid="option-one-to-one">
+                            1-to-1
+                          </SelectItem>
+                          <SelectItem value="BOTH" data-testid="option-both">
+                            Both
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={joinMutation.isPending}
+                  data-testid="button-join-now"
+                >
+                  {joinMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Join Now
+                    </>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          </div>
         </CardContent>
       </Card>
     </div>

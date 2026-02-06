@@ -54,6 +54,9 @@ import AdminRankings from "@/pages/admin/AdminRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
 import CoachManagement from "@/pages/admin/CoachManagement";
+import ContactForm from "@/pages/ContactForm";
+import Messages from "@/pages/admin/Messages";
+import PolicyPage from "@/pages/PolicyPage";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -227,6 +230,12 @@ function Router() {
       <Route path="/join-coach-seeker">
         <PrivateRoute component={JoinCoachSeeker} />
       </Route>
+      <Route path="/contact">
+        <PublicRoute component={ContactForm} />
+      </Route>
+      <Route path="/policy">
+        <PublicRoute component={PolicyPage} />
+      </Route>
       <Route path="/profile">
         <Profile />
       </Route>
@@ -282,6 +291,9 @@ function Router() {
       </Route>
       <Route path="/admin/coaches">
         <OwnerRoute component={CoachManagement} />
+      </Route>
+      <Route path="/admin/messages">
+        <OwnerRoute component={Messages} />
       </Route>
       
       {/* Fallback */}

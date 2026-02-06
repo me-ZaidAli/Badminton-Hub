@@ -91,6 +91,13 @@ type CoachSeeker = {
   userEmail: string;
   status: string;
   paidUntil: string | null;
+  fullName: string | null;
+  telephone: string | null;
+  email: string | null;
+  timePlaying: string | null;
+  preferredTrainingLocation: string | null;
+  sessionPreference: string | null;
+  joinedAt: string | null;
 };
 
 type CoachFormState = {
@@ -702,6 +709,7 @@ export default function CoachManagement() {
 
   const [seekerSearch, setSeekerSearch] = useState("");
   const [selectedSeekers, setSelectedSeekers] = useState<number[]>([]);
+  const [editingSeekerData, setEditingSeekerData] = useState<CoachSeeker | null>(null);
   const [seekerBulkDialogOpen, setSeekerBulkDialogOpen] = useState(false);
   const [pendingSeekerBulkAction, setPendingSeekerBulkAction] = useState<string | null>(null);
 
@@ -1303,8 +1311,9 @@ export default function CoachManagement() {
                             data-testid="checkbox-select-all-seekers"
                           />
                         </TableHead>
-                        <TableHead>User Name</TableHead>
-                        <TableHead>Email</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Details</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Paid Until</TableHead>
                         <TableHead className="w-[200px]">Actions</TableHead>
@@ -1321,9 +1330,26 @@ export default function CoachManagement() {
                             />
                           </TableCell>
                           <TableCell>
-                            <span className="font-medium" data-testid={`text-seeker-name-${seeker.id}`}>{seeker.userName}</span>
+                            <div>
+                              <span className="font-medium" data-testid={`text-seeker-name-${seeker.id}`}>{seeker.fullName || seeker.userName}</span>
+                              <p className="text-xs text-muted-foreground">{seeker.userName}</p>
+                            </div>
                           </TableCell>
-                          <TableCell data-testid={`text-seeker-email-${seeker.id}`}>{seeker.userEmail}</TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <p className="text-sm" data-testid={`text-seeker-email-${seeker.id}`}>{seeker.email || seeker.userEmail}</p>
+                              {seeker.telephone && (
+                                <p className="text-xs text-muted-foreground" data-testid={`text-seeker-phone-${seeker.id}`}>{seeker.telephone}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5 text-xs">
+                              {seeker.timePlaying && <p data-testid={`text-seeker-time-${seeker.id}`}>Playing: {seeker.timePlaying}</p>}
+                              {seeker.preferredTrainingLocation && <p data-testid={`text-seeker-location-${seeker.id}`}>Location: {seeker.preferredTrainingLocation}</p>}
+                              {seeker.sessionPreference && <p data-testid={`text-seeker-pref-${seeker.id}`}>Preference: {seeker.sessionPreference}</p>}
+                            </div>
+                          </TableCell>
                           <TableCell>{getSeekerStatusBadge(seeker.status)}</TableCell>
                           <TableCell data-testid={`text-seeker-paid-${seeker.id}`}>
                             {seeker.paidUntil ? new Date(seeker.paidUntil).toLocaleDateString() : "-"}
@@ -1337,6 +1363,14 @@ export default function CoachManagement() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => setEditingSeekerData(seeker)}
+                                    data-testid={`action-edit-seeker-${seeker.id}`}
+                                  >
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Edit Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onClick={() => handleConfirmPayment(seeker)}
                                     data-testid={`action-confirm-payment-${seeker.id}`}
@@ -1511,6 +1545,101 @@ export default function CoachManagement() {
             </Button>
             <Button onClick={handleSaveEditCoach} disabled={editCoachMutation.isPending} data-testid="button-save-edit">
               {editCoachMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingSeekerData} onOpenChange={(open) => { if (!open) setEditingSeekerData(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Coach Seeker</DialogTitle>
+            <DialogDescription>Update seeker registration details</DialogDescription>
+          </DialogHeader>
+          {editingSeekerData && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="seeker-fullName">Full Name</Label>
+                <Input
+                  id="seeker-fullName"
+                  value={editingSeekerData.fullName || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, fullName: e.target.value })}
+                  data-testid="input-edit-seeker-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seeker-telephone">Telephone</Label>
+                <Input
+                  id="seeker-telephone"
+                  value={editingSeekerData.telephone || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, telephone: e.target.value })}
+                  data-testid="input-edit-seeker-phone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seeker-email">Email</Label>
+                <Input
+                  id="seeker-email"
+                  type="email"
+                  value={editingSeekerData.email || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, email: e.target.value })}
+                  data-testid="input-edit-seeker-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seeker-timePlaying">Time Playing</Label>
+                <Input
+                  id="seeker-timePlaying"
+                  value={editingSeekerData.timePlaying || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, timePlaying: e.target.value })}
+                  data-testid="input-edit-seeker-time"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seeker-location">Preferred Training Location</Label>
+                <Input
+                  id="seeker-location"
+                  value={editingSeekerData.preferredTrainingLocation || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, preferredTrainingLocation: e.target.value })}
+                  data-testid="input-edit-seeker-location"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seeker-session">Session Preference</Label>
+                <Input
+                  id="seeker-session"
+                  value={editingSeekerData.sessionPreference || ""}
+                  onChange={(e) => setEditingSeekerData({ ...editingSeekerData, sessionPreference: e.target.value })}
+                  data-testid="input-edit-seeker-pref"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingSeekerData(null)} data-testid="button-cancel-edit-seeker">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingSeekerData) {
+                  seekerActionMutation.mutate({
+                    id: editingSeekerData.id,
+                    data: {
+                      fullName: editingSeekerData.fullName,
+                      telephone: editingSeekerData.telephone,
+                      email: editingSeekerData.email,
+                      timePlaying: editingSeekerData.timePlaying,
+                      preferredTrainingLocation: editingSeekerData.preferredTrainingLocation,
+                      sessionPreference: editingSeekerData.sessionPreference,
+                    },
+                  });
+                  setEditingSeekerData(null);
+                }
+              }}
+              disabled={seekerActionMutation.isPending}
+              data-testid="button-save-edit-seeker"
+            >
+              {seekerActionMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

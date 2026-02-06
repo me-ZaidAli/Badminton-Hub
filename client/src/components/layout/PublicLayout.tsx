@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap } from "lucide-react";
+import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap, Mail } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
   { label: "Rankings", href: "/explore/rankings", icon: Trophy },
   { label: "Coaches", href: "/explore/coaches", icon: GraduationCap },
+  { label: "Contact", href: "/contact", icon: Mail },
 ];
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -92,8 +93,16 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
 
-      <footer className="py-8 border-t border-border text-center text-muted-foreground text-sm">
+      <footer className="py-8 border-t border-border text-center text-muted-foreground text-sm space-y-2">
         <p>Club Master - Badminton Club Management Platform</p>
+        <div className="flex items-center justify-center gap-4">
+          <Link href="/policy">
+            <span className="hover:text-foreground transition-colors cursor-pointer" data-testid="link-policy">Policies</span>
+          </Link>
+          <Link href="/contact">
+            <span className="hover:text-foreground transition-colors cursor-pointer" data-testid="link-contact-footer">Contact Us</span>
+          </Link>
+        </div>
       </footer>
     </div>
   );

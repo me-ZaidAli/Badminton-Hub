@@ -2,7 +2,7 @@ import { db, pool } from "./db";
 import { 
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
-  coaches, coachSeekerMemberships,
+  coaches, coachSeekerMemberships, reviews, contactMessages, notifications,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
@@ -10,7 +10,9 @@ import {
   type Tournament, type InsertTournament, type TournamentCategory, type InsertTournamentCategory,
   type TournamentTeam, type InsertTournamentTeam, type TournamentMatch, type InsertTournamentMatch,
   type TournamentStanding,
-  type Coach, type InsertCoach, type CoachSeekerMembership, type InsertCoachSeekerMembership
+  type Coach, type InsertCoach, type CoachSeekerMembership, type InsertCoachSeekerMembership,
+  type Review, type InsertReview, type ContactMessage, type InsertContactMessage,
+  type Notification, type InsertNotification
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -140,6 +142,27 @@ export interface IStorage {
   getAllCoachSeekerMemberships(): Promise<(CoachSeekerMembership & { user: User })[]>;
   createCoachSeekerMembership(membership: InsertCoachSeekerMembership): Promise<CoachSeekerMembership>;
   updateCoachSeekerMembership(id: number, updates: Partial<CoachSeekerMembership>): Promise<CoachSeekerMembership>;
+
+  // Reviews
+  getReviewsByTarget(targetType: string, targetId: number): Promise<(Review & { user: User })[]>;
+  getUserReview(userId: number, targetType: string, targetId: number): Promise<Review | undefined>;
+  createReview(review: InsertReview): Promise<Review>;
+  updateReview(id: number, updates: Partial<Review>): Promise<Review>;
+  deleteReview(id: number): Promise<void>;
+  getAverageRating(targetType: string, targetId: number): Promise<{ avg: number; count: number }>;
+
+  // Contact Messages
+  getContactMessages(forUserId?: number): Promise<(ContactMessage & { sender?: User; club?: Club })[]>;
+  getContactMessage(id: number): Promise<ContactMessage | undefined>;
+  createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
+  updateContactMessageStatus(id: number, status: string): Promise<ContactMessage>;
+
+  // Notifications
+  getNotifications(userId: number): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: number): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: number): Promise<Notification>;
+  markAllNotificationsRead(userId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -833,6 +856,92 @@ export class DatabaseStorage implements IStorage {
   async updateCoachSeekerMembership(id: number, updates: Partial<CoachSeekerMembership>): Promise<CoachSeekerMembership> {
     const [result] = await db.update(coachSeekerMemberships).set(updates).where(eq(coachSeekerMemberships.id, id)).returning();
     return result;
+  }
+
+  // Reviews
+  async getReviewsByTarget(targetType: string, targetId: number): Promise<(Review & { user: User })[]> {
+    const result = await db.select().from(reviews)
+      .innerJoin(users, eq(reviews.userId, users.id))
+      .where(and(eq(reviews.targetType, targetType), eq(reviews.targetId, targetId)))
+      .orderBy(desc(reviews.createdAt));
+    return result.map(r => ({ ...r.reviews, user: r.users }));
+  }
+
+  async getUserReview(userId: number, targetType: string, targetId: number): Promise<Review | undefined> {
+    const [result] = await db.select().from(reviews)
+      .where(and(eq(reviews.userId, userId), eq(reviews.targetType, targetType), eq(reviews.targetId, targetId)));
+    return result;
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const [result] = await db.insert(reviews).values(review).returning();
+    return result;
+  }
+
+  async updateReview(id: number, updates: Partial<Review>): Promise<Review> {
+    const [result] = await db.update(reviews).set(updates).where(eq(reviews.id, id)).returning();
+    return result;
+  }
+
+  async deleteReview(id: number): Promise<void> {
+    await db.delete(reviews).where(eq(reviews.id, id));
+  }
+
+  async getAverageRating(targetType: string, targetId: number): Promise<{ avg: number; count: number }> {
+    const result = await db.select({
+      avg: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
+      count: sql<number>`COUNT(*)::int`,
+    }).from(reviews).where(and(eq(reviews.targetType, targetType), eq(reviews.targetId, targetId)));
+    return { avg: Number(result[0]?.avg || 0), count: Number(result[0]?.count || 0) };
+  }
+
+  // Contact Messages
+  async getContactMessages(forUserId?: number): Promise<(ContactMessage & { sender?: User; club?: Club })[]> {
+    const result = await db.select().from(contactMessages)
+      .leftJoin(users, eq(contactMessages.senderUserId, users.id))
+      .leftJoin(clubs, eq(contactMessages.clubId, clubs.id))
+      .orderBy(desc(contactMessages.createdAt));
+    return result.map(r => ({ ...r.contact_messages, sender: r.users || undefined, club: r.clubs || undefined }));
+  }
+
+  async getContactMessage(id: number): Promise<ContactMessage | undefined> {
+    const [result] = await db.select().from(contactMessages).where(eq(contactMessages.id, id));
+    return result;
+  }
+
+  async createContactMessage(message: InsertContactMessage): Promise<ContactMessage> {
+    const [result] = await db.insert(contactMessages).values(message).returning();
+    return result;
+  }
+
+  async updateContactMessageStatus(id: number, status: string): Promise<ContactMessage> {
+    const [result] = await db.update(contactMessages).set({ status }).where(eq(contactMessages.id, id)).returning();
+    return result;
+  }
+
+  // Notifications
+  async getNotifications(userId: number): Promise<Notification[]> {
+    return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(50);
+  }
+
+  async getUnreadNotificationCount(userId: number): Promise<number> {
+    const result = await db.select({ count: sql<number>`COUNT(*)::int` }).from(notifications)
+      .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
+    return Number(result[0]?.count || 0);
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [result] = await db.insert(notifications).values(notification).returning();
+    return result;
+  }
+
+  async markNotificationRead(id: number): Promise<Notification> {
+    const [result] = await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id)).returning();
+    return result;
+  }
+
+  async markAllNotificationsRead(userId: number): Promise<void> {
+    await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
   }
 }
 

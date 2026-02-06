@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, DollarSign, Languages, HeartHandshake, Trophy, Star } from "lucide-react";
+import ReviewSection from "@/components/ReviewSection";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -290,6 +291,10 @@ function CoachDetailDialog({ coach, open, onOpenChange }: { coach: Coach | null;
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{section.value}</p>
             </div>
           ))}
+
+          <div className="border-t pt-4 mt-4">
+            <ReviewSection targetType="COACH" targetId={coach.id} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
