@@ -23,7 +23,7 @@ Key design patterns include:
 - **Shared Types**: Centralized schema and route definitions in `shared/` ensure type safety across the entire application.
 - **Storage Abstraction**: An `IStorage` interface abstracts database operations, promoting modularity.
 - **API Contracts**: API routes are defined with clear method, path, input, and response schemas for robust, type-safe communication.
-- **Role-Based Access Control**: Granular permissions based on user roles (`OWNER`, `ADMIN`, `PLAYER`, `ORGANISER`, `COACH`) govern access to features and data.
+- **Role-Based Access Control**: Centralized RBAC system in `server/rbac.ts` with `canPerform(user, action, clubId)` function and action enum (VIEW_CLUB, MANAGE_CLUB, MANAGE_SESSIONS, MANAGE_TOURNAMENTS, etc.). Platform-level OWNER role gets automatic bypass for all actions without needing club membership. Club-level roles (`ADMIN`, `ORGANISER`, `COACH`, `PLAYER`) require APPROVED membership status. Super admins are blocked from joining clubs (403) as they have automatic full access. Comprehensive RBAC logging via `log_rbac()` tracks all permission checks.
 - **Multi-Club Support**: The system inherently supports multiple badminton clubs, with club-specific player profiles and administrative capabilities. Clubs undergo an approval workflow (PENDING to APPROVED) by a super admin.
 - **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation capabilities.
 - **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED), allows users to join clubs, and provides an admin panel for membership requests and role assignments.

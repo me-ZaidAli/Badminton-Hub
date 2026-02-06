@@ -475,7 +475,7 @@ export async function registerRoutes(
       
       if (isSuperAdmin(req.user!)) {
         console.log(`[JOIN] BLOCKED: Super admin (userId=${req.user!.id}) attempted to join club ${clubId} - super admins have automatic access`);
-        return res.status(400).json({ message: "Super admins already have full access to all clubs. No need to join." });
+        return res.status(403).json({ message: "Super admins already have full access to all clubs. No need to join." });
       }
 
       if (!clubId || typeof clubId !== 'number') {
