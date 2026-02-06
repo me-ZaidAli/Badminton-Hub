@@ -30,6 +30,11 @@ import Profile from "@/pages/Profile";
 import ExploreClubs from "@/pages/explore/ExploreClubs";
 import ExploreSessions from "@/pages/explore/ExploreSessions";
 import ExploreRankings from "@/pages/explore/ExploreRankings";
+import ExploreCoaches from "@/pages/explore/ExploreCoaches";
+import FindCoach from "@/pages/FindCoach";
+import RegisterCoach from "@/pages/RegisterCoach";
+import CoachProfile from "@/pages/CoachProfile";
+import JoinCoachSeeker from "@/pages/JoinCoachSeeker";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -48,6 +53,7 @@ import Analytics from "@/pages/admin/Analytics";
 import AdminRankings from "@/pages/admin/AdminRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
+import CoachManagement from "@/pages/admin/CoachManagement";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -167,6 +173,7 @@ function Router() {
       <Route path="/explore/clubs" component={ExploreClubs} />
       <Route path="/explore/sessions" component={ExploreSessions} />
       <Route path="/explore/rankings" component={ExploreRankings} />
+      <Route path="/explore/coaches" component={ExploreCoaches} />
       
       {/* Protected Routes */}
       <Route path="/dashboard">
@@ -207,6 +214,18 @@ function Router() {
       </Route>
       <Route path="/pending-approval">
         <PrivateRoute component={PendingApproval} />
+      </Route>
+      <Route path="/find-coach">
+        <PrivateRoute component={FindCoach} />
+      </Route>
+      <Route path="/register-coach">
+        <PrivateRoute component={RegisterCoach} />
+      </Route>
+      <Route path="/coaches/me">
+        <PrivateRoute component={CoachProfile} />
+      </Route>
+      <Route path="/join-coach-seeker">
+        <PrivateRoute component={JoinCoachSeeker} />
       </Route>
       <Route path="/profile">
         <Profile />
@@ -260,6 +279,9 @@ function Router() {
       </Route>
       <Route path="/admin/import-members">
         <OwnerRoute component={MemberImport} />
+      </Route>
+      <Route path="/admin/coaches">
+        <OwnerRoute component={CoachManagement} />
       </Route>
       
       {/* Fallback */}

@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema } from "@shared/schema";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -544,6 +544,10 @@ export async function registerRoutes(
             clubId: session.clubId,
             clubName: club.name,
             clubSlug: (club as any).slug,
+            clubCity: (club as any).city || null,
+            clubPostcode: (club as any).postcode || null,
+            clubAddress: (club as any).address || null,
+            playerLevels: (club as any).playerLevels || [],
             title: session.title,
             date: session.date,
             startTime: session.startTime,
@@ -3072,6 +3076,347 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching global rankings:", err);
       res.status(500).json({ message: "Failed to fetch rankings" });
+    }
+  });
+
+  // === COACH ROUTES ===
+
+  // Public: Get coach counts by city/area (no details)
+  app.get("/api/public/coach-counts", async (_req, res) => {
+    try {
+      const allCoaches = await storage.getCoaches();
+      const approved = allCoaches.filter(c => c.status === "APPROVED");
+      const cityCounts: Record<string, { count: number; latitude?: string; longitude?: string }> = {};
+      for (const coach of approved) {
+        const key = coach.city || coach.location || "Unknown";
+        if (!cityCounts[key]) {
+          cityCounts[key] = { count: 0, latitude: coach.latitude || undefined, longitude: coach.longitude || undefined };
+        }
+        cityCounts[key].count++;
+      }
+      res.json({ totalCoaches: approved.length, byCityOrArea: cityCounts });
+    } catch (err) {
+      console.error("Error fetching coach counts:", err);
+      res.status(500).json({ message: "Failed to fetch coach counts" });
+    }
+  });
+
+  // Public: Get approved coaches list (limited info for external, full for authenticated members with active membership)
+  app.get("/api/coaches", async (req, res) => {
+    try {
+      const allCoaches = await storage.getCoaches();
+      const approved = allCoaches.filter(c => c.status === "APPROVED");
+
+      if (req.isAuthenticated()) {
+        const membership = await storage.getCoachSeekerMembership(req.user!.id);
+        const isSuperAdminUser = req.user!.role === "OWNER";
+
+        if (isSuperAdminUser || (membership && membership.status === "ACTIVE")) {
+          res.json(approved);
+          return;
+        }
+      }
+
+      const limited = approved.map(c => ({
+        id: c.id,
+        fullName: c.fullName,
+        city: c.city,
+        postcode: c.postcode,
+        areaCoverage: c.areaCoverage,
+        qualifications: c.qualifications,
+        badmintonEnglandCert: c.badmintonEnglandCert,
+        yearsTraining: c.yearsTraining,
+        experience: c.experience,
+        latitude: c.latitude,
+        longitude: c.longitude,
+      }));
+      res.json(limited);
+    } catch (err) {
+      console.error("Error fetching coaches:", err);
+      res.status(500).json({ message: "Failed to fetch coaches" });
+    }
+  });
+
+  // Register as coach (authenticated users)
+  app.post("/api/coaches/register", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const existing = await storage.getCoachByUserId(req.user!.id);
+      if (existing) {
+        return res.status(400).json({ message: "You are already registered as a coach" });
+      }
+
+      const input = insertCoachSchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+        fullName: req.body.fullName || req.user!.fullName,
+        email: req.body.email || req.user!.email,
+      });
+
+      const coach = await storage.createCoach(input);
+      res.status(201).json(coach);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Error registering coach:", err);
+      res.status(500).json({ message: "Failed to register as coach" });
+    }
+  });
+
+  // Get own coach profile
+  app.get("/api/coaches/me", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const coach = await storage.getCoachByUserId(req.user!.id);
+      if (!coach) return res.status(404).json({ message: "Not registered as a coach" });
+      res.json(coach);
+    } catch (err) {
+      console.error("Error fetching coach profile:", err);
+      res.status(500).json({ message: "Failed to fetch coach profile" });
+    }
+  });
+
+  // Update own coach profile
+  app.patch("/api/coaches/me", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const coach = await storage.getCoachByUserId(req.user!.id);
+      if (!coach) return res.status(404).json({ message: "Not registered as a coach" });
+
+      const allowedFields = ["fullName", "email", "phone", "bio", "location", "city", "postcode", "latitude", "longitude", "areaCoverage", "qualifications", "badmintonEnglandCert", "yearsTraining", "professionalCareer", "experience"];
+      const updates: any = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updates[key] = req.body[key];
+      }
+
+      const updated = await storage.updateCoach(coach.id, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating coach profile:", err);
+      res.status(500).json({ message: "Failed to update coach profile" });
+    }
+  });
+
+  // Coach Seeker Membership - join (request membership)
+  app.post("/api/coach-seeker/join", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const existing = await storage.getCoachSeekerMembership(req.user!.id);
+      if (existing && (existing.status === "ACTIVE" || existing.status === "PENDING")) {
+        return res.status(400).json({ message: "You already have an active or pending membership" });
+      }
+
+      const membership = await storage.createCoachSeekerMembership({
+        userId: req.user!.id,
+        status: "PENDING",
+      });
+      res.status(201).json(membership);
+    } catch (err) {
+      console.error("Error joining coach seeker:", err);
+      res.status(500).json({ message: "Failed to join" });
+    }
+  });
+
+  // Get own coach seeker membership status
+  app.get("/api/coach-seeker/me", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membership = await storage.getCoachSeekerMembership(req.user!.id);
+      res.json(membership || null);
+    } catch (err) {
+      console.error("Error fetching membership:", err);
+      res.status(500).json({ message: "Failed to fetch membership" });
+    }
+  });
+
+  // Cancel own coach seeker membership
+  app.post("/api/coach-seeker/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membership = await storage.getCoachSeekerMembership(req.user!.id);
+      if (!membership) return res.status(404).json({ message: "No membership found" });
+      const updated = await storage.updateCoachSeekerMembership(membership.id, { status: "CANCELLED" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error cancelling membership:", err);
+      res.status(500).json({ message: "Failed to cancel membership" });
+    }
+  });
+
+  // === ADMIN COACH ROUTES (OWNER only) ===
+
+  // Get all coaches for admin
+  app.get("/api/admin/coaches", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const allCoaches = await storage.getCoaches();
+      res.json(allCoaches);
+    } catch (err) {
+      console.error("Error fetching coaches for admin:", err);
+      res.status(500).json({ message: "Failed to fetch coaches" });
+    }
+  });
+
+  // Admin update coach (any field including status)
+  app.patch("/api/admin/coaches/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const coachId = Number(req.params.id);
+      const coach = await storage.getCoach(coachId);
+      if (!coach) return res.status(404).json({ message: "Coach not found" });
+      const updated = await storage.updateCoach(coachId, req.body);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating coach:", err);
+      res.status(500).json({ message: "Failed to update coach" });
+    }
+  });
+
+  // Admin delete coach
+  app.delete("/api/admin/coaches/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      await storage.deleteCoach(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Error deleting coach:", err);
+      res.status(500).json({ message: "Failed to delete coach" });
+    }
+  });
+
+  // Admin bulk approve/reject coaches
+  app.post("/api/admin/coaches/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const { ids, action } = req.body as { ids: number[]; action: "APPROVED" | "REJECTED" | "SUSPENDED" };
+      if (!ids?.length || !action) return res.status(400).json({ message: "ids and action required" });
+
+      const results = [];
+      for (const id of ids) {
+        const updated = await storage.updateCoach(id, { status: action });
+        results.push(updated);
+      }
+      res.json(results);
+    } catch (err) {
+      console.error("Error bulk updating coaches:", err);
+      res.status(500).json({ message: "Failed to bulk update coaches" });
+    }
+  });
+
+  // Admin get all coach seeker memberships
+  app.get("/api/admin/coach-seekers", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const memberships = await storage.getAllCoachSeekerMemberships();
+      res.json(memberships);
+    } catch (err) {
+      console.error("Error fetching coach seekers:", err);
+      res.status(500).json({ message: "Failed to fetch coach seekers" });
+    }
+  });
+
+  // Admin update coach seeker membership (confirm payment, suspend, etc.)
+  app.patch("/api/admin/coach-seekers/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const membershipId = Number(req.params.id);
+      const updates: any = {};
+      if (req.body.status) updates.status = req.body.status;
+      if (req.body.paidUntil) updates.paidUntil = new Date(req.body.paidUntil);
+      const updated = await storage.updateCoachSeekerMembership(membershipId, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating coach seeker:", err);
+      res.status(500).json({ message: "Failed to update membership" });
+    }
+  });
+
+  // Admin bulk action on coach seekers
+  app.post("/api/admin/coach-seekers/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const { ids, action } = req.body as { ids: number[]; action: "ACTIVE" | "SUSPENDED" | "CANCELLED" };
+      if (!ids?.length || !action) return res.status(400).json({ message: "ids and action required" });
+
+      const results = [];
+      for (const id of ids) {
+        const updated = await storage.updateCoachSeekerMembership(id, { status: action });
+        results.push(updated);
+      }
+      res.json(results);
+    } catch (err) {
+      console.error("Error bulk updating coach seekers:", err);
+      res.status(500).json({ message: "Failed to bulk update" });
+    }
+  });
+
+  // Admin suspend user (takes away all rights)
+  app.post("/api/admin/users/:id/suspend", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const userId = Number(req.params.id);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.role === "OWNER") return res.status(400).json({ message: "Cannot suspend a super admin" });
+
+      const updated = await storage.updateUser(userId, { accountStatus: "REJECTED" });
+
+      const coach = await storage.getCoachByUserId(userId);
+      if (coach) {
+        await storage.updateCoach(coach.id, { status: "SUSPENDED" });
+      }
+
+      const seekerMembership = await storage.getCoachSeekerMembership(userId);
+      if (seekerMembership) {
+        await storage.updateCoachSeekerMembership(seekerMembership.id, { status: "SUSPENDED" });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Error suspending user:", err);
+      res.status(500).json({ message: "Failed to suspend user" });
+    }
+  });
+
+  // Admin unsuspend user 
+  app.post("/api/admin/users/:id/unsuspend", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const userId = Number(req.params.id);
+      const updated = await storage.updateUser(userId, { accountStatus: "APPROVED" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error unsuspending user:", err);
+      res.status(500).json({ message: "Failed to unsuspend user" });
+    }
+  });
+
+  // Public endpoint: sessions with club info for location search
+  app.get("/api/public/sessions-with-clubs", async (_req, res) => {
+    try {
+      const allSessions = await storage.getSessions();
+      const allClubs = await storage.getClubs();
+      const clubMap = new Map(allClubs.map(c => [c.id, c]));
+
+      const enriched = allSessions.map(s => {
+        const club = clubMap.get(s.clubId);
+        return {
+          ...s,
+          clubName: club?.name || "Unknown",
+          clubCity: club?.city || null,
+          clubPostcode: club?.postcode || null,
+          clubAddress: club?.address || null,
+          clubLatitude: club?.latitude || null,
+          clubLongitude: club?.longitude || null,
+          playerLevels: club?.playerLevels || [],
+        };
+      });
+
+      res.json(enriched);
+    } catch (err) {
+      console.error("Error fetching sessions with clubs:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
     }
   });
 

@@ -2,13 +2,15 @@ import { db, pool } from "./db";
 import { 
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
+  coaches, coachSeekerMemberships,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
   type Venue, type InsertVenue,
   type Tournament, type InsertTournament, type TournamentCategory, type InsertTournamentCategory,
   type TournamentTeam, type InsertTournamentTeam, type TournamentMatch, type InsertTournamentMatch,
-  type TournamentStanding
+  type TournamentStanding,
+  type Coach, type InsertCoach, type CoachSeekerMembership, type InsertCoachSeekerMembership
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -124,6 +126,20 @@ export interface IStorage {
   getTournamentStandings(categoryId: number): Promise<TournamentStanding[]>;
   upsertTournamentStanding(standing: Omit<TournamentStanding, "id">): Promise<TournamentStanding>;
   deleteTournamentStandingsByCategory(categoryId: number): Promise<void>;
+
+  // Coaches
+  getCoaches(): Promise<Coach[]>;
+  getCoach(id: number): Promise<Coach | undefined>;
+  getCoachByUserId(userId: number): Promise<Coach | undefined>;
+  createCoach(coach: InsertCoach): Promise<Coach>;
+  updateCoach(id: number, updates: Partial<Coach>): Promise<Coach>;
+  deleteCoach(id: number): Promise<void>;
+
+  // Coach Seeker Memberships
+  getCoachSeekerMembership(userId: number): Promise<CoachSeekerMembership | undefined>;
+  getAllCoachSeekerMemberships(): Promise<(CoachSeekerMembership & { user: User })[]>;
+  createCoachSeekerMembership(membership: InsertCoachSeekerMembership): Promise<CoachSeekerMembership>;
+  updateCoachSeekerMembership(id: number, updates: Partial<CoachSeekerMembership>): Promise<CoachSeekerMembership>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -767,6 +783,56 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTournamentStandingsByCategory(categoryId: number): Promise<void> {
     await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, categoryId));
+  }
+
+  async getCoaches(): Promise<Coach[]> {
+    return db.select().from(coaches).orderBy(desc(coaches.createdAt));
+  }
+
+  async getCoach(id: number): Promise<Coach | undefined> {
+    const [coach] = await db.select().from(coaches).where(eq(coaches.id, id));
+    return coach;
+  }
+
+  async getCoachByUserId(userId: number): Promise<Coach | undefined> {
+    const [coach] = await db.select().from(coaches).where(eq(coaches.userId, userId));
+    return coach;
+  }
+
+  async createCoach(coach: InsertCoach): Promise<Coach> {
+    const [result] = await db.insert(coaches).values(coach).returning();
+    return result;
+  }
+
+  async updateCoach(id: number, updates: Partial<Coach>): Promise<Coach> {
+    const [result] = await db.update(coaches).set(updates).where(eq(coaches.id, id)).returning();
+    return result;
+  }
+
+  async deleteCoach(id: number): Promise<void> {
+    await db.delete(coaches).where(eq(coaches.id, id));
+  }
+
+  async getCoachSeekerMembership(userId: number): Promise<CoachSeekerMembership | undefined> {
+    const [membership] = await db.select().from(coachSeekerMemberships).where(eq(coachSeekerMemberships.userId, userId));
+    return membership;
+  }
+
+  async getAllCoachSeekerMemberships(): Promise<(CoachSeekerMembership & { user: User })[]> {
+    const results = await db.select().from(coachSeekerMemberships)
+      .innerJoin(users, eq(coachSeekerMemberships.userId, users.id))
+      .orderBy(desc(coachSeekerMemberships.createdAt));
+    return results.map(r => ({ ...r.coach_seeker_memberships, user: r.users }));
+  }
+
+  async createCoachSeekerMembership(membership: InsertCoachSeekerMembership): Promise<CoachSeekerMembership> {
+    const [result] = await db.insert(coachSeekerMemberships).values(membership).returning();
+    return result;
+  }
+
+  async updateCoachSeekerMembership(id: number, updates: Partial<CoachSeekerMembership>): Promise<CoachSeekerMembership> {
+    const [result] = await db.update(coachSeekerMemberships).set(updates).where(eq(coachSeekerMemberships.id, id)).returning();
+    return result;
   }
 }
 

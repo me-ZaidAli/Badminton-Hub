@@ -4,14 +4,19 @@ import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar, Clock, Users, Play, CheckCircle, Activity, Loader2, Building2 } from "lucide-react";
+import { Calendar, Clock, Users, Play, CheckCircle, Activity, Loader2, Building2, ChevronsUpDown, MapPin, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function ExploreSessions() {
   const [sessionFilter, setSessionFilter] = useState<"all" | "live" | "upcoming">("all");
   const [clubFilter, setClubFilter] = useState<string>("all");
+  const [clubComboboxOpen, setClubComboboxOpen] = useState(false);
+  const [locationSearch, setLocationSearch] = useState("");
 
   const { data: allSessions, isLoading } = useQuery<any[]>({
     queryKey: ["/api/public/all-sessions"],
@@ -25,6 +30,12 @@ export default function ExploreSessions() {
     return Array.from(clubMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [allSessions]);
 
+  const selectedClubLabel = useMemo(() => {
+    if (clubFilter === "all") return "All Clubs";
+    const club = clubs.find(c => c.id.toString() === clubFilter);
+    return club?.name || "All Clubs";
+  }, [clubFilter, clubs]);
+
   const liveSessions = useMemo(() => {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
   }, [allSessions]);
@@ -35,10 +46,19 @@ export default function ExploreSessions() {
     if (clubFilter !== "all") {
       result = result.filter(s => s.clubId === Number(clubFilter));
     }
+    if (locationSearch.trim()) {
+      const search = locationSearch.trim().toLowerCase();
+      result = result.filter(s => {
+        const city = (s.clubCity || "").toLowerCase();
+        const postcode = (s.clubPostcode || "").toLowerCase();
+        const address = (s.clubAddress || "").toLowerCase();
+        return city.includes(search) || postcode.includes(search) || address.includes(search);
+      });
+    }
     if (sessionFilter === "live") return result.filter(s => s.liveMatchCount > 0 || s.status === "LIVE");
     if (sessionFilter === "upcoming") return result.filter(s => s.status === "UPCOMING");
     return result;
-  }, [allSessions, sessionFilter, clubFilter]);
+  }, [allSessions, sessionFilter, clubFilter, locationSearch]);
 
   return (
     <PublicLayout>
@@ -79,19 +99,59 @@ export default function ExploreSessions() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-muted-foreground" />
-              <Select value={clubFilter} onValueChange={setClubFilter}>
-                <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
-                  <SelectValue placeholder="All Clubs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clubs</SelectItem>
-                  {clubs.map(club => (
-                    <SelectItem key={club.id} value={club.id.toString()}>
-                      {club.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={clubComboboxOpen} onOpenChange={setClubComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clubComboboxOpen}
+                    className="w-[250px] justify-between"
+                    data-testid="combobox-club-filter"
+                  >
+                    {selectedClubLabel}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search clubs..." data-testid="input-club-search" />
+                    <CommandList>
+                      <CommandEmpty>No clubs found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => { setClubFilter("all"); setClubComboboxOpen(false); }}
+                          data-testid="combobox-item-all-clubs"
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", clubFilter === "all" ? "opacity-100" : "opacity-0")} />
+                          All Clubs
+                        </CommandItem>
+                        {clubs.map(club => (
+                          <CommandItem
+                            key={club.id}
+                            onSelect={() => { setClubFilter(club.id.toString()); setClubComboboxOpen(false); }}
+                            data-testid={`combobox-item-club-${club.id}`}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", clubFilter === club.id.toString() ? "opacity-100" : "opacity-0")} />
+                            {club.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              <div className="relative">
+                <Input
+                  placeholder="Search by location..."
+                  value={locationSearch}
+                  onChange={(e) => setLocationSearch(e.target.value)}
+                  className="w-[250px]"
+                  data-testid="input-location-search"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -171,6 +231,15 @@ export default function ExploreSessions() {
                         </span>
                         <span className="text-muted-foreground">{session.courtsAvailable} courts</span>
                       </div>
+                      {session.playerLevels && session.playerLevels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1" data-testid={`player-levels-${session.id}`}>
+                          {session.playerLevels.map((level: string) => (
+                            <Badge key={level} variant="outline" className="text-xs" data-testid={`badge-level-${level.toLowerCase()}-${session.id}`}>
+                              {level}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                       {(session.completedMatchCount > 0 || session.queuedMatchCount > 0) && (
                         <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t border-border/30">
                           {session.completedMatchCount > 0 && (

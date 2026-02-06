@@ -264,6 +264,40 @@ export const tournamentStandings = pgTable("tournament_standings", {
   points: integer("points").default(0).notNull(),
 });
 
+// === COACHES ===
+export const coachStatusEnum = pgEnum("coach_status", ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"]);
+export const coachSeekerStatusEnum = pgEnum("coach_seeker_status", ["ACTIVE", "SUSPENDED", "CANCELLED", "PENDING"]);
+
+export const coaches = pgTable("coaches", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  bio: text("bio"),
+  location: text("location"),
+  city: text("city"),
+  postcode: text("postcode"),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  areaCoverage: text("area_coverage"),
+  qualifications: text("qualifications"),
+  badmintonEnglandCert: boolean("badminton_england_cert").default(false).notNull(),
+  yearsTraining: integer("years_training"),
+  professionalCareer: text("professional_career"),
+  experience: text("experience"),
+  status: coachStatusEnum("status").default("PENDING").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const coachSeekerMemberships = pgTable("coach_seeker_memberships", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  status: coachSeekerStatusEnum("status").default("PENDING").notNull(),
+  paidUntil: timestamp("paid_until"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === ANNOUNCEMENTS ===
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),
@@ -381,6 +415,8 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
+export const insertCoachSchema = createInsertSchema(coaches).omit({ id: true, createdAt: true, status: true });
+export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true });
 
 export const insertTournamentSchema = createInsertSchema(tournaments).omit({ id: true, createdBy: true, createdAt: true }).extend({
   startDate: z.coerce.date(),
@@ -405,6 +441,10 @@ export type TournamentCategory = typeof tournamentCategories.$inferSelect;
 export type TournamentTeam = typeof tournamentTeams.$inferSelect;
 export type TournamentMatch = typeof tournamentMatches.$inferSelect;
 export type TournamentStanding = typeof tournamentStandings.$inferSelect;
+export type Coach = typeof coaches.$inferSelect;
+export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
+export type InsertCoach = z.infer<typeof insertCoachSchema>;
+export type InsertCoachSeekerMembership = z.infer<typeof insertCoachSeekerMembershipSchema>;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

@@ -1,24 +1,49 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useClubs, useLeaderboard } from "@/hooks/use-clubs";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
-import { Trophy, Loader2 } from "lucide-react";
+import { Trophy, Loader2, ChevronsUpDown, Check, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function ExploreRankings() {
   const { data: clubs } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [locationSearch, setLocationSearch] = useState("");
+
+  const filteredClubs = useMemo(() => {
+    if (!clubs) return [];
+    if (!locationSearch.trim()) return clubs;
+    const query = locationSearch.toLowerCase().trim();
+    return clubs.filter((club) => {
+      const city = (club.city || "").toLowerCase();
+      const postcode = (club.postcode || "").toLowerCase();
+      const address = (club.address || "").toLowerCase();
+      return city.includes(query) || postcode.includes(query) || address.includes(query);
+    });
+  }, [clubs, locationSearch]);
 
   useEffect(() => {
     if (clubs?.length && !selectedClubId) {
       setSelectedClubId(clubs[0].id);
     }
   }, [clubs, selectedClubId]);
+
+  useEffect(() => {
+    if (locationSearch.trim() && filteredClubs.length > 0) {
+      setSelectedClubId(filteredClubs[0].id);
+    }
+  }, [filteredClubs, locationSearch]);
+
+  const selectedClubName = clubs?.find((c) => c.id === selectedClubId)?.name;
 
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(selectedClubId);
   const topPlayers = leaderboard?.slice(0, 20) || [];
@@ -38,22 +63,68 @@ export default function ExploreRankings() {
           </div>
 
           {clubs && clubs.length > 0 && (
-            <div className="flex justify-center mb-8">
-              <Select
-                value={selectedClubId?.toString() || ""}
-                onValueChange={(v) => setSelectedClubId(Number(v))}
-              >
-                <SelectTrigger className="w-[250px]" data-testid="select-ranking-club">
-                  <SelectValue placeholder="Select a club..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clubs.map(club => (
-                    <SelectItem key={club.id} value={club.id.toString()} data-testid={`select-ranking-club-${club.id}`}>
-                      {club.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+              <div className="relative w-[250px]">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by city, postcode..."
+                  value={locationSearch}
+                  onChange={(e) => setLocationSearch(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-location-search"
+                />
+              </div>
+
+              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={comboboxOpen}
+                    className="w-[250px] justify-between"
+                    data-testid="select-ranking-club"
+                  >
+                    {selectedClubName || "Select a club..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search clubs..." data-testid="input-club-search" />
+                    <CommandList>
+                      <CommandEmpty>No clubs found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredClubs.map((club) => (
+                          <CommandItem
+                            key={club.id}
+                            value={club.name}
+                            onSelect={() => {
+                              setSelectedClubId(club.id);
+                              setComboboxOpen(false);
+                            }}
+                            data-testid={`select-ranking-club-${club.id}`}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedClubId === club.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{club.name}</span>
+                              {(club.city || club.postcode) && (
+                                <span className="text-xs text-muted-foreground">
+                                  {[club.city, club.postcode].filter(Boolean).join(", ")}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 

@@ -19,7 +19,9 @@ import {
   Upload,
   BarChart3,
   Trophy,
-  DollarSign
+  DollarSign,
+  GraduationCap,
+  Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,11 +61,15 @@ export function Sidebar() {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
+  navItems.push({ href: "/explore/coaches", label: "Coaches", icon: GraduationCap });
+  navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
+
   if (user?.role === "OWNER") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
     navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
+    navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
     navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });

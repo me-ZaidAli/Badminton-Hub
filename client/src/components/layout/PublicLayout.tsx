@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, Trophy, Menu, X } from "lucide-react";
+import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { label: "Clubs", href: "/explore/clubs", icon: Search },
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
   { label: "Rankings", href: "/explore/rankings", icon: Trophy },
+  { label: "Coaches", href: "/explore/coaches", icon: GraduationCap },
 ];
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {

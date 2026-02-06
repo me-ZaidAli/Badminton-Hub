@@ -79,6 +79,19 @@ Key design patterns include:
   - API endpoints: PATCH .../gender, PATCH .../pause, PATCH .../pair, POST .../guest-player
   - All endpoints enforce RBAC (MANAGE_SESSIONS permission required)
 - **Tournament System**: Database tables preserved (tournaments, tournament_categories, tournament_teams, tournament_matches, tournament_standings) but UI/routes/hooks removed. Can be re-enabled in future.
+- **Coach Directory & Marketplace**: Comprehensive coaching system with tiered access:
+  - Database tables: `coaches` (profiles with qualifications, location, BE certification) and `coach_seeker_memberships` (£10/month paid memberships)
+  - Public coach directory at `/explore/coaches` shows coach counts by city/area with map (Leaflet) - no personal details
+  - Authenticated users with ACTIVE membership can access full directory at `/find-coach` with contact details, location-based search, and filters
+  - Coach registration at `/register-coach` - any user can register as a coach (requires admin approval)
+  - Coach profile management at `/coaches/me` - coaches can view/edit their own details
+  - Membership joining at `/join-coach-seeker` - users sign up, admin contacts for payment arrangement
+  - Admin management at `/admin/coaches` (OWNER only) with two tabs: Coach Management and Coach Seeker Memberships
+  - Bulk operations: approve/reject/suspend all selected coaches or seekers
+  - User suspension system: POST `/api/admin/users/:id/suspend` removes all rights (sets accountStatus to REJECTED, suspends coach profile and membership)
+  - Coach fields: fullName, email, phone, location, city, postcode, areaCoverage, qualifications, badmintonEnglandCert, yearsTraining, professionalCareer, experience, status (PENDING/APPROVED/REJECTED/SUSPENDED)
+- **Searchable Club Dropdowns**: ExploreSessions and ExploreRankings pages use Popover + Command combobox pattern for searchable type-ahead club selection
+- **Location-Based Filtering**: ExploreSessions and ExploreRankings support filtering by postcode, city, or address text
 
 ## External Dependencies
 
