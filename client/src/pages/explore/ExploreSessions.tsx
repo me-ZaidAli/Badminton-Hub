@@ -4,17 +4,26 @@ import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar, Clock, Users, Play, CheckCircle, Activity, Loader2 } from "lucide-react";
+import { Calendar, Clock, Users, Play, CheckCircle, Activity, Loader2, Building2 } from "lucide-react";
 
 export default function ExploreSessions() {
   const [sessionFilter, setSessionFilter] = useState<"all" | "live" | "upcoming">("all");
+  const [clubFilter, setClubFilter] = useState<string>("all");
 
   const { data: allSessions, isLoading } = useQuery<any[]>({
     queryKey: ["/api/public/all-sessions"],
     refetchInterval: 15000,
   });
+
+  const clubs = useMemo(() => {
+    if (!allSessions) return [];
+    const clubMap = new Map<number, string>();
+    allSessions.forEach(s => clubMap.set(s.clubId, s.clubName));
+    return Array.from(clubMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allSessions]);
 
   const liveSessions = useMemo(() => {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
@@ -22,10 +31,14 @@ export default function ExploreSessions() {
 
   const filteredSessions = useMemo(() => {
     if (!allSessions) return [];
-    if (sessionFilter === "live") return allSessions.filter(s => s.liveMatchCount > 0 || s.status === "LIVE");
-    if (sessionFilter === "upcoming") return allSessions.filter(s => s.status === "UPCOMING");
-    return allSessions;
-  }, [allSessions, sessionFilter]);
+    let result = allSessions;
+    if (clubFilter !== "all") {
+      result = result.filter(s => s.clubId === Number(clubFilter));
+    }
+    if (sessionFilter === "live") return result.filter(s => s.liveMatchCount > 0 || s.status === "LIVE");
+    if (sessionFilter === "upcoming") return result.filter(s => s.status === "UPCOMING");
+    return result;
+  }, [allSessions, sessionFilter, clubFilter]);
 
   return (
     <PublicLayout>
@@ -63,31 +76,49 @@ export default function ExploreSessions() {
             </div>
           )}
 
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <Button
-              variant={sessionFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSessionFilter("all")}
-              data-testid="button-filter-all"
-            >
-              All ({allSessions?.length || 0})
-            </Button>
-            <Button
-              variant={sessionFilter === "live" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSessionFilter("live")}
-              data-testid="button-filter-live"
-            >
-              <Play className="w-3 h-3 mr-1" /> Live ({liveSessions.length})
-            </Button>
-            <Button
-              variant={sessionFilter === "upcoming" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSessionFilter("upcoming")}
-              data-testid="button-filter-upcoming"
-            >
-              <Calendar className="w-3 h-3 mr-1" /> Upcoming
-            </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              <Select value={clubFilter} onValueChange={setClubFilter}>
+                <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
+                  <SelectValue placeholder="All Clubs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clubs</SelectItem>
+                  {clubs.map(club => (
+                    <SelectItem key={club.id} value={club.id.toString()}>
+                      {club.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={sessionFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSessionFilter("all")}
+                data-testid="button-filter-all"
+              >
+                All ({filteredSessions.length})
+              </Button>
+              <Button
+                variant={sessionFilter === "live" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSessionFilter("live")}
+                data-testid="button-filter-live"
+              >
+                <Play className="w-3 h-3 mr-1" /> Live
+              </Button>
+              <Button
+                variant={sessionFilter === "upcoming" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSessionFilter("upcoming")}
+                data-testid="button-filter-upcoming"
+              >
+                <Calendar className="w-3 h-3 mr-1" /> Upcoming
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (
