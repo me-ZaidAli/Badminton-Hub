@@ -5,7 +5,9 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User, users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
 
 const scryptAsync = promisify(scrypt);
 
@@ -69,7 +71,14 @@ export function setupAuth(app: Express) {
     try {
       const existingUser = await storage.getUserByUsername(req.body.email);
       if (existingUser) {
-        return res.status(400).send("Email already exists");
+        const canClaim = existingUser.accountStatus === "PENDING" && !existingUser.emailVerified;
+        return res.status(409).json({
+          message: canClaim
+            ? "This email is associated with a pre-existing account. You can claim it by setting a password."
+            : "An account with this email already exists. Please sign in instead.",
+          code: "EMAIL_EXISTS",
+          canClaim,
+        });
       }
 
       // Validate club exists
@@ -120,7 +129,7 @@ export function setupAuth(app: Express) {
         clubId: clubId,
         gender: req.body.gender,
         category: req.body.category || "D",
-        membershipId: null // No membership by default
+        membershipId: null
       });
 
       // Store policy acceptance logs
@@ -135,9 +144,81 @@ export function setupAuth(app: Express) {
         }
       }
 
+      // Send notification to all OWNER (super admin) users about new registration
+      try {
+        const owners = await storage.getUsersByRole("OWNER");
+        for (const owner of owners) {
+          await storage.createNotification({
+            userId: owner.id,
+            type: "NEW_REGISTRATION",
+            title: "New Player Registration",
+            message: `${req.body.fullName} (${req.body.email}) has registered and is awaiting approval for ${club.name}.`,
+            linkUrl: "/admin/approvals",
+          });
+        }
+      } catch (notifErr) {
+        console.error("[AUTH] Failed to send registration notifications:", notifErr);
+      }
+
       req.login(user, (err) => {
         if (err) return next(err);
         res.status(201).json(user);
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Claim an existing email - set password for an account that was pre-created (e.g. guest player)
+  app.post("/api/auth/claim-account", async (req, res, next) => {
+    try {
+      const { email, password, fullName } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const existingUser = await storage.getUserByUsername(email);
+      if (!existingUser) {
+        return res.status(404).json({ message: "No account found with this email" });
+      }
+
+      const canClaim = existingUser.accountStatus === "PENDING" && !existingUser.emailVerified;
+      if (!canClaim) {
+        return res.status(403).json({ message: "This account cannot be claimed. Please sign in with your existing password." });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      const updates: any = { password: hashedPassword };
+      if (fullName && fullName.trim().length >= 2) {
+        updates.fullName = fullName.trim();
+      }
+
+      await db.update(users).set(updates).where(eq(users.id, existingUser.id));
+
+      const updatedUser = await storage.getUser(existingUser.id);
+
+      // Send notification to OWNER users about claimed account
+      try {
+        const owners = await storage.getUsersByRole("OWNER");
+        for (const owner of owners) {
+          await storage.createNotification({
+            userId: owner.id,
+            type: "ACCOUNT_CLAIMED",
+            title: "Account Claimed",
+            message: `${fullName || existingUser.fullName} has claimed the account for ${email}.`,
+            linkUrl: "/admin/approvals",
+          });
+        }
+      } catch (notifErr) {
+        console.error("[AUTH] Failed to send claim notifications:", notifErr);
+      }
+
+      req.login(updatedUser!, (err) => {
+        if (err) return next(err);
+        res.status(200).json(updatedUser);
       });
     } catch (err) {
       next(err);

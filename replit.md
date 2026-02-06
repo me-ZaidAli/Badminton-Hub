@@ -1,7 +1,7 @@
 # Club Master - Badminton Club Management System
 
 ## Overview
-Club Master is a full-stack web application designed for comprehensive badminton club management. It offers functionalities such as session scheduling, a player ranking system utilizing Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles including Owner, Admin, Organiser, Coach, and Player, ensuring secure and differentiated access to features. The project aims to streamline club operations, enhance player engagement through competitive rankings, and provide a centralized platform for all club-related activities.
+Club Master is a full-stack web application designed for comprehensive badminton club management. It offers session scheduling, a player ranking system using Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles, streamlining club operations, enhancing player engagement, and providing a centralized hub for all club activities. The project aims to improve efficiency for club owners and provide an engaging experience for players.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -9,117 +9,41 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend is built with React 18 and TypeScript, using Wouter for routing and TanStack React Query for server state management. Styling is handled by Tailwind CSS, augmented with shadcn/ui components (New York style) and CSS variables for theming. Form handling is managed with React Hook Form, incorporating Zod for validation. Vite is used as the build tool, configured with path aliases.
+The frontend is built with React 18, TypeScript, Wouter for routing, and TanStack React Query for server state management. Styling utilizes Tailwind CSS with shadcn/ui components and CSS variables for theming. Form handling uses React Hook Form with Zod for validation. Vite is the build tool.
 
 ### Backend
-The backend runs on Node.js with Express.js, developed in TypeScript using ES modules. Authentication is implemented with Passport.js (local strategy) and `express-session` for session management. Passwords are hashed using Node.js's native crypto module (scrypt). The API follows a RESTful design, with endpoints defined in `shared/routes.ts` utilizing Zod schemas for type-safe contracts.
+The backend uses Node.js with Express.js, developed in TypeScript. Authentication is handled by Passport.js (local strategy) and `express-session`, with passwords hashed using Node.js's native crypto module. The API is RESTful, with type-safe contracts defined using Zod schemas.
 
 ### Data Storage
-PostgreSQL serves as the primary database, managed by Drizzle ORM. `drizzle-zod` is used for integrating Zod validation with Drizzle schemas. Session persistence is achieved through `connect-pg-simple`, storing sessions in PostgreSQL. The database schema, including all table definitions and relations, is centrally located in `shared/schema.ts`.
+PostgreSQL is the primary database, managed by Drizzle ORM. `drizzle-zod` integrates Zod validation with Drizzle schemas. Session persistence uses `connect-pg-simple` for PostgreSQL storage.
 
 ### Project Structure and Key Design Patterns
-The project structure separates concerns into `client/`, `server/`, and `shared/` directories.
+The project is structured into `client/`, `server/`, and `shared/` directories.
 Key design patterns include:
-- **Shared Types**: Centralized schema and route definitions in `shared/` ensure type safety across the entire application.
-- **Storage Abstraction**: An `IStorage` interface abstracts database operations, promoting modularity.
-- **API Contracts**: API routes are defined with clear method, path, input, and response schemas for robust, type-safe communication.
-- **Role-Based Access Control**: Centralized RBAC system in `server/rbac.ts` with `canPerform(user, action, clubId)` function and action enum (VIEW_CLUB, MANAGE_CLUB, MANAGE_SESSIONS, MANAGE_TOURNAMENTS, etc.). Platform-level OWNER role gets automatic bypass for all actions without needing club membership. Club-level roles (`ADMIN`, `ORGANISER`, `COACH`, `PLAYER`) require APPROVED membership status. Super admins are blocked from joining clubs (403) as they have automatic full access. Comprehensive RBAC logging via `log_rbac()` tracks all permission checks.
-- **Multi-Club Support**: The system inherently supports multiple badminton clubs, with club-specific player profiles and administrative capabilities. Clubs undergo an approval workflow (PENDING to APPROVED) by a super admin.
-- **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation capabilities.
-- **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED), allows users to join clubs, and provides an admin panel for membership requests and role assignments.
-- **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues. Club admins (OWNER or ADMIN club role) can add and manage venues for their clubs. Super admins see all venues across all clubs.
-- **Public Viewing System**: Comprehensive public landing page at `/` accessible without login. Features:
-  - Hero section with "Get Started" CTA
-  - Club directory with search/filter by name/city/postcode and list/map toggle (reuses ClubMap component with Leaflet)
-  - All sessions from all clubs via `/api/public/all-sessions` endpoint with live match counts, queued matches, and recent results
-  - Live sessions section showing matches in progress with scores, queued games, and recent results
-  - Per-club leaderboard with club selector buttons
-  - Session cards link to `/public/session/:id` for detailed live view with players, courts, and match status
-  - Player rankings start at 0 points (default) and category D, building up through match wins
-  - All data sanitized to exclude sensitive user info (email, password)
-  - Separate dedicated pages: `/explore/clubs`, `/explore/sessions`, `/explore/rankings`
-  - Shared `PublicLayout` component (client/src/components/layout/PublicLayout.tsx) provides consistent navigation across all public pages
-  - Login page includes "Back to Home" link
-  - PublicRoute wrapper uses PublicLayout for non-logged-in users (consistent nav on /public/session/:id etc.)
-- **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
-- **User Approval Panel**: Enhanced with bulk selection and bulk approve/reject functionality:
-  - Individual checkboxes per pending user
-  - Select All toggle
-  - "Approve All" and "Reject All" buttons appear when users are selected
-  - API: POST `/api/admin/users/bulk-action` with `{ userIds, action: "approve"|"reject" }`
-  - User Management panel (`/admin/users`) has been removed; admin functionality consolidated elsewhere
-- **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
-  - Club selector to view players from any club (including pending/inactive clubs)
-  - Bulk actions: suspend, archive, activate, or delete multiple players at once
-  - Individual player actions via dropdown menu
-  - Player status management (ACTIVE, SUSPENDED, ARCHIVED)
-  - Cross-club player allocation to add players to multiple clubs
-  - Club customization: edit club name and logo URL
-- **Admin Panel Access Control**: The entire Admin Panel (`/admin/*`) is restricted to OWNER role only. Regular ADMINs cannot access super admin functions.
-- **Club Admin Management**: Super admins can manage all club administrators through `/admin/club-admins`. Features include:
-  - View all admins across all clubs with club filtering
-  - Add new admins by email to any club
-  - Change club roles (OWNER, ADMIN, ORGANISER, COACH, PLAYER)
-  - Role hierarchy: OWNER (full access) > ADMIN (club management) > ORGANISER/COACH (session management) > PLAYER (basic)
-  - Permission checks require APPROVED membership status for club-level access
-  - Venues navigation in sidebar/mobile nav only visible to users with actual admin access
-- **Club Equipment & Skill Settings**: Clubs can specify:
-  - Shuttlecock type: feather, plastic, or both
-  - Whether they provide club T-shirts
-  - Accepted player skill levels: beginner, intermediate, advanced, pro, all
-- **Session Fee Management**: Sessions can have custom fees that override club defaults. Session cards display the fee (in £) and shuttlecock type so players know before joining. Financials are displayed in British Pounds (£).
-- **Clubs Management (Super Admin)**: Dedicated page at `/admin/clubs-management` for super admins to manage all clubs from a centralized interface. Features:
-  - Club list view with status badges (PENDING, APPROVED, REJECTED)
-  - Per-club detail view with Members, Sessions, and Venues tabs
-  - Members tab: view/edit membership status and club roles
-  - Sessions tab: inline editing, individual and bulk deletion with checkbox selection
-  - Venues tab: read-only view of venues and court names
-- **Bulk Session Selection & Deletion**: Sessions page (`/sessions`) supports checkbox selection for organiser+ roles. Includes select-all, selected count badge, and bulk delete with confirmation dialog.
-- **Venue Access for Club Admins**: Venues page (`/admin/venues`) is accessible to club admins (not just super admins), filtered to show only clubs the user has admin access to.
-- **Session Player Management**: Enhanced player controls within sessions at `/sessions/:id`:
-  - Gender override: quick swap between MALE/FEMALE per session (stored in session_signups.genderOverride, doesn't change profile)
-  - Pause/Resume: temporarily exclude players from new match generation (session_signups.isPaused)
-  - Player pairing: group two players to always play together (session_signups.pairGroupId with color-coded badges)
-  - Guest player creation: add players not in the system (creates user + profile + signup in one action)
-  - Single-page vertical layout: header → matches/courts → player management section (no tabs)
-  - API endpoints: PATCH .../gender, PATCH .../pause, PATCH .../pair, POST .../guest-player
-  - All endpoints enforce RBAC (MANAGE_SESSIONS permission required)
-- **Tournament System**: Database tables preserved (tournaments, tournament_categories, tournament_teams, tournament_matches, tournament_standings) but UI/routes/hooks removed. Can be re-enabled in future.
-- **Coach Directory & Marketplace**: Comprehensive coaching system with tiered access:
-  - Database tables: `coaches` (profiles with qualifications, location, BE certification) and `coach_seeker_memberships` (£10/month paid memberships)
-  - Public coach directory at `/explore/coaches` shows coach counts by city/area with map (Leaflet) - no personal details
-  - Authenticated users with ACTIVE membership can access full directory at `/find-coach` with contact details, location-based search, and filters
-  - Coach registration at `/register-coach` - any user can register as a coach (requires admin approval)
-  - Coach profile management at `/coaches/me` - coaches can view/edit their own details
-  - Membership joining at `/join-coach-seeker` - users sign up, admin contacts for payment arrangement
-  - Admin management at `/admin/coaches` (OWNER only) with two tabs: Coach Management and Coach Seeker Memberships
-  - Bulk operations: approve/reject/suspend all selected coaches or seekers
-  - User suspension system: POST `/api/admin/users/:id/suspend` removes all rights (sets accountStatus to REJECTED, suspends coach profile and membership)
-  - Coach fields: fullName, email, phone, location, city, postcode, googleMapsUrl, areaCoverage, qualifications, badmintonEnglandCert, yearsTraining, professionalCareer, experience, status (PENDING/APPROVED/REJECTED/SUSPENDED)
-- **Google Maps Integration**: Clubs and coaches display "Open in Google Maps" links throughout the platform:
-  - Map popups (ClubMap and CoachMap) always show Google Maps links using stored URL or lat/lng fallback
-  - ExploreClubs list/map cards show Google Maps links
-  - FindCoach map popups and coach detail dialogs link to Google Maps
-  - Coach registration and profile editing forms include a "Google Maps Link" field
-  - Fallback: generates `https://www.google.com/maps?q=lat,lng` when no custom URL is stored
-- **Searchable Club Dropdowns**: ExploreSessions and ExploreRankings pages use Popover + Command combobox pattern for searchable type-ahead club selection
-- **Location-Based Filtering**: ExploreSessions and ExploreRankings support filtering by postcode, city, or address text
-- **Legal Policies System**: Comprehensive in-app legal content for Dragon Badminton Club – BPG Ltd:
-  - Dedicated pages: Privacy Policy (`/privacy-policy`), Terms & Conditions (`/terms-conditions`), Junior & Parental Consent Policy (`/junior-consent-policy`)
-  - Hub page at `/policy` linking to all three policy documents
-  - UK GDPR compliant Privacy Policy covering data collection, usage, rights, and cookies
-  - Terms & Conditions covering bookings, payments, refunds, code of conduct, health/liability, account suspension
-  - Junior & Parental Consent Policy for under-18 accounts with safeguarding responsibilities
-  - Policy acceptance logging: `policy_acceptances` table stores userId, policyType, policyVersion, acceptedAt
-  - Registration flow requires 3 mandatory checkboxes: accurate info, T&C agreement, Privacy Policy consent
-  - Junior account support: `isJunior`, `parentGuardianName`, `parentGuardianEmail` fields on users table
-  - Junior registration requires additional parental consent checkbox and parent/guardian details
+- **Shared Types**: Centralized schema and route definitions in `shared/` for type safety.
+- **Storage Abstraction**: An `IStorage` interface abstracts database operations.
+- **API Contracts**: Clear API route definitions with Zod schemas for type-safe communication.
+- **Role-Based Access Control (RBAC)**: A centralized RBAC system (`server/rbac.ts`) with functions like `canPerform(user, action, clubId)` and an action enum. Supports platform-level OWNER and club-level roles (ADMIN, ORGANISER, COACH, PLAYER). Requires APPROVED club membership status for club-level access.
+- **Multi-Club Support**: The system supports multiple badminton clubs, each with specific player profiles and administration. Clubs undergo an approval workflow.
+- **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation.
+- **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED) and allows users to join clubs.
+- **Venue Management**: Enables clubs to manage multiple venues and link sessions to locations.
+- **Public Viewing System**: A comprehensive public landing page accessible without login, featuring a club directory, public sessions, live session views, and club leaderboards. All sensitive user data is excluded.
+- **Personal Ranking View**: Logged-in users can view their ranking progress and match history.
+- **Registration & Account Claiming**: New user registrations trigger in-app notifications to super admins. Users can "claim" pre-existing PENDING or guest accounts by setting a password.
+- **Admin & Player Management**: Super admins have access to user approval panels with bulk actions, and can manage players across all clubs, including bulk actions for player status and cross-club allocation. Club admins can manage venues and administrators for their specific clubs.
+- **Club Customization**: Clubs can define shuttlecock types, T-shirt provision, and accepted player skill levels. Sessions can have custom fees.
+- **Session Player Management**: Enhanced in-session player controls include gender override, pause/resume functionality, player pairing, and guest player creation.
+- **Coach Directory & Marketplace**: A system for coaches, including profiles, a public directory, a full directory for authenticated members, coach registration, and administrative management. Integrates a user suspension system.
+- **Google Maps Integration**: Provides "Open in Google Maps" links for clubs and coaches, with fallbacks for coordinate-based links.
+- **Search & Filtering**: Searchable club dropdowns and location-based filtering (postcode, city) for exploration pages.
+- **Legal Policies System**: In-app legal content for Privacy Policy, Terms & Conditions, and Junior & Parental Consent Policy. Includes policy acceptance logging and support for junior accounts with parental consent.
 
 ## External Dependencies
 
 ### Database
 - **PostgreSQL**: Core relational database.
-- **Drizzle Kit**: Used for database schema migrations.
+- **Drizzle Kit**: For database schema migrations.
 
 ### Authentication
 - **express-session**: For managing user sessions.
@@ -127,16 +51,16 @@ Key design patterns include:
 - **passport / passport-local**: User authentication framework.
 
 ### Frontend Libraries
-- **@tanstack/react-query**: For efficient server state management and data fetching.
-- **date-fns**: Utility library for date manipulation and formatting.
-- **recharts**: For rendering charts and data visualizations.
-- **Radix UI primitives**: Provides accessible, unstyled components that `shadcn/ui` builds upon.
+- **@tanstack/react-query**: For server state management and data fetching.
+- **date-fns**: Date manipulation and formatting utility.
+- **recharts**: For charts and data visualizations.
+- **Radix UI primitives**: Provides accessible, unstyled components.
 
 ### Build & Development Tools
-- **Vite**: Frontend build tool with hot module replacement.
-- **esbuild**: Used for bundling the backend for production.
+- **Vite**: Frontend build tool.
+- **esbuild**: Backend bundling for production.
 - **tsx**: For running TypeScript files directly in development.
 
 ### APIs / Integrations
-- **OpenStreetMap Nominatim API**: Used for geocoding addresses to coordinates for club locations.
+- **OpenStreetMap Nominatim API**: Geocoding addresses to coordinates.
 - **Google Calendar**: Integration for importing calendar events as sessions.

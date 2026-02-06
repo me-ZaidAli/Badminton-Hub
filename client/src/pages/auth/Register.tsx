@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Link, useLocation } from "wouter";
-import { Eye, EyeOff, Shield } from "lucide-react";
+import { Eye, EyeOff, Shield, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -60,6 +61,12 @@ export default function Register() {
   const { mutate: register, isPending } = useRegister();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
   const [showPassword, setShowPassword] = useState(false);
+  const [showClaimDialog, setShowClaimDialog] = useState(false);
+  const [claimEmail, setClaimEmail] = useState("");
+  const [claimPassword, setClaimPassword] = useState("");
+  const [claimFullName, setClaimFullName] = useState("");
+  const [showClaimPassword, setShowClaimPassword] = useState(false);
+  const [claimPending, setClaimPending] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -108,15 +115,59 @@ export default function Register() {
       }),
       credentials: "include"
     })
-      .then(res => {
-        if (!res.ok) throw new Error("Registration failed");
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.code === "EMAIL_EXISTS") {
+            if (data?.canClaim) {
+              setClaimEmail(values.username);
+              setClaimFullName(values.fullName);
+              setClaimPassword("");
+              setShowClaimDialog(true);
+              return;
+            }
+            throw new Error("An account with this email already exists. Please sign in instead.");
+          }
+          throw new Error(data?.message || "Registration failed");
+        }
         toast({ title: "Account created", description: "Welcome to Badminton Master!" });
         setLocation("/login");
       })
       .catch(err => {
         console.error(err);
-        toast({ title: "Registration failed", description: "Please check your details and try again.", variant: "destructive" });
+        toast({ title: "Registration failed", description: err.message || "Please check your details and try again.", variant: "destructive" });
       });
+  }
+
+  function handleClaimAccount() {
+    if (!claimPassword || claimPassword.length < 6) {
+      toast({ title: "Password too short", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    setClaimPending(true);
+    fetch("/api/auth/claim-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: claimEmail,
+        password: claimPassword,
+        fullName: claimFullName || undefined,
+      }),
+      credentials: "include",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.message || "Failed to claim account");
+        }
+        toast({ title: "Account claimed", description: "Your password has been set. You can now log in." });
+        setShowClaimDialog(false);
+        setLocation("/login");
+      })
+      .catch(err => {
+        toast({ title: "Claim failed", description: err.message, variant: "destructive" });
+      })
+      .finally(() => setClaimPending(false));
   }
 
   return (
@@ -454,6 +505,67 @@ export default function Register() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
+        <DialogContent data-testid="dialog-claim-account">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Claim Your Account
+            </DialogTitle>
+            <DialogDescription>
+              An account with the email <span className="font-semibold">{claimEmail}</span> already exists.
+              Set a password below to claim it and log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Full Name</label>
+              <Input
+                value={claimFullName}
+                onChange={(e) => setClaimFullName(e.target.value)}
+                placeholder="Your full name"
+                data-testid="input-claim-fullname"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Set Password</label>
+              <div className="relative">
+                <Input
+                  type={showClaimPassword ? "text" : "password"}
+                  value={claimPassword}
+                  onChange={(e) => setClaimPassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                  className="pr-10"
+                  data-testid="input-claim-password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0"
+                  onClick={() => setShowClaimPassword(!showClaimPassword)}
+                  data-testid="button-toggle-claim-password"
+                >
+                  {showClaimPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClaimDialog(false)} data-testid="button-cancel-claim">
+              Cancel
+            </Button>
+            <Button onClick={handleClaimAccount} disabled={claimPending} data-testid="button-confirm-claim">
+              {claimPending ? "Claiming..." : "Claim Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

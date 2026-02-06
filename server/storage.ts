@@ -43,6 +43,7 @@ export interface IStorage {
   getPlayerProfilesByUser(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
   createPlayerProfile(profile: InsertPlayerProfile): Promise<PlayerProfile>;
   getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
+  getUsersByRole(role: string): Promise<User[]>;
   getAllPlayerProfiles(): Promise<(PlayerProfile & { user: User })[]>;
   getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]>;
   getSignupsByPlayerId(playerId: number): Promise<(SessionSignup & { session: Session })[]>;
@@ -309,6 +310,10 @@ export class DatabaseStorage implements IStorage {
   async getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]> {
     const result = await db.select().from(users).leftJoin(playerProfiles, eq(users.id, playerProfiles.userId));
     return result.map(r => ({ ...r.users, playerProfile: r.player_profiles }));
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.role, role as any));
   }
 
   async getAllPlayerProfiles(): Promise<(PlayerProfile & { user: User })[]> {
