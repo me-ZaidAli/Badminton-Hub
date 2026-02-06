@@ -166,18 +166,22 @@ export const sessionSignups = pgTable("session_signups", {
 export const matches = pgTable("matches", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").references(() => sessions.id).notNull(),
-  courtNumber: integer("court_number"), // Null when queued, assigned when live
-  queuePosition: integer("queue_position"), // Position in queue, null when live/completed
+  courtNumber: integer("court_number"),
+  queuePosition: integer("queue_position"),
   status: matchStatusEnum("status").default("QUEUED").notNull(),
   teamAPlayer1Id: integer("team_a_player_1_id").references(() => playerProfiles.id).notNull(),
-  teamAPlayer2Id: integer("team_a_player_2_id").references(() => playerProfiles.id), // Nullable for singles
+  teamAPlayer2Id: integer("team_a_player_2_id").references(() => playerProfiles.id),
   teamBPlayer1Id: integer("team_b_player_1_id").references(() => playerProfiles.id).notNull(),
-  teamBPlayer2Id: integer("team_b_player_2_id").references(() => playerProfiles.id), // Nullable for singles
+  teamBPlayer2Id: integer("team_b_player_2_id").references(() => playerProfiles.id),
   scoreA: integer("score_a").default(0),
   scoreB: integer("score_b").default(0),
   isCompleted: boolean("is_completed").default(false).notNull(),
-  startedAt: timestamp("started_at"), // When match went live
-  completedAt: timestamp("completed_at"), // When match was completed
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  scoreEnteredByUserId: integer("score_entered_by_user_id").references(() => users.id),
+  scoreEnteredAt: timestamp("score_entered_at"),
+  scoreUpdatedByUserId: integer("score_updated_by_user_id").references(() => users.id),
+  scoreUpdatedAt: timestamp("score_updated_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

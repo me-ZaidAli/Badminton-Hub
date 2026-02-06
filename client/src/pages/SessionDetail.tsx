@@ -396,7 +396,8 @@ export default function SessionDetail() {
 
       <MatchesView 
         sessionId={id} 
-        isOrganiser={isOrganiser} 
+        isOrganiser={isOrganiser}
+        isSignedUp={!!isSignedUp}
         matchMode={session.matchMode} 
         courtsAvailable={session.courtsAvailable}
         courtNames={session.courtNames}
@@ -758,9 +759,10 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType }: { 
   sessionId: number; 
-  isOrganiser: boolean; 
+  isOrganiser: boolean;
+  isSignedUp: boolean;
   matchMode: "COMPETITIVE" | "SOCIAL";
   courtsAvailable: number;
   courtNames?: string[] | null;
@@ -835,9 +837,9 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
 
   return (
     <div className="space-y-8">
-      {isOrganiser && (
+      {(isOrganiser || isSignedUp) && (
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <div className="flex items-center gap-3">
+          {isOrganiser && <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">Courts:</span>
             <div className="flex items-center gap-1">
               <Button 
@@ -863,7 +865,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
               </Button>
             </div>
             <span className="text-xs text-muted-foreground">(max {Math.min(courtsAvailable, 10)})</span>
-          </div>
+          </div>}
           <div className="flex gap-2">
             <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
               <DialogTrigger asChild>
@@ -953,6 +955,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
                 match={match}
                 availablePlayers={availablePlayers}
                 isOrganiser={isOrganiser}
+                isSignedUp={isSignedUp}
                 onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
                 onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
                 onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
@@ -974,7 +977,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
           availableCourts={availableCourts}
         />
         
-        <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} />
+        <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
       </div>
     </div>
   );

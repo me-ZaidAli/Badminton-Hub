@@ -34,6 +34,12 @@ export type CourtMatch = {
   startedAt: string | null;
   completedAt: string | null;
   queuePosition: number | null;
+  scoreEnteredByUserId?: number | null;
+  scoreEnteredAt?: string | null;
+  scoreEnteredByUser?: { id: number; fullName: string } | null;
+  scoreUpdatedByUserId?: number | null;
+  scoreUpdatedAt?: string | null;
+  scoreUpdatedByUser?: { id: number; fullName: string } | null;
 };
 
 type BadmintonCourtProps = {
@@ -42,6 +48,7 @@ type BadmintonCourtProps = {
   match: CourtMatch | null;
   availablePlayers: Player[];
   isOrganiser: boolean;
+  isSignedUp: boolean;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => void;
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
@@ -151,6 +158,7 @@ export function BadmintonCourt({
   match,
   availablePlayers,
   isOrganiser,
+  isSignedUp,
   onStartMatch,
   onCompleteMatch,
   onSwapPlayer,
@@ -304,9 +312,9 @@ export function BadmintonCourt({
               </div>
             </div>
 
-            {isOrganiser && (
+            {(isOrganiser || isSignedUp) && (
               <div className="p-3 bg-muted/30 border-t border-border/50 flex justify-center gap-2">
-                {match.status === "QUEUED" && (
+                {match.status === "QUEUED" && isOrganiser && (
                   <Button 
                     onClick={() => onStartMatch(match.id, courtNumber)} 
                     className="gap-2"

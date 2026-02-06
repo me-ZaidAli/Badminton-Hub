@@ -67,10 +67,14 @@ export interface IStorage {
     teamAPlayer2: PlayerProfile & { user: User } | null,
     teamBPlayer1: PlayerProfile & { user: User },
     teamBPlayer2: PlayerProfile & { user: User } | null,
+    scoreEnteredByUser?: { id: number; fullName: string } | null,
+    scoreUpdatedByUser?: { id: number; fullName: string } | null,
   })[]>;
   getMatch(id: number): Promise<Match | undefined>;
-  createMatch(match: any): Promise<Match>; // Simplified type for bulk insert usually
+  createMatch(match: any): Promise<Match>;
   updateMatch(id: number, updates: Partial<Match>): Promise<Match>;
+  deleteMatch(id: number): Promise<void>;
+  isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean>;
 
   // Announcements
   getAnnouncements(): Promise<(Announcement & { author: User })[]>;
@@ -466,15 +470,20 @@ export class DatabaseStorage implements IStorage {
     teamAPlayer2: PlayerProfile & { user: User } | null,
     teamBPlayer1: PlayerProfile & { user: User },
     teamBPlayer2: PlayerProfile & { user: User } | null,
+    scoreEnteredByUser?: { id: number; fullName: string } | null,
+    scoreUpdatedByUser?: { id: number; fullName: string } | null,
   })[]> {
-    // This is a complex join, simplifying for this stage or doing multiple queries
-    // Doing multiple queries is cleaner to write without complex alias handling in drizzle core
     const matchesList = await db.select().from(matches).where(eq(matches.sessionId, sessionId)).orderBy(desc(matches.createdAt));
     
-    // Helper to fetch player details
     const getPlayer = async (id: number | null) => {
       if (!id) return null;
       return this.getPlayerProfileById(id);
+    };
+
+    const getUser = async (id: number | null | undefined) => {
+      if (!id) return null;
+      const [user] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, id));
+      return user || null;
     };
 
     const enrichedMatches = await Promise.all(matchesList.map(async (m) => {
@@ -482,6 +491,8 @@ export class DatabaseStorage implements IStorage {
       const p2 = await getPlayer(m.teamAPlayer2Id);
       const p3 = await getPlayer(m.teamBPlayer1Id);
       const p4 = await getPlayer(m.teamBPlayer2Id);
+      const scoreEnteredByUser = await getUser(m.scoreEnteredByUserId);
+      const scoreUpdatedByUser = await getUser(m.scoreUpdatedByUserId);
 
       if (!p1 || !p3) throw new Error("Invalid match state: missing required players");
 
@@ -490,7 +501,9 @@ export class DatabaseStorage implements IStorage {
         teamAPlayer1: p1,
         teamAPlayer2: p2,
         teamBPlayer1: p3,
-        teamBPlayer2: p4
+        teamBPlayer2: p4,
+        scoreEnteredByUser,
+        scoreUpdatedByUser,
       };
     }));
 
@@ -520,6 +533,18 @@ export class DatabaseStorage implements IStorage {
   async updateMatch(id: number, updates: Partial<Match>): Promise<Match> {
     const [updated] = await db.update(matches).set(updates).where(eq(matches.id, id)).returning();
     return updated;
+  }
+
+  async deleteMatch(id: number): Promise<void> {
+    await db.delete(matches).where(eq(matches.id, id));
+  }
+
+  async isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean> {
+    const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+    if (profile.length === 0) return false;
+    const signup = await db.select().from(sessionSignups)
+      .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.playerId, profile[0].id)));
+    return signup.length > 0;
   }
 
   async getAnnouncements(): Promise<(Announcement & { author: User })[]> {

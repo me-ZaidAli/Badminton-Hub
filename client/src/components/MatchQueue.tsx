@@ -2,14 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Check, GripVertical, ArrowRight, Users, Pencil } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch } from "@/hooks/use-matches";
+import { format } from "date-fns";
 
 type Player = {
   id: number;
@@ -219,11 +220,15 @@ export function MatchQueue({
   );
 }
 
-export function CompletedMatches({ matches, isOrganiser = false }: { matches: CourtMatch[]; isOrganiser?: boolean }) {
+export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean }) {
   const [editMatch, setEditMatch] = useState<CourtMatch | null>(null);
+  const [playerScoreMatch, setPlayerScoreMatch] = useState<CourtMatch | null>(null);
   const [editScoreA, setEditScoreA] = useState(0);
   const [editScoreB, setEditScoreB] = useState(0);
-  const { mutate: editScore, isPending } = useEditMatchScore();
+  const [deleteMatch, setDeleteMatch] = useState<CourtMatch | null>(null);
+  const { mutate: editScore, isPending: isEditPending } = useEditMatchScore();
+  const { mutate: enterPlayerScore, isPending: isPlayerScorePending } = usePlayerEnterScore();
+  const { mutate: removeMatch, isPending: isDeletePending } = useDeleteMatch();
 
   const completedMatches = matches
     .filter(m => m.status === "COMPLETED")
@@ -237,10 +242,32 @@ export function CompletedMatches({ matches, isOrganiser = false }: { matches: Co
     setEditScoreB(match.scoreB || 0);
   };
 
+  const openPlayerScoreDialog = (match: CourtMatch) => {
+    setPlayerScoreMatch(match);
+    setEditScoreA(match.scoreA || 0);
+    setEditScoreB(match.scoreB || 0);
+  };
+
   const handleSaveScore = () => {
     if (editMatch) {
       editScore({ matchId: editMatch.id, scoreA: editScoreA, scoreB: editScoreB }, {
         onSuccess: () => setEditMatch(null)
+      });
+    }
+  };
+
+  const handlePlayerScore = () => {
+    if (playerScoreMatch) {
+      enterPlayerScore({ matchId: playerScoreMatch.id, scoreA: editScoreA, scoreB: editScoreB }, {
+        onSuccess: () => setPlayerScoreMatch(null)
+      });
+    }
+  };
+
+  const handleDeleteMatch = () => {
+    if (deleteMatch) {
+      removeMatch({ matchId: deleteMatch.id }, {
+        onSuccess: () => setDeleteMatch(null)
       });
     }
   };
@@ -252,43 +279,86 @@ export function CompletedMatches({ matches, isOrganiser = false }: { matches: Co
           <CardTitle className="text-lg">Completed Matches ({completedMatches.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[200px]">
+          <ScrollArea className="h-[400px]">
             <div className="space-y-2 p-4">
-              {completedMatches.map((match) => (
-                <div
-                  key={match.id}
-                  className="flex items-center justify-between p-3 bg-muted/20 rounded-lg"
-                  data-testid={`completed-match-${match.id}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">
-                      {match.teamAPlayer1.user.fullName}
-                      {match.teamAPlayer2 && ` & ${match.teamAPlayer2.user.fullName}`}
-                    </span>
-                    <span className="text-xs text-muted-foreground">vs</span>
-                    <span className="text-sm">
-                      {match.teamBPlayer1.user.fullName}
-                      {match.teamBPlayer2 && ` & ${match.teamBPlayer2.user.fullName}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
-                      {match.scoreA} - {match.scoreB}
-                    </Badge>
-                    {isOrganiser && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-7 w-7"
-                        onClick={() => openEditDialog(match)}
-                        data-testid={`button-edit-match-${match.id}`}
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </Button>
+              {completedMatches.map((match) => {
+                const hasScore = (match.scoreA || 0) > 0 || (match.scoreB || 0) > 0;
+                const scoreAlreadyEntered = !!match.scoreEnteredByUserId;
+                const canPlayerEnterScore = isSignedUp && !scoreAlreadyEntered && !hasScore;
+
+                return (
+                  <div
+                    key={match.id}
+                    className="p-3 bg-muted/20 rounded-lg space-y-2"
+                    data-testid={`completed-match-${match.id}`}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm">
+                          {match.teamAPlayer1.user.fullName}
+                          {match.teamAPlayer2 && ` & ${match.teamAPlayer2.user.fullName}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground">vs</span>
+                        <span className="text-sm">
+                          {match.teamBPlayer1.user.fullName}
+                          {match.teamBPlayer2 && ` & ${match.teamBPlayer2.user.fullName}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
+                          {match.scoreA} - {match.scoreB}
+                        </Badge>
+                        {canPlayerEnterScore && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => openPlayerScoreDialog(match)}
+                            data-testid={`button-enter-score-${match.id}`}
+                          >
+                            Enter Score
+                          </Button>
+                        )}
+                        {isOrganiser && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => openEditDialog(match)}
+                              data-testid={`button-edit-match-${match.id}`}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setDeleteMatch(match)}
+                              data-testid={`button-delete-match-${match.id}`}
+                            >
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {(match.scoreEnteredByUser || match.scoreUpdatedByUser) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {match.scoreUpdatedByUser ? (
+                          <span data-testid={`text-score-audit-${match.id}`}>
+                            Score amended by {match.scoreUpdatedByUser.fullName}
+                            {match.scoreUpdatedAt && ` at ${format(new Date(match.scoreUpdatedAt), "dd MMM HH:mm")}`}
+                          </span>
+                        ) : match.scoreEnteredByUser ? (
+                          <span data-testid={`text-score-audit-${match.id}`}>
+                            Score entered by {match.scoreEnteredByUser.fullName}
+                            {match.scoreEnteredAt && ` at ${format(new Date(match.scoreEnteredAt), "dd MMM HH:mm")}`}
+                          </span>
+                        ) : null}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </ScrollArea>
         </CardContent>
@@ -297,7 +367,8 @@ export function CompletedMatches({ matches, isOrganiser = false }: { matches: Co
       <Dialog open={!!editMatch} onOpenChange={(open) => !open && setEditMatch(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Match Score</DialogTitle>
+            <DialogTitle>Edit Match Score (Admin)</DialogTitle>
+            <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
           </DialogHeader>
           {editMatch && (
             <div className="space-y-4 pt-4">
@@ -333,11 +404,76 @@ export function CompletedMatches({ matches, isOrganiser = false }: { matches: Co
                   />
                 </div>
               </div>
-              <Button className="w-full" onClick={handleSaveScore} disabled={isPending} data-testid="button-save-edit-score">
-                {isPending ? "Saving..." : "Save Changes"}
+              <Button className="w-full" onClick={handleSaveScore} disabled={isEditPending} data-testid="button-save-edit-score">
+                {isEditPending ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!playerScoreMatch} onOpenChange={(open) => !open && setPlayerScoreMatch(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogDescription>You can enter the score once. If there is a dispute, contact an admin to amend.</DialogDescription>
+          </DialogHeader>
+          {playerScoreMatch && (
+            <div className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {playerScoreMatch.teamAPlayer1.user.fullName}
+                    {playerScoreMatch.teamAPlayer2 && ` & ${playerScoreMatch.teamAPlayer2.user.fullName}`}
+                  </label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    max="30"
+                    value={editScoreA} 
+                    onChange={(e) => setEditScoreA(Number(e.target.value))}
+                    className="text-2xl text-center font-bold h-14"
+                    data-testid="input-player-score-a"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {playerScoreMatch.teamBPlayer1.user.fullName}
+                    {playerScoreMatch.teamBPlayer2 && ` & ${playerScoreMatch.teamBPlayer2.user.fullName}`}
+                  </label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    max="30"
+                    value={editScoreB} 
+                    onChange={(e) => setEditScoreB(Number(e.target.value))}
+                    className="text-2xl text-center font-bold h-14"
+                    data-testid="input-player-score-b"
+                  />
+                </div>
+              </div>
+              <Button className="w-full" onClick={handlePlayerScore} disabled={isPlayerScorePending} data-testid="button-confirm-player-score">
+                {isPlayerScorePending ? "Saving..." : "Submit Score"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteMatch} onOpenChange={(open) => !open && setDeleteMatch(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Match</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this completed match? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteMatch(null)} data-testid="button-cancel-delete-match">Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteMatch} disabled={isDeletePending} data-testid="button-confirm-delete-match">
+              {isDeletePending ? "Deleting..." : "Delete Match"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

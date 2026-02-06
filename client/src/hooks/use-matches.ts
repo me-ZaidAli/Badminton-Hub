@@ -12,7 +12,7 @@ export function useSessionMatches(sessionId: number) {
       return api.matches.list.responses[200].parse(await res.json());
     },
     enabled: !!sessionId,
-    refetchInterval: 5000, // Poll for live scores
+    refetchInterval: 5000,
   });
 }
 
@@ -25,7 +25,7 @@ export function useGenerateMatches() {
       const res = await fetch(url, {
         method: api.matches.generate.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, roundNumber: 1 }), // simplified for now
+        body: JSON.stringify({ mode, roundNumber: 1 }),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to generate matches");
@@ -91,7 +91,10 @@ export function useCompleteMatch() {
         body: JSON.stringify({ scoreA, scoreB }),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to complete match");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to complete match");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -133,7 +136,10 @@ export function useAutoGenerateMatches() {
         body: JSON.stringify({ numberOfMatches, courtsToUse, matchGenderType }),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to generate matches");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to generate matches");
+      }
       return res.json();
     },
     onSuccess: (_, vars) => {
@@ -154,12 +160,67 @@ export function useEditMatchScore() {
         body: JSON.stringify({ scoreA, scoreB }),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to edit match score");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to edit match score");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       toast({ title: "Score Updated", description: "Match score has been corrected." });
+    },
+  });
+}
+
+export function usePlayerEnterScore() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: number; scoreA: number; scoreB: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/player-score`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scoreA, scoreB }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to enter score");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Score Entered", description: "Match score has been recorded." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cannot Enter Score", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId }: { matchId: number }) => {
+      const res = await fetch(`/api/matches/${matchId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to delete match");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Deleted", description: "The match has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
     },
   });
 }

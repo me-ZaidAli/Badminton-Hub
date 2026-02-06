@@ -1327,35 +1327,34 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Scores are required" });
       }
 
-      // Get the match to find its sessionId and courtNumber
       const currentMatch = await storage.getMatch(matchId);
       if (!currentMatch) {
         return res.status(404).json({ message: "Match not found" });
       }
 
-      // Get session to check club ownership
       const session = await storage.getSession(currentMatch.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
-      if (!canAccess) {
-        return res.sendStatus(403);
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
+      
+      if (!isAdmin && !isSignedUp) {
+        return res.status(403).json({ message: "Only session participants or admins can complete matches" });
       }
 
       const freedCourt = currentMatch.courtNumber;
       
-      // Complete the current match
       const updated = await storage.updateMatch(matchId, {
         status: "COMPLETED",
         scoreA,
         scoreB,
         isCompleted: true,
         completedAt: new Date(),
-        courtNumber: null
+        courtNumber: null,
+        scoreEnteredByUserId: req.user!.id,
+        scoreEnteredAt: new Date(),
       });
 
-      // Auto-progress: Find next queued match and assign to the freed court
       if (freedCourt && currentMatch.sessionId) {
         const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
         const queuedMatches = sessionMatches
@@ -1417,7 +1416,7 @@ export async function registerRoutes(
     }
   });
 
-  // Edit completed match score
+  // Edit completed match score - admin/organiser only (for disputes)
   app.patch("/api/matches/:id/edit-score", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -1435,17 +1434,87 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check admin access (global role OR club owner)
       const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
-        return res.sendStatus(403);
+        return res.status(403).json({ message: "Only admins and organisers can amend scores" });
       }
 
-      const updated = await storage.updateMatch(matchId, { scoreA, scoreB });
+      const updated = await storage.updateMatch(matchId, { 
+        scoreA, 
+        scoreB,
+        scoreUpdatedByUserId: req.user!.id,
+        scoreUpdatedAt: new Date(),
+      });
       res.json(updated);
     } catch (err: any) {
       console.error("Error editing match score:", err);
       res.status(500).json({ message: err.message || "Failed to edit match score" });
+    }
+  });
+
+  // Player enters score on completed match (one-time only, signed-up players)
+  app.patch("/api/matches/:id/player-score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const { scoreA, scoreB } = req.body;
+
+      if (scoreA === undefined || scoreB === undefined) {
+        return res.status(400).json({ message: "Both scores are required" });
+      }
+
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      if (match.status !== "COMPLETED") {
+        return res.status(400).json({ message: "Match is not completed" });
+      }
+
+      if (match.scoreEnteredByUserId) {
+        return res.status(403).json({ message: "Score has already been entered. Contact an admin to amend." });
+      }
+
+      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, match.sessionId);
+      if (!isSignedUp) {
+        return res.status(403).json({ message: "Only session participants can enter scores" });
+      }
+
+      const updated = await storage.updateMatch(matchId, { 
+        scoreA, 
+        scoreB,
+        scoreEnteredByUserId: req.user!.id,
+        scoreEnteredAt: new Date(),
+      });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error entering player score:", err);
+      res.status(500).json({ message: err.message || "Failed to enter score" });
+    }
+  });
+
+  // Delete a completed match (admin/organiser only)
+  app.delete("/api/matches/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins can delete matches" });
+      }
+
+      await storage.deleteMatch(matchId);
+      res.json({ message: "Match deleted" });
+    } catch (err: any) {
+      console.error("Error deleting match:", err);
+      res.status(500).json({ message: err.message || "Failed to delete match" });
     }
   });
 
@@ -1455,14 +1524,14 @@ export async function registerRoutes(
     try {
       const sessionId = Number(req.params.sessionId);
       
-      // Get session first to check permissions
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
-      if (!canAccess) {
-        return res.sendStatus(403);
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, sessionId);
+      
+      if (!isAdmin && !isSignedUp) {
+        return res.status(403).json({ message: "Only session participants or admins can generate matches" });
       }
 
       const { numberOfMatches, courtsToUse, matchGenderType: requestGenderType } = req.body;
