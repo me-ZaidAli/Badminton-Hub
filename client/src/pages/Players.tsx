@@ -15,15 +15,20 @@ export default function Players() {
   const { data: clubs } = useClubs();
   const [search, setSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [genderFilter, setGenderFilter] = useState<string>("all");
   const isSuperUser = user?.role === "OWNER";
 
-  // Filter by search and optionally by club for super users
   const filteredPlayers = players?.filter(p => {
     const matchesSearch = p.fullName.toLowerCase().includes(search.toLowerCase()) ||
       p.email.toLowerCase().includes(search.toLowerCase());
     const matchesClub = selectedClubId === "all" || 
       p.playerProfile?.clubId === Number(selectedClubId);
-    return matchesSearch && matchesClub;
+    const matchesCategory = categoryFilter === "all" ||
+      p.playerProfile?.category === categoryFilter;
+    const matchesGender = genderFilter === "all" ||
+      p.playerProfile?.gender === genderFilter;
+    return matchesSearch && matchesClub && matchesCategory && matchesGender;
   });
 
   const getCategoryColor = (category: string | null) => {
@@ -46,7 +51,17 @@ export default function Players() {
           </h1>
           <p className="text-muted-foreground">Browse all club members.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-full sm:w-[280px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search players..." 
+              className="pl-10" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="input-search-players"
+            />
+          </div>
           {isSuperUser && clubs && clubs.length > 0 && (
             <Select value={selectedClubId} onValueChange={setSelectedClubId}>
               <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
@@ -62,16 +77,28 @@ export default function Players() {
               </SelectContent>
             </Select>
           )}
-          <div className="relative max-w-sm w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search players..." 
-              className="pl-10" 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="input-search-players"
-            />
-          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[160px]" data-testid="select-category-filter">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="A">Category A</SelectItem>
+              <SelectItem value="B">Category B</SelectItem>
+              <SelectItem value="C">Category C</SelectItem>
+              <SelectItem value="D">Category D</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={genderFilter} onValueChange={setGenderFilter}>
+            <SelectTrigger className="w-[140px]" data-testid="select-gender-filter">
+              <SelectValue placeholder="All Genders" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="MALE">Male</SelectItem>
+              <SelectItem value="FEMALE">Female</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

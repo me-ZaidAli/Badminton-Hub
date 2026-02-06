@@ -16,7 +16,10 @@ import {
   Home,
   UserCog,
   FolderKanban,
-  Upload
+  Upload,
+  BarChart3,
+  Trophy,
+  DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -61,6 +64,9 @@ export function Sidebar() {
     navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
     navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
+    navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
+    navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
   }
 

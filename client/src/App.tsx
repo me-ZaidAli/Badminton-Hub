@@ -40,6 +40,8 @@ import ClubManagement from "@/pages/admin/ClubManagement";
 import ClubApprovals from "@/pages/admin/ClubApprovals";
 import ClubAdmins from "@/pages/admin/ClubAdmins";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
+import Analytics from "@/pages/admin/Analytics";
+import AdminRankings from "@/pages/admin/AdminRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
 
@@ -249,6 +251,12 @@ function Router() {
       </Route>
       <Route path="/admin/clubs-management">
         <OwnerRoute component={ClubsManagement} />
+      </Route>
+      <Route path="/admin/analytics">
+        <OwnerRoute component={Analytics} />
+      </Route>
+      <Route path="/admin/rankings">
+        <OwnerRoute component={AdminRankings} />
       </Route>
       <Route path="/admin/import-members">
         <OwnerRoute component={MemberImport} />

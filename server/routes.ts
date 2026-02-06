@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -2715,6 +2715,176 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error adding guest player:", err);
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === ADMIN: Password reset/change for any user (OWNER only) ===
+  app.patch("/api/admin/users/:id/password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const userId = Number(req.params.id);
+      const { newPassword } = req.body;
+      if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const hashed = await hashPassword(newPassword);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, userId));
+      res.json({ message: "Password updated successfully" });
+    } catch (err: any) {
+      console.error("Error resetting password:", err);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // === ADMIN: Update signup fee (OWNER only) ===
+  app.patch("/api/admin/signups/:signupId/fee", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const signupId = Number(req.params.signupId);
+      const { fee } = req.body;
+      if (fee === undefined || typeof fee !== "number" || fee < 0) {
+        return res.status(400).json({ message: "Fee must be a non-negative number (in pence)" });
+      }
+
+      const [updated] = await db.update(sessionSignups)
+        .set({ fee })
+        .where(eq(sessionSignups.id, signupId))
+        .returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating signup fee:", err);
+      res.status(500).json({ message: "Failed to update fee" });
+    }
+  });
+
+  // === ADMIN: Analytics summary (OWNER only) ===
+  app.get("/api/admin/analytics", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const allClubs = await storage.getClubs();
+      const allSessions = await storage.getSessions();
+      const allMatches = await db.select().from(matches);
+      const allProfiles = await db.select().from(playerProfiles);
+      const allSignups = await db.select().from(sessionSignups);
+
+      const clubAnalytics = allClubs.map(club => {
+        const clubSessions = allSessions.filter(s => s.clubId === club.id);
+        const sessionIds = clubSessions.map(s => s.id);
+        const clubMatches = allMatches.filter(m => sessionIds.includes(m.sessionId));
+        const clubProfiles = allProfiles.filter(p => p.clubId === club.id);
+        const clubSignups = allSignups.filter(s => sessionIds.includes(s.sessionId));
+        const totalRevenue = clubSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
+        const paidRevenue = clubSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+        const unpaidRevenue = clubSignups.filter(s => s.paymentStatus === "UNPAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+
+        return {
+          clubId: club.id,
+          clubName: club.name,
+          status: club.status,
+          totalPlayers: clubProfiles.length,
+          activePlayers: clubProfiles.filter(p => p.playerStatus === "ACTIVE").length,
+          totalSessions: clubSessions.length,
+          totalMatches: clubMatches.length,
+          completedMatches: clubMatches.filter(m => m.status === "COMPLETED").length,
+          totalSignups: clubSignups.length,
+          totalRevenue,
+          paidRevenue,
+          unpaidRevenue,
+          avgMatchesPerSession: clubSessions.length > 0 ? Math.round(clubMatches.length / clubSessions.length * 10) / 10 : 0,
+        };
+      });
+
+      const totals = {
+        totalClubs: allClubs.length,
+        totalPlayers: allProfiles.length,
+        totalSessions: allSessions.length,
+        totalMatches: allMatches.length,
+        completedMatches: allMatches.filter(m => m.status === "COMPLETED").length,
+        totalSignups: allSignups.length,
+        totalRevenue: allSignups.reduce((sum, s) => sum + (s.fee || 0), 0),
+        paidRevenue: allSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0),
+      };
+
+      res.json({ clubs: clubAnalytics, totals });
+    } catch (err: any) {
+      console.error("Error fetching analytics:", err);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // === ADMIN: Financial summary by session (OWNER only) ===
+  app.get("/api/admin/financial-summary", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const signupsData = await db
+        .select({
+          signupId: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          paymentStatus: sessionSignups.paymentStatus,
+          signupTime: sessionSignups.signupTime,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          clubId: sessions.clubId,
+          clubName: clubs.name,
+          playerName: users.fullName,
+          playerEmail: users.email,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .innerJoin(clubs, eq(sessions.clubId, clubs.id))
+        .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .orderBy(desc(sessions.date));
+
+      res.json(signupsData);
+    } catch (err: any) {
+      console.error("Error fetching financial summary:", err);
+      res.status(500).json({ message: "Failed to fetch financial summary" });
+    }
+  });
+
+  // === ADMIN: Global rankings for all clubs (OWNER only) ===
+  app.get("/api/admin/rankings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const rankings = await db
+        .select({
+          profileId: playerProfiles.id,
+          userId: playerProfiles.userId,
+          clubId: playerProfiles.clubId,
+          clubName: clubs.name,
+          fullName: users.fullName,
+          email: users.email,
+          gender: playerProfiles.gender,
+          category: playerProfiles.category,
+          rankingPoints: playerProfiles.rankingPoints,
+          matchesPlayed: playerProfiles.matchesPlayed,
+          matchesWon: playerProfiles.matchesWon,
+          playerStatus: playerProfiles.playerStatus,
+          clubRole: playerProfiles.clubRole,
+        })
+        .from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .orderBy(desc(playerProfiles.rankingPoints));
+
+      res.json(rankings);
+    } catch (err: any) {
+      console.error("Error fetching global rankings:", err);
+      res.status(500).json({ message: "Failed to fetch rankings" });
     }
   });
 

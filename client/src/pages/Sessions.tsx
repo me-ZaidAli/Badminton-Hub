@@ -16,8 +16,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -50,6 +50,8 @@ export default function Sessions() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const isSuperUser = user?.role === "OWNER";
@@ -71,10 +73,27 @@ export default function Sessions() {
     },
   });
 
-  // Filter sessions by selected club for super users
-  const filteredSessions = selectedClubId === "all" 
-    ? sessions 
-    : sessions?.filter(s => s.clubId === Number(selectedClubId));
+  const filteredSessions = useMemo(() => {
+    let result = sessions;
+    if (!result) return result;
+    if (selectedClubId !== "all") {
+      result = result.filter(s => s.clubId === Number(selectedClubId));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => s.title.toLowerCase().includes(q));
+    }
+    if (statusFilter === "upcoming") {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      result = result.filter(s => new Date(s.date) >= now);
+    } else if (statusFilter === "past") {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      result = result.filter(s => new Date(s.date) < now);
+    }
+    return result;
+  }, [sessions, selectedClubId, searchQuery, statusFilter]);
 
   // Group sessions by club for super user view
   const sessionsByClub = sessions?.reduce((acc, session) => {
@@ -123,28 +142,46 @@ export default function Sessions() {
         )}
       />
 
-      {canManageSessions && sessionClubs && sessionClubs.length > 0 && (
-        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg flex-wrap">
-          <Filter className="h-5 w-5 text-muted-foreground" />
-          <label className="text-sm font-medium">Filter by Club:</label>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative w-full sm:w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search sessions..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search-sessions"
+          />
+        </div>
+        {clubs && clubs.length > 1 && (
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-            <SelectTrigger className="w-[250px]" data-testid="select-club-filter">
+            <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
               <SelectValue placeholder="All Clubs" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clubs</SelectItem>
-              {(isSuperUser ? clubs : sessionClubs)?.map(club => (
+              {(canManageSessions && !isSuperUser && sessionClubs ? sessionClubs : clubs)?.map(club => (
                 <SelectItem key={club.id} value={club.id.toString()}>
                   {club.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground">
-            Showing {filteredSessions?.length || 0} sessions
-          </span>
-        </div>
-      )}
+        )}
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px]" data-testid="select-status-filter">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="upcoming">Upcoming</SelectItem>
+            <SelectItem value="past">Past</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">
+          {filteredSessions?.length || 0} sessions
+        </span>
+      </div>
 
       {canManageSessions && filteredSessions && filteredSessions.length > 0 && (
         <div className="flex items-center gap-4 flex-wrap">
@@ -230,10 +267,10 @@ export default function Sessions() {
                       <MapPin className="h-4 w-4" />
                       <span>{session.courtsAvailable} Courts Available</span>
                     </div>
-                    {session.venue && (
+                    {(session as any).venue && (
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
-                        <span>{session.venue.name}{session.venue.city ? `, ${session.venue.city}` : ''}</span>
+                        <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ''}</span>
                       </div>
                     )}
                     {session.sessionFee != null && (

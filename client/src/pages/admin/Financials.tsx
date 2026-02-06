@@ -1,293 +1,614 @@
 import { useState } from "react";
-import { useSessions } from "@/hooks/use-sessions";
-import { useAllSignups, useUpdatePaymentStatus } from "@/hooks/use-admin";
-import { useUser } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, DollarSign, AlertCircle, CheckCircle, Loader2, Filter } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import {
+  DollarSign,
+  Search,
+  Filter,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Users,
+  Calendar,
+} from "lucide-react";
+
+interface FinancialEntry {
+  signupId: number;
+  sessionId: number;
+  playerId: number;
+  fee: number;
+  paymentStatus: "PAID" | "UNPAID";
+  signupTime: string;
+  sessionTitle: string;
+  sessionDate: string;
+  clubId: number;
+  clubName: string;
+  playerName: string;
+  playerEmail: string;
+}
 
 export default function Financials() {
-  const { data: user } = useUser();
-  const { data: sessions } = useSessions();
-  const { data: clubs } = useClubs();
-  const { data: allSignups, isLoading } = useAllSignups();
-  const updatePayment = useUpdatePaymentStatus();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
-  const isSuperUser = user?.role === "OWNER";
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"session" | "player">("session");
+  const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+  const [editingFee, setEditingFee] = useState<number | null>(null);
+  const [feeInputValue, setFeeInputValue] = useState("");
 
-  // Filter signups by club for super user
-  const filterByClub = (signups: any[]) => {
-    if (selectedClubId === "all") return signups;
-    return signups.filter((s: any) => s.session?.clubId === Number(selectedClubId));
-  };
+  const { data: financialData = [], isLoading: isLoadingFinancial } = useQuery<FinancialEntry[]>({
+    queryKey: ["/api/admin/financial-summary"],
+  });
 
-  const unpaidSignups = filterByClub(allSignups?.filter((s: any) => s.paymentStatus === "UNPAID") || []);
-  const paidSignups = filterByClub(allSignups?.filter((s: any) => s.paymentStatus === "PAID") || []);
+  const { isLoading: isLoadingSignups } = useQuery({
+    queryKey: ["/api/admin/signups"],
+  });
 
-  const totalUnpaid = unpaidSignups.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
-  const totalPaid = paidSignups.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+  const isLoading = isLoadingFinancial || isLoadingSignups;
 
-  const handleTogglePayment = (signup: any, newStatus: "PAID" | "UNPAID") => {
+  const updatePayment = useMutation({
+    mutationFn: async ({ sessionId, signupId, status }: { sessionId: number; signupId: number; status: "PAID" | "UNPAID" }) => {
+      await apiRequest("PATCH", `/api/sessions/${sessionId}/signups/${signupId}/payment`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/financial-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/signups"] });
+    },
+  });
+
+  const updateFee = useMutation({
+    mutationFn: async ({ signupId, fee }: { signupId: number; fee: number }) => {
+      await apiRequest("PATCH", `/api/admin/signups/${signupId}/fee`, { fee });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/financial-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/signups"] });
+      toast({ title: "Fee Updated", description: "The fee has been updated successfully." });
+      setEditingFee(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update fee.", variant: "destructive" });
+    },
+  });
+
+  const handleTogglePayment = (entry: FinancialEntry) => {
+    const newStatus = entry.paymentStatus === "PAID" ? "UNPAID" : "PAID";
     updatePayment.mutate(
-      { sessionId: signup.sessionId, signupId: signup.id, status: newStatus },
+      { sessionId: entry.sessionId, signupId: entry.signupId, status: newStatus },
       {
         onSuccess: () => {
           toast({
             title: newStatus === "PAID" ? "Marked as Paid" : "Marked as Unpaid",
-            description: `Payment status updated for ${signup.player?.user?.fullName || "player"}.`
+            description: `Payment status updated for ${entry.playerName}.`,
           });
         },
         onError: () => {
-          toast({
-            title: "Error",
-            description: "Failed to update payment status.",
-            variant: "destructive"
-          });
-        }
+          toast({ title: "Error", description: "Failed to update payment status.", variant: "destructive" });
+        },
       }
     );
   };
 
-  // Filter sessions by club
-  const filteredSessions = selectedClubId === "all" 
-    ? sessions 
-    : sessions?.filter(s => s.clubId === Number(selectedClubId));
+  const handleStartEditFee = (entry: FinancialEntry) => {
+    setEditingFee(entry.signupId);
+    setFeeInputValue((entry.fee / 100).toFixed(2));
+  };
+
+  const handleSaveFee = (signupId: number) => {
+    const pence = Math.round(parseFloat(feeInputValue) * 100);
+    if (isNaN(pence) || pence < 0) {
+      toast({ title: "Invalid Fee", description: "Please enter a valid amount.", variant: "destructive" });
+      return;
+    }
+    updateFee.mutate({ signupId, fee: pence });
+  };
+
+  const handleCancelEditFee = () => {
+    setEditingFee(null);
+    setFeeInputValue("");
+  };
+
+  const filteredData = financialData.filter((entry) => {
+    if (selectedClubId !== "all" && entry.clubId !== Number(selectedClubId)) return false;
+    if (paymentFilter !== "all" && entry.paymentStatus !== paymentFilter.toUpperCase()) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!entry.playerName.toLowerCase().includes(q) && !entry.sessionTitle.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const uniqueClubs = Array.from(
+    new Map(financialData.map((e) => [e.clubId, { id: e.clubId, name: e.clubName }])).values()
+  );
+
+  const totalRevenue = filteredData.reduce((sum, e) => sum + (e.fee || 0), 0);
+  const paidTotal = filteredData.filter((e) => e.paymentStatus === "PAID").reduce((sum, e) => sum + (e.fee || 0), 0);
+  const unpaidTotal = filteredData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0);
+  const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
+
+  const toggleSessionExpand = (sessionId: number) => {
+    setExpandedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  };
+
+  const togglePlayerExpand = (email: string) => {
+    setExpandedPlayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  };
+
+  const sessionGroups = filteredData.reduce<Record<number, FinancialEntry[]>>((acc, entry) => {
+    if (!acc[entry.sessionId]) acc[entry.sessionId] = [];
+    acc[entry.sessionId].push(entry);
+    return acc;
+  }, {});
+
+  const playerGroups = filteredData.reduce<Record<string, FinancialEntry[]>>((acc, entry) => {
+    if (!acc[entry.playerEmail]) acc[entry.playerEmail] = [];
+    acc[entry.playerEmail].push(entry);
+    return acc;
+  }, {});
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64" data-testid="loading-spinner">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/admin">
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-              <DollarSign className="h-6 w-6 text-green-500" />
-              Financials
-            </h1>
-            <p className="text-muted-foreground">Track payments and outstanding fees.</p>
-          </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        <Link href="/admin">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ChevronRight className="h-5 w-5 rotate-180" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-page-title">
+            <DollarSign className="h-6 w-6 text-green-500" />
+            Financial Dashboard
+          </h1>
+          <p className="text-muted-foreground">Track revenue, payments and outstanding fees.</p>
         </div>
-        
-        {isSuperUser && clubs && clubs.length > 0 && (
-          <div className="flex items-center gap-4 ml-auto p-3 bg-muted/50 rounded-lg">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <label className="text-sm font-medium">Filter by Club:</label>
-            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-              <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
-                <SelectValue placeholder="All Clubs" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clubs</SelectItem>
-                {clubs.map(club => (
-                  <SelectItem key={club.id} value={club.id.toString()}>
-                    {club.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="border-border/50 bg-green-500/5 border-green-500/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              Total Collected
-            </CardTitle>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card data-testid="card-total-revenue">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">£{(totalPaid / 100).toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{paidSignups.length} payments</p>
+            <div className="text-2xl font-bold" data-testid="text-total-revenue">
+              £{(totalRevenue / 100).toFixed(2)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{filteredData.length} signups</p>
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-orange-500/5 border-orange-500/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-              Outstanding
-            </CardTitle>
+        <Card data-testid="card-collected">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Collected</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600">£{(totalUnpaid / 100).toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{unpaidSignups.length} unpaid</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{filteredSessions?.length || 0}</div>
+            <div className="text-2xl font-bold text-green-600" data-testid="text-collected">
+              £{(paidTotal / 100).toFixed(2)}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {selectedClubId === "all" ? "All clubs" : "Selected club"}
+              {filteredData.filter((e) => e.paymentStatus === "PAID").length} paid
             </p>
           </CardContent>
         </Card>
+
+        <Card data-testid="card-outstanding">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600" data-testid="text-outstanding">
+              £{(unpaidTotal / 100).toFixed(2)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {filteredData.filter((e) => e.paymentStatus === "UNPAID").length} unpaid
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-collection-rate">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-collection-rate">
+              {collectionRate}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Paid vs total</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-orange-500" />
-            Unpaid Session Fees ({unpaidSignups.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="h-32 flex items-center justify-center">
-              <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search player or session..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search"
+              />
             </div>
-          ) : unpaidSignups.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
-              <p>All fees are paid! Great job.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Player</TableHead>
-                    <TableHead>Session</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unpaidSignups.map((signup: any) => (
-                    <TableRow key={signup.id} data-testid={`row-unpaid-${signup.id}`}>
-                      <TableCell className="font-medium">
-                        <Link href={`/admin/players/${signup.playerId}`} className="text-primary hover:underline">
-                          {signup.player?.user?.fullName || "Unknown"}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{signup.session?.title || "Session"}</TableCell>
-                      <TableCell>
-                        {signup.session?.date 
-                          ? format(new Date(signup.session.date), "MMM d, yyyy")
-                          : "N/A"
-                        }
-                      </TableCell>
-                      <TableCell className="font-bold">£{((signup.fee || 0) / 100).toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
-                          UNPAID
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => handleTogglePayment(signup, "PAID")}
-                          disabled={updatePayment.isPending}
-                          data-testid={`button-mark-paid-${signup.id}`}
-                        >
-                          {updatePayment.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "Mark Paid"
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                <SelectTrigger className="w-[180px]" data-testid="select-club-filter">
+                  <SelectValue placeholder="All Clubs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clubs</SelectItem>
+                  {uniqueClubs.map((club) => (
+                    <SelectItem key={club.id} value={club.id.toString()}>
+                      {club.name}
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-payment-filter">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+                <SelectItem value="UNPAID">Unpaid</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1">
+              <Button
+                variant={viewMode === "session" ? "default" : "outline"}
+                onClick={() => setViewMode("session")}
+                data-testid="button-view-session"
+              >
+                <Calendar className="h-4 w-4 mr-1" />
+                By Session
+              </Button>
+              <Button
+                variant={viewMode === "player" ? "default" : "outline"}
+                onClick={() => setViewMode("player")}
+                data-testid="button-view-player"
+              >
+                <Users className="h-4 w-4 mr-1" />
+                By Player
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            Paid Session Fees ({paidSignups.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="h-32 flex items-center justify-center">
-              <div className="animate-pulse text-muted-foreground">Loading...</div>
-            </div>
-          ) : paidSignups.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No payments recorded yet.</p>
-            </div>
+      {viewMode === "session" ? (
+        <div className="space-y-3">
+          {Object.keys(sessionGroups).length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No financial data found.
+              </CardContent>
+            </Card>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Player</TableHead>
-                    <TableHead>Session</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paidSignups.map((signup: any) => (
-                    <TableRow key={signup.id} data-testid={`row-paid-${signup.id}`}>
-                      <TableCell className="font-medium">
-                        <Link href={`/admin/players/${signup.playerId}`} className="text-primary hover:underline">
-                          {signup.player?.user?.fullName || "Unknown"}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{signup.session?.title || "Session"}</TableCell>
-                      <TableCell>
-                        {signup.session?.date 
-                          ? format(new Date(signup.session.date), "MMM d, yyyy")
-                          : "N/A"
-                        }
-                      </TableCell>
-                      <TableCell className="font-bold">£{((signup.fee || 0) / 100).toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
-                          PAID
+            Object.entries(sessionGroups).map(([sessionIdStr, entries]) => {
+              const sessionId = Number(sessionIdStr);
+              const first = entries[0];
+              const sessionPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const sessionUnpaid = entries.filter((e) => e.paymentStatus === "UNPAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const sessionTotal = sessionPaid + sessionUnpaid;
+              const isExpanded = expandedSessions.has(sessionId);
+
+              return (
+                <Card key={sessionId} data-testid={`card-session-${sessionId}`}>
+                  <CardHeader
+                    className="cursor-pointer"
+                    onClick={() => toggleSessionExpand(sessionId)}
+                    data-testid={`button-expand-session-${sessionId}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <CardTitle className="text-base" data-testid={`text-session-title-${sessionId}`}>
+                            {first.sessionTitle}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {first.sessionDate
+                              ? format(new Date(first.sessionDate), "MMM d, yyyy")
+                              : "N/A"}{" "}
+                            &middot; {first.clubName} &middot; {entries.length} players
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <span className="text-sm font-medium" data-testid={`text-session-total-${sessionId}`}>
+                          Total: £{(sessionTotal / 100).toFixed(2)}
+                        </span>
+                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                          Paid: £{(sessionPaid / 100).toFixed(2)}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleTogglePayment(signup, "UNPAID")}
-                          disabled={updatePayment.isPending}
-                          data-testid={`button-mark-unpaid-${signup.id}`}
-                        >
-                          {updatePayment.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "Mark Unpaid"
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                        {sessionUnpaid > 0 && (
+                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                            Unpaid: £{(sessionUnpaid / 100).toFixed(2)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Player</TableHead>
+                              <TableHead>Fee</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entries.map((entry) => (
+                              <TableRow key={entry.signupId} data-testid={`row-signup-${entry.signupId}`}>
+                                <TableCell className="font-medium" data-testid={`text-player-name-${entry.signupId}`}>
+                                  {entry.playerName}
+                                </TableCell>
+                                <TableCell>
+                                  {editingFee === entry.signupId ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm">£</span>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={feeInputValue}
+                                        onChange={(e) => setFeeInputValue(e.target.value)}
+                                        className="w-24"
+                                        data-testid={`input-fee-${entry.signupId}`}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleSaveFee(entry.signupId);
+                                          if (e.key === "Escape") handleCancelEditFee();
+                                        }}
+                                      />
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleSaveFee(entry.signupId)}
+                                        disabled={updateFee.isPending}
+                                        data-testid={`button-save-fee-${entry.signupId}`}
+                                      >
+                                        {updateFee.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleCancelEditFee}
+                                        data-testid={`button-cancel-fee-${entry.signupId}`}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-medium" data-testid={`text-fee-${entry.signupId}`}>
+                                        £{((entry.fee || 0) / 100).toFixed(2)}
+                                      </span>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => handleStartEditFee(entry)}
+                                        data-testid={`button-edit-fee-${entry.signupId}`}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {entry.paymentStatus === "PAID" ? (
+                                    <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-status-${entry.signupId}`}>
+                                      PAID
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-status-${entry.signupId}`}>
+                                      UNPAID
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant={entry.paymentStatus === "PAID" ? "outline" : "default"}
+                                    onClick={() => handleTogglePayment(entry)}
+                                    disabled={updatePayment.isPending}
+                                    data-testid={`button-toggle-payment-${entry.signupId}`}
+                                  >
+                                    {updatePayment.isPending ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : entry.paymentStatus === "PAID" ? (
+                                      "Mark Unpaid"
+                                    ) : (
+                                      "Mark Paid"
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
           )}
-        </CardContent>
-      </Card>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {Object.keys(playerGroups).length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No financial data found.
+              </CardContent>
+            </Card>
+          ) : (
+            Object.entries(playerGroups).map(([email, entries]) => {
+              const first = entries[0];
+              const playerTotalSpent = entries.reduce((s, e) => s + (e.fee || 0), 0);
+              const playerTotalPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const playerTotalUnpaid = entries.filter((e) => e.paymentStatus === "UNPAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const isExpanded = expandedPlayers.has(email);
+
+              return (
+                <Card key={email} data-testid={`card-player-${email}`}>
+                  <CardHeader
+                    className="cursor-pointer"
+                    onClick={() => togglePlayerExpand(email)}
+                    data-testid={`button-expand-player-${email}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <CardTitle className="text-base" data-testid={`text-player-heading-${email}`}>
+                            {first.playerName}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground mt-0.5" data-testid={`text-player-email-${email}`}>
+                            {email} &middot; {entries.length} sessions
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <span className="text-sm font-medium" data-testid={`text-player-total-${email}`}>
+                          Total: £{(playerTotalSpent / 100).toFixed(2)}
+                        </span>
+                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                          Paid: £{(playerTotalPaid / 100).toFixed(2)}
+                        </Badge>
+                        {playerTotalUnpaid > 0 && (
+                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                            Unpaid: £{(playerTotalUnpaid / 100).toFixed(2)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Session</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Club</TableHead>
+                              <TableHead>Fee</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entries.map((entry) => (
+                              <TableRow key={entry.signupId} data-testid={`row-player-signup-${entry.signupId}`}>
+                                <TableCell className="font-medium" data-testid={`text-session-name-${entry.signupId}`}>
+                                  {entry.sessionTitle}
+                                </TableCell>
+                                <TableCell>
+                                  {entry.sessionDate
+                                    ? format(new Date(entry.sessionDate), "MMM d, yyyy")
+                                    : "N/A"}
+                                </TableCell>
+                                <TableCell>{entry.clubName}</TableCell>
+                                <TableCell>
+                                  <span className="font-medium" data-testid={`text-player-fee-${entry.signupId}`}>
+                                    £{((entry.fee || 0) / 100).toFixed(2)}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  {entry.paymentStatus === "PAID" ? (
+                                    <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-player-status-${entry.signupId}`}>
+                                      PAID
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-player-status-${entry.signupId}`}>
+                                      UNPAID
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant={entry.paymentStatus === "PAID" ? "outline" : "default"}
+                                    onClick={() => handleTogglePayment(entry)}
+                                    disabled={updatePayment.isPending}
+                                    data-testid={`button-player-toggle-payment-${entry.signupId}`}
+                                  >
+                                    {updatePayment.isPending ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : entry.paymentStatus === "PAID" ? (
+                                      "Mark Unpaid"
+                                    ) : (
+                                      "Mark Paid"
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }

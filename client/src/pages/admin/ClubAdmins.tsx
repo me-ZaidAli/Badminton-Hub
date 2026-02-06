@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Users, Building2, Shield, UserPlus, Search, Filter } from "lucide-react";
+import { Loader2, Users, Building2, Shield, UserPlus, Search, Filter, Pencil, Key, MoreHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/ui/page-header";
@@ -47,6 +48,14 @@ export default function ClubAdmins() {
   const [searchQuery, setSearchQuery] = useState("");
   const [addAdminOpen, setAddAdminOpen] = useState(false);
   const [newAdminData, setNewAdminData] = useState({ email: "", clubId: "", role: "ADMIN" });
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<ClubAdmin | null>(null);
+  const [editData, setEditData] = useState({ fullName: "", email: "", role: "", dateOfBirth: "" });
+
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordAdmin, setPasswordAdmin] = useState<ClubAdmin | null>(null);
+  const [passwordData, setPasswordData] = useState({ newPassword: "", confirmPassword: "" });
 
   const { data: clubs, isLoading: clubsLoading } = useQuery<Club[]>({
     queryKey: ["/api/admin/clubs"],
@@ -91,6 +100,38 @@ export default function ClubAdmins() {
     },
   });
 
+  const editUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: number; data: { fullName: string; email: string; role: string } }) => {
+      const res = await apiRequest("PATCH", `/api/admin/players/${userId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/club-admins", selectedClub] });
+      toast({ title: "User updated successfully" });
+      setEditDialogOpen(false);
+      setEditingAdmin(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: number; newPassword: string }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/password`, { newPassword });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Password changed successfully" });
+      setPasswordDialogOpen(false);
+      setPasswordAdmin(null);
+      setPasswordData({ newPassword: "", confirmPassword: "" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAddAdmin = () => {
     if (!newAdminData.email || !newAdminData.clubId) {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
@@ -100,6 +141,55 @@ export default function ClubAdmins() {
       email: newAdminData.email,
       clubId: Number(newAdminData.clubId),
       role: newAdminData.role,
+    });
+  };
+
+  const handleOpenEditDialog = (admin: ClubAdmin) => {
+    setEditingAdmin(admin);
+    setEditData({
+      fullName: admin.user.fullName,
+      email: admin.user.email,
+      role: admin.user.role,
+      dateOfBirth: "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditUser = () => {
+    if (!editingAdmin) return;
+    if (!editData.fullName || !editData.email || !editData.role) {
+      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    editUserMutation.mutate({
+      userId: editingAdmin.userId,
+      data: {
+        fullName: editData.fullName,
+        email: editData.email,
+        role: editData.role,
+      },
+    });
+  };
+
+  const handleOpenPasswordDialog = (admin: ClubAdmin) => {
+    setPasswordAdmin(admin);
+    setPasswordData({ newPassword: "", confirmPassword: "" });
+    setPasswordDialogOpen(true);
+  };
+
+  const handleChangePassword = () => {
+    if (!passwordAdmin) return;
+    if (passwordData.newPassword.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    changePasswordMutation.mutate({
+      userId: passwordAdmin.userId,
+      newPassword: passwordData.newPassword,
     });
   };
 
@@ -311,15 +401,36 @@ export default function ClubAdmins() {
                           </TableCell>
                           <TableCell>{getRoleBadge(admin.user.role)}</TableCell>
                           <TableCell>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => updateRoleMutation.mutate({ profileId: admin.id, role: "PLAYER" })}
-                              disabled={updateRoleMutation.isPending}
-                              data-testid={`button-demote-${admin.id}`}
-                            >
-                              Demote to Player
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" data-testid={`button-actions-${admin.id}`}>
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenEditDialog(admin)}
+                                  data-testid={`button-edit-${admin.id}`}
+                                >
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Edit Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenPasswordDialog(admin)}
+                                  data-testid={`button-password-${admin.id}`}
+                                >
+                                  <Key className="w-4 h-4 mr-2" />
+                                  Change Password
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => updateRoleMutation.mutate({ profileId: admin.id, role: "PLAYER" })}
+                                  data-testid={`button-demote-${admin.id}`}
+                                >
+                                  <Users className="w-4 h-4 mr-2" />
+                                  Demote to Player
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -331,6 +442,113 @@ export default function ClubAdmins() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-fullname">Full Name</Label>
+              <Input
+                id="edit-fullname"
+                value={editData.fullName}
+                onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
+                data-testid="input-edit-fullname"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editData.email}
+                onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                data-testid="input-edit-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-role">Platform Role</Label>
+              <Select
+                value={editData.role}
+                onValueChange={(value) => setEditData({ ...editData, role: value })}
+              >
+                <SelectTrigger data-testid="select-edit-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OWNER">Owner</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="ORGANISER">Organiser</SelectItem>
+                  <SelectItem value="COACH">Coach</SelectItem>
+                  <SelectItem value="PLAYER">Player</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-dob">Date of Birth (optional)</Label>
+              <Input
+                id="edit-dob"
+                placeholder="YYYY-MM-DD"
+                value={editData.dateOfBirth}
+                onChange={(e) => setEditData({ ...editData, dateOfBirth: e.target.value })}
+                data-testid="input-edit-dob"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleEditUser}
+              disabled={editUserMutation.isPending}
+              data-testid="button-confirm-edit"
+            >
+              {editUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password{passwordAdmin ? ` - ${passwordAdmin.user.fullName}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                data-testid="input-new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Re-enter password"
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                data-testid="input-confirm-password"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleChangePassword}
+              disabled={changePasswordMutation.isPending}
+              data-testid="button-confirm-password"
+            >
+              {changePasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Change Password
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
