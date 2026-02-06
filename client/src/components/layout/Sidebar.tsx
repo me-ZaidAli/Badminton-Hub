@@ -14,7 +14,8 @@ import {
   Building2,
   MapPin,
   Home,
-  UserCog
+  UserCog,
+  FolderKanban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ export function Sidebar() {
 
   if (user?.role === "OWNER") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+    navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
     navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
   }

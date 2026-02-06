@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,9 +16,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
   { value: "A", label: "Category A (Advanced)" },
@@ -37,10 +40,28 @@ export default function Sessions() {
   const { data: user } = useUser();
   const { data: sessions, isLoading } = useSessions();
   const { data: clubs } = useClubs();
+  const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
   const isSuperUser = user?.role === "OWNER";
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (sessionIds: number[]) => {
+      await apiRequest("DELETE", "/api/sessions", { sessionIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Sessions Deleted", description: `${selectedIds.size} sessions deleted.` });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   // Filter sessions by selected club for super users
   const filteredSessions = selectedClubId === "all" 
@@ -54,6 +75,26 @@ export default function Sessions() {
     acc[clubId].push(session);
     return acc;
   }, {} as Record<number, typeof sessions>);
+
+  const toggleSelect = (id: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (!filteredSessions) return;
+    if (selectedIds.size === filteredSessions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSessions.map(s => s.id)));
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -75,7 +116,7 @@ export default function Sessions() {
       />
 
       {isSuperUser && clubs && clubs.length > 0 && (
-        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg flex-wrap">
           <Filter className="h-5 w-5 text-muted-foreground" />
           <label className="text-sm font-medium">Filter by Club:</label>
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
@@ -97,69 +138,132 @@ export default function Sessions() {
         </div>
       )}
 
+      {isOrganiser && filteredSessions && filteredSessions.length > 0 && (
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={filteredSessions.length > 0 && selectedIds.size === filteredSessions.length}
+              onCheckedChange={toggleSelectAll}
+              data-testid="checkbox-select-all-sessions"
+            />
+            <span className="text-sm text-muted-foreground">Select All</span>
+          </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary">{selectedIds.size} selected</Badge>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                data-testid="button-bulk-delete-sessions"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
         {filteredSessions?.map((session) => (
-          <Link key={session.id} href={`/sessions/${session.id}`}>
-            <Card className="h-full hover-card-effect cursor-pointer border-border/50 group overflow-hidden">
-              <div className="h-2 bg-gradient-to-r from-primary to-secondary" />
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
-                    {session.matchMode}
-                  </Badge>
-                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
-                    {session.startTime}
-                  </span>
-                </div>
-                
-                <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
-                  {session.title}
-                </h3>
-                
-                <div className="space-y-2 text-sm text-muted-foreground mb-6">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
+          <div key={session.id} className="relative">
+            {isOrganiser && (
+              <div
+                className="absolute top-4 left-4 z-10"
+                onClick={(e) => toggleSelect(session.id, e)}
+              >
+                <Checkbox
+                  checked={selectedIds.has(session.id)}
+                  data-testid={`checkbox-session-${session.id}`}
+                />
+              </div>
+            )}
+            <Link href={`/sessions/${session.id}`}>
+              <Card className={`h-full cursor-pointer border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
+                <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
+                <CardContent className="p-6">
+                  <div className={`flex justify-between items-start mb-4 ${isOrganiser ? "pl-8" : ""}`}>
+                    <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
+                      {session.matchMode}
+                    </Badge>
+                    <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
+                      {session.startTime}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    <span>{session.courtsAvailable} Courts Available</span>
+                  
+                  <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
+                    {session.title}
+                  </h3>
+                  
+                  <div className="space-y-2 text-sm text-muted-foreground mb-6">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span>{session.courtsAvailable} Courts Available</span>
+                    </div>
+                    {session.venue && (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        <span>{session.venue.name}{session.venue.city ? `, ${session.venue.city}` : ''}</span>
+                      </div>
+                    )}
+                    {session.sessionFee != null && (
+                      <div className="flex items-center gap-2">
+                        <PoundSterling className="h-4 w-4" />
+                        <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
+                      </div>
+                    )}
+                    {session.shuttlecockType && (
+                      <div className="flex items-center gap-2">
+                        <CircleDot className="h-4 w-4" />
+                        <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
+                      </div>
+                    )}
                   </div>
-                  {session.venue && (
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      <span>{session.venue.name}{session.venue.city ? `, ${session.venue.city}` : ''}</span>
-                    </div>
-                  )}
-                  {session.sessionFee != null && (
-                    <div className="flex items-center gap-2">
-                      <PoundSterling className="h-4 w-4" />
-                      <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
-                    </div>
-                  )}
-                  {session.shuttlecockType && (
-                    <div className="flex items-center gap-2">
-                      <CircleDot className="h-4 w-4" />
-                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
-                    </div>
-                  )}
-                </div>
 
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-                  <span className="font-bold text-lg">
-                    {format(new Date(session.date), "EEE, MMM d")}
-                  </span>
-                  <Button size="sm" variant="outline" className="group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-colors">
-                    Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                    <span className="font-bold text-lg">
+                      {format(new Date(session.date), "EEE, MMM d")}
+                    </span>
+                    <Button size="sm" variant="outline">
+                      Details
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
         ))}
       </div>
+
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Sessions</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.size} selected sessions? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete {selectedIds.size} Sessions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

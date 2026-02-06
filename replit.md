@@ -50,6 +50,14 @@ Key design patterns include:
   - Whether they provide club T-shirts
   - Accepted player skill levels: beginner, intermediate, advanced, pro, all
 - **Session Fee Management**: Sessions can have custom fees that override club defaults. Session cards display the fee (in £) and shuttlecock type so players know before joining. Financials are displayed in British Pounds (£).
+- **Clubs Management (Super Admin)**: Dedicated page at `/admin/clubs-management` for super admins to manage all clubs from a centralized interface. Features:
+  - Club list view with status badges (PENDING, APPROVED, REJECTED)
+  - Per-club detail view with Members, Sessions, and Venues tabs
+  - Members tab: view/edit membership status and club roles
+  - Sessions tab: inline editing, individual and bulk deletion with checkbox selection
+  - Venues tab: read-only view of venues and court names
+- **Bulk Session Selection & Deletion**: Sessions page (`/sessions`) supports checkbox selection for organiser+ roles. Includes select-all, selected count badge, and bulk delete with confirmation dialog.
+- **Venue Access for Club Admins**: Venues page (`/admin/venues`) is accessible to club admins (not just super admins), filtered to show only clubs the user has admin access to.
 
 ## External Dependencies
 

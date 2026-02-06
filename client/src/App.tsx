@@ -40,6 +40,7 @@ import ClubApprovals from "@/pages/admin/ClubApprovals";
 import ClubAdmins from "@/pages/admin/ClubAdmins";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Venues from "@/pages/Venues";
+import ClubsManagement from "@/pages/ClubsManagement";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -243,7 +244,10 @@ function Router() {
         <OwnerRoute component={ClubAdmins} />
       </Route>
       <Route path="/admin/venues">
-        <OwnerRoute component={Venues} />
+        <PrivateRoute component={Venues} />
+      </Route>
+      <Route path="/admin/clubs-management">
+        <OwnerRoute component={ClubsManagement} />
       </Route>
       
       {/* Fallback */}
