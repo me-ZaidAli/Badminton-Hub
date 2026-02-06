@@ -217,6 +217,28 @@ export async function registerRoutes(
   });
 
   // Get clubs where the current user has admin access (club OWNER or ADMIN role)
+  // Clubs where the user can manage tournaments (OWNER, ADMIN, ORGANISER club role)
+  app.get("/api/my-tournament-clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (req.user!.role === "OWNER") {
+        const allClubs = await storage.getClubs();
+        return res.json(allClubs.filter(c => c.isActive));
+      }
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      const tournamentClubs = userProfiles
+        .filter(p =>
+          p.membershipStatus === "APPROVED" &&
+          p.club.isActive &&
+          ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole)
+        )
+        .map(p => p.club);
+      res.json(tournamentClubs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/my-admin-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
@@ -2465,16 +2487,20 @@ export async function registerRoutes(
     }
   });
 
+  // Helper: check if user can manage tournaments for a given club
+  async function canManageTournament(user: Express.User, clubId: number): Promise<boolean> {
+    if (user.role === "OWNER") return true;
+    const profiles = await storage.getPlayerProfilesByUser(user.id);
+    return profiles.some(p => p.clubId === clubId && ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
+  }
+
   // Create tournament
   app.post("/api/tournaments", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
-      const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
-      const canManage = profiles.some(p => ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
-      if (!canManage) return res.sendStatus(403);
-    }
     try {
+      const clubId = Number(req.body.clubId);
+      if (!clubId) return res.status(400).json({ message: "clubId is required" });
+      if (!(await canManageTournament(req.user!, clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can create tournaments" });
       const body = { ...req.body };
       if (body.startDate) body.startDate = new Date(body.startDate);
       if (body.endDate) body.endDate = new Date(body.endDate);
@@ -2491,12 +2517,7 @@ export async function registerRoutes(
     try {
       const tournament = await storage.getTournament(Number(req.params.id));
       if (!tournament) return res.status(404).json({ message: "Tournament not found" });
-      const hasAccess = req.user!.role === "OWNER" || req.user!.role === "ADMIN" || tournament.createdBy === req.user!.id;
-      if (!hasAccess) {
-        const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
-        const canManage = profiles.some(p => p.clubId === tournament.clubId && ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
-        if (!canManage) return res.sendStatus(403);
-      }
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can edit tournaments" });
       const body = { ...req.body };
       if (body.startDate) body.startDate = new Date(body.startDate);
       if (body.endDate) body.endDate = new Date(body.endDate);
@@ -2513,8 +2534,7 @@ export async function registerRoutes(
     try {
       const tournament = await storage.getTournament(Number(req.params.id));
       if (!tournament) return res.status(404).json({ message: "Tournament not found" });
-      const hasAccess = req.user!.role === "OWNER" || tournament.createdBy === req.user!.id;
-      if (!hasAccess) return res.sendStatus(403);
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can delete tournaments" });
       await storage.deleteTournament(tournament.id);
       res.sendStatus(204);
     } catch (err: any) {
@@ -2537,6 +2557,7 @@ export async function registerRoutes(
     try {
       const tournament = await storage.getTournament(Number(req.params.id));
       if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can manage categories" });
       const category = await storage.createTournamentCategory({ ...req.body, tournamentId: tournament.id });
       res.status(201).json(category);
     } catch (err: any) {
@@ -2547,7 +2568,12 @@ export async function registerRoutes(
   app.patch("/api/tournament-categories/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const updated = await storage.updateTournamentCategory(Number(req.params.id), req.body);
+      const category = await storage.getTournamentCategory(Number(req.params.id));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can manage categories" });
+      const updated = await storage.updateTournamentCategory(category.id, req.body);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2557,7 +2583,12 @@ export async function registerRoutes(
   app.delete("/api/tournament-categories/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      await storage.deleteTournamentCategory(Number(req.params.id));
+      const category = await storage.getTournamentCategory(Number(req.params.id));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can manage categories" });
+      await storage.deleteTournamentCategory(category.id);
       res.sendStatus(204);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2577,7 +2608,12 @@ export async function registerRoutes(
   app.post("/api/tournament-categories/:id/teams", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const team = await storage.createTournamentTeam({ ...req.body, categoryId: Number(req.params.id) });
+      const category = await storage.getTournamentCategory(Number(req.params.id));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can manage teams" });
+      const team = await storage.createTournamentTeam({ ...req.body, categoryId: category.id });
       res.status(201).json(team);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2587,7 +2623,14 @@ export async function registerRoutes(
   app.delete("/api/tournament-teams/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      await storage.deleteTournamentTeam(Number(req.params.id));
+      const team = await storage.getTournamentTeam(Number(req.params.id));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const category = await storage.getTournamentCategory(team.categoryId);
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can manage teams" });
+      await storage.deleteTournamentTeam(team.id);
       res.sendStatus(204);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2610,6 +2653,11 @@ export async function registerRoutes(
     try {
       const match = await storage.getTournamentMatch(Number(req.params.id));
       if (!match) return res.status(404).json({ message: "Match not found" });
+      const category = await storage.getTournamentCategory(match.categoryId);
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can score matches" });
       
       const { scores, winnerId, status } = req.body;
       const updates: any = {};
@@ -2619,7 +2667,6 @@ export async function registerRoutes(
       
       const updated = await storage.updateTournamentMatch(match.id, updates);
       
-      // Recalculate standings for the category if match is finished
       if (status === "FINISHED" && winnerId) {
         await recalculateStandings(match.categoryId);
       }
@@ -2634,7 +2681,14 @@ export async function registerRoutes(
   app.patch("/api/tournament-matches/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const updated = await storage.updateTournamentMatch(Number(req.params.id), req.body);
+      const match = await storage.getTournamentMatch(Number(req.params.id));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      const category = await storage.getTournamentCategory(match.categoryId);
+      if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can edit matches" });
+      const updated = await storage.updateTournamentMatch(match.id, req.body);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2657,6 +2711,9 @@ export async function registerRoutes(
     try {
       const category = await storage.getTournamentCategory(Number(req.params.id));
       if (!category) return res.status(404).json({ message: "Category not found" });
+      const tournament = await storage.getTournament(category.tournamentId);
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, tournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can generate matches" });
 
       // Clear existing matches and standings
       await storage.deleteTournamentMatchesByCategory(category.id);
@@ -2708,6 +2765,9 @@ export async function registerRoutes(
     try {
       const category = await storage.getTournamentCategory(Number(req.params.id));
       if (!category) return res.status(404).json({ message: "Category not found" });
+      const advTournament = await storage.getTournament(category.tournamentId);
+      if (!advTournament) return res.status(404).json({ message: "Tournament not found" });
+      if (!(await canManageTournament(req.user!, advTournament.clubId))) return res.status(403).json({ message: "Only admins, organisers, and super admins can advance winners" });
 
       const allMatches = await storage.getTournamentMatches(category.id);
       const currentRound = Math.max(...allMatches.map(m => m.round));

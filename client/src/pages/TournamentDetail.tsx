@@ -7,7 +7,7 @@ import {
   useGenerateMatches, useScoreMatch, useAdvanceWinners, useUpdateTournament,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
-import { useMySessionClubs } from "@/hooks/use-clubs";
+import { useMyTournamentClubs } from "@/hooks/use-clubs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +61,7 @@ export default function TournamentDetail() {
   const tournamentId = Number(params?.id);
   const { data: tournament, isLoading } = useTournament(tournamentId);
   const { data: user } = useUser();
-  const { data: sessionClubs } = useMySessionClubs(!!user);
+  const { data: tournamentClubs } = useMyTournamentClubs(!!user);
   const { toast } = useToast();
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -69,7 +69,7 @@ export default function TournamentDetail() {
   const [scoreMatchId, setScoreMatchId] = useState<number | null>(null);
 
   const isSuperAdmin = user?.role === "OWNER";
-  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+  const managedClubIds = new Set(tournamentClubs?.map(c => c.id) || []);
   const canManage = tournament ? (isSuperAdmin || managedClubIds.has(tournament.clubId)) : false;
 
   const createCatMutation = useCreateCategory();

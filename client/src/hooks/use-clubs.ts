@@ -43,6 +43,22 @@ export function useMySessionClubs(isAuthenticated: boolean = false) {
   });
 }
 
+// Get clubs where the user can manage tournaments (OWNER, ADMIN, ORGANISER club role)
+export function useMyTournamentClubs(isAuthenticated: boolean = false) {
+  return useQuery<Club[]>({
+    queryKey: ["/api/my-tournament-clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-tournament-clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch tournament clubs");
+      }
+      return res.json();
+    },
+    enabled: isAuthenticated,
+  });
+}
+
 // Get clubs where the current user has admin access (club OWNER or ADMIN role)
 // Pass isAuthenticated=true when user is logged in to enable the query
 export function useMyAdminClubs(isAuthenticated: boolean = false) {

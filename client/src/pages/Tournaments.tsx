@@ -1,6 +1,6 @@
 import { useTournaments, useCreateTournament, useDeleteTournament, useUpdateTournament } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs, useMySessionClubs } from "@/hooks/use-clubs";
+import { useClubs, useMyTournamentClubs } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ export default function Tournaments() {
   const { data: user } = useUser();
   const { data: tournaments, isLoading } = useTournaments();
   const { data: clubs } = useClubs();
-  const { data: sessionClubs } = useMySessionClubs(!!user);
+  const { data: tournamentClubs } = useMyTournamentClubs(!!user);
   const createMutation = useCreateTournament();
   const deleteMutation = useDeleteTournament();
   const updateMutation = useUpdateTournament();
@@ -57,8 +57,8 @@ export default function Tournaments() {
   const [selectedClubFilter, setSelectedClubFilter] = useState<string>("all");
 
   const isSuperAdmin = user?.role === "OWNER";
-  const canManage = isSuperAdmin || (sessionClubs && sessionClubs.length > 0);
-  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+  const canManage = isSuperAdmin || (tournamentClubs && tournamentClubs.length > 0);
+  const managedClubIds = new Set(tournamentClubs?.map(c => c.id) || []);
 
   const form = useForm<z.infer<typeof createTournamentSchema>>({
     resolver: zodResolver(createTournamentSchema),

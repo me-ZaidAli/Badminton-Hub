@@ -104,6 +104,7 @@ export interface IStorage {
 
   // Tournament Teams
   getTournamentTeams(categoryId: number): Promise<(TournamentTeam & { player1: PlayerProfile & { user: User }; player2?: PlayerProfile & { user: User } | null })[]>;
+  getTournamentTeam(id: number): Promise<TournamentTeam | undefined>;
   createTournamentTeam(team: InsertTournamentTeam): Promise<TournamentTeam>;
   deleteTournamentTeam(id: number): Promise<void>;
   updateTournamentTeam(id: number, updates: Partial<TournamentTeam>): Promise<TournamentTeam>;
@@ -675,6 +676,11 @@ export class DatabaseStorage implements IStorage {
       }
       result.push({ ...team, player1: { ...p1, user: u1 }, player2 });
     }
+    return result;
+  }
+
+  async getTournamentTeam(id: number): Promise<TournamentTeam | undefined> {
+    const [result] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, id));
     return result;
   }
 
