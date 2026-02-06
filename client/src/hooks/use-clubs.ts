@@ -28,6 +28,21 @@ export function useMyClubs() {
   });
 }
 
+export function useMySessionClubs(isAuthenticated: boolean = false) {
+  return useQuery<Club[]>({
+    queryKey: ["/api/my-session-clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-session-clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch session clubs");
+      }
+      return res.json();
+    },
+    enabled: isAuthenticated,
+  });
+}
+
 // Get clubs where the current user has admin access (club OWNER or ADMIN role)
 // Pass isAuthenticated=true when user is logged in to enable the query
 export function useMyAdminClubs(isAuthenticated: boolean = false) {

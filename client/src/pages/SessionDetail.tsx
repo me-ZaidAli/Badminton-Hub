@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
+import { useMySessionClubs } from "@/hooks/use-clubs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,8 +52,11 @@ export default function SessionDetail() {
     { value: "D", label: "Category D" },
   ];
 
+  const { data: sessionClubs } = useMySessionClubs(!!user);
+  
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
-  const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
+  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+  const isOrganiser = session ? managedClubIds.has(session.clubId) : false;
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
   // allPlayers returns users with playerProfile, filter those with profiles

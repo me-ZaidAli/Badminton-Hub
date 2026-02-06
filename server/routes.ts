@@ -188,6 +188,34 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/my-session-clubs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (req.user!.role === "OWNER") {
+        const allClubs = await storage.getClubs();
+        return res.json(allClubs.filter(c => c.isActive));
+      }
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      const sessionClubs = userProfiles
+        .filter(p =>
+          p.membershipStatus === "APPROVED" &&
+          p.club.isActive &&
+          ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(p.clubRole)
+        )
+        .map(p => p.club);
+      const allClubs = await storage.getClubs();
+      const ownedClubs = allClubs.filter(c => c.ownerId === req.user!.id && c.isActive);
+      const clubIds = new Set(sessionClubs.map(c => c.id));
+      for (const club of ownedClubs) {
+        if (!clubIds.has(club.id)) sessionClubs.push(club);
+      }
+      res.json(sessionClubs);
+    } catch (err: any) {
+      console.error("Error fetching session clubs:", err);
+      res.status(500).json({ message: "Failed to fetch session clubs" });
+    }
+  });
+
   // Get clubs where the current user has admin access (club OWNER or ADMIN role)
   app.get("/api/my-admin-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

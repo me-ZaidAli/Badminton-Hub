@@ -1,6 +1,6 @@
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useMySessionClubs } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,13 +40,15 @@ export default function Sessions() {
   const { data: user } = useUser();
   const { data: sessions, isLoading } = useSessions();
   const { data: clubs } = useClubs();
+  const { data: sessionClubs } = useMySessionClubs(!!user);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const isOrganiser = ["OWNER", "ADMIN", "ORGANISER"].includes(user?.role || "");
   const isSuperUser = user?.role === "OWNER";
+  const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
+  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (sessionIds: number[]) => {
@@ -101,7 +103,7 @@ export default function Sessions() {
       <PageHeader 
         title="Sessions" 
         description="Book your spot for upcoming games."
-        action={isOrganiser && (
+        action={canManageSessions && (
           <div className="flex gap-2">
             <Button 
               variant="outline" 
@@ -110,12 +112,12 @@ export default function Sessions() {
             >
               <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
             </Button>
-            <CreateSessionDialog />
+            <CreateSessionDialog sessionClubs={sessionClubs || []} />
           </div>
         )}
       />
 
-      {isSuperUser && clubs && clubs.length > 0 && (
+      {canManageSessions && sessionClubs && sessionClubs.length > 0 && (
         <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg flex-wrap">
           <Filter className="h-5 w-5 text-muted-foreground" />
           <label className="text-sm font-medium">Filter by Club:</label>
@@ -125,7 +127,7 @@ export default function Sessions() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clubs</SelectItem>
-              {clubs.map(club => (
+              {(isSuperUser ? clubs : sessionClubs)?.map(club => (
                 <SelectItem key={club.id} value={club.id.toString()}>
                   {club.name}
                 </SelectItem>
@@ -138,7 +140,7 @@ export default function Sessions() {
         </div>
       )}
 
-      {isOrganiser && filteredSessions && filteredSessions.length > 0 && (
+      {canManageSessions && filteredSessions && filteredSessions.length > 0 && (
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Checkbox
@@ -170,7 +172,7 @@ export default function Sessions() {
         
         {filteredSessions?.map((session) => (
           <div key={session.id} className="relative">
-            {isOrganiser && (
+            {managedClubIds.has(session.clubId) && (
               <div
                 className="absolute top-4 left-4 z-10"
                 onClick={(e) => toggleSelect(session.id, e)}
@@ -186,7 +188,7 @@ export default function Sessions() {
               <Card className={`h-full cursor-pointer border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
                 <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
                 <CardContent className="p-6">
-                  <div className={`flex justify-between items-start mb-4 ${isOrganiser ? "pl-8" : ""}`}>
+                  <div className={`flex justify-between items-start mb-4 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
                     <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
                       {session.matchMode}
                     </Badge>
@@ -269,13 +271,14 @@ export default function Sessions() {
   );
 }
 
-function CreateSessionDialog() {
+function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const { mutate: create, isPending } = useCreateSession();
   
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
     defaultValues: {
+      clubId: sessionClubs.length === 1 ? sessionClubs[0].id : undefined,
       title: "",
       startTime: "18:00",
       maxPlayers: 24,
@@ -311,6 +314,32 @@ function CreateSessionDialog() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {sessionClubs.length > 1 && (
+              <FormField
+                control={form.control}
+                name="clubId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Club</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-session-club">
+                          <SelectValue placeholder="Select club" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sessionClubs.map(club => (
+                          <SelectItem key={club.id} value={club.id.toString()}>
+                            {club.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="title"
