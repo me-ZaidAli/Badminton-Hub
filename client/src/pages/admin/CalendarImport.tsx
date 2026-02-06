@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useClubs } from "@/hooks/use-clubs";
+import { useUser } from "@/hooks/use-auth";
 import { format } from "date-fns";
-import { Loader2, Calendar, CheckCircle2, RefreshCw, Import } from "lucide-react";
+import { Loader2, Calendar, CheckCircle2, RefreshCw, Import, Building2 } from "lucide-react";
 
 interface CalendarEvent {
   id: string;
@@ -29,8 +31,13 @@ interface GoogleCalendar {
 
 export default function CalendarImport() {
   const { toast } = useToast();
+  const { data: user } = useUser();
+  const { data: clubs } = useClubs();
   const [selectedCalendar, setSelectedCalendar] = useState<string>("primary");
+  const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+
+  const isSuperAdmin = user?.role === "OWNER";
 
   const { data: calendars, isLoading: loadingCalendars, error: calendarsError } = useQuery<GoogleCalendar[]>({
     queryKey: ["/api/admin/calendar/calendars"],
@@ -49,9 +56,11 @@ export default function CalendarImport() {
   const importMutation = useMutation({
     mutationFn: async () => {
       const eventsToImport = events?.filter(e => selectedEvents.has(e.id)) || [];
-      const response = await apiRequest("POST", "/api/admin/calendar/import", { 
-        events: eventsToImport
-      });
+      const body: any = { events: eventsToImport };
+      if (selectedClubId) {
+        body.clubId = Number(selectedClubId);
+      }
+      const response = await apiRequest("POST", "/api/admin/calendar/import", body);
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -85,6 +94,8 @@ export default function CalendarImport() {
     }
   };
 
+  const canImport = selectedEvents.size > 0 && (!isSuperAdmin || selectedClubId);
+
   if (calendarsError) {
     return (
       <div className="space-y-6">
@@ -106,6 +117,35 @@ export default function CalendarImport() {
         title="Calendar Import" 
         description="Import badminton sessions from your Google Calendar"
       />
+
+      {isSuperAdmin && clubs && clubs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="w-5 h-5" />
+              Target Club
+            </CardTitle>
+            <CardDescription>Select which club to import sessions into</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-full max-w-xs" data-testid="select-import-club">
+                <SelectValue placeholder="Select a club" />
+              </SelectTrigger>
+              <SelectContent>
+                {clubs.filter(c => c.status === "APPROVED").map(club => (
+                  <SelectItem key={club.id} value={String(club.id)}>
+                    {club.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!selectedClubId && selectedEvents.size > 0 && (
+              <p className="text-sm text-destructive mt-2">Please select a club before importing</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
@@ -144,7 +184,7 @@ export default function CalendarImport() {
                 {selectedEvents.size === events.length ? "Deselect All" : "Select All"}
               </Button>
             )}
-            {selectedEvents.size > 0 && (
+            {canImport && (
               <Button 
                 onClick={() => importMutation.mutate()}
                 disabled={importMutation.isPending}

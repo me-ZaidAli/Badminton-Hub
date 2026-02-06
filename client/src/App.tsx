@@ -34,6 +34,7 @@ import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
+import MemberImport from "@/pages/admin/MemberImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
 import ClubApprovals from "@/pages/admin/ClubApprovals";
@@ -248,6 +249,9 @@ function Router() {
       </Route>
       <Route path="/admin/clubs-management">
         <OwnerRoute component={ClubsManagement} />
+      </Route>
+      <Route path="/admin/import-members">
+        <OwnerRoute component={MemberImport} />
       </Route>
       
       {/* Fallback */}

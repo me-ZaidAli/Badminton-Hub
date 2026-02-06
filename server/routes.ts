@@ -2261,20 +2261,31 @@ export async function registerRoutes(
 
   app.post("/api/admin/calendar/import", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
+    const role = (req.user as any).role;
     if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
       return res.sendStatus(403);
     }
 
     try {
-      const { events } = req.body;
+      const { events, clubId: requestedClubId } = req.body;
       
-      // Get user's club from their player profiles
-      const playerProfiles = await storage.getPlayerProfilesByUser(req.user!.id);
-      if (!playerProfiles || playerProfiles.length === 0) {
-        return res.status(400).json({ message: "You must be a member of a club to import sessions" });
+      let clubId: number;
+      
+      if (requestedClubId) {
+        clubId = Number(requestedClubId);
+        const club = await storage.getClub(clubId);
+        if (!club) return res.status(404).json({ message: "Club not found" });
+        if (role !== "OWNER") {
+          const allowed = await canPerform({ id: (req.user as any).id, role }, "MANAGE_SESSIONS", clubId);
+          if (!allowed) return res.status(403).json({ message: "Not authorized for this club" });
+        }
+      } else {
+        const playerProfiles = await storage.getPlayerProfilesByUser((req.user as any).id);
+        if (!playerProfiles || playerProfiles.length === 0) {
+          return res.status(400).json({ message: "Please select a club to import sessions into" });
+        }
+        clubId = playerProfiles[0].clubId;
       }
-      const clubId = playerProfiles[0].clubId;
       
       const createdSessions = [];
       for (const event of events) {
@@ -2282,7 +2293,6 @@ export async function registerRoutes(
         const endDate = new Date(event.end);
         const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
         
-        // Format time as HH:mm
         const hours = startDate.getHours().toString().padStart(2, '0');
         const minutes = startDate.getMinutes().toString().padStart(2, '0');
         const startTime = `${hours}:${minutes}`;
@@ -2297,8 +2307,12 @@ export async function registerRoutes(
           allowedCategories: ["A", "B", "C", "D"],
           matchMode: "SOCIAL",
           isPrivate: false,
-          createdBy: req.user!.id,
-          clubId: clubId
+          genderRestriction: "ALL",
+          sessionType: "OPEN",
+          playersPerSide: 2,
+          matchGenderType: "MIXED",
+          createdBy: (req.user as any).id,
+          clubId
         });
         createdSessions.push(session);
       }
@@ -2380,6 +2394,79 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching player sessions:", err);
       res.status(500).json({ message: err.message || "Failed to fetch player sessions" });
+    }
+  });
+
+  // ===================== MEMBER IMPORT =====================
+
+  app.post("/api/admin/clubs/:clubId/import-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const clubId = Number(req.params.clubId);
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+
+      const { members } = req.body;
+      if (!Array.isArray(members) || members.length === 0) {
+        return res.status(400).json({ message: "No members provided" });
+      }
+
+      const results: { success: any[]; errors: any[] } = { success: [], errors: [] };
+
+      for (const member of members) {
+        try {
+          const { fullName, email, gender, category } = member;
+          if (!fullName || !email) {
+            results.errors.push({ fullName, email, error: "Name and email are required" });
+            continue;
+          }
+
+          const existingUser = await storage.getUserByUsername(email);
+          if (existingUser) {
+            const existingProfile = await storage.getPlayerProfile(existingUser.id, clubId);
+            if (existingProfile) {
+              results.errors.push({ fullName, email, error: "Already a member of this club" });
+              continue;
+            }
+            const profile = await storage.createPlayerProfile({
+              userId: existingUser.id,
+              clubId,
+              gender: gender || "MALE",
+              category: category || "D",
+              clubRole: "PLAYER",
+              membershipStatus: "APPROVED",
+            });
+            results.success.push({ fullName, email, profileId: profile.id, existing: true });
+          } else {
+            const placeholderPassword = `Import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const hashedPassword = await hashPassword(placeholderPassword);
+            const newUser = await storage.createUser({
+              fullName,
+              email,
+              password: hashedPassword,
+              role: "PLAYER",
+            });
+            const profile = await storage.createPlayerProfile({
+              userId: newUser.id,
+              clubId,
+              gender: gender || "MALE",
+              category: category || "D",
+              clubRole: "PLAYER",
+              membershipStatus: "APPROVED",
+            });
+            results.success.push({ fullName, email, profileId: profile.id, existing: false });
+          }
+        } catch (err: any) {
+          results.errors.push({ fullName: member.fullName, email: member.email, error: err.message });
+        }
+      }
+
+      res.status(201).json(results);
+    } catch (err: any) {
+      console.error("Error importing members:", err);
+      res.status(500).json({ message: err.message });
     }
   });
 
