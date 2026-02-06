@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -20,6 +21,63 @@ import { Club, PlayerProfile, User as UserType } from "@shared/schema";
 type MemberWithUser = PlayerProfile & { user: UserType };
 type UserWithProfile = UserType & { playerProfile: PlayerProfile | null };
 type ClubWithStatus = Club & { status: string };
+
+interface ClubEditState {
+  name: string;
+  description: string;
+  logoUrl: string;
+  address: string;
+  city: string;
+  postcode: string;
+  googleMapsUrl: string;
+  isRegisteredWithBE: boolean;
+  beRegistrationNumber: string;
+  hasCompetitions: boolean;
+  hasSocialGames: boolean;
+  socialGameTimings: string;
+  providesTraining: boolean;
+  trainingDetails: string;
+  sessionFee: string;
+  membershipFee: string;
+  shuttlecockType: string;
+  providesClubTShirts: boolean;
+  contactFullName: string;
+  contactPhone: string;
+  contactAddress: string;
+  ageGroups: string[];
+  playerLevels: string[];
+}
+
+const AGE_GROUP_OPTIONS = ["Juniors", "Adults", "Seniors", "All Ages"];
+const PLAYER_LEVEL_OPTIONS = ["Beginner", "Intermediate", "Advanced", "Pro"];
+
+function clubToEditState(club: ClubWithStatus): ClubEditState {
+  return {
+    name: club.name || "",
+    description: (club as any).description || "",
+    logoUrl: club.logoUrl || "",
+    address: club.address || "",
+    city: club.city || "",
+    postcode: club.postcode || "",
+    googleMapsUrl: club.googleMapsUrl || "",
+    isRegisteredWithBE: !!(club as any).isRegisteredWithBE,
+    beRegistrationNumber: (club as any).beRegistrationNumber || "",
+    hasCompetitions: !!(club as any).hasCompetitions,
+    hasSocialGames: !!(club as any).hasSocialGames,
+    socialGameTimings: (club as any).socialGameTimings || "",
+    providesTraining: !!(club as any).providesTraining,
+    trainingDetails: (club as any).trainingDetails || "",
+    sessionFee: (club as any).sessionFee != null ? String((club as any).sessionFee) : "",
+    membershipFee: (club as any).membershipFee != null ? String((club as any).membershipFee) : "",
+    shuttlecockType: (club as any).shuttlecockType || "",
+    providesClubTShirts: !!(club as any).providesClubTShirts,
+    contactFullName: (club as any).contactFullName || "",
+    contactPhone: (club as any).contactPhone || "",
+    contactAddress: (club as any).contactAddress || "",
+    ageGroups: (club as any).ageGroups || [],
+    playerLevels: (club as any).playerLevels || [],
+  };
+}
 
 export default function ClubManagement() {
   const { toast } = useToast();
@@ -30,21 +88,23 @@ export default function ClubManagement() {
   const [userManageOpen, setUserManageOpen] = useState(false);
   const [newClub, setNewClub] = useState({ name: "", slug: "", description: "" });
   const [activeTab, setActiveTab] = useState("all");
-  const [editDetails, setEditDetails] = useState({
-    name: "", logoUrl: "", address: "", city: "", postcode: "", googleMapsUrl: ""
+  const [editDetails, setEditDetails] = useState<ClubEditState>({
+    name: "", description: "", logoUrl: "", address: "", city: "", postcode: "", googleMapsUrl: "",
+    isRegisteredWithBE: false, beRegistrationNumber: "", hasCompetitions: false,
+    hasSocialGames: false, socialGameTimings: "", providesTraining: false, trainingDetails: "",
+    sessionFee: "", membershipFee: "", shuttlecockType: "", providesClubTShirts: false,
+    contactFullName: "", contactPhone: "", contactAddress: "", ageGroups: [], playerLevels: [],
   });
+  const [manageTab, setManageTab] = useState("details");
 
-  // Fetch all clubs for super admin
   const { data: clubs, isLoading } = useQuery<ClubWithStatus[]>({
     queryKey: ["/api/admin/clubs"],
   });
 
-  // Fetch all users for admin rights management
   const { data: allUsers, isLoading: usersLoading } = useQuery<UserWithProfile[]>({
     queryKey: ["/api/admin/users"],
   });
 
-  // Fetch club members when managing a specific club
   const { data: clubMembers, isLoading: membersLoading } = useQuery<MemberWithUser[]>({
     queryKey: ["/api/clubs", manageClub?.id, "members"],
     queryFn: async () => {
@@ -70,7 +130,7 @@ export default function ClubManagement() {
   });
 
   const updateClubDetailsMutation = useMutation({
-    mutationFn: async ({ clubId, updates }: { clubId: number; updates: Record<string, string | null> }) => {
+    mutationFn: async ({ clubId, updates }: { clubId: number; updates: Record<string, unknown> }) => {
       const res = await apiRequest("PATCH", `/api/clubs/${clubId}`, updates);
       return res.json();
     },
@@ -144,6 +204,36 @@ export default function ClubManagement() {
     }
   };
 
+  const handleSaveDetails = () => {
+    if (!manageClub) return;
+    const updates: Record<string, unknown> = {
+      name: editDetails.name || null,
+      description: editDetails.description || null,
+      logoUrl: editDetails.logoUrl || null,
+      address: editDetails.address || null,
+      city: editDetails.city || null,
+      postcode: editDetails.postcode || null,
+      googleMapsUrl: editDetails.googleMapsUrl || null,
+      isRegisteredWithBE: editDetails.isRegisteredWithBE,
+      beRegistrationNumber: editDetails.beRegistrationNumber || null,
+      hasCompetitions: editDetails.hasCompetitions,
+      hasSocialGames: editDetails.hasSocialGames,
+      socialGameTimings: editDetails.socialGameTimings || null,
+      providesTraining: editDetails.providesTraining,
+      trainingDetails: editDetails.trainingDetails || null,
+      sessionFee: editDetails.sessionFee ? Number(editDetails.sessionFee) : null,
+      membershipFee: editDetails.membershipFee ? Number(editDetails.membershipFee) : null,
+      shuttlecockType: editDetails.shuttlecockType || null,
+      providesClubTShirts: editDetails.providesClubTShirts,
+      contactFullName: editDetails.contactFullName || null,
+      contactPhone: editDetails.contactPhone || null,
+      contactAddress: editDetails.contactAddress || null,
+      ageGroups: editDetails.ageGroups.length > 0 ? editDetails.ageGroups : null,
+      playerLevels: editDetails.playerLevels.length > 0 ? editDetails.playerLevels : null,
+    };
+    updateClubDetailsMutation.mutate({ clubId: manageClub.id, updates });
+  };
+
   const handleStatusChange = (profileId: number, status: string) => {
     updateMemberMutation.mutate({ profileId, updates: { membershipStatus: status } });
   };
@@ -162,6 +252,15 @@ export default function ClubManagement() {
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const toggleArrayItem = (field: "ageGroups" | "playerLevels", item: string) => {
+    const arr = editDetails[field];
+    if (arr.includes(item)) {
+      setEditDetails({ ...editDetails, [field]: arr.filter(i => i !== item) });
+    } else {
+      setEditDetails({ ...editDetails, [field]: [...arr, item] });
     }
   };
 
@@ -318,14 +417,8 @@ export default function ClubManagement() {
                           size="sm"
                           onClick={() => {
                             setManageClub(club);
-                            setEditDetails({
-                              name: club.name || "",
-                              logoUrl: club.logoUrl || "",
-                              address: club.address || "",
-                              city: club.city || "",
-                              postcode: club.postcode || "",
-                              googleMapsUrl: club.googleMapsUrl || "",
-                            });
+                            setEditDetails(clubToEditState(club));
+                            setManageTab("details");
                           }}
                           data-testid={`manage-club-${club.id}`}
                         >
@@ -351,7 +444,6 @@ export default function ClubManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -375,9 +467,8 @@ export default function ClubManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Manage Club Members Dialog */}
       <Dialog open={!!manageClub} onOpenChange={(open) => !open && setManageClub(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />
@@ -385,96 +476,299 @@ export default function ClubManagement() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="mt-4 space-y-6">
-            <div className="space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Club Details & Location
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Club Name</Label>
-                  <Input
-                    value={editDetails.name}
-                    onChange={(e) => setEditDetails({ ...editDetails, name: e.target.value })}
-                    data-testid="input-edit-club-name"
-                  />
+          <Tabs value={manageTab} onValueChange={setManageTab} className="mt-2">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="details" data-testid="tab-club-details">Club Details</TabsTrigger>
+              <TabsTrigger value="members" data-testid="tab-club-members">Members</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="details" className="mt-4 space-y-6">
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <Building2 className="w-4 h-4" />
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Club Name</Label>
+                    <Input
+                      value={editDetails.name}
+                      onChange={(e) => setEditDetails({ ...editDetails, name: e.target.value })}
+                      data-testid="input-edit-club-name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Logo URL</Label>
+                    <Input
+                      value={editDetails.logoUrl}
+                      onChange={(e) => setEditDetails({ ...editDetails, logoUrl: e.target.value })}
+                      placeholder="https://..."
+                      data-testid="input-edit-club-logo"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Logo URL</Label>
-                  <Input
-                    value={editDetails.logoUrl}
-                    onChange={(e) => setEditDetails({ ...editDetails, logoUrl: e.target.value })}
-                    placeholder="https://..."
-                    data-testid="input-edit-club-logo"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Address</Label>
-                <Input
-                  value={editDetails.address}
-                  onChange={(e) => setEditDetails({ ...editDetails, address: e.target.value })}
-                  placeholder="e.g., 123 Sports Center Drive"
-                  data-testid="input-edit-club-address"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>City</Label>
-                  <Input
-                    value={editDetails.city}
-                    onChange={(e) => setEditDetails({ ...editDetails, city: e.target.value })}
-                    placeholder="e.g., London"
-                    data-testid="input-edit-club-city"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Postcode</Label>
-                  <Input
-                    value={editDetails.postcode}
-                    onChange={(e) => setEditDetails({ ...editDetails, postcode: e.target.value })}
-                    placeholder="e.g., SW1A 1AA"
-                    data-testid="input-edit-club-postcode"
+                  <Label>Description</Label>
+                  <Textarea
+                    className="resize-none"
+                    value={editDetails.description}
+                    onChange={(e) => setEditDetails({ ...editDetails, description: e.target.value })}
+                    placeholder="Describe the club..."
+                    data-testid="input-edit-club-description"
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Google Maps Link</Label>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <MapPin className="w-4 h-4" />
+                  Location
+                </h3>
+                <div className="space-y-1.5">
+                  <Label>Address</Label>
+                  <Input
+                    value={editDetails.address}
+                    onChange={(e) => setEditDetails({ ...editDetails, address: e.target.value })}
+                    placeholder="e.g., 123 Sports Center Drive"
+                    data-testid="input-edit-club-address"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>City</Label>
+                    <Input
+                      value={editDetails.city}
+                      onChange={(e) => setEditDetails({ ...editDetails, city: e.target.value })}
+                      placeholder="e.g., London"
+                      data-testid="input-edit-club-city"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Postcode</Label>
+                    <Input
+                      value={editDetails.postcode}
+                      onChange={(e) => setEditDetails({ ...editDetails, postcode: e.target.value })}
+                      placeholder="e.g., SW1A 1AA"
+                      data-testid="input-edit-club-postcode"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Google Maps Link</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editDetails.googleMapsUrl}
+                      onChange={(e) => setEditDetails({ ...editDetails, googleMapsUrl: e.target.value })}
+                      placeholder="https://maps.google.com/..."
+                      className="flex-1"
+                      data-testid="input-edit-club-google-maps"
+                    />
+                    {editDetails.googleMapsUrl && (
+                      <a href={editDetails.googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                        <Button size="icon" variant="outline" type="button">
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <Shield className="w-4 h-4" />
+                  Registration & Affiliation
+                </h3>
                 <div className="flex items-center gap-2">
-                  <Input
-                    value={editDetails.googleMapsUrl}
-                    onChange={(e) => setEditDetails({ ...editDetails, googleMapsUrl: e.target.value })}
-                    placeholder="https://maps.google.com/..."
-                    className="flex-1"
-                    data-testid="input-edit-club-google-maps"
+                  <Checkbox
+                    checked={editDetails.isRegisteredWithBE}
+                    onCheckedChange={(checked) => setEditDetails({ ...editDetails, isRegisteredWithBE: !!checked })}
+                    data-testid="checkbox-registered-be"
                   />
-                  {editDetails.googleMapsUrl && (
-                    <a href={editDetails.googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                      <Button size="icon" variant="outline" type="button">
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    </a>
-                  )}
+                  <Label>Registered with Badminton England</Label>
+                </div>
+                {editDetails.isRegisteredWithBE && (
+                  <div className="space-y-1.5">
+                    <Label>BE Registration Number</Label>
+                    <Input
+                      value={editDetails.beRegistrationNumber}
+                      onChange={(e) => setEditDetails({ ...editDetails, beRegistrationNumber: e.target.value })}
+                      placeholder="Registration number"
+                      data-testid="input-edit-be-number"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">Activities & Training</h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={editDetails.hasCompetitions}
+                    onCheckedChange={(checked) => setEditDetails({ ...editDetails, hasCompetitions: !!checked })}
+                    data-testid="checkbox-competitions"
+                  />
+                  <Label>Has Competitions</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={editDetails.hasSocialGames}
+                    onCheckedChange={(checked) => setEditDetails({ ...editDetails, hasSocialGames: !!checked })}
+                    data-testid="checkbox-social-games"
+                  />
+                  <Label>Has Social Games</Label>
+                </div>
+                {editDetails.hasSocialGames && (
+                  <div className="space-y-1.5">
+                    <Label>Social Game Timings</Label>
+                    <Input
+                      value={editDetails.socialGameTimings}
+                      onChange={(e) => setEditDetails({ ...editDetails, socialGameTimings: e.target.value })}
+                      placeholder="e.g., Fridays 7-9pm"
+                      data-testid="input-social-timings"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={editDetails.providesTraining}
+                    onCheckedChange={(checked) => setEditDetails({ ...editDetails, providesTraining: !!checked })}
+                    data-testid="checkbox-training"
+                  />
+                  <Label>Provides Training</Label>
+                </div>
+                {editDetails.providesTraining && (
+                  <div className="space-y-1.5">
+                    <Label>Training Details</Label>
+                    <Textarea
+                      className="resize-none"
+                      value={editDetails.trainingDetails}
+                      onChange={(e) => setEditDetails({ ...editDetails, trainingDetails: e.target.value })}
+                      placeholder="Describe training offered..."
+                      data-testid="input-training-details"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">Fees & Equipment</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Session Fee (pence)</Label>
+                    <Input
+                      type="number"
+                      value={editDetails.sessionFee}
+                      onChange={(e) => setEditDetails({ ...editDetails, sessionFee: e.target.value })}
+                      placeholder="e.g., 500 for £5.00"
+                      data-testid="input-session-fee"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Membership Fee (pence)</Label>
+                    <Input
+                      type="number"
+                      value={editDetails.membershipFee}
+                      onChange={(e) => setEditDetails({ ...editDetails, membershipFee: e.target.value })}
+                      placeholder="e.g., 2000 for £20.00"
+                      data-testid="input-membership-fee"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Shuttlecock Type</Label>
+                  <Select
+                    value={editDetails.shuttlecockType}
+                    onValueChange={(v) => setEditDetails({ ...editDetails, shuttlecockType: v })}
+                  >
+                    <SelectTrigger data-testid="select-shuttlecock-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="feather">Feather</SelectItem>
+                      <SelectItem value="plastic">Plastic</SelectItem>
+                      <SelectItem value="both">Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={editDetails.providesClubTShirts}
+                    onCheckedChange={(checked) => setEditDetails({ ...editDetails, providesClubTShirts: !!checked })}
+                    data-testid="checkbox-tshirts"
+                  />
+                  <Label>Provides Club T-Shirts</Label>
                 </div>
               </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">Target Players</h3>
+                <div className="space-y-2">
+                  <Label>Age Groups</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {AGE_GROUP_OPTIONS.map((opt) => (
+                      <Badge
+                        key={opt}
+                        variant={editDetails.ageGroups.includes(opt) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleArrayItem("ageGroups", opt)}
+                        data-testid={`badge-age-${opt}`}
+                      >
+                        {opt}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Player Levels</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {PLAYER_LEVEL_OPTIONS.map((opt) => (
+                      <Badge
+                        key={opt}
+                        variant={editDetails.playerLevels.includes(opt) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleArrayItem("playerLevels", opt)}
+                        data-testid={`badge-level-${opt}`}
+                      >
+                        {opt}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">Contact Information</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Contact Full Name</Label>
+                    <Input
+                      value={editDetails.contactFullName}
+                      onChange={(e) => setEditDetails({ ...editDetails, contactFullName: e.target.value })}
+                      data-testid="input-contact-name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Contact Phone</Label>
+                    <Input
+                      value={editDetails.contactPhone}
+                      onChange={(e) => setEditDetails({ ...editDetails, contactPhone: e.target.value })}
+                      data-testid="input-contact-phone"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Contact Address</Label>
+                  <Input
+                    value={editDetails.contactAddress}
+                    onChange={(e) => setEditDetails({ ...editDetails, contactAddress: e.target.value })}
+                    data-testid="input-contact-address"
+                  />
+                </div>
+              </div>
+
               <Button
-                size="sm"
-                onClick={() => {
-                  if (manageClub) {
-                    updateClubDetailsMutation.mutate({
-                      clubId: manageClub.id,
-                      updates: {
-                        name: editDetails.name || null,
-                        logoUrl: editDetails.logoUrl || null,
-                        address: editDetails.address || null,
-                        city: editDetails.city || null,
-                        postcode: editDetails.postcode || null,
-                        googleMapsUrl: editDetails.googleMapsUrl || null,
-                      },
-                    });
-                  }
-                }}
+                onClick={handleSaveDetails}
                 disabled={updateClubDetailsMutation.isPending}
                 data-testid="button-save-club-details"
               >
@@ -483,173 +777,137 @@ export default function ClubManagement() {
                 ) : (
                   <Save className="w-4 h-4 mr-1" />
                 )}
-                Save Details
+                Save All Details
               </Button>
-            </div>
+            </TabsContent>
 
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-4">Club Members</h3>
-            
-            {membersLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
-            ) : !clubMembers?.length ? (
-              <p className="text-center py-8 text-muted-foreground">No members in this club yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Club Role</TableHead>
-                    <TableHead>Points</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clubMembers.map(member => (
-                    <TableRow key={member.id} data-testid={`member-${member.id}`}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${member.user.fullName}`} />
-                            <AvatarFallback>{member.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{member.user.fullName}</div>
-                            <div className="text-sm text-muted-foreground">{member.user.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Select 
-                          value={member.membershipStatus || "PENDING"} 
-                          onValueChange={(status) => handleStatusChange(member.id, status)}
-                        >
-                          <SelectTrigger className="w-[120px]" data-testid={`status-select-${member.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="PENDING">
-                              <Badge variant="outline" className="font-normal">Pending</Badge>
-                            </SelectItem>
-                            <SelectItem value="APPROVED">
-                              <Badge className="bg-green-500 font-normal">Approved</Badge>
-                            </SelectItem>
-                            <SelectItem value="REJECTED">
-                              <Badge variant="destructive" className="font-normal">Rejected</Badge>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select 
-                          value={member.clubRole || "PLAYER"} 
-                          onValueChange={(role) => handleRoleChange(member.id, role)}
-                        >
-                          <SelectTrigger className="w-[130px]" data-testid={`role-select-${member.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="OWNER">Owner</SelectItem>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
-                            <SelectItem value="ORGANISER">Organiser</SelectItem>
-                            <SelectItem value="COACH">Coach</SelectItem>
-                            <SelectItem value="PLAYER">Player</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="font-medium">{member.rankingPoints}</TableCell>
+            <TabsContent value="members" className="mt-4">
+              {membersLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : !clubMembers?.length ? (
+                <p className="text-center py-8 text-muted-foreground">No members in this club yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Member</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Club Role</TableHead>
+                      <TableHead>Points</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            </div>
-          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {clubMembers.map(member => (
+                      <TableRow key={member.id} data-testid={`member-${member.id}`}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${member.user.fullName}`} />
+                              <AvatarFallback>{member.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{member.user.fullName}</div>
+                              <div className="text-sm text-muted-foreground">{member.user.email}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={member.membershipStatus}
+                            onValueChange={(status) => handleStatusChange(member.id, status)}
+                          >
+                            <SelectTrigger className="w-[130px]" data-testid={`status-select-${member.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PENDING">Pending</SelectItem>
+                              <SelectItem value="APPROVED">Approved</SelectItem>
+                              <SelectItem value="REJECTED">Rejected</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={member.clubRole}
+                            onValueChange={(role) => handleRoleChange(member.id, role)}
+                          >
+                            <SelectTrigger className="w-[130px]" data-testid={`role-select-${member.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="OWNER">Owner</SelectItem>
+                              <SelectItem value="ADMIN">Admin</SelectItem>
+                              <SelectItem value="ORGANISER">Organiser</SelectItem>
+                              <SelectItem value="COACH">Coach</SelectItem>
+                              <SelectItem value="PLAYER">Player</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>{(member as any).eloRating ?? 0}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
-      {/* User Admin Rights Management Dialog */}
       <Dialog open={userManageOpen} onOpenChange={setUserManageOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Manage Platform Admin Rights
-            </DialogTitle>
-            <DialogDescription>
-              Assign platform-wide admin roles to users. OWNER has super admin access to all clubs.
-            </DialogDescription>
+            <DialogTitle>Manage Platform Admin Rights</DialogTitle>
           </DialogHeader>
-          
-          <div className="mt-4">
-            {usersLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
-            ) : !allUsers?.length ? (
-              <p className="text-center py-8 text-muted-foreground">No users found.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Platform Role</TableHead>
-                    <TableHead>Account Status</TableHead>
+          {usersLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Current Role</TableHead>
+                  <TableHead>Change Role</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allUsers?.map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{user.fullName}</div>
+                        <div className="text-sm text-muted-foreground">{user.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{user.role}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.role}
+                        onValueChange={(role) => updateUserRoleMutation.mutate({ userId: user.id, role })}
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="ORGANISER">Organiser</SelectItem>
+                          <SelectItem value="COACH">Coach</SelectItem>
+                          <SelectItem value="PLAYER">Player</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allUsers.map(user => (
-                    <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`} />
-                            <AvatarFallback>{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{user.fullName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                      <TableCell>
-                        <Select 
-                          value={user.role} 
-                          onValueChange={(role) => updateUserRoleMutation.mutate({ userId: user.id, role })}
-                        >
-                          <SelectTrigger className="w-[140px]" data-testid={`user-role-select-${user.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="OWNER">
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-primary" />
-                                Super Admin
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
-                            <SelectItem value="ORGANISER">Organiser</SelectItem>
-                            <SelectItem value="COACH">Coach</SelectItem>
-                            <SelectItem value="PLAYER">Player</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        {user.accountStatus === "APPROVED" ? (
-                          <Badge className="bg-green-500">Approved</Badge>
-                        ) : user.accountStatus === "PENDING" ? (
-                          <Badge variant="outline">Pending</Badge>
-                        ) : (
-                          <Badge variant="destructive">Rejected</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </DialogContent>
       </Dialog>
     </div>

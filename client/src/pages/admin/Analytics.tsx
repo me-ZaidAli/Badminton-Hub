@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { BarChart3, Users, Calendar, Trophy, DollarSign, Search, Loader2, Building2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart3, Users, Calendar, Trophy, DollarSign, Search, Loader2, Building2, Filter } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 interface ClubAnalytics {
@@ -42,16 +43,42 @@ interface AnalyticsData {
 
 export default function Analytics() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedClubId, setSelectedClubId] = useState<string>("all");
 
   const { data, isLoading, error } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics"],
   });
 
-  const filteredClubs = data?.clubs?.filter((club) =>
-    club.clubName.toLowerCase().includes(searchQuery.toLowerCase())
-  ) ?? [];
+  const selectedClubTotals = useMemo(() => {
+    if (!data) return null;
+    if (selectedClubId === "all") return data.totals;
+    const club = data.clubs.find(c => String(c.clubId) === selectedClubId);
+    if (!club) return data.totals;
+    return {
+      totalClubs: 1,
+      totalPlayers: club.totalPlayers,
+      totalSessions: club.totalSessions,
+      totalMatches: club.totalMatches,
+      completedMatches: club.completedMatches,
+      totalSignups: club.totalSignups,
+      totalRevenue: club.totalRevenue,
+      paidRevenue: club.paidRevenue,
+    };
+  }, [data, selectedClubId]);
 
-  const chartData = filteredClubs.map((club) => ({
+  const displayClubs = useMemo(() => {
+    if (!data?.clubs) return [];
+    let clubs = data.clubs;
+    if (selectedClubId !== "all") {
+      clubs = clubs.filter(c => String(c.clubId) === selectedClubId);
+    }
+    if (searchQuery) {
+      clubs = clubs.filter(c => c.clubName.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return clubs;
+  }, [data, selectedClubId, searchQuery]);
+
+  const chartData = displayClubs.map((club) => ({
     name: club.clubName.length > 15 ? club.clubName.substring(0, 15) + "..." : club.clubName,
     revenue: club.totalRevenue / 100,
   }));
@@ -72,19 +99,51 @@ export default function Analytics() {
     );
   }
 
-  const totals = data?.totals;
+  const totals = selectedClubTotals;
+  const selectedClubName = selectedClubId === "all"
+    ? "All Clubs"
+    : data?.clubs.find(c => String(c.clubId) === selectedClubId)?.clubName || "All Clubs";
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Platform Analytics"
-        description="Comprehensive statistics across all clubs."
-      />
+      <div className="flex justify-between items-center gap-4 flex-wrap">
+        <PageHeader
+          title="Platform Analytics"
+          description="Comprehensive statistics across all clubs."
+        />
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+            <SelectTrigger className="w-[220px]" data-testid="select-analytics-club">
+              <SelectValue placeholder="Select club" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clubs</SelectItem>
+              {data?.clubs.map((club) => (
+                <SelectItem key={club.clubId} value={String(club.clubId)}>
+                  {club.clubName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {selectedClubId !== "all" && (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-sm" data-testid="badge-selected-club">
+            <Building2 className="h-3 w-3 mr-1" />
+            Showing: {selectedClubName}
+          </Badge>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card data-testid="card-total-clubs">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Clubs</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {selectedClubId === "all" ? "Total Clubs" : "Club"}
+            </CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -150,7 +209,7 @@ export default function Analytics() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Revenue per Club
+            Revenue {selectedClubId === "all" ? "per Club" : `- ${selectedClubName}`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -224,14 +283,14 @@ export default function Analytics() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClubs.length === 0 ? (
+                {displayClubs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground" data-testid="text-no-clubs">
                       {searchQuery ? "No clubs match your search." : "No club data available."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredClubs.map((club) => (
+                  displayClubs.map((club) => (
                     <TableRow key={club.clubId} data-testid={`row-club-${club.clubId}`}>
                       <TableCell className="font-medium" data-testid={`text-club-name-${club.clubId}`}>
                         {club.clubName}

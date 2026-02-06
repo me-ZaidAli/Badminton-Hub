@@ -1898,35 +1898,50 @@ export async function registerRoutes(
     }
 
     try {
-      const { name, logoUrl, address, city, postcode, googleMapsUrl, latitude, longitude } = req.body;
-      
       const updates: any = {};
-      if (name !== undefined) {
-        if (typeof name !== 'string' || name.trim().length < 3) {
-          return res.status(400).json({ message: "Club name must be at least 3 characters" });
+      const body = req.body;
+
+      const stringFields = [
+        "name", "logoUrl", "address", "city", "postcode", "googleMapsUrl",
+        "latitude", "longitude", "description", "beRegistrationNumber",
+        "socialGameTimings", "trainingDetails", "shuttlecockType",
+        "contactFullName", "contactPhone", "contactAddress"
+      ];
+      for (const field of stringFields) {
+        if (body[field] !== undefined) {
+          if (field === "name") {
+            if (typeof body.name !== 'string' || body.name.trim().length < 3) {
+              return res.status(400).json({ message: "Club name must be at least 3 characters" });
+            }
+            updates.name = body.name.trim();
+          } else {
+            updates[field] = body[field] || null;
+          }
         }
-        updates.name = name.trim();
       }
-      if (logoUrl !== undefined) {
-        updates.logoUrl = logoUrl || null;
+
+      const booleanFields = [
+        "isRegisteredWithBE", "hasCompetitions", "hasSocialGames",
+        "providesTraining", "providesClubTShirts"
+      ];
+      for (const field of booleanFields) {
+        if (body[field] !== undefined) {
+          updates[field] = !!body[field];
+        }
       }
-      if (address !== undefined) {
-        updates.address = address || null;
+
+      const intFields = ["sessionFee", "membershipFee"];
+      for (const field of intFields) {
+        if (body[field] !== undefined) {
+          updates[field] = body[field] === null || body[field] === "" ? null : Number(body[field]);
+        }
       }
-      if (city !== undefined) {
-        updates.city = city || null;
-      }
-      if (postcode !== undefined) {
-        updates.postcode = postcode || null;
-      }
-      if (googleMapsUrl !== undefined) {
-        updates.googleMapsUrl = googleMapsUrl || null;
-      }
-      if (latitude !== undefined) {
-        updates.latitude = latitude || null;
-      }
-      if (longitude !== undefined) {
-        updates.longitude = longitude || null;
+
+      const arrayFields = ["ageGroups", "playerLevels"];
+      for (const field of arrayFields) {
+        if (body[field] !== undefined) {
+          updates[field] = Array.isArray(body[field]) ? body[field] : null;
+        }
       }
       
       const updatedClub = await storage.updateClub(clubId, updates);
@@ -2259,6 +2274,44 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating profile:", err);
       res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
+  });
+
+  // Bulk update club member roles (super admin only)
+  app.post("/api/admin/profiles/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { profileIds, action, role } = req.body;
+      if (!Array.isArray(profileIds) || profileIds.length === 0) {
+        return res.status(400).json({ message: "profileIds array is required" });
+      }
+      if (!["changeRole", "delete"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Must be 'changeRole' or 'delete'" });
+      }
+
+      if (action === "changeRole") {
+        if (!role || !["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(role)) {
+          return res.status(400).json({ message: "Valid role is required for changeRole action" });
+        }
+        for (const id of profileIds) {
+          await storage.updatePlayerProfile(Number(id), { clubRole: role });
+        }
+        return res.json({ message: `Updated ${profileIds.length} profiles to ${role}` });
+      }
+
+      if (action === "delete") {
+        for (const id of profileIds) {
+          await storage.deletePlayerProfile(Number(id));
+        }
+        return res.json({ message: `Deleted ${profileIds.length} profiles` });
+      }
+    } catch (err: any) {
+      console.error("Error bulk updating profiles:", err);
+      res.status(500).json({ message: err.message || "Failed to perform bulk action" });
     }
   });
 

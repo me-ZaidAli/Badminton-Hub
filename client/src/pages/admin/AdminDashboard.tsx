@@ -3,11 +3,36 @@ import { useUser } from "@/hooks/use-auth";
 import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy } from "lucide-react";
 import { useState } from "react";
+
+interface ClubSummary {
+  clubId: number;
+  clubName: string;
+  status: string;
+  totalPlayers: number;
+  totalSessions: number;
+  totalMatches: number;
+  totalRevenue: number;
+}
+
+interface AnalyticsData {
+  clubs: ClubSummary[];
+  totals: {
+    totalClubs: number;
+    totalPlayers: number;
+    totalSessions: number;
+    totalMatches: number;
+    completedMatches: number;
+    totalRevenue: number;
+    paidRevenue: number;
+  };
+}
 
 export default function AdminDashboard() {
   const { data: user } = useUser();
@@ -20,6 +45,11 @@ export default function AdminDashboard() {
 
   const isOwner = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || isOwner;
+
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
+    queryKey: ["/api/admin/analytics"],
+    enabled: isOwner,
+  });
 
   const handleExport = async (type: "users" | "attendance") => {
     const setLoading = type === "users" ? setDownloadingUsers : setDownloadingAttendance;
@@ -48,7 +78,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const totalPlayers = players?.length || 0;
+  const totalPlayers = analytics?.totals?.totalPlayers ?? players?.length ?? 0;
+  const totalClubs = analytics?.totals?.totalClubs ?? 0;
+  const totalSessions = analytics?.totals?.totalSessions ?? sessions?.length ?? 0;
+  const totalMatches = analytics?.totals?.totalMatches ?? 0;
   const upcomingSessions = sessions?.filter(s => new Date(s.date) >= new Date()).length || 0;
   const pendingCount = pendingUsers?.length || 0;
 
@@ -56,8 +89,8 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold">Admin Panel</h1>
-          <p className="text-muted-foreground">Manage your club, sessions, and members.</p>
+          <h1 className="text-3xl font-display font-bold" data-testid="text-dashboard-title">Admin Panel</h1>
+          <p className="text-muted-foreground">Platform overview across all clubs and members.</p>
         </div>
         <Badge variant="outline" className="text-sm py-1 px-3">
           <Shield className="h-4 w-4 mr-2" />
@@ -65,52 +98,118 @@ export default function AdminDashboard() {
         </Badge>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Members</CardTitle>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <Card className="border-border/50" data-testid="card-total-clubs">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Clubs</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {analyticsLoading ? (
+              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+            ) : (
+              <div className="text-3xl font-bold" data-testid="value-total-clubs">{totalClubs}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50" data-testid="card-total-members">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Players</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{totalPlayers}</div>
+            {analyticsLoading ? (
+              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+            ) : (
+              <div className="text-3xl font-bold" data-testid="value-total-members">{totalPlayers}</div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Sessions</CardTitle>
+        <Card className="border-border/50" data-testid="card-total-sessions">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{upcomingSessions}</div>
+            {analyticsLoading ? (
+              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+            ) : (
+              <div className="text-3xl font-bold" data-testid="value-total-sessions">{totalSessions}</div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Today</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+        <Card className="border-border/50" data-testid="card-total-matches">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Matches</CardTitle>
+            <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {sessions?.filter(s => {
-                const today = new Date().toDateString();
-                return new Date(s.date).toDateString() === today;
-              }).length || 0}
+            {analyticsLoading ? (
+              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+            ) : (
+              <div className="text-3xl font-bold" data-testid="value-total-matches">{totalMatches}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50" data-testid="card-pending-approvals">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approvals</CardTitle>
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold" data-testid="value-pending-approvals">
+              {pendingCount}
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Your Role</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+      {isOwner && analytics?.clubs && analytics.clubs.length > 0 && (
+        <Card className="border-border/50" data-testid="card-club-summary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Club Summary
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold capitalize">{user?.role?.toLowerCase()}</div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Club</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Players</TableHead>
+                    <TableHead className="text-right">Sessions</TableHead>
+                    <TableHead className="text-right">Matches</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {analytics.clubs.map((club) => (
+                    <TableRow key={club.clubId} data-testid={`row-club-summary-${club.clubId}`}>
+                      <TableCell className="font-medium">{club.clubName}</TableCell>
+                      <TableCell>
+                        <Badge variant={club.status === "APPROVED" ? "default" : "secondary"}>
+                          {club.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{club.totalPlayers}</TableCell>
+                      <TableCell className="text-right">{club.totalSessions}</TableCell>
+                      <TableCell className="text-right">{club.totalMatches}</TableCell>
+                      <TableCell className="text-right">£{(club.totalRevenue / 100).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border-border/50 hover-elevate cursor-pointer">
