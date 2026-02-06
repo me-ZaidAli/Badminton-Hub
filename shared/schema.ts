@@ -39,6 +39,8 @@ export const users = pgTable("users", {
   isJunior: boolean("is_junior").default(false).notNull(),
   parentGuardianName: text("parent_guardian_name"),
   parentGuardianEmail: text("parent_guardian_email"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
