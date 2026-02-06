@@ -78,6 +78,26 @@ export default function ClubAdmin() {
     },
   });
 
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ profileIds, status }: { profileIds: number[]; status: string }) => {
+      const results = await Promise.all(
+        profileIds.map(id =>
+          apiRequest("PATCH", `/api/clubs/${clubId}/members/${id}`, { membershipStatus: status }).then(r => r.json())
+        )
+      );
+      return results;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "members"] });
+      const action = vars.status === "APPROVED" ? "approved" : "rejected";
+      toast({ title: `${vars.profileIds.length} member(s) ${action}` });
+      setSelectedIds(new Set());
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const pendingMembers = members?.filter(m => m.membershipStatus === "PENDING") || [];
   const approvedMembers = members?.filter(m => m.membershipStatus === "APPROVED") || [];
   const rejectedMembers = members?.filter(m => m.membershipStatus === "REJECTED") || [];
@@ -147,6 +167,18 @@ export default function ClubAdmin() {
   const handleBulkDelete = () => {
     deleteMembersMutation.mutate(Array.from(selectedIds));
   };
+
+  const handleBulkApprove = (ids?: number[]) => {
+    const profileIds = ids || Array.from(selectedIds);
+    bulkUpdateMutation.mutate({ profileIds, status: "APPROVED" });
+  };
+
+  const handleBulkReject = (ids?: number[]) => {
+    const profileIds = ids || Array.from(selectedIds);
+    bulkUpdateMutation.mutate({ profileIds, status: "REJECTED" });
+  };
+
+  const selectedPendingIds = pendingMembers.filter(m => selectedIds.has(m.id)).map(m => m.id);
 
   if (!ownedClubs.length && !isSuperAdmin && user?.role !== "ADMIN") {
     return (
@@ -232,9 +264,59 @@ export default function ClubAdmin() {
 
         <TabsContent value="pending">
           <Card>
-            <CardHeader>
-              <CardTitle>Pending Join Requests</CardTitle>
-              <CardDescription>Review and approve new member requests.</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle>Pending Join Requests</CardTitle>
+                <CardDescription>Review and approve new member requests.</CardDescription>
+              </div>
+              {pendingMembers.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedPendingIds.length > 0 && (
+                    <>
+                      <Badge variant="secondary">{selectedPendingIds.length} selected</Badge>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleBulkApprove(selectedPendingIds)}
+                        disabled={bulkUpdateMutation.isPending}
+                        data-testid="button-bulk-approve-selected"
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Approve Selected
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => handleBulkReject(selectedPendingIds)}
+                        disabled={bulkUpdateMutation.isPending}
+                        data-testid="button-bulk-reject-selected"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reject Selected
+                      </Button>
+                    </>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleBulkApprove(pendingMembers.map(m => m.id))}
+                    disabled={bulkUpdateMutation.isPending}
+                    data-testid="button-approve-all"
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    Approve All ({pendingMembers.length})
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleBulkReject(pendingMembers.map(m => m.id))}
+                    disabled={bulkUpdateMutation.isPending}
+                    data-testid="button-reject-all"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Reject All ({pendingMembers.length})
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -249,7 +331,7 @@ export default function ClubAdmin() {
                     <TableRow>
                       <TableHead className="w-12">
                         <Checkbox 
-                          checked={pendingMembers.every(m => selectedIds.has(m.id))}
+                          checked={pendingMembers.length > 0 && pendingMembers.every(m => selectedIds.has(m.id))}
                           onCheckedChange={() => toggleSelectAll(pendingMembers)}
                           data-testid="checkbox-select-all-pending"
                         />
