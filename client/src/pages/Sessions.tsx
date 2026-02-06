@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -351,6 +351,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       allowedCategories: ["A", "B", "C", "D"],
       sessionFee: undefined,
       shuttlecockType: undefined,
+      liveStreamUrl: undefined,
     }
   });
 
@@ -763,6 +764,25 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="liveStreamUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Live Stream Link</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="https://youtube.com/live/... or any streaming URL"
+                      {...field}
+                      value={field.value || ""}
+                      data-testid="input-live-stream-url"
+                    />
+                  </FormControl>
+                  <FormDescription>Optional link to any live streaming platform</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-create-session">
               {isPending ? "Creating..." : "Create Session"}
             </Button>

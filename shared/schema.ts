@@ -147,6 +147,7 @@ export const sessions = pgTable("sessions", {
   sessionFee: integer("session_fee"),
   shuttlecockType: text("shuttlecock_type"),
   courtNames: jsonb("court_names").$type<string[]>(),
+  liveStreamUrl: text("live_stream_url"),
 });
 
 // === SESSION SIGNUPS ===

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy, Calendar, Clock, ArrowLeft, Play, CheckCircle } from "lucide-react";
+import { Loader2, Users, Trophy, Calendar, Clock, ArrowLeft, Play, CheckCircle, Video } from "lucide-react";
 import courtImage from "@assets/image_1770246183034.png";
 
 interface PublicSessionData {
@@ -84,7 +84,7 @@ export default function PublicSession() {
                 </Badge>
               </div>
               <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
-              <p className="text-xl text-muted-foreground flex items-center gap-4">
+              <p className="text-xl text-muted-foreground flex items-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-5 h-5" />
                   {format(new Date(session.date), "EEEE, MMMM do")}
@@ -94,6 +94,13 @@ export default function PublicSession() {
                   {session.startTime}
                 </span>
               </p>
+              {session.liveStreamUrl && (
+                <a href={session.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">
+                  <Button variant="outline" size="sm" className="gap-2" data-testid="button-live-stream">
+                    <Video className="w-4 h-4" /> Watch Live Stream
+                  </Button>
+                </a>
+              )}
             </div>
 
             <Card className="min-w-[280px] border-primary/20 bg-primary/5">

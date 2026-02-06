@@ -19,7 +19,7 @@ import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -62,6 +62,7 @@ export default function SessionDetail() {
   const [editCourts, setEditCourts] = useState(0);
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editCategories, setEditCategories] = useState<string[]>([]);
+  const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
@@ -200,6 +201,7 @@ export default function SessionDetail() {
                   setEditCourts(session.courtsAvailable);
                   setEditShuttleTubes(session.shuttleTubesUsed || 0);
                   setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
+                  setEditLiveStreamUrl(session.liveStreamUrl || "");
                 }
               }}>
                 <DialogTrigger asChild>
@@ -260,6 +262,17 @@ export default function SessionDetail() {
                         ))}
                       </div>
                     </div>
+                    <div>
+                      <Label>Live Stream Link</Label>
+                      <Input
+                        placeholder="https://youtube.com/live/... or any streaming URL"
+                        value={editLiveStreamUrl}
+                        onChange={(e) => setEditLiveStreamUrl(e.target.value)}
+                        className="mt-2"
+                        data-testid="input-edit-live-stream-url"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Optional link to any live streaming platform</p>
+                    </div>
                     <Button 
                       className="w-full" 
                       onClick={() => {
@@ -268,7 +281,8 @@ export default function SessionDetail() {
                           updates: { 
                             courtsAvailable: editCourts, 
                             shuttleTubesUsed: editShuttleTubes,
-                            allowedCategories: editCategories 
+                            allowedCategories: editCategories,
+                            liveStreamUrl: editLiveStreamUrl || ""
                           } 
                         }, {
                           onSuccess: () => setSettingsOpen(false)
@@ -327,6 +341,13 @@ export default function SessionDetail() {
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
             {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Shuttle Tubes`}
           </p>
+          {session.liveStreamUrl && (
+            <a href={session.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">
+              <Button variant="outline" size="sm" className="gap-2" data-testid="button-live-stream">
+                <Video className="w-4 h-4" /> Watch Live Stream
+              </Button>
+            </a>
+          )}
         </div>
 
         <Card className="min-w-[300px] border-primary/20 bg-primary/5">
