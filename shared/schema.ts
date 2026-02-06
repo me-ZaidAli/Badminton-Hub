@@ -157,6 +157,9 @@ export const sessionSignups = pgTable("session_signups", {
   paymentStatus: paymentStatusEnum("payment_status").default("UNPAID").notNull(),
   attendanceStatus: attendanceStatusEnum("attendance_status").default("NOT_ATTENDED").notNull(),
   signupTime: timestamp("signup_time").defaultNow().notNull(),
+  genderOverride: text("gender_override"),
+  isPaused: boolean("is_paused").default(false).notNull(),
+  pairGroupId: integer("pair_group_id"),
 });
 
 // === MATCHES ===

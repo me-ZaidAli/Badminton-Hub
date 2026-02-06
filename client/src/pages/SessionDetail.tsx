@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs } from "@/hooks/use-clubs";
@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,22 @@ import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Users, Trophy, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2 } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy } from "lucide-react";
+
+const PAIR_COLORS = [
+  "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
+  "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+  "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+];
+
+function getPairColor(pairGroupId: number) {
+  return PAIR_COLORS[(pairGroupId - 1) % PAIR_COLORS.length];
+}
 
 export default function SessionDetail() {
   const params = useParams();
@@ -34,8 +48,13 @@ export default function SessionDetail() {
   const { mutate: adminAddPlayer, isPending: isAdding } = useAdminAddPlayer();
   const { mutate: adminRemovePlayer } = useAdminRemovePlayer();
   const { mutate: deleteSession, isPending: isDeleting } = useDeleteSession();
+  const { mutate: toggleGender } = useToggleGender();
+  const { mutate: togglePause } = useTogglePause();
+  const { mutate: setPairGroup } = useSetPairGroup();
+  const { mutate: addGuestPlayer, isPending: isAddingGuest } = useAddGuestPlayer();
   
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addGuestDialogOpen, setAddGuestDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCourts, setEditCourts] = useState(0);
@@ -44,6 +63,14 @@ export default function SessionDetail() {
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
+
+  const [guestName, setGuestName] = useState("");
+  const [guestGender, setGuestGender] = useState("MALE");
+  const [guestCategory, setGuestCategory] = useState("D");
+
+  const [pairDialogOpen, setPairDialogOpen] = useState(false);
+  const [pairPlayer1, setPairPlayer1] = useState<string>("");
+  const [pairPlayer2, setPairPlayer2] = useState<string>("");
 
   const CATEGORIES = [
     { value: "A", label: "Category A" },
@@ -60,7 +87,6 @@ export default function SessionDetail() {
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
-  // allPlayers returns users with playerProfile, filter those with profiles
   const availablePlayers = allPlayers
     ?.filter(u => u.playerProfile && !signedUpPlayerIds.has(u.playerProfile.id))
     .map(u => ({ 
@@ -80,6 +106,53 @@ export default function SessionDetail() {
       });
     }
   };
+
+  const handleAddGuest = () => {
+    if (guestName.trim()) {
+      addGuestPlayer({ sessionId: id, fullName: guestName.trim(), gender: guestGender, category: guestCategory }, {
+        onSuccess: () => {
+          setAddGuestDialogOpen(false);
+          setGuestName("");
+          setGuestGender("MALE");
+          setGuestCategory("D");
+        }
+      });
+    }
+  };
+
+  const handleToggleGender = (signupId: number, currentGender: string) => {
+    const newGender = currentGender === "MALE" ? "FEMALE" : "MALE";
+    toggleGender({ sessionId: id, signupId, gender: newGender });
+  };
+
+  const handleCreatePair = () => {
+    if (pairPlayer1 && pairPlayer2 && pairPlayer1 !== pairPlayer2) {
+      const nextPairGroupId = Math.max(0, ...(signups || []).map(s => (s as any).pairGroupId || 0)) + 1;
+      setPairGroup({ sessionId: id, signupId: Number(pairPlayer1), pairGroupId: nextPairGroupId });
+      setPairGroup({ sessionId: id, signupId: Number(pairPlayer2), pairGroupId: nextPairGroupId });
+      setPairDialogOpen(false);
+      setPairPlayer1("");
+      setPairPlayer2("");
+    }
+  };
+
+  const handleUnpair = (pairGroupId: number) => {
+    const pairedSignups = signups?.filter(s => (s as any).pairGroupId === pairGroupId) || [];
+    pairedSignups.forEach(s => {
+      setPairGroup({ sessionId: id, signupId: s.id, pairGroupId: null });
+    });
+  };
+
+  const unpairedSignups = signups?.filter(s => !(s as any).pairGroupId) || [];
+
+  const pairGroups = new Map<number, typeof signups>();
+  signups?.forEach(s => {
+    const pgId = (s as any).pairGroupId;
+    if (pgId) {
+      if (!pairGroups.has(pgId)) pairGroups.set(pgId, []);
+      pairGroups.get(pgId)!.push(s);
+    }
+  });
 
   if (isLoadingSession || isLoadingSignups) return <div className="flex justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
   if (!session) return <div>Session not found</div>;
@@ -307,28 +380,34 @@ export default function SessionDetail() {
         </Card>
       </div>
 
-      <Tabs defaultValue="signups" className="w-full">
-        <TabsList className="w-full justify-start h-12 bg-muted/50 p-1">
-          <TabsTrigger value="signups" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Users className="w-4 h-4 mr-2" /> Players ({signups?.length})
-          </TabsTrigger>
-          <TabsTrigger value="matches" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <Trophy className="w-4 h-4 mr-2" /> Courts & Matches
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="signups" className="mt-6">
+      <MatchesView 
+        sessionId={id} 
+        isOrganiser={isOrganiser} 
+        matchMode={session.matchMode} 
+        courtsAvailable={session.courtsAvailable}
+        courtNames={session.courtNames}
+        signups={signups || []}
+        playersPerSide={session.playersPerSide}
+        matchGenderType={session.matchGenderType}
+      />
+
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <h2 className="text-2xl font-display font-bold flex items-center gap-2">
+            <Users className="w-6 h-6" />
+            Session Players ({signups?.length})
+          </h2>
           {isOrganiser && (
-            <div className="mb-4 flex justify-end">
+            <div className="flex items-center gap-2 flex-wrap">
               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button data-testid="button-add-player">
-                    <UserPlus className="w-4 h-4 mr-2" /> Add Player
+                  <Button variant="outline" className="gap-2" data-testid="button-add-existing-player">
+                    <UserPlus className="w-4 h-4" /> Add Existing Player
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add Player to Session</DialogTitle>
+                    <DialogTitle>Add Existing Player</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
                     <Select value={selectedPlayerId} onValueChange={setSelectedPlayerId}>
@@ -354,67 +433,251 @@ export default function SessionDetail() {
                   </div>
                 </DialogContent>
               </Dialog>
+
+              <Dialog open={addGuestDialogOpen} onOpenChange={setAddGuestDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="button-add-new-player">
+                    <UserPlus2 className="w-4 h-4" /> Add New Player
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Player</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label>Full Name</Label>
+                      <Input 
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        placeholder="Enter player name..."
+                        className="mt-2"
+                        data-testid="input-guest-name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Gender</Label>
+                      <Select value={guestGender} onValueChange={setGuestGender}>
+                        <SelectTrigger className="mt-2" data-testid="select-guest-gender">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MALE">Male</SelectItem>
+                          <SelectItem value="FEMALE">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Category</Label>
+                      <Select value={guestCategory} onValueChange={setGuestCategory}>
+                        <SelectTrigger className="mt-2" data-testid="select-guest-category">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={handleAddGuest}
+                      disabled={!guestName.trim() || isAddingGuest}
+                      data-testid="button-confirm-add-guest"
+                    >
+                      {isAddingGuest ? "Adding..." : "Add Player"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {signups?.map((signup) => (
-              <div key={signup.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate cursor-pointer" data-testid={`signup-${signup.id}`}>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {signups?.map((signup) => {
+            const s = signup as any;
+            const effectiveGender = s.genderOverride || signup.player.gender || "?";
+            const isPaused = !!s.isPaused;
+            const pairGroupId = s.pairGroupId as number | null;
+
+            return (
+              <div 
+                key={signup.id} 
+                className={`flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate ${isPaused ? "opacity-60" : ""}`}
+                data-testid={`signup-${signup.id}`}
+              >
                 <div 
-                  className="flex items-center flex-1"
+                  className="flex items-center flex-1 min-w-0 cursor-pointer"
                   onClick={() => setStatsPlayerId(signup.playerId)}
                   data-testid={`button-player-stats-${signup.playerId}`}
                 >
-                  <Avatar className="h-10 w-10 mr-4">
+                  <Avatar className="h-10 w-10 mr-3 shrink-0">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
                     <AvatarFallback>P</AvatarFallback>
                   </Avatar>
-                  <div>
-                    <p className="font-semibold">{signup.player.user.fullName}</p>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs h-5">{signup.player.gender || "?"}</Badge>
-                      <Badge variant="outline" className="text-xs h-5">Rank {signup.player.rankingPoints}</Badge>
-                      <span className="text-xs text-muted-foreground">Level {signup.player.category}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold truncate">{signup.player.user.fullName}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isOrganiser) handleToggleGender(signup.id, effectiveGender);
+                        }}
+                        data-testid={`badge-gender-${signup.id}`}
+                      >
+                        {effectiveGender}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
+                      <span className="text-xs text-muted-foreground">Rank {signup.player.rankingPoints}</span>
+                      {isPaused && (
+                        <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" data-testid={`badge-paused-${signup.id}`}>
+                          Paused
+                        </Badge>
+                      )}
+                      {pairGroupId && (
+                        <Badge variant="secondary" className={`text-xs ${getPairColor(pairGroupId)}`} data-testid={`badge-pair-${signup.id}`}>
+                          Pair {pairGroupId}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
                 {isOrganiser && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      adminRemovePlayer({ sessionId: id, playerId: signup.playerId });
-                    }}
-                    data-testid={`button-remove-player-${signup.playerId}`}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 ml-2 shrink-0">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePause({ sessionId: id, signupId: signup.id, isPaused: !isPaused });
+                      }}
+                      data-testid={`button-toggle-pause-${signup.id}`}
+                    >
+                      {isPaused ? <PlayCircle className="w-4 h-4 text-green-600" /> : <PauseCircle className="w-4 h-4 text-amber-600" />}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adminRemovePlayer({ sessionId: id, playerId: signup.playerId });
+                      }}
+                      data-testid={`button-remove-player-${signup.playerId}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-          
-          <PlayerStatsPopup 
-            profileId={statsPlayerId} 
-            open={statsPlayerId !== null}
-            onOpenChange={(open) => !open && setStatsPlayerId(null)}
-          />
-        </TabsContent>
+            );
+          })}
+        </div>
 
-        <TabsContent value="matches" className="mt-6">
-          <MatchesView 
-            sessionId={id} 
-            isOrganiser={isOrganiser} 
-            matchMode={session.matchMode} 
-            courtsAvailable={session.courtsAvailable}
-            courtNames={session.courtNames}
-            signups={signups || []}
-            playersPerSide={session.playersPerSide}
-            matchGenderType={session.matchGenderType}
-          />
-        </TabsContent>
-      </Tabs>
+        {isOrganiser && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Link2 className="w-5 h-5" />
+                Pair Management
+              </h3>
+              <Dialog open={pairDialogOpen} onOpenChange={setPairDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2" data-testid="button-create-pair">
+                    <Link2 className="w-4 h-4" /> Create Pair
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Pair</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label>Player 1</Label>
+                      <Select value={pairPlayer1} onValueChange={setPairPlayer1}>
+                        <SelectTrigger className="mt-2" data-testid="select-pair-player-1">
+                          <SelectValue placeholder="Select player..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unpairedSignups.filter(s => String(s.id) !== pairPlayer2).map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.player.user.fullName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Player 2</Label>
+                      <Select value={pairPlayer2} onValueChange={setPairPlayer2}>
+                        <SelectTrigger className="mt-2" data-testid="select-pair-player-2">
+                          <SelectValue placeholder="Select player..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unpairedSignups.filter(s => String(s.id) !== pairPlayer1).map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.player.user.fullName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={handleCreatePair}
+                      disabled={!pairPlayer1 || !pairPlayer2 || pairPlayer1 === pairPlayer2}
+                      data-testid="button-confirm-create-pair"
+                    >
+                      Create Pair
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {pairGroups.size > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from(pairGroups.entries()).map(([pgId, members]) => (
+                  <Card key={pgId} data-testid={`pair-card-${pgId}`}>
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Badge variant="secondary" className={`shrink-0 ${getPairColor(pgId)}`}>
+                          Pair {pgId}
+                        </Badge>
+                        <span className="text-sm truncate">
+                          {members?.map(m => m.player.user.fullName).join(" & ")}
+                        </span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-destructive shrink-0"
+                        onClick={() => handleUnpair(pgId)}
+                        data-testid={`button-unpair-${pgId}`}
+                      >
+                        Unpair
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No pairs created yet.</p>
+            )}
+          </div>
+        )}
+      </div>
+      
+      <PlayerStatsPopup 
+        profileId={statsPlayerId} 
+        open={statsPlayerId !== null}
+        onOpenChange={(open) => !open && setStatsPlayerId(null)}
+      />
     </div>
   );
 }

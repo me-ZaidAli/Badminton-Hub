@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import { 
-  Trophy, 
   Calendar, 
   Users, 
   Settings, 
@@ -38,12 +37,10 @@ export function Sidebar() {
     { href: "/", label: "Home", icon: Home },
     { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/tournaments", label: "Tournaments", icon: Trophy },
   ] : [
     { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/rankings", label: "Rankings", icon: Activity },
     { href: "/players", label: "Players", icon: Users },
   ];
@@ -152,12 +149,10 @@ export function MobileNav() {
     { href: "/", icon: Home },
     { href: "/organizer", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
-    { href: "/tournaments", icon: Trophy },
   ] : [
     { href: "/", icon: Home },
     { href: "/dashboard", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
-    { href: "/tournaments", icon: Trophy },
   ];
 
   if (isSuperAdmin || isClubOwner) {

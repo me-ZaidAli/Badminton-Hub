@@ -215,6 +215,91 @@ export function useDeleteSession() {
   });
 }
 
+export function useToggleGender() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, signupId, gender }: { sessionId: number; signupId: number; gender: string }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups/${signupId}/gender`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gender }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update gender");
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+    },
+  });
+}
+
+export function useTogglePause() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, signupId, isPaused }: { sessionId: number; signupId: number; isPaused: boolean }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups/${signupId}/pause`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPaused }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update pause status");
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+    },
+  });
+}
+
+export function useSetPairGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, signupId, pairGroupId }: { sessionId: number; signupId: number; pairGroupId: number | null }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups/${signupId}/pair`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pairGroupId }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to set pair");
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+    },
+  });
+}
+
+export function useAddGuestPlayer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, fullName, gender, category }: { sessionId: number; fullName: string; gender?: string; category?: string }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/guest-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, gender, category }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to add guest player");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      toast({ title: "Player Added", description: "New player has been added to the session." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}
+
 export function useDeleteSessions() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
