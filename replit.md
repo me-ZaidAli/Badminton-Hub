@@ -42,6 +42,12 @@ Key design patterns include:
   - Login page includes "Back to Home" link
   - PublicRoute wrapper uses PublicLayout for non-logged-in users (consistent nav on /public/session/:id etc.)
 - **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
+- **User Approval Panel**: Enhanced with bulk selection and bulk approve/reject functionality:
+  - Individual checkboxes per pending user
+  - Select All toggle
+  - "Approve All" and "Reject All" buttons appear when users are selected
+  - API: POST `/api/admin/users/bulk-action` with `{ userIds, action: "approve"|"reject" }`
+  - User Management panel (`/admin/users`) has been removed; admin functionality consolidated elsewhere
 - **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
   - Club selector to view players from any club (including pending/inactive clubs)
   - Bulk actions: suspend, archive, activate, or delete multiple players at once
@@ -89,7 +95,13 @@ Key design patterns include:
   - Admin management at `/admin/coaches` (OWNER only) with two tabs: Coach Management and Coach Seeker Memberships
   - Bulk operations: approve/reject/suspend all selected coaches or seekers
   - User suspension system: POST `/api/admin/users/:id/suspend` removes all rights (sets accountStatus to REJECTED, suspends coach profile and membership)
-  - Coach fields: fullName, email, phone, location, city, postcode, areaCoverage, qualifications, badmintonEnglandCert, yearsTraining, professionalCareer, experience, status (PENDING/APPROVED/REJECTED/SUSPENDED)
+  - Coach fields: fullName, email, phone, location, city, postcode, googleMapsUrl, areaCoverage, qualifications, badmintonEnglandCert, yearsTraining, professionalCareer, experience, status (PENDING/APPROVED/REJECTED/SUSPENDED)
+- **Google Maps Integration**: Clubs and coaches display "Open in Google Maps" links throughout the platform:
+  - Map popups (ClubMap and CoachMap) always show Google Maps links using stored URL or lat/lng fallback
+  - ExploreClubs list/map cards show Google Maps links
+  - FindCoach map popups and coach detail dialogs link to Google Maps
+  - Coach registration and profile editing forms include a "Google Maps Link" field
+  - Fallback: generates `https://www.google.com/maps?q=lat,lng` when no custom URL is stored
 - **Searchable Club Dropdowns**: ExploreSessions and ExploreRankings pages use Popover + Command combobox pattern for searchable type-ahead club selection
 - **Location-Based Filtering**: ExploreSessions and ExploreRankings support filtering by postcode, city, or address text
 - **Legal Policies System**: Comprehensive in-app legal content for Dragon Badminton Club – BPG Ltd:

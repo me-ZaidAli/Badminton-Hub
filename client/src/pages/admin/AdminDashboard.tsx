@@ -114,25 +114,6 @@ export default function AdminDashboard() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border-border/50 hover-elevate cursor-pointer">
-          <Link href="/admin/users">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  User Management
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                View all members, update roles, and manage player profiles.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="border-border/50 hover-elevate cursor-pointer">
           <Link href="/admin/players">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">

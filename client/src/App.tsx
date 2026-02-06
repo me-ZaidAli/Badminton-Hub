@@ -38,7 +38,7 @@ import JoinCoachSeeker from "@/pages/JoinCoachSeeker";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
-import UserManagement from "@/pages/admin/UserManagement";
+
 import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import Announcements from "@/pages/admin/Announcements";
@@ -255,9 +255,6 @@ function Router() {
       {/* Admin Routes - OWNER only */}
       <Route path="/admin">
         <OwnerRoute component={AdminDashboard} />
-      </Route>
-      <Route path="/admin/users">
-        <OwnerRoute component={UserManagement} />
       </Route>
       <Route path="/admin/players">
         <OwnerRoute component={PlayerManagement} />

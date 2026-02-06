@@ -285,6 +285,7 @@ export const coaches = pgTable("coaches", {
   postcode: text("postcode"),
   latitude: text("latitude"),
   longitude: text("longitude"),
+  googleMapsUrl: text("google_maps_url"),
   areaCoverage: text("area_coverage"),
   availability: text("availability"),
   coachingCertifications: text("coaching_certifications"),

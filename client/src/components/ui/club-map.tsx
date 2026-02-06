@@ -96,20 +96,19 @@ export function ClubMap({ clubs, center = [51.5074, -0.1278], zoom = 10, onClubC
           container.appendChild(locEl);
         }
         
-        if (club.googleMapsUrl) {
-          container.appendChild(document.createElement('br'));
-          const linkEl = document.createElement('a');
-          linkEl.href = club.googleMapsUrl;
-          linkEl.target = '_blank';
-          linkEl.rel = 'noopener noreferrer';
-          linkEl.textContent = 'Open in Google Maps';
-          linkEl.style.color = '#2563eb';
-          linkEl.style.fontSize = '12px';
-          linkEl.style.textDecoration = 'underline';
-          linkEl.style.display = 'inline-block';
-          linkEl.style.marginTop = '4px';
-          container.appendChild(linkEl);
-        }
+        const gmapsUrl = club.googleMapsUrl || `https://www.google.com/maps?q=${lat},${lng}`;
+        container.appendChild(document.createElement('br'));
+        const linkEl = document.createElement('a');
+        linkEl.href = gmapsUrl;
+        linkEl.target = '_blank';
+        linkEl.rel = 'noopener noreferrer';
+        linkEl.textContent = 'Open in Google Maps';
+        linkEl.style.color = '#2563eb';
+        linkEl.style.fontSize = '12px';
+        linkEl.style.textDecoration = 'underline';
+        linkEl.style.display = 'inline-block';
+        linkEl.style.marginTop = '4px';
+        container.appendChild(linkEl);
         
         marker.bindPopup(container);
         

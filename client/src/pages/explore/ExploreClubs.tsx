@@ -99,8 +99,8 @@ export default function ExploreClubs() {
                                 {[club.city, club.postcode].filter(Boolean).join(", ")}
                               </div>
                             )}
-                            {club.googleMapsUrl && (
-                              <a href={club.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline mt-1" data-testid={`link-google-maps-map-${club.id}`}>
+                            {(club.googleMapsUrl || (club.latitude && club.longitude)) && (
+                              <a href={club.googleMapsUrl || `https://www.google.com/maps?q=${club.latitude},${club.longitude}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline mt-1" data-testid={`link-google-maps-map-${club.id}`}>
                                 <ExternalLink className="w-3 h-3" />
                                 Google Maps
                               </a>
@@ -172,8 +172,8 @@ export default function ExploreClubs() {
                       </p>
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-3">
-                          {club.googleMapsUrl && (
-                            <a href={club.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline" data-testid={`link-google-maps-${club.id}`}>
+                          {(club.googleMapsUrl || (club.latitude && club.longitude)) && (
+                            <a href={club.googleMapsUrl || `https://www.google.com/maps?q=${club.latitude},${club.longitude}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline" data-testid={`link-google-maps-${club.id}`}>
                               <ExternalLink className="w-3 h-3" />
                               Google Maps
                             </a>

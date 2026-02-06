@@ -85,6 +85,20 @@ function CoachMap({
         countEl.textContent = `${city.count} coach${city.count !== 1 ? "es" : ""} available`;
         container.appendChild(countEl);
 
+        const gmapsUrl = `https://www.google.com/maps?q=${city.lat},${city.lng}`;
+        container.appendChild(document.createElement("br"));
+        const linkEl = document.createElement("a");
+        linkEl.href = gmapsUrl;
+        linkEl.target = "_blank";
+        linkEl.rel = "noopener noreferrer";
+        linkEl.textContent = "Open in Google Maps";
+        linkEl.style.color = "#2563eb";
+        linkEl.style.fontSize = "12px";
+        linkEl.style.textDecoration = "underline";
+        linkEl.style.display = "inline-block";
+        linkEl.style.marginTop = "4px";
+        container.appendChild(linkEl);
+
         marker.bindPopup(container);
       }
     });

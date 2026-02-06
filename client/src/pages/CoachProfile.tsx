@@ -49,6 +49,7 @@ const coachProfileSchema = z.object({
   location: z.string().optional(),
   city: z.string().min(2, "City is required"),
   postcode: z.string().min(3, "Postcode is required"),
+  googleMapsUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
   areaCoverage: z.string().optional(),
   availability: z.string().optional(),
   bio: z.string().optional(),
@@ -162,7 +163,7 @@ export default function CoachProfile() {
     resolver: zodResolver(coachProfileSchema),
     defaultValues: {
       fullName: "", email: "", phone: "", profilePhoto: "", roleTitle: "",
-      location: "", city: "", postcode: "", areaCoverage: "", availability: "",
+      location: "", city: "", postcode: "", googleMapsUrl: "", areaCoverage: "", availability: "",
       bio: "", coachingCertifications: "", safeguardingDbs: "", firstAidCert: false,
       cpdTraining: "", languagesSpoken: "", qualifications: "", badmintonEnglandCert: false,
       yearsTraining: 0, playingExperience: "", specialism: [], coachingPhilosophy: "",
@@ -229,6 +230,7 @@ export default function CoachProfile() {
         location: coach.location || "",
         city: coach.city || "",
         postcode: coach.postcode || "",
+        googleMapsUrl: (coach as any).googleMapsUrl || "",
         areaCoverage: coach.areaCoverage || "",
         availability: coach.availability || "",
         coachingCertifications: coach.coachingCertifications || "",
@@ -451,6 +453,15 @@ export default function CoachProfile() {
                       </FormItem>
                     )} />
                   </div>
+
+                  <FormField control={form.control} name="googleMapsUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Google Maps Link</FormLabel>
+                      <FormControl><Input placeholder="e.g. https://maps.google.com/..." data-testid="input-google-maps-url" {...field} /></FormControl>
+                      <FormDescription>Paste your Google Maps location link so students can find you easily</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
                   <FormField control={form.control} name="areaCoverage" render={({ field }) => (
                     <FormItem>

@@ -1988,6 +1988,35 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/users/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const { userIds, action } = req.body;
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: "No users selected" });
+      }
+      if (!["approve", "reject"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action" });
+      }
+
+      const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
+      const results = [];
+      for (const userId of userIds) {
+        const user = await storage.updateUser(Number(userId), { accountStatus: newStatus });
+        results.push(user);
+      }
+      res.json({ message: `${results.length} user(s) ${action}d successfully`, count: results.length });
+    } catch (err: any) {
+      console.error("Error in bulk user action:", err);
+      res.status(500).json({ message: err.message || "Failed to perform bulk action" });
+    }
+  });
+
   // === Admin: Club Management ===
   app.post("/api/admin/clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

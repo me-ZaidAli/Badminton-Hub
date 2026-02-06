@@ -58,6 +58,7 @@ interface Coach {
   testimonials?: string;
   latitude?: string;
   longitude?: string;
+  googleMapsUrl?: string;
 }
 
 interface Membership {
@@ -137,6 +138,20 @@ function CoachMap({ coaches, className = "" }: { coaches: Coach[]; className?: s
         container.appendChild(locEl);
       }
 
+      const gmapsUrl = coach.googleMapsUrl || `https://www.google.com/maps?q=${lat},${lng}`;
+      container.appendChild(document.createElement("br"));
+      const linkEl = document.createElement("a");
+      linkEl.href = gmapsUrl;
+      linkEl.target = "_blank";
+      linkEl.rel = "noopener noreferrer";
+      linkEl.textContent = "Open in Google Maps";
+      linkEl.style.color = "#2563eb";
+      linkEl.style.fontSize = "12px";
+      linkEl.style.textDecoration = "underline";
+      linkEl.style.display = "inline-block";
+      linkEl.style.marginTop = "4px";
+      container.appendChild(linkEl);
+
       marker.bindPopup(container);
     });
 
@@ -210,7 +225,15 @@ function CoachDetailDialog({ coach, open, onOpenChange }: { coach: Coach | null;
             )}
             <div className="flex items-center gap-2" data-testid="dialog-coach-location">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{[coach.city, coach.postcode].filter(Boolean).join(", ") || "Not specified"}</span>
+              {(() => {
+                const loc = [coach.city, coach.postcode].filter(Boolean).join(", ") || "Not specified";
+                const gmapsUrl = coach.googleMapsUrl || (coach.latitude && coach.longitude ? `https://www.google.com/maps?q=${coach.latitude},${coach.longitude}` : null);
+                return gmapsUrl ? (
+                  <a href={gmapsUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline">{loc}</a>
+                ) : (
+                  <span className="text-sm">{loc}</span>
+                );
+              })()}
             </div>
             {coach.areaCoverage && (
               <div className="flex items-center gap-2" data-testid="dialog-coach-area">
