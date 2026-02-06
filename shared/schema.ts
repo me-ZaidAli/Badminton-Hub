@@ -20,6 +20,10 @@ export const clubStatusEnum = pgEnum("club_status", ["PENDING", "APPROVED", "REJ
 export const playerStatusEnum = pgEnum("player_status", ["ACTIVE", "SUSPENDED", "ARCHIVED"]); // Player profile status
 export const genderRestrictionEnum = pgEnum("gender_restriction", ["ALL", "FEMALE_ONLY"]);
 export const sessionTypeEnum = pgEnum("session_type", ["OPEN", "JUNIORS_ONLY"]);
+export const tournamentStatusEnum = pgEnum("tournament_status", ["DRAFT", "PUBLISHED", "ONGOING", "COMPLETED"]);
+export const tournamentTypeEnum = pgEnum("tournament_type", ["CLUB", "OPEN", "LEAGUE", "FRIENDLY"]);
+export const tournamentFormatEnum = pgEnum("tournament_format", ["ROUND_ROBIN", "KNOCKOUT", "GROUP_KNOCKOUT"]);
+export const tournamentMatchStatusEnum = pgEnum("tournament_match_status", ["UPCOMING", "LIVE", "FINISHED"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -174,6 +178,83 @@ export const matches = pgTable("matches", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// === TOURNAMENTS ===
+export const tournaments = pgTable("tournaments", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  type: tournamentTypeEnum("type").default("CLUB").notNull(),
+  venueId: integer("venue_id").references(() => venues.id),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  status: tournamentStatusEnum("status").default("DRAFT").notNull(),
+  description: text("description"),
+  courtsAvailable: integer("courts_available").default(4).notNull(),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentCategories = pgTable("tournament_categories", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  name: text("name").notNull(),
+  format: tournamentFormatEnum("format").default("KNOCKOUT").notNull(),
+  playersPerSide: integer("players_per_side").default(1).notNull(),
+  genderRestriction: text("gender_restriction").default("MIXED"),
+  level: text("level"),
+  groupCount: integer("group_count").default(1),
+  advancePerGroup: integer("advance_per_group").default(2),
+  maxTeams: integer("max_teams"),
+  scoringFormat: text("scoring_format").default("BEST_OF_3"),
+  pointsPerWin: integer("points_per_win").default(2).notNull(),
+  pointsPerLoss: integer("points_per_loss").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentTeams = pgTable("tournament_teams", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id).notNull(),
+  player1Id: integer("player1_id").references(() => playerProfiles.id).notNull(),
+  player2Id: integer("player2_id").references(() => playerProfiles.id),
+  seedNumber: integer("seed_number"),
+  groupNumber: integer("group_number"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentMatches = pgTable("tournament_matches", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id).notNull(),
+  teamAId: integer("team_a_id").references(() => tournamentTeams.id),
+  teamBId: integer("team_b_id").references(() => tournamentTeams.id),
+  courtNumber: integer("court_number"),
+  scheduledTime: timestamp("scheduled_time"),
+  status: tournamentMatchStatusEnum("status").default("UPCOMING").notNull(),
+  scores: jsonb("scores").$type<Array<{scoreA: number; scoreB: number}>>().default([]),
+  winnerId: integer("winner_id").references(() => tournamentTeams.id),
+  round: integer("round").default(1).notNull(),
+  matchOrder: integer("match_order").default(0).notNull(),
+  groupNumber: integer("group_number"),
+  bracketPosition: integer("bracket_position"),
+  isWalkover: boolean("is_walkover").default(false).notNull(),
+  isBye: boolean("is_bye").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentStandings = pgTable("tournament_standings", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id).notNull(),
+  teamId: integer("team_id").references(() => tournamentTeams.id).notNull(),
+  groupNumber: integer("group_number").default(1).notNull(),
+  matchesPlayed: integer("matches_played").default(0).notNull(),
+  matchesWon: integer("matches_won").default(0).notNull(),
+  matchesLost: integer("matches_lost").default(0).notNull(),
+  gamesWon: integer("games_won").default(0).notNull(),
+  gamesLost: integer("games_lost").default(0).notNull(),
+  pointsFor: integer("points_for").default(0).notNull(),
+  pointsAgainst: integer("points_against").default(0).notNull(),
+  points: integer("points").default(0).notNull(),
+});
+
 // === ANNOUNCEMENTS ===
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),
@@ -246,6 +327,36 @@ export const matchesRelations = relations(matches, ({ one }) => ({
   teamBPlayer2: one(playerProfiles, { fields: [matches.teamBPlayer2Id], references: [playerProfiles.id] }),
 }));
 
+export const tournamentsRelations = relations(tournaments, ({ one, many }) => ({
+  club: one(clubs, { fields: [tournaments.clubId], references: [clubs.id] }),
+  venue: one(venues, { fields: [tournaments.venueId], references: [venues.id] }),
+  creator: one(users, { fields: [tournaments.createdBy], references: [users.id] }),
+  categories: many(tournamentCategories),
+}));
+
+export const tournamentCategoriesRelations = relations(tournamentCategories, ({ one, many }) => ({
+  tournament: one(tournaments, { fields: [tournamentCategories.tournamentId], references: [tournaments.id] }),
+  teams: many(tournamentTeams),
+  matches: many(tournamentMatches),
+  standings: many(tournamentStandings),
+}));
+
+export const tournamentTeamsRelations = relations(tournamentTeams, ({ one }) => ({
+  category: one(tournamentCategories, { fields: [tournamentTeams.categoryId], references: [tournamentCategories.id] }),
+  player1: one(playerProfiles, { fields: [tournamentTeams.player1Id], references: [playerProfiles.id] }),
+}));
+
+export const tournamentMatchesRelations = relations(tournamentMatches, ({ one }) => ({
+  category: one(tournamentCategories, { fields: [tournamentMatches.categoryId], references: [tournamentCategories.id] }),
+  teamA: one(tournamentTeams, { fields: [tournamentMatches.teamAId], references: [tournamentTeams.id] }),
+  teamB: one(tournamentTeams, { fields: [tournamentMatches.teamBId], references: [tournamentTeams.id] }),
+}));
+
+export const tournamentStandingsRelations = relations(tournamentStandings, ({ one }) => ({
+  category: one(tournamentCategories, { fields: [tournamentStandings.categoryId], references: [tournamentCategories.id] }),
+  team: one(tournamentTeams, { fields: [tournamentStandings.teamId], references: [tournamentTeams.id] }),
+}));
+
 // === SCHEMAS ===
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, emailVerified: true });
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
@@ -262,6 +373,14 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 
+export const insertTournamentSchema = createInsertSchema(tournaments).omit({ id: true, createdBy: true, createdAt: true }).extend({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+});
+export const insertTournamentCategorySchema = createInsertSchema(tournamentCategories).omit({ id: true, createdAt: true });
+export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).omit({ id: true, createdAt: true });
+export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
+
 // === TYPES ===
 export type User = typeof users.$inferSelect;
 export type Club = typeof clubs.$inferSelect;
@@ -272,9 +391,18 @@ export type SessionSignup = typeof sessionSignups.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
+export type Tournament = typeof tournaments.$inferSelect;
+export type TournamentCategory = typeof tournamentCategories.$inferSelect;
+export type TournamentTeam = typeof tournamentTeams.$inferSelect;
+export type TournamentMatch = typeof tournamentMatches.$inferSelect;
+export type TournamentStanding = typeof tournamentStandings.$inferSelect;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;
 export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type InsertTournament = z.infer<typeof insertTournamentSchema>;
+export type InsertTournamentCategory = z.infer<typeof insertTournamentCategorySchema>;
+export type InsertTournamentTeam = z.infer<typeof insertTournamentTeamSchema>;
+export type InsertTournamentMatch = z.infer<typeof insertTournamentMatchSchema>;

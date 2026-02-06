@@ -1,12 +1,16 @@
 import { db, pool } from "./db";
 import { 
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
+  tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
-  type Venue, type InsertVenue
+  type Venue, type InsertVenue,
+  type Tournament, type InsertTournament, type TournamentCategory, type InsertTournamentCategory,
+  type TournamentTeam, type InsertTournamentTeam, type TournamentMatch, type InsertTournamentMatch,
+  type TournamentStanding
 } from "@shared/schema";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 
@@ -83,6 +87,38 @@ export interface IStorage {
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
+
+  // Tournaments
+  getTournaments(clubId?: number): Promise<Tournament[]>;
+  getTournament(id: number): Promise<Tournament | undefined>;
+  createTournament(tournament: InsertTournament & { createdBy: number }): Promise<Tournament>;
+  updateTournament(id: number, updates: Partial<Tournament>): Promise<Tournament>;
+  deleteTournament(id: number): Promise<void>;
+
+  // Tournament Categories
+  getTournamentCategories(tournamentId: number): Promise<TournamentCategory[]>;
+  getTournamentCategory(id: number): Promise<TournamentCategory | undefined>;
+  createTournamentCategory(category: InsertTournamentCategory): Promise<TournamentCategory>;
+  updateTournamentCategory(id: number, updates: Partial<TournamentCategory>): Promise<TournamentCategory>;
+  deleteTournamentCategory(id: number): Promise<void>;
+
+  // Tournament Teams
+  getTournamentTeams(categoryId: number): Promise<(TournamentTeam & { player1: PlayerProfile & { user: User }; player2?: PlayerProfile & { user: User } | null })[]>;
+  createTournamentTeam(team: InsertTournamentTeam): Promise<TournamentTeam>;
+  deleteTournamentTeam(id: number): Promise<void>;
+  updateTournamentTeam(id: number, updates: Partial<TournamentTeam>): Promise<TournamentTeam>;
+
+  // Tournament Matches
+  getTournamentMatches(categoryId: number): Promise<TournamentMatch[]>;
+  getTournamentMatch(id: number): Promise<TournamentMatch | undefined>;
+  createTournamentMatch(match: any): Promise<TournamentMatch>;
+  updateTournamentMatch(id: number, updates: Partial<TournamentMatch>): Promise<TournamentMatch>;
+  deleteTournamentMatchesByCategory(categoryId: number): Promise<void>;
+
+  // Tournament Standings
+  getTournamentStandings(categoryId: number): Promise<TournamentStanding[]>;
+  upsertTournamentStanding(standing: Omit<TournamentStanding, "id">): Promise<TournamentStanding>;
+  deleteTournamentStandingsByCategory(categoryId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
