@@ -385,7 +385,7 @@ export async function registerRoutes(
           const geocodeQuery = [address, city, postcode].filter(Boolean).join(", ");
           const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(geocodeQuery)}&limit=1`;
           const geocodeResponse = await fetch(geocodeUrl, {
-            headers: { 'User-Agent': 'SmashClub/1.0' }
+            headers: { 'User-Agent': 'ClubMaster/1.0' }
           });
           const geocodeData = await geocodeResponse.json();
           if (geocodeData && geocodeData.length > 0) {

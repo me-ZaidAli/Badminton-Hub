@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,8 +51,8 @@ export default function Home() {
       <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-gradient-to-br from-primary to-secondary rounded-lg" />
-            <span className="font-display font-bold text-xl">Badminton Management</span>
+            <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
+            <span className="font-display font-bold text-xl">Club Master</span>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/login">
@@ -291,7 +292,7 @@ export default function Home() {
       </main>
 
       <footer className="py-12 border-t border-border text-center text-muted-foreground">
-        <p>© 2024 Badminton Management. Built for champions.</p>
+        <p>© 2024 Club Master. Built for champions.</p>
       </footer>
     </div>
   );

@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
+import logoPath from "@assets/image_1770381062912.png";
 import { 
   Calendar, 
   Users, 
@@ -69,12 +70,9 @@ export function Sidebar() {
       <div className="p-6 border-b border-border/50">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer group">
-            <div className="h-10 w-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-primary/25 transition-all">
-              <Activity className="h-6 w-6 text-white" />
-            </div>
+            <img src={logoPath} alt="Club Master" className="h-10 w-10 rounded-xl shadow-lg group-hover:shadow-primary/25 transition-all object-contain" />
             <div>
-              <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Badminton</h1>
-              <p className="text-xs text-muted-foreground font-medium">Management</p>
+              <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Club Master</h1>
             </div>
           </div>
         </Link>

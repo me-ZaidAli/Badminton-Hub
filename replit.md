@@ -1,7 +1,7 @@
-# SmashClub - Badminton Club Management System
+# Club Master - Badminton Club Management System
 
 ## Overview
-SmashClub is a full-stack web application designed for comprehensive badminton club management. It offers functionalities such as session scheduling, a player ranking system utilizing Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles including Owner, Admin, Organiser, Coach, and Player, ensuring secure and differentiated access to features. The project aims to streamline club operations, enhance player engagement through competitive rankings, and provide a centralized platform for all club-related activities.
+Club Master is a full-stack web application designed for comprehensive badminton club management. It offers functionalities such as session scheduling, a player ranking system utilizing Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles including Owner, Admin, Organiser, Coach, and Player, ensuring secure and differentiated access to features. The project aims to streamline club operations, enhance player engagement through competitive rankings, and provide a centralized platform for all club-related activities.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
