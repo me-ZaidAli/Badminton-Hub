@@ -12,8 +12,31 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const scryptAsync = promisify(scrypt);
+
+const uploadsDir = path.join(process.cwd(), "public", "uploads", "coaches");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+const coachPhotoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `coach-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadCoachPhoto = multer({
+  storage: coachPhotoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
 
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -45,6 +68,10 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Set up authentication first
   setupAuth(app);
+
+  // Serve uploaded files
+  const express = await import("express");
+  app.use("/uploads", express.default.static(path.join(process.cwd(), "public", "uploads")));
 
   // === SEED DATA ===
   const existingUsers = await storage.getAllUsers();
@@ -3164,6 +3191,19 @@ export async function registerRoutes(
     }
   });
 
+  // Upload coach profile photo
+  app.post("/api/coaches/upload-photo", uploadCoachPhoto.single("photo"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const photoUrl = `/uploads/coaches/${req.file.filename}`;
+      res.json({ url: photoUrl });
+    } catch (err) {
+      console.error("Error uploading photo:", err);
+      res.status(500).json({ message: "Failed to upload photo" });
+    }
+  });
+
   // Get own coach profile
   app.get("/api/coaches/me", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -3301,6 +3341,41 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error bulk updating coaches:", err);
       res.status(500).json({ message: "Failed to bulk update coaches" });
+    }
+  });
+
+  // Admin create coach (super admin can add coaches directly)
+  app.post("/api/admin/coaches", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const input = insertCoachSchema.parse({
+        ...req.body,
+        userId: req.body.userId || req.user!.id,
+      });
+      const coach = await storage.createCoach(input);
+      res.status(201).json(coach);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Error creating coach:", err);
+      res.status(500).json({ message: "Failed to create coach" });
+    }
+  });
+
+  // Admin bulk delete coaches
+  app.post("/api/admin/coaches/bulk-delete", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const { ids } = req.body as { ids: number[] };
+      if (!ids?.length) return res.status(400).json({ message: "ids required" });
+      for (const id of ids) {
+        await storage.deleteCoach(id);
+      }
+      res.json({ deleted: ids.length });
+    } catch (err) {
+      console.error("Error bulk deleting coaches:", err);
+      res.status(500).json({ message: "Failed to bulk delete coaches" });
     }
   });
 
