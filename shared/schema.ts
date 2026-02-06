@@ -132,6 +132,7 @@ export const sessions = pgTable("sessions", {
   shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
   sessionFee: integer("session_fee"), // in pence (GBP) - overrides club default if set
   shuttlecockType: text("shuttlecock_type"), // "feather", "plastic" - inherits from club if not set
+  courtNames: jsonb("court_names").$type<string[]>(), // Custom court names e.g. ["Main Court", "Back Court"]
 });
 
 // === SESSION SIGNUPS ===
