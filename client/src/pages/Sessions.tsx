@@ -233,7 +233,7 @@ export default function Sessions() {
                 <CardContent className="p-6">
                   <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
                     <div className="flex gap-1 flex-wrap">
-                      <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
+                      <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
                         {session.matchMode}
                       </Badge>
                       {session.playersPerSide === 1 && (
@@ -506,6 +506,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
                     <SelectContent>
                       <SelectItem value="SOCIAL">Social (Mixed)</SelectItem>
                       <SelectItem value="COMPETITIVE">Competitive (Ranked)</SelectItem>
+                      <SelectItem value="TRAINING">Training</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

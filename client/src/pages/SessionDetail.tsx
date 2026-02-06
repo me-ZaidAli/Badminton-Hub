@@ -763,7 +763,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
-  matchMode: "COMPETITIVE" | "SOCIAL";
+  matchMode: "COMPETITIVE" | "SOCIAL" | "TRAINING";
   courtsAvailable: number;
   courtNames?: string[] | null;
   signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];

@@ -20,7 +20,7 @@ export function useGenerateMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, mode }: { sessionId: number, mode: "COMPETITIVE" | "SOCIAL" }) => {
+    mutationFn: async ({ sessionId, mode }: { sessionId: number, mode: "COMPETITIVE" | "SOCIAL" | "TRAINING" }) => {
       const url = buildUrl(api.matches.generate.path, { sessionId });
       const res = await fetch(url, {
         method: api.matches.generate.method,
