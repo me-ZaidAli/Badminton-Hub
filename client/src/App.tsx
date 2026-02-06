@@ -12,6 +12,8 @@ import { Loader2 } from "lucide-react";
 import Home from "@/pages/Home";
 import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
@@ -54,6 +56,7 @@ import AdminRankings from "@/pages/admin/AdminRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
 import CoachManagement from "@/pages/admin/CoachManagement";
+import PasswordResets from "@/pages/admin/PasswordResets";
 import ContactForm from "@/pages/ContactForm";
 import Messages from "@/pages/admin/Messages";
 import PolicyPage from "@/pages/PolicyPage";
@@ -176,6 +179,8 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/explore/clubs" component={ExploreClubs} />
       <Route path="/explore/sessions" component={ExploreSessions} />
       <Route path="/explore/rankings" component={ExploreRankings} />
@@ -300,6 +305,9 @@ function Router() {
       </Route>
       <Route path="/admin/coaches">
         <OwnerRoute component={CoachManagement} />
+      </Route>
+      <Route path="/admin/password-resets">
+        <OwnerRoute component={PasswordResets} />
       </Route>
       <Route path="/admin/messages">
         <OwnerRoute component={Messages} />

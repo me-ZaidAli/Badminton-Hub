@@ -31,6 +31,7 @@ Key design patterns include:
 - **Public Viewing System**: A comprehensive public landing page accessible without login, featuring a club directory, public sessions, live session views, and club leaderboards. All sensitive user data is excluded.
 - **Personal Ranking View**: Logged-in users can view their ranking progress and match history.
 - **Registration & Account Claiming**: New user registrations trigger in-app notifications to super admins. Users can "claim" pre-existing PENDING or guest accounts by setting a password.
+- **Password Reset / Forgot Password**: Users request a reset via `/forgot-password`, generating a 24h token. OWNER users are notified and can view/copy reset links at `/admin/password-resets`. Users set a new password at `/reset-password/:token`. Endpoints: POST `/api/auth/forgot-password`, POST `/api/auth/reset-password`, GET `/api/admin/password-resets`.
 - **Admin & Player Management**: Super admins have access to user approval panels with bulk actions, and can manage players across all clubs, including bulk actions for player status and cross-club allocation. Club admins can manage venues and administrators for their specific clubs.
 - **Club Customization**: Clubs can define shuttlecock types, T-shirt provision, and accepted player skill levels. Sessions can have custom fees.
 - **Session Player Management**: Enhanced in-session player controls include gender override, pause/resume functionality, player pairing, and guest player creation.

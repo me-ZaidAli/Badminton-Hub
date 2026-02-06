@@ -22,7 +22,8 @@ import {
   DollarSign,
   GraduationCap,
   Search,
-  Mail
+  Mail,
+  KeyRound
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,6 +73,7 @@ export function Sidebar() {
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
     navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
     navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap });
+    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound });
     navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
     navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });

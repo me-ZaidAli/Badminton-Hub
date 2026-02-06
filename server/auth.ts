@@ -6,7 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull, gt, and } from "drizzle-orm";
 import { db } from "./db";
 
 const scryptAsync = promisify(scrypt);
@@ -223,6 +223,112 @@ export function setupAuth(app: Express) {
     } catch (err) {
       next(err);
     }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const user = await storage.getUserByUsername(email);
+      if (!user) {
+        return res.status(200).json({ message: "If an account with that email exists, a password reset has been initiated." });
+      }
+
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await db.update(users).set({
+        passwordResetToken: token,
+        passwordResetExpiry: expiry,
+      }).where(eq(users.id, user.id));
+
+      try {
+        const owners = await storage.getUsersByRole("OWNER");
+        for (const owner of owners) {
+          await storage.createNotification({
+            userId: owner.id,
+            type: "PASSWORD_RESET_REQUEST",
+            title: "Password Reset Request",
+            message: `${user.fullName} (${user.email}) has requested a password reset. Share the reset link from Admin > Password Resets.`,
+            linkUrl: "/admin/password-resets",
+          });
+        }
+      } catch (notifErr) {
+        console.error("[AUTH] Failed to send password reset notifications:", notifErr);
+      }
+
+      res.status(200).json({ message: "If an account with that email exists, a password reset has been initiated. Please contact your club admin for the reset link." });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res, next) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token and password are required" });
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.passwordResetToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired reset link" });
+      }
+
+      if (!user.passwordResetExpiry || new Date() > user.passwordResetExpiry) {
+        await db.update(users).set({
+          passwordResetToken: null,
+          passwordResetExpiry: null,
+        }).where(eq(users.id, user.id));
+        return res.status(400).json({ message: "This reset link has expired. Please request a new one." });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await db.update(users).set({
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      }).where(eq(users.id, user.id));
+
+      res.status(200).json({ message: "Password has been reset successfully. You can now sign in." });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get("/api/admin/password-resets", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const pendingResets = await db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        passwordResetToken: users.passwordResetToken,
+        passwordResetExpiry: users.passwordResetExpiry,
+      })
+      .from(users)
+      .where(
+        and(
+          isNotNull(users.passwordResetToken),
+          gt(users.passwordResetExpiry, new Date())
+        )
+      );
+
+    res.json(pendingResets);
   });
 
   app.post("/api/auth/login", (req, res, next) => {
