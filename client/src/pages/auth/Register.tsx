@@ -17,6 +17,7 @@ const formSchema = z.object({
   username: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   gender: z.enum(["MALE", "FEMALE"]),
+  dateOfBirth: z.string().optional(),
   category: z.enum(["A", "B", "C", "D"]),
   clubId: z.string().min(1, "Please select a club"),
 });
@@ -34,6 +35,7 @@ export default function Register() {
       username: "",
       password: "",
       gender: "MALE",
+      dateOfBirth: "",
       category: "D",
       clubId: "",
     },
@@ -49,6 +51,7 @@ export default function Register() {
         email: values.username,
         password: values.password,
         gender: values.gender,
+        dateOfBirth: values.dateOfBirth || undefined,
         category: values.category,
         clubId: Number(values.clubId)
       }),
@@ -145,6 +148,19 @@ export default function Register() {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date of Birth (optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} className="h-11" data-testid="input-date-of-birth" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="clubId"

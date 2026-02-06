@@ -806,9 +806,57 @@ export async function registerRoutes(
       return res.status(400).json({ message: "You are already signed up for this session" });
     }
 
+    // Check private session restriction
+    if (session.isPrivate) {
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(400).json({ message: "This is a private session. Only admins or organisers can add players." });
+      }
+    }
+
+    // Check gender restriction (females-only sessions)
+    if (session.genderRestriction === "FEMALE_ONLY") {
+      if (profile.gender !== "FEMALE") {
+        return res.status(400).json({ message: "This session is for female players only." });
+      }
+    }
+
+    // Check juniors-only session restriction
+    if (session.sessionType === "JUNIORS_ONLY") {
+      const user = req.user!;
+      if (!user.dateOfBirth) {
+        return res.status(400).json({ message: "Please set your date of birth in your profile to join junior sessions." });
+      }
+      const today = new Date();
+      const birth = new Date(user.dateOfBirth);
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+
+      if (age >= 18) {
+        return res.status(400).json({ message: "This session is for juniors only (under 18)." });
+      }
+
+      // Check specific age group restrictions if set
+      if (session.juniorAgeGroups && session.juniorAgeGroups.length > 0) {
+        const ageGroupMap: Record<string, [number, number]> = {
+          "7-10": [7, 10],
+          "10-12": [10, 12],
+          "13-15": [13, 15],
+          "16-18": [16, 18],
+        };
+        const inAllowedGroup = session.juniorAgeGroups.some(group => {
+          const range = ageGroupMap[group];
+          return range && age >= range[0] && age <= range[1];
+        });
+        if (!inAllowedGroup) {
+          return res.status(400).json({ message: `This junior session is for ages: ${session.juniorAgeGroups.join(", ")} only.` });
+        }
+      }
+    }
+
     // Check category restriction
     if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 4) {
-      // Only enforce if restricted (not all categories allowed)
       if (profile.category && !session.allowedCategories.includes(profile.category)) {
         return res.status(400).json({ message: `This session is only open to categories: ${session.allowedCategories.join(", ")}` });
       }
@@ -1148,34 +1196,43 @@ export async function registerRoutes(
     const sessionId = Number(req.params.sessionId);
     const { mode } = req.body;
     
-    // MATCH GENERATION LOGIC
-    // 1. Get attended players
     const signups = await storage.getSessionSignups(sessionId);
     const attendedPlayers = signups
       .filter(s => s.attendanceStatus === "ATTENDED")
       .map(s => s.player);
 
-    if (attendedPlayers.length < 4) {
-      return res.status(400).json({ message: "Not enough players marked as ATTENDED (min 4)" });
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const playersPerSide = session.playersPerSide || 2;
+    const playersPerMatch = playersPerSide * 2;
+    const matchGenderType = (mode as string) || session.matchGenderType || "MIXED";
+
+    // Filter by gender if needed
+    let eligible = [...attendedPlayers];
+    if (matchGenderType === "FEMALE") {
+      eligible = eligible.filter(p => p.gender === "FEMALE");
+    } else if (matchGenderType === "MALE") {
+      eligible = eligible.filter(p => p.gender === "MALE");
     }
 
-    // 2. Simple Random Pairing for MVP (Social Mode)
-    // Real implementation would use the complex logic requested
-    const shuffled = [...attendedPlayers].sort(() => 0.5 - Math.random());
-    const generatedMatches = [];
-    
-    const session = await storage.getSession(sessionId);
-    const courts = session?.courtsAvailable || 1;
+    if (eligible.length < playersPerMatch) {
+      return res.status(400).json({ message: `Not enough eligible players marked as ATTENDED (need at least ${playersPerMatch} for ${playersPerSide}v${playersPerSide})` });
+    }
 
-    for (let i = 0; i < Math.min(courts, Math.floor(shuffled.length / 4)); i++) {
-      const idx = i * 4;
+    const shuffled = [...eligible].sort(() => 0.5 - Math.random());
+    const generatedMatches = [];
+    const courts = session.courtsAvailable || 1;
+
+    for (let i = 0; i < Math.min(courts, Math.floor(shuffled.length / playersPerMatch)); i++) {
+      const idx = i * playersPerMatch;
       generatedMatches.push({
         sessionId,
         courtNumber: i + 1,
         teamAPlayer1Id: shuffled[idx].id,
-        teamAPlayer2Id: shuffled[idx + 1].id,
-        teamBPlayer1Id: shuffled[idx + 2].id,
-        teamBPlayer2Id: shuffled[idx + 3].id,
+        teamAPlayer2Id: playersPerSide === 2 ? shuffled[idx + 1].id : null,
+        teamBPlayer1Id: shuffled[idx + playersPerSide].id,
+        teamBPlayer2Id: playersPerSide === 2 ? shuffled[idx + playersPerSide + 1].id : null,
         scoreA: 0,
         scoreB: 0,
         isCompleted: false
@@ -1375,16 +1432,27 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { numberOfMatches, courtsToUse } = req.body;
+      const { numberOfMatches, courtsToUse, matchGenderType: requestGenderType } = req.body;
+
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const genderType = requestGenderType || session.matchGenderType || "MIXED";
 
       // Get signups - prefer ATTENDED players, fall back to all if none marked
       const signups = await storage.getSessionSignups(sessionId);
       const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= 4 ? attendedSignups : signups;
-      const players = eligibleSignups.map(s => s.player);
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      let players = eligibleSignups.map(s => s.player);
 
-      if (players.length < 4) {
-        return res.status(400).json({ message: "Need at least 4 players to generate matches" });
+      // Filter by gender type
+      if (genderType === "FEMALE") {
+        players = players.filter(p => p.gender === "FEMALE");
+      } else if (genderType === "MALE") {
+        players = players.filter(p => p.gender === "MALE");
+      }
+
+      if (players.length < playersPerMatch) {
+        return res.status(400).json({ message: `Need at least ${playersPerMatch} eligible players to generate ${playersPerSide}v${playersPerSide} matches` });
       }
 
       // Get existing queued matches to determine next queue position
@@ -1396,25 +1464,28 @@ export async function registerRoutes(
       // Generate matches using round-robin style pairing
       const shuffled = [...players].sort(() => 0.5 - Math.random());
       const generatedMatches = [];
-      const matchCount = Math.min(numberOfMatches || 8, Math.floor(shuffled.length / 4) * 2);
+      const matchCount = Math.min(numberOfMatches || 8, Math.floor(shuffled.length / playersPerMatch) * 2);
 
       for (let i = 0; i < matchCount; i++) {
-        // Rotate players for variety
-        const offset = (i * 2) % shuffled.length;
-        const p1 = shuffled[offset % shuffled.length];
-        const p2 = shuffled[(offset + 1) % shuffled.length];
-        const p3 = shuffled[(offset + 2) % shuffled.length];
-        const p4 = shuffled[(offset + 3) % shuffled.length];
+        const offset = (i * playersPerSide) % shuffled.length;
+        const teamA: number[] = [];
+        const teamB: number[] = [];
+        for (let j = 0; j < playersPerSide; j++) {
+          teamA.push(shuffled[(offset + j) % shuffled.length].id);
+        }
+        for (let j = 0; j < playersPerSide; j++) {
+          teamB.push(shuffled[(offset + playersPerSide + j) % shuffled.length].id);
+        }
 
         generatedMatches.push({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
           status: "QUEUED" as const,
-          teamAPlayer1Id: p1.id,
-          teamAPlayer2Id: p2.id,
-          teamBPlayer1Id: p3.id,
-          teamBPlayer2Id: p4.id,
+          teamAPlayer1Id: teamA[0],
+          teamAPlayer2Id: playersPerSide === 2 ? teamA[1] : null,
+          teamBPlayer1Id: teamB[0],
+          teamBPlayer2Id: playersPerSide === 2 ? teamB[1] : null,
           scoreA: 0,
           scoreB: 0,
           isCompleted: false

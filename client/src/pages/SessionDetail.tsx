@@ -87,9 +87,24 @@ export default function SessionDetail() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between gap-6">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
             <Badge variant="outline">{session.matchMode}</Badge>
             <Badge variant="secondary" className="bg-primary/10 text-primary">{session.status}</Badge>
+            <Badge variant="outline">{session.playersPerSide === 1 ? "Singles (1v1)" : "Doubles (2v2)"}</Badge>
+            {session.matchGenderType !== "MIXED" && (
+              <Badge variant="outline">{session.matchGenderType === "FEMALE" ? "Female Matches" : "Male Matches"}</Badge>
+            )}
+            {session.genderRestriction === "FEMALE_ONLY" && (
+              <Badge variant="secondary" className="bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">Females Only</Badge>
+            )}
+            {session.sessionType === "JUNIORS_ONLY" && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                Juniors {session.juniorAgeGroups?.length ? `(${session.juniorAgeGroups.join(", ")})` : ""}
+              </Badge>
+            )}
+            {session.isPrivate && (
+              <Badge variant="outline">Private</Badge>
+            )}
             {isOrganiser && (
               <Dialog open={settingsOpen} onOpenChange={(open) => {
                 setSettingsOpen(open);
@@ -232,6 +247,18 @@ export default function SessionDetail() {
               <span className="text-muted-foreground">Capacity</span>
               <span className="font-bold">{signups?.length} / {session.maxPlayers}</span>
             </div>
+            {session.genderRestriction === "FEMALE_ONLY" && (
+              <p className="text-sm text-pink-600 dark:text-pink-400 mb-2">This session is for female players only.</p>
+            )}
+            {session.sessionType === "JUNIORS_ONLY" && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mb-2">
+                This session is for juniors only (under 18).
+                {session.juniorAgeGroups?.length ? ` Age groups: ${session.juniorAgeGroups.join(", ")}` : ""}
+              </p>
+            )}
+            {session.isPrivate && (
+              <p className="text-sm text-muted-foreground mb-2">This is a private session. Players can only be added by the organiser.</p>
+            )}
             {session.status === "COMPLETED" ? (
               <Badge variant="secondary" className="w-full justify-center py-2 text-base">
                 <CheckCircle className="w-4 h-4 mr-2" /> Session Completed
@@ -245,11 +272,16 @@ export default function SessionDetail() {
               >
                 {isWithdrawing ? "Withdrawing..." : "Withdraw"}
               </Button>
+            ) : session.isPrivate ? (
+              <Badge variant="secondary" className="w-full justify-center py-2 text-base">
+                Private Session (Invite Only)
+              </Badge>
             ) : (
               <Button 
                 className="w-full shadow-lg shadow-primary/25" 
                 onClick={() => join(id)}
                 disabled={isJoining || (signups?.length || 0) >= session.maxPlayers}
+                data-testid="button-join-session"
               >
                 {isJoining ? "Joining..." : "Join Session"}
               </Button>
@@ -402,6 +434,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [matchesToGenerate, setMatchesToGenerate] = useState(8);
+  const [generateGenderType, setGenerateGenderType] = useState(session?.matchGenderType || "MIXED");
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
 
   useEffect(() => {
@@ -452,7 +485,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
   }));
 
   const handleGenerate = () => {
-    autoGenerate({ sessionId, numberOfMatches: matchesToGenerate, courtsToUse });
+    autoGenerate({ sessionId, numberOfMatches: matchesToGenerate, courtsToUse, matchGenderType: generateGenderType });
     setShowGenerateDialog(false);
   };
 
@@ -500,6 +533,25 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
                   <DialogTitle>Generate Matches</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
+                  <div>
+                    <Label>Match Format</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {session?.playersPerSide === 1 ? "Singles (1v1)" : "Doubles (2v2)"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Match Gender Type</Label>
+                    <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                      <SelectTrigger className="mt-2" data-testid="select-generate-gender-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MIXED">Mixed</SelectItem>
+                        <SelectItem value="FEMALE">Female Only</SelectItem>
+                        <SelectItem value="MALE">Male Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div>
                     <Label>Number of Courts to Use (max {courtsAvailable})</Label>
                     <Input 

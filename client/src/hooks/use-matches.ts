@@ -126,11 +126,11 @@ export function useAutoGenerateMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, numberOfMatches, courtsToUse }: { sessionId: number; numberOfMatches: number; courtsToUse: number }) => {
+    mutationFn: async ({ sessionId, numberOfMatches, courtsToUse, matchGenderType }: { sessionId: number; numberOfMatches: number; courtsToUse: number; matchGenderType?: string }) => {
       const res = await fetch(`/api/sessions/${sessionId}/matches/auto-generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numberOfMatches, courtsToUse }),
+        body: JSON.stringify({ numberOfMatches, courtsToUse, matchGenderType }),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to generate matches");

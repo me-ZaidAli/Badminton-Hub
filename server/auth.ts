@@ -83,7 +83,8 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({
         ...req.body,
         password: hashedPassword,
-        emailVerified: false // Default to false as per requirements
+        emailVerified: false,
+        dateOfBirth: req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null,
       });
 
       // Create profile automatically for the selected club
