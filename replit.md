@@ -58,6 +58,21 @@ Key design patterns include:
   - Venues tab: read-only view of venues and court names
 - **Bulk Session Selection & Deletion**: Sessions page (`/sessions`) supports checkbox selection for organiser+ roles. Includes select-all, selected count badge, and bulk delete with confirmation dialog.
 - **Venue Access for Club Admins**: Venues page (`/admin/venues`) is accessible to club admins (not just super admins), filtered to show only clubs the user has admin access to.
+- **Tournament Management**: Comprehensive tournament module at `/tournaments` with the following features:
+  - Tournament CRUD with status lifecycle: DRAFT → PUBLISHED → ONGOING → COMPLETED
+  - Tournament types: CLUB, OPEN, LEAGUE, FRIENDLY
+  - Category-based events (e.g., Men's Doubles, Mixed Singles) with configurable formats
+  - Three match formats: ROUND_ROBIN (all vs all), KNOCKOUT (bracket with byes), GROUP_KNOCKOUT (group stage then knockout)
+  - Team registration with player profile IDs, seed numbers, and group assignments
+  - Match generation algorithms for all three formats
+  - Score entry dialog with multi-game support (Best of 3/5/single)
+  - Automatic standings recalculation based on match results (points, games won/lost, point differential)
+  - Bracket visualization for knockout tournaments
+  - Standings table for round robin/group formats
+  - Advance winners to next knockout round
+  - Public tournament view at `/public/tournament/:id` (no auth required for published tournaments)
+  - RBAC: OWNER/ADMIN/ORGANISER can create/manage, players can view
+  - Database tables: tournaments, tournament_categories, tournament_teams, tournament_matches, tournament_standings
 
 ## External Dependencies
 

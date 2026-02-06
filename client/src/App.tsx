@@ -41,6 +41,9 @@ import ClubAdmins from "@/pages/admin/ClubAdmins";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
+import Tournaments from "@/pages/Tournaments";
+import TournamentDetail from "@/pages/TournamentDetail";
+import PublicTournament from "@/pages/PublicTournament";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -207,6 +210,15 @@ function Router() {
       </Route>
       <Route path="/profile">
         <Profile />
+      </Route>
+      <Route path="/tournaments">
+        <PrivateRoute component={Tournaments} />
+      </Route>
+      <Route path="/tournaments/:id">
+        <PrivateRoute component={TournamentDetail} />
+      </Route>
+      <Route path="/public/tournament/:id">
+        <PublicRoute component={PublicTournament} />
       </Route>
 
       {/* Admin Routes - OWNER only */}

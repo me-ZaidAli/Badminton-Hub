@@ -34,16 +34,17 @@ export function Sidebar() {
   const isClubOwner = ownedClubs.length > 0;
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
-  // Organizers get a simplified navigation focused on session management
   const navItems = isOrganiser ? [
     { href: "/", label: "Home", icon: Home },
     { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy },
   ] : [
     { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/rankings", label: "Rankings", icon: Trophy },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy },
+    { href: "/rankings", label: "Rankings", icon: Activity },
     { href: "/players", label: "Players", icon: Users },
   ];
 
@@ -147,16 +148,16 @@ export function MobileNav() {
   const isClubOwner = ownedClubs.length > 0;
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
-  // Organizers get simplified navigation
   const navItems = isOrganiser ? [
     { href: "/", icon: Home },
     { href: "/organizer", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
+    { href: "/tournaments", icon: Trophy },
   ] : [
     { href: "/", icon: Home },
     { href: "/dashboard", icon: LayoutDashboard },
     { href: "/sessions", icon: Calendar },
-    { href: "/rankings", icon: Trophy },
+    { href: "/tournaments", icon: Trophy },
   ];
 
   if (isClubOwner) {

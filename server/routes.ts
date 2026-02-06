@@ -2475,7 +2475,10 @@ export async function registerRoutes(
       if (!canManage) return res.sendStatus(403);
     }
     try {
-      const tournament = await storage.createTournament({ ...req.body, createdBy: req.user!.id });
+      const body = { ...req.body };
+      if (body.startDate) body.startDate = new Date(body.startDate);
+      if (body.endDate) body.endDate = new Date(body.endDate);
+      const tournament = await storage.createTournament({ ...body, createdBy: req.user!.id });
       res.status(201).json(tournament);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -2494,7 +2497,10 @@ export async function registerRoutes(
         const canManage = profiles.some(p => p.clubId === tournament.clubId && ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
         if (!canManage) return res.sendStatus(403);
       }
-      const updated = await storage.updateTournament(tournament.id, req.body);
+      const body = { ...req.body };
+      if (body.startDate) body.startDate = new Date(body.startDate);
+      if (body.endDate) body.endDate = new Date(body.endDate);
+      const updated = await storage.updateTournament(tournament.id, body);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
