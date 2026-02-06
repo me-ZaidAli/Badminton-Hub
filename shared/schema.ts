@@ -55,6 +55,7 @@ export const clubs = pgTable("clubs", {
   postcode: text("postcode"),
   latitude: text("latitude"), // Stored as text to avoid floating point issues
   longitude: text("longitude"),
+  googleMapsUrl: text("google_maps_url"),
   // Registration & Affiliation
   isRegisteredWithBE: boolean("is_registered_with_be").default(false).notNull(), // Badminton England
   beRegistrationNumber: text("be_registration_number"), // Optional BE reg number

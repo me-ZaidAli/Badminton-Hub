@@ -278,7 +278,7 @@ export async function registerRoutes(
 
     try {
       const { 
-        name, description, address, city, postcode,
+        name, description, address, city, postcode, googleMapsUrl,
         isRegisteredWithBE, beRegistrationNumber,
         hasCompetitions, hasSocialGames, socialGameTimings,
         providesTraining, trainingDetails,
@@ -404,6 +404,7 @@ export async function registerRoutes(
         address: address?.trim() || null,
         city: city?.trim() || null,
         postcode: postcode?.trim() || null,
+        googleMapsUrl: googleMapsUrl?.trim() || null,
         latitude,
         longitude,
         ownerId: userId,
@@ -1864,7 +1865,7 @@ export async function registerRoutes(
     }
 
     try {
-      const { name, logoUrl } = req.body;
+      const { name, logoUrl, address, city, postcode, googleMapsUrl, latitude, longitude } = req.body;
       
       const updates: any = {};
       if (name !== undefined) {
@@ -1875,6 +1876,24 @@ export async function registerRoutes(
       }
       if (logoUrl !== undefined) {
         updates.logoUrl = logoUrl || null;
+      }
+      if (address !== undefined) {
+        updates.address = address || null;
+      }
+      if (city !== undefined) {
+        updates.city = city || null;
+      }
+      if (postcode !== undefined) {
+        updates.postcode = postcode || null;
+      }
+      if (googleMapsUrl !== undefined) {
+        updates.googleMapsUrl = googleMapsUrl || null;
+      }
+      if (latitude !== undefined) {
+        updates.latitude = latitude || null;
+      }
+      if (longitude !== undefined) {
+        updates.longitude = longitude || null;
       }
       
       const updatedClub = await storage.updateClub(clubId, updates);

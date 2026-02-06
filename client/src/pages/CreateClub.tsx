@@ -41,6 +41,7 @@ const createClubSchema = z.object({
   address: z.string().max(200, "Address must be less than 200 characters").optional(),
   city: z.string().max(100, "City must be less than 100 characters").optional(),
   postcode: z.string().max(20, "Postcode must be less than 20 characters").optional(),
+  googleMapsUrl: z.string().url("Please enter a valid URL").max(500, "URL too long").optional().or(z.literal("")),
   isRegisteredWithBE: z.boolean().default(false),
   beRegistrationNumber: z.string().max(50, "Registration number too long").optional(),
   hasCompetitions: z.boolean().default(false),
@@ -100,6 +101,7 @@ export default function CreateClub() {
       address: "",
       city: "",
       postcode: "",
+      googleMapsUrl: "",
       isRegisteredWithBE: false,
       beRegistrationNumber: "",
       hasCompetitions: false,
@@ -707,6 +709,27 @@ export default function CreateClub() {
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name="googleMapsUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Google Maps Link</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., https://maps.google.com/..."
+                              data-testid="input-club-google-maps"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Paste the Google Maps link to your club's location so players can easily find you
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </div>
 

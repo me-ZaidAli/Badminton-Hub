@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog } from "lucide-react";
+import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
@@ -30,6 +30,9 @@ export default function ClubManagement() {
   const [userManageOpen, setUserManageOpen] = useState(false);
   const [newClub, setNewClub] = useState({ name: "", slug: "", description: "" });
   const [activeTab, setActiveTab] = useState("all");
+  const [editDetails, setEditDetails] = useState({
+    name: "", logoUrl: "", address: "", city: "", postcode: "", googleMapsUrl: ""
+  });
 
   // Fetch all clubs for super admin
   const { data: clubs, isLoading } = useQuery<ClubWithStatus[]>({
@@ -60,6 +63,20 @@ export default function ClubManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clubs", manageClub?.id, "members"] });
       toast({ title: "Member updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateClubDetailsMutation = useMutation({
+    mutationFn: async ({ clubId, updates }: { clubId: number; updates: Record<string, string | null> }) => {
+      const res = await apiRequest("PATCH", `/api/clubs/${clubId}`, updates);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      toast({ title: "Club details updated successfully" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -299,7 +316,17 @@ export default function ClubManagement() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setManageClub(club)}
+                          onClick={() => {
+                            setManageClub(club);
+                            setEditDetails({
+                              name: club.name || "",
+                              logoUrl: club.logoUrl || "",
+                              address: club.address || "",
+                              city: club.city || "",
+                              postcode: club.postcode || "",
+                              googleMapsUrl: club.googleMapsUrl || "",
+                            });
+                          }}
                           data-testid={`manage-club-${club.id}`}
                         >
                           <Settings className="w-4 h-4 mr-1" />
@@ -358,8 +385,110 @@ export default function ClubManagement() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="mt-4">
-            <h3 className="font-semibold mb-4">Club Members</h3>
+          <div className="mt-4 space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Club Details & Location
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Club Name</Label>
+                  <Input
+                    value={editDetails.name}
+                    onChange={(e) => setEditDetails({ ...editDetails, name: e.target.value })}
+                    data-testid="input-edit-club-name"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Logo URL</Label>
+                  <Input
+                    value={editDetails.logoUrl}
+                    onChange={(e) => setEditDetails({ ...editDetails, logoUrl: e.target.value })}
+                    placeholder="https://..."
+                    data-testid="input-edit-club-logo"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address</Label>
+                <Input
+                  value={editDetails.address}
+                  onChange={(e) => setEditDetails({ ...editDetails, address: e.target.value })}
+                  placeholder="e.g., 123 Sports Center Drive"
+                  data-testid="input-edit-club-address"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>City</Label>
+                  <Input
+                    value={editDetails.city}
+                    onChange={(e) => setEditDetails({ ...editDetails, city: e.target.value })}
+                    placeholder="e.g., London"
+                    data-testid="input-edit-club-city"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Postcode</Label>
+                  <Input
+                    value={editDetails.postcode}
+                    onChange={(e) => setEditDetails({ ...editDetails, postcode: e.target.value })}
+                    placeholder="e.g., SW1A 1AA"
+                    data-testid="input-edit-club-postcode"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Google Maps Link</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editDetails.googleMapsUrl}
+                    onChange={(e) => setEditDetails({ ...editDetails, googleMapsUrl: e.target.value })}
+                    placeholder="https://maps.google.com/..."
+                    className="flex-1"
+                    data-testid="input-edit-club-google-maps"
+                  />
+                  {editDetails.googleMapsUrl && (
+                    <a href={editDetails.googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                      <Button size="icon" variant="outline" type="button">
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (manageClub) {
+                    updateClubDetailsMutation.mutate({
+                      clubId: manageClub.id,
+                      updates: {
+                        name: editDetails.name || null,
+                        logoUrl: editDetails.logoUrl || null,
+                        address: editDetails.address || null,
+                        city: editDetails.city || null,
+                        postcode: editDetails.postcode || null,
+                        googleMapsUrl: editDetails.googleMapsUrl || null,
+                      },
+                    });
+                  }
+                }}
+                disabled={updateClubDetailsMutation.isPending}
+                data-testid="button-save-club-details"
+              >
+                {updateClubDetailsMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1" />
+                )}
+                Save Details
+              </Button>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-4">Club Members</h3>
             
             {membersLoading ? (
               <div className="flex justify-center py-8">
@@ -436,6 +565,7 @@ export default function ClubManagement() {
                 </TableBody>
               </Table>
             )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

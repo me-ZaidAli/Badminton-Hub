@@ -17,6 +17,7 @@ interface ClubLocation {
   postcode?: string | null;
   latitude?: string | null;
   longitude?: string | null;
+  googleMapsUrl?: string | null;
 }
 
 interface ClubMapProps {
@@ -68,29 +69,46 @@ export function ClubMap({ clubs, center = [51.5074, -0.1278], zoom = 10, onClubC
       if (!isNaN(lat) && !isNaN(lng)) {
         const marker = L.marker([lat, lng]).addTo(mapInstanceRef.current!);
         
-        // Create popup content safely using DOM API to prevent XSS
         const container = document.createElement('div');
-        container.style.minWidth = '150px';
+        container.style.minWidth = '180px';
         
         const nameEl = document.createElement('strong');
         nameEl.textContent = club.name;
+        nameEl.style.fontSize = '14px';
         container.appendChild(nameEl);
         
-        if (club.city) {
+        if (club.address) {
           container.appendChild(document.createElement('br'));
-          const cityEl = document.createElement('span');
-          cityEl.style.color = '#666';
-          cityEl.textContent = club.city;
-          container.appendChild(cityEl);
+          const addrEl = document.createElement('span');
+          addrEl.style.color = '#555';
+          addrEl.style.fontSize = '12px';
+          addrEl.textContent = club.address;
+          container.appendChild(addrEl);
         }
         
-        if (club.postcode) {
+        const locationParts = [club.city, club.postcode].filter(Boolean);
+        if (locationParts.length > 0) {
           container.appendChild(document.createElement('br'));
-          const postcodeEl = document.createElement('span');
-          postcodeEl.style.color = '#888';
-          postcodeEl.style.fontSize = '0.9em';
-          postcodeEl.textContent = club.postcode;
-          container.appendChild(postcodeEl);
+          const locEl = document.createElement('span');
+          locEl.style.color = '#777';
+          locEl.style.fontSize = '12px';
+          locEl.textContent = locationParts.join(', ');
+          container.appendChild(locEl);
+        }
+        
+        if (club.googleMapsUrl) {
+          container.appendChild(document.createElement('br'));
+          const linkEl = document.createElement('a');
+          linkEl.href = club.googleMapsUrl;
+          linkEl.target = '_blank';
+          linkEl.rel = 'noopener noreferrer';
+          linkEl.textContent = 'Open in Google Maps';
+          linkEl.style.color = '#2563eb';
+          linkEl.style.fontSize = '12px';
+          linkEl.style.textDecoration = 'underline';
+          linkEl.style.display = 'inline-block';
+          linkEl.style.marginTop = '4px';
+          container.appendChild(linkEl);
         }
         
         marker.bindPopup(container);

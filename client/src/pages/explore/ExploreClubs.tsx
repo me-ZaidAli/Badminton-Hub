@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { ClubMap } from "@/components/ui/club-map";
 import { useClubs } from "@/hooks/use-clubs";
-import { ArrowRight, Users, MapPin, Search, List, Map as MapIcon } from "lucide-react";
+import { ArrowRight, Users, MapPin, Search, List, Map as MapIcon, ExternalLink } from "lucide-react";
 
 export default function ExploreClubs() {
   const { data: clubs, isLoading } = useClubs();
@@ -88,14 +88,22 @@ export default function ExploreClubs() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold truncate">{club.name}</h3>
-                            {(club.city || club.postcode) && (
+                            {club.address && (
                               <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                                 <MapPin className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{[club.city, club.postcode].filter(Boolean).join(", ")}</span>
+                                <span className="truncate">{club.address}</span>
                               </div>
                             )}
-                            {club.description && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{club.description}</p>
+                            {(club.city || club.postcode) && (
+                              <div className="text-xs text-muted-foreground mt-0.5 ml-4">
+                                {[club.city, club.postcode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                            {club.googleMapsUrl && (
+                              <a href={club.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline mt-1" data-testid={`link-google-maps-map-${club.id}`}>
+                                <ExternalLink className="w-3 h-3" />
+                                Google Maps
+                              </a>
                             )}
                           </div>
                           <Link href="/register">
@@ -133,13 +141,21 @@ export default function ExploreClubs() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <CardTitle className="text-lg truncate">{club.name}</CardTitle>
-                          <CardDescription className="flex items-center gap-1 mt-1">
-                            <MapPin className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">
-                              {club.city || club.postcode
-                                ? [club.city, club.postcode].filter(Boolean).join(", ")
-                                : "Location TBD"
-                              }
+                          <CardDescription className="mt-1 space-y-0.5">
+                            {club.address && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{club.address}</span>
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1 text-xs">
+                              {!club.address && <MapPin className="w-3 h-3 flex-shrink-0" />}
+                              <span className="truncate">
+                                {club.city || club.postcode
+                                  ? [club.city, club.postcode].filter(Boolean).join(", ")
+                                  : "Location TBD"
+                                }
+                              </span>
                             </span>
                           </CardDescription>
                         </div>
@@ -154,10 +170,14 @@ export default function ExploreClubs() {
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {club.description || "A great place to play badminton and meet fellow players."}
                       </p>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Users className="w-4 h-4" />
-                          <span>Open for members</span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          {club.googleMapsUrl && (
+                            <a href={club.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground underline" data-testid={`link-google-maps-${club.id}`}>
+                              <ExternalLink className="w-3 h-3" />
+                              Google Maps
+                            </a>
+                          )}
                         </div>
                         <Link href="/register">
                           <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>
