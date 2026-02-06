@@ -1,0 +1,273 @@
+Build a Tournament Management module for a badminton club management web application. The app must be production-ready, scalable, and mobile-responsive. Use a clean component-based architecture and clear data models.
+
+1. Core Data Models
+
+Create the following main entities with relational links:
+
+Tournament
+
+id
+
+name
+
+type (club, open, league, friendly)
+
+venue
+
+startDate / endDate
+
+status (draft, published, ongoing, completed)
+
+scoringFormat
+
+courtsAvailable
+
+Category
+
+id
+
+tournamentId
+
+name (e.g. Men’s Singles, Mixed Doubles, Beginner)
+
+level
+
+format (roundRobin, knockout, groupPlusKnockout, league, swiss)
+
+Player
+
+id
+
+name
+
+gender
+
+club
+
+level
+
+Team
+
+id
+
+player1Id
+
+player2Id (nullable for singles)
+
+Match
+
+id
+
+categoryId
+
+teamAId
+
+teamBId
+
+courtNumber
+
+scheduledTime
+
+score
+
+status (upcoming, live, finished)
+
+winnerId
+
+Standing
+
+categoryId
+
+teamId
+
+matchesPlayed
+
+matchesWon
+
+points
+
+gameDifference
+
+2. Tournament Categories & Eligibility
+
+Allow each tournament to contain multiple categories:
+
+Men’s Singles
+
+Women’s Singles
+
+Men’s Doubles
+
+Women’s Doubles
+
+Mixed Doubles
+
+Junior (age-based)
+
+Beginner / Intermediate / Advanced
+
+Custom admin-defined categories
+
+Validate eligibility rules automatically (e.g. gender for mixed doubles).
+
+3. Tournament Formats & Logic
+
+Support the following formats per category:
+
+Round Robin
+
+Auto-generate all matches
+
+Live group tables
+
+Tie-break rules (points → head-to-head → game difference)
+
+Knockout
+
+Bracket generation
+
+Auto-advance winners
+
+Support walkovers and byes
+
+Group Stage + Knockout
+
+Group qualification rules (e.g. top 2)
+
+Auto-populate knockout stage
+
+League / Swiss
+
+Multiple rounds
+
+Ranking recalculation after each round
+
+4. Registration & Player Management
+
+Allow:
+
+Admin-added players
+
+Club members
+
+External players (no login required to view)
+
+Support:
+
+Singles and doubles pairing
+
+Manual partner selection
+
+Late replacements with admin approval
+
+5. Scheduling & Court Allocation
+
+Implement:
+
+Automatic match scheduling
+
+Court assignment logic
+
+Estimated match durations
+
+Allow admins to:
+
+Manually reschedule matches
+
+Change courts
+
+Mark forfeits or walkovers
+
+6. Scoring & Match Progression
+
+Provide:
+
+Game-by-game score input
+
+Score validation
+
+Automatic winner calculation
+
+When a match finishes:
+
+Update standings
+
+Advance winners
+
+Lock scores unless admin unlocks
+
+7. Public Tournament View (No Login Required)
+
+Create a public-facing tournament page accessible via URL, with:
+
+Tournament overview
+
+Category list
+
+Live match results
+
+Upcoming matches (who plays next)
+
+Court assignments
+
+Group tables and knockout brackets
+
+Completed results and winners
+
+This page must be read-only and require no authentication.
+
+8. Admin & User Permissions
+
+Roles:
+
+Admin: full access
+
+Organizer: schedule & scoring
+
+Player: view own matches
+
+Public User: view only
+
+Enforce role-based access control.
+
+9. UI & Components
+
+Build reusable UI components:
+
+Tournament list & detail pages
+
+Category tabs
+
+Match cards
+
+Bracket view
+
+Group tables
+
+Ensure mobile-first responsive design.
+
+10. Data Persistence & History
+
+Store:
+
+Completed tournaments
+
+Match results
+
+Winners by category
+
+Player performance history
+
+Enable viewing past tournaments.
+
+11. Future-Ready Design
+
+Structure code so it can later support:
+
+Rankings integration
+
+Season points
+
+Export to CSV/PDF
+
+External embeds

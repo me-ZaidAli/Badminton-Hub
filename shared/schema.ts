@@ -13,10 +13,13 @@ export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["ATTENDED", "NOT_ATTENDED"]);
 export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL"]);
 export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED"]);
+export const matchGenderTypeEnum = pgEnum("match_gender_type", ["MIXED", "FEMALE", "MALE"]);
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED"]);
 export const clubStatusEnum = pgEnum("club_status", ["PENDING", "APPROVED", "REJECTED"]); // Club approval status
 export const playerStatusEnum = pgEnum("player_status", ["ACTIVE", "SUSPENDED", "ARCHIVED"]); // Player profile status
+export const genderRestrictionEnum = pgEnum("gender_restriction", ["ALL", "FEMALE_ONLY"]);
+export const sessionTypeEnum = pgEnum("session_type", ["OPEN", "JUNIORS_ONLY"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -27,7 +30,8 @@ export const users = pgTable("users", {
   role: roleEnum("role").default("PLAYER").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   accountStatus: accountStatusEnum("account_status").default("PENDING").notNull(),
-  claimedProfileId: integer("claimed_profile_id"), // Reference to unclaimed profile if claiming existing
+  claimedProfileId: integer("claimed_profile_id"),
+  dateOfBirth: timestamp("date_of_birth"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -127,12 +131,17 @@ export const sessions = pgTable("sessions", {
   allowedCategories: jsonb("allowed_categories").$type<string[]>().notNull(), // ["A", "B"]
   matchMode: matchModeEnum("match_mode").default("SOCIAL").notNull(),
   isPrivate: boolean("is_private").default(false).notNull(),
+  genderRestriction: genderRestrictionEnum("gender_restriction").default("ALL").notNull(),
+  sessionType: sessionTypeEnum("session_type").default("OPEN").notNull(),
+  juniorAgeGroups: jsonb("junior_age_groups").$type<string[]>(),
+  playersPerSide: integer("players_per_side").default(2).notNull(),
+  matchGenderType: matchGenderTypeEnum("match_gender_type").default("MIXED").notNull(),
   createdBy: integer("created_by").references(() => users.id).notNull(),
-  status: text("status").default("UPCOMING"), // UPCOMING, COMPLETED, CANCELLED
+  status: text("status").default("UPCOMING"),
   shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
-  sessionFee: integer("session_fee"), // in pence (GBP) - overrides club default if set
-  shuttlecockType: text("shuttlecock_type"), // "feather", "plastic" - inherits from club if not set
-  courtNames: jsonb("court_names").$type<string[]>(), // Custom court names e.g. ["Main Court", "Back Court"]
+  sessionFee: integer("session_fee"),
+  shuttlecockType: text("shuttlecock_type"),
+  courtNames: jsonb("court_names").$type<string[]>(),
 });
 
 // === SESSION SIGNUPS ===
@@ -244,6 +253,11 @@ export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit
 export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true }).extend({
   date: z.coerce.date(),
+  playersPerSide: z.number().min(1).max(2).default(2),
+  genderRestriction: z.enum(["ALL", "FEMALE_ONLY"]).default("ALL"),
+  sessionType: z.enum(["OPEN", "JUNIORS_ONLY"]).default("OPEN"),
+  juniorAgeGroups: z.array(z.string()).optional().nullable(),
+  matchGenderType: z.enum(["MIXED", "FEMALE", "MALE"]).default("MIXED"),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });

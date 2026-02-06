@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2 } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -30,9 +30,15 @@ const CATEGORIES = [
   { value: "D", label: "Category D (Beginner)" },
 ] as const;
 
-// Helper for schema refinement if needed, usually direct import works
+const JUNIOR_AGE_GROUPS = [
+  { value: "7-10", label: "7 to 10 years" },
+  { value: "10-12", label: "10 to 12 years" },
+  { value: "13-15", label: "13 to 15 years" },
+  { value: "16-18", label: "16 to 18 years" },
+] as const;
+
 const createSessionSchema = insertSessionSchema.extend({
-  date: z.coerce.date(), // ensure string dates are coerced
+  date: z.coerce.date(),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Use HH:MM format"),
 });
 
@@ -188,11 +194,25 @@ export default function Sessions() {
               <Card className={`h-full cursor-pointer border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
                 <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
                 <CardContent className="p-6">
-                  <div className={`flex justify-between items-start mb-4 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
-                    <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
-                      {session.matchMode}
-                    </Badge>
-                    <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
+                  <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
+                    <div className="flex gap-1 flex-wrap">
+                      <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : "secondary"}>
+                        {session.matchMode}
+                      </Badge>
+                      {session.playersPerSide === 1 && (
+                        <Badge variant="outline">Singles</Badge>
+                      )}
+                      {session.genderRestriction === "FEMALE_ONLY" && (
+                        <Badge variant="secondary" className="bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">Females Only</Badge>
+                      )}
+                      {session.sessionType === "JUNIORS_ONLY" && (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Juniors</Badge>
+                      )}
+                      {session.isPrivate && (
+                        <Badge variant="outline">Private</Badge>
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
                       {session.startTime}
                     </span>
                   </div>
@@ -285,12 +305,20 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       courtsAvailable: 4,
       matchMode: "SOCIAL",
       isPrivate: false,
+      genderRestriction: "ALL",
+      sessionType: "OPEN",
+      juniorAgeGroups: [],
+      playersPerSide: 2,
+      matchGenderType: "MIXED",
       durationMinutes: 120,
       allowedCategories: ["A", "B", "C", "D"],
       sessionFee: undefined,
       shuttlecockType: undefined,
     }
   });
+
+  const watchSessionType = form.watch("sessionType");
+  const watchGenderRestriction = form.watch("genderRestriction");
 
   useEffect(() => {
     if (sessionClubs.length > 0 && !form.getValues("clubId")) {
@@ -447,6 +475,167 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
                 </FormItem>
               )}
             />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="playersPerSide"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Players Per Side</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-players-per-side">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="1">1 (Singles)</SelectItem>
+                        <SelectItem value="2">2 (Doubles)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="matchGenderType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Match Gender Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-match-gender-type">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="MIXED">Mixed</SelectItem>
+                        <SelectItem value="FEMALE">Female Only</SelectItem>
+                        <SelectItem value="MALE">Male Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="genderRestriction"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Gender Restriction</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-gender-restriction">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="ALL">Open to All</SelectItem>
+                        <SelectItem value="FEMALE_ONLY">Females Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {watchGenderRestriction === "FEMALE_ONLY" ? "Only female players can sign up" : ""}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isPrivate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Session Access</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-session-access">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="false">Public</SelectItem>
+                        <SelectItem value="true">Private (Invite Only)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {field.value ? "Only admins can add players" : "Anyone can sign up"}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="sessionType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Session Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-session-type">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="OPEN">Open (All Ages)</SelectItem>
+                      <SelectItem value="JUNIORS_ONLY">Juniors Only (Under 18)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {watchSessionType === "JUNIORS_ONLY" && (
+              <FormField
+                control={form.control}
+                name="juniorAgeGroups"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Junior Age Groups</FormLabel>
+                    <FormDescription>
+                      Select which age groups can join this session.
+                    </FormDescription>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      {JUNIOR_AGE_GROUPS.map((group) => (
+                        <FormField
+                          key={group.value}
+                          control={form.control}
+                          name="juniorAgeGroups"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value?.includes(group.value)}
+                                  onCheckedChange={(checked) => {
+                                    const currentValue = (field.value || []) as string[];
+                                    if (checked) {
+                                      field.onChange([...currentValue, group.value]);
+                                    } else {
+                                      field.onChange(currentValue.filter(v => v !== group.value));
+                                    }
+                                  }}
+                                  data-testid={`checkbox-age-group-${group.value}`}
+                                />
+                              </FormControl>
+                              <FormLabel className="text-sm font-normal cursor-pointer">
+                                {group.label}
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="allowedCategories"
