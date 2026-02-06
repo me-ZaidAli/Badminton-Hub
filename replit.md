@@ -58,21 +58,15 @@ Key design patterns include:
   - Venues tab: read-only view of venues and court names
 - **Bulk Session Selection & Deletion**: Sessions page (`/sessions`) supports checkbox selection for organiser+ roles. Includes select-all, selected count badge, and bulk delete with confirmation dialog.
 - **Venue Access for Club Admins**: Venues page (`/admin/venues`) is accessible to club admins (not just super admins), filtered to show only clubs the user has admin access to.
-- **Tournament Management**: Comprehensive tournament module at `/tournaments` with the following features:
-  - Tournament CRUD with status lifecycle: DRAFT → PUBLISHED → ONGOING → COMPLETED
-  - Tournament types: CLUB, OPEN, LEAGUE, FRIENDLY
-  - Category-based events (e.g., Men's Doubles, Mixed Singles) with configurable formats
-  - Three match formats: ROUND_ROBIN (all vs all), KNOCKOUT (bracket with byes), GROUP_KNOCKOUT (group stage then knockout)
-  - Team registration with player profile IDs, seed numbers, and group assignments
-  - Match generation algorithms for all three formats
-  - Score entry dialog with multi-game support (Best of 3/5/single)
-  - Automatic standings recalculation based on match results (points, games won/lost, point differential)
-  - Bracket visualization for knockout tournaments
-  - Standings table for round robin/group formats
-  - Advance winners to next knockout round
-  - Public tournament view at `/public/tournament/:id` (no auth required for published tournaments)
-  - RBAC: OWNER/ADMIN/ORGANISER can create/manage, players can view
-  - Database tables: tournaments, tournament_categories, tournament_teams, tournament_matches, tournament_standings
+- **Session Player Management**: Enhanced player controls within sessions at `/sessions/:id`:
+  - Gender override: quick swap between MALE/FEMALE per session (stored in session_signups.genderOverride, doesn't change profile)
+  - Pause/Resume: temporarily exclude players from new match generation (session_signups.isPaused)
+  - Player pairing: group two players to always play together (session_signups.pairGroupId with color-coded badges)
+  - Guest player creation: add players not in the system (creates user + profile + signup in one action)
+  - Single-page vertical layout: header → matches/courts → player management section (no tabs)
+  - API endpoints: PATCH .../gender, PATCH .../pause, PATCH .../pair, POST .../guest-player
+  - All endpoints enforce RBAC (MANAGE_SESSIONS permission required)
+- **Tournament System**: Database tables preserved (tournaments, tournament_categories, tournament_teams, tournament_matches, tournament_standings) but UI/routes/hooks removed. Can be re-enabled in future.
 
 ## External Dependencies
 
