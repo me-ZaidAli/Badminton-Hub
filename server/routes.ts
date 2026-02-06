@@ -840,13 +840,19 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames } = req.body;
 
       const updates: any = {};
       if (courtsAvailable !== undefined) updates.courtsAvailable = courtsAvailable;
       if (maxPlayers !== undefined) updates.maxPlayers = maxPlayers;
       if (matchMode !== undefined) updates.matchMode = matchMode;
       if (status !== undefined) updates.status = status;
+      if (courtNames !== undefined) {
+        if (!Array.isArray(courtNames) || !courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
+          return res.status(400).json({ message: "Court names must be an array of non-empty strings" });
+        }
+        updates.courtNames = courtNames.map((n: string) => n.trim());
+      }
       if (allowedCategories !== undefined) {
         // Validate categories
         const validCategories = ["A", "B", "C", "D"];

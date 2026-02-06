@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
@@ -371,6 +371,7 @@ export default function SessionDetail() {
             isOrganiser={isOrganiser} 
             matchMode={session.matchMode} 
             courtsAvailable={session.courtsAvailable}
+            courtNames={session.courtNames}
             signups={signups || []}
           />
         </TabsContent>
@@ -379,11 +380,12 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signups }: { 
+function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, courtNames: initialCourtNames, signups }: { 
   sessionId: number; 
   isOrganiser: boolean; 
   matchMode: "COMPETITIVE" | "SOCIAL";
   courtsAvailable: number;
+  courtNames?: string[] | null;
   signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
@@ -391,10 +393,26 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signu
   const { mutate: completeMatch } = useCompleteMatch();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();
+  const { mutate: updateSession } = useUpdateSession();
 
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [matchesToGenerate, setMatchesToGenerate] = useState(8);
+  const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
+
+  useEffect(() => {
+    setCourtNamesState(initialCourtNames || []);
+  }, [initialCourtNames]);
+
+  const handleCourtNameChange = (courtNumber: number, name: string) => {
+    const newNames = [...courtNamesState];
+    while (newNames.length < courtNumber) {
+      newNames.push(`Court ${newNames.length + 1}`);
+    }
+    newNames[courtNumber - 1] = name;
+    setCourtNamesState(newNames);
+    updateSession({ sessionId, updates: { courtNames: newNames } });
+  };
 
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
@@ -531,12 +549,14 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, signu
               <BadmintonCourt
                 key={courtNum}
                 courtNumber={courtNum}
+                courtName={courtNamesState[courtNum - 1]}
                 match={match}
                 availablePlayers={availablePlayers}
                 isOrganiser={isOrganiser}
                 onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
                 onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
                 onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                onCourtNameChange={handleCourtNameChange}
               />
             );
           })}

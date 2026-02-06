@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, Play, Square, Clock, Users } from "lucide-react";
+import { Check, Play, Square, Clock, Users, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import courtImage from "@assets/image_1770246183034.png";
 
@@ -38,12 +38,14 @@ export type CourtMatch = {
 
 type BadmintonCourtProps = {
   courtNumber: number;
+  courtName?: string;
   match: CourtMatch | null;
   availablePlayers: Player[];
   isOrganiser: boolean;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => void;
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
+  onCourtNameChange?: (courtNumber: number, name: string) => void;
 };
 
 function formatTime(seconds: number): string {
@@ -145,16 +147,25 @@ function PlayerSlot({
 
 export function BadmintonCourt({
   courtNumber,
+  courtName,
   match,
   availablePlayers,
   isOrganiser,
   onStartMatch,
   onCompleteMatch,
   onSwapPlayer,
+  onCourtNameChange,
 }: BadmintonCourtProps) {
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(courtName || `Court ${courtNumber}`);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setEditName(courtName || `Court ${courtNumber}`);
+  }, [courtName, courtNumber]);
 
   useEffect(() => {
     if (match) {
@@ -163,6 +174,13 @@ export function BadmintonCourt({
     }
   }, [match]);
 
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
   const handleComplete = () => {
     if (match) {
       onCompleteMatch(match.id, scoreA, scoreB);
@@ -170,11 +188,44 @@ export function BadmintonCourt({
     }
   };
 
+  const handleNameSave = () => {
+    const trimmed = editName.trim();
+    if (trimmed && onCourtNameChange) {
+      onCourtNameChange(courtNumber, trimmed);
+    }
+    setIsEditingName(false);
+  };
+
+  const displayName = courtName || `Court ${courtNumber}`;
+
   return (
     <Card className="overflow-hidden border-2 border-primary/20" data-testid={`court-${courtNumber}`}>
       <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-3 flex items-center justify-between border-b border-border/50">
         <div className="flex items-center gap-2">
-          <Badge variant="default" className="text-lg font-bold px-3">Court {courtNumber}</Badge>
+          {isEditingName ? (
+            <Input
+              ref={nameInputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNameSave();
+                if (e.key === "Escape") { setEditName(displayName); setIsEditingName(false); }
+              }}
+              className="w-40 text-sm font-bold"
+              data-testid={`input-court-name-${courtNumber}`}
+            />
+          ) : (
+            <Badge
+              variant="default"
+              className={cn("text-lg font-bold px-3", isOrganiser && "cursor-pointer")}
+              onClick={() => isOrganiser && setIsEditingName(true)}
+              data-testid={`badge-court-name-${courtNumber}`}
+            >
+              {displayName}
+              {isOrganiser && <Pencil className="w-3 h-3 ml-1.5 inline-block opacity-70" />}
+            </Badge>
+          )}
           {match?.status === "LIVE" && (
             <Badge variant="secondary" className="bg-green-500/20 text-green-700 animate-pulse">LIVE</Badge>
           )}
