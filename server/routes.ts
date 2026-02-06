@@ -11,6 +11,7 @@ import { matchModeEnum } from "@shared/schema";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
+import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 
 const scryptAsync = promisify(scrypt);
 
@@ -20,80 +21,22 @@ async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-// Helper to check if user has admin access (global role OR club owner/admin)
 async function hasAdminAccess(userId: number, userRole: string, clubId?: number): Promise<boolean> {
-  // Platform-level super admins have access to everything
-  if (userRole === "OWNER") {
-    return true;
-  }
-  
-  if (clubId) {
-    // Check if user is the club owner
-    const club = await storage.getClub(clubId);
-    if (club && club.ownerId === userId) {
-      return true;
-    }
-    
-    // Check club-level role (OWNER or ADMIN can manage club) - must be approved
-    const profiles = await storage.getUserPlayerProfiles(userId);
-    const clubProfile = profiles.find(p => p.clubId === clubId);
-    if (clubProfile && 
-        clubProfile.membershipStatus === "APPROVED" && 
-        ["OWNER", "ADMIN"].includes(clubProfile.clubRole)) {
-      return true;
-    }
-  }
-  return false;
+  const result = await canPerform({ id: userId, role: userRole }, "MANAGE_CLUB", clubId);
+  log_rbac("MANAGE_CLUB", userId, result, { clubId });
+  return result;
 }
 
-// Helper to check if user can manage sessions (ORGANISER, COACH, ADMIN, OWNER roles)
 async function canManageSessions(userId: number, userRole: string, clubId: number): Promise<boolean> {
-  // Platform-level super admins can manage all sessions
-  if (userRole === "OWNER") {
-    return true;
-  }
-  
-  // Check club-level role - must be approved AND have appropriate role
-  const profiles = await storage.getUserPlayerProfiles(userId);
-  const clubProfile = profiles.find(p => p.clubId === clubId);
-  
-  if (clubProfile && 
-      clubProfile.membershipStatus === "APPROVED" && 
-      ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubProfile.clubRole)) {
-    return true;
-  }
-  
-  // Check if user owns the club
-  const club = await storage.getClub(clubId);
-  if (club && club.ownerId === userId) {
-    return true;
-  }
-  
-  return false;
+  const result = await canPerform({ id: userId, role: userRole }, "MANAGE_SESSIONS", clubId);
+  log_rbac("MANAGE_SESSIONS", userId, result, { clubId });
+  return result;
 }
 
-// Check if a user is a member of a specific club (for access control)
 async function hasClubMembership(userId: number, userRole: string, clubId: number): Promise<boolean> {
-  // Super admins have access to all clubs
-  if (userRole === "OWNER") {
-    return true;
-  }
-  
-  // Check if user has an approved profile in this club
-  const profiles = await storage.getUserPlayerProfiles(userId);
-  const clubProfile = profiles.find(p => p.clubId === clubId);
-  
-  if (clubProfile && clubProfile.membershipStatus === "APPROVED") {
-    return true;
-  }
-  
-  // Check if user owns this club
-  const club = await storage.getClub(clubId);
-  if (club && club.ownerId === userId) {
-    return true;
-  }
-  
-  return false;
+  const result = await canPerform({ id: userId, role: userRole }, "VIEW_CLUB", clubId);
+  log_rbac("VIEW_CLUB", userId, result, { clubId });
+  return result;
 }
 
 export async function registerRoutes(
@@ -171,13 +114,15 @@ export async function registerRoutes(
     res.json(approvedClubs);
   });
 
-  // Get clubs the current user belongs to (for authenticated users)
   app.get("/api/my-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     try {
+      if (isSuperAdmin(req.user!)) {
+        const allClubs = await storage.getClubs();
+        return res.json(allClubs.filter(c => c.isActive));
+      }
       const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
-      // Filter to only include clubs where membership is approved
       const myClubs = userProfiles
         .filter(p => p.membershipStatus === "APPROVED" && p.club.isActive)
         .map(p => p.club);
@@ -243,9 +188,11 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     try {
+      if (isSuperAdmin(req.user!)) {
+        const allClubs = await storage.getClubs();
+        return res.json(allClubs.filter(c => c.isActive));
+      }
       const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
-      
-      // Filter to clubs where user has admin role (OWNER or ADMIN) and is approved
       const adminClubs = userProfiles
         .filter(p => 
           p.membershipStatus === "APPROVED" && 
@@ -254,11 +201,8 @@ export async function registerRoutes(
         )
         .map(p => p.club);
       
-      // Also include clubs the user owns (via club.ownerId)
       const allClubs = await storage.getClubs();
       const ownedClubs = allClubs.filter(c => c.ownerId === req.user!.id && c.isActive);
-      
-      // Merge and deduplicate
       const clubIds = new Set(adminClubs.map(c => c.id));
       for (const club of ownedClubs) {
         if (!clubIds.has(club.id)) {
@@ -523,35 +467,41 @@ export async function registerRoutes(
     }
   });
 
-  // === Join Club Request ===
   app.post("/api/clubs/join", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
       const { clubId, gender } = req.body;
       
+      if (isSuperAdmin(req.user!)) {
+        console.log(`[JOIN] BLOCKED: Super admin (userId=${req.user!.id}) attempted to join club ${clubId} - super admins have automatic access`);
+        return res.status(400).json({ message: "Super admins already have full access to all clubs. No need to join." });
+      }
+
       if (!clubId || typeof clubId !== 'number') {
         return res.status(400).json({ message: "Club ID is required" });
       }
 
-      // Validate gender if provided
       if (gender && !["MALE", "FEMALE"].includes(gender)) {
         return res.status(400).json({ message: "Gender must be MALE or FEMALE" });
       }
 
-      // Check if club exists
       const club = await storage.getClub(clubId);
       if (!club) {
         return res.status(404).json({ message: "Club not found" });
       }
 
-      // Check if user already has a profile in this club
       const existingProfile = await storage.getPlayerProfile(req.user!.id, clubId);
       if (existingProfile) {
+        if (existingProfile.membershipStatus === "PENDING") {
+          return res.status(400).json({ message: "Your join request is already pending" });
+        }
+        if (existingProfile.membershipStatus === "APPROVED") {
+          return res.status(400).json({ message: "You are already a member of this club" });
+        }
         return res.status(400).json({ message: "You already have a profile in this club" });
       }
 
-      // Create pending player profile
       const profile = await storage.createPlayerProfile({
         userId: req.user!.id,
         clubId,
@@ -562,9 +512,10 @@ export async function registerRoutes(
         membershipId: null
       });
 
+      console.log(`[JOIN] REQUEST: userId=${req.user!.id} requested to join clubId=${clubId}`);
       res.status(201).json(profile);
     } catch (err: any) {
-      console.error("Error joining club:", err);
+      console.error("[JOIN] ERROR:", err);
       res.status(500).json({ message: err.message || "Failed to join club" });
     }
   });
@@ -2142,7 +2093,6 @@ export async function registerRoutes(
 
       const { membershipStatus, clubRole, category, gender, fullName } = req.body;
       
-      // Validate inputs
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
@@ -2156,10 +2106,25 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid gender" });
       }
 
-      const updated = await storage.updatePlayerProfileWithFullName(profileId, { membershipStatus, clubRole, category, gender }, fullName);
+      if (membershipStatus === "APPROVED" && profile.membershipStatus === "APPROVED") {
+        return res.status(400).json({ message: "User is already approved" });
+      }
+
+      const updates: any = {};
+      if (membershipStatus) updates.membershipStatus = membershipStatus;
+      if (clubRole) updates.clubRole = clubRole;
+      if (category) updates.category = category;
+      if (gender) updates.gender = gender;
+
+      if (membershipStatus === "APPROVED" && !clubRole) {
+        updates.clubRole = profile.clubRole || "PLAYER";
+      }
+
+      const updated = await storage.updatePlayerProfileWithFullName(profileId, updates, fullName);
+      console.log(`[MEMBERSHIP] ${membershipStatus || "UPDATE"}: profileId=${profileId} clubId=${clubId} by userId=${req.user!.id} updates=${JSON.stringify(updates)}`);
       res.json(updated);
     } catch (err: any) {
-      console.error("Error updating member:", err);
+      console.error("[MEMBERSHIP] ERROR:", err);
       res.status(500).json({ message: err.message || "Failed to update member" });
     }
   });
@@ -2487,11 +2452,10 @@ export async function registerRoutes(
     }
   });
 
-  // Helper: check if user can manage tournaments for a given club
   async function canManageTournament(user: Express.User, clubId: number): Promise<boolean> {
-    if (user.role === "OWNER") return true;
-    const profiles = await storage.getPlayerProfilesByUser(user.id);
-    return profiles.some(p => p.clubId === clubId && ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
+    const result = await canPerform({ id: user.id, role: user.role }, "MANAGE_TOURNAMENTS", clubId);
+    log_rbac("MANAGE_TOURNAMENTS", user.id, result, { clubId });
+    return result;
   }
 
   // Create tournament

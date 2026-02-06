@@ -28,11 +28,14 @@ export function useLogin() {
         if (res.status === 401) throw new Error("Invalid credentials");
         throw new Error("Login failed");
       }
-      return api.auth.login.responses[200].parse(await res.json());
-    },
-    onSuccess: () => {
-      // Invalidate to refetch complete user data including playerProfile
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      const userData = await res.json();
+      queryClient.setQueryData(["/api/auth/me"], userData);
+      const meRes = await fetch(api.auth.me.path, { credentials: "include" });
+      if (meRes.ok) {
+        const fullUser = await meRes.json();
+        queryClient.setQueryData(["/api/auth/me"], fullUser);
+      }
+      return userData;
     },
   });
 }

@@ -48,7 +48,7 @@ export function Sidebar() {
     { href: "/players", label: "Players", icon: Users },
   ];
 
-  if (isClubOwner) {
+  if (isSuperAdmin || isClubOwner) {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
   }
 
@@ -160,7 +160,7 @@ export function MobileNav() {
     { href: "/tournaments", icon: Trophy },
   ];
 
-  if (isClubOwner) {
+  if (isSuperAdmin || isClubOwner) {
     navItems.push({ href: "/club-admin", icon: Building2 });
   }
 

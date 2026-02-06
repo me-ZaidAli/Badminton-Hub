@@ -164,11 +164,19 @@ export default function Clubs() {
                             </Badge>
                           )}
                           {user ? (
-                            <Link href={`/clubs/${club.id}/join`}>
-                              <Button size="sm" data-testid={`button-join-club-${club.id}`}>
-                                View
-                              </Button>
-                            </Link>
+                            user.role === "OWNER" ? (
+                              <Link href="/club-admin">
+                                <Button size="sm" data-testid={`button-manage-club-${club.id}`}>
+                                  Manage
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Link href={`/clubs/${club.id}/join`}>
+                                <Button size="sm" data-testid={`button-join-club-${club.id}`}>
+                                  View
+                                </Button>
+                              </Link>
+                            )
                           ) : (
                             <Link href="/register">
                               <Button size="sm">Register</Button>
@@ -235,12 +243,21 @@ export default function Clubs() {
                       <span>Open for members</span>
                     </div>
                     {user ? (
-                      <Link href={`/clubs/${club.id}/join`}>
-                        <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>
-                          Join
-                          <ArrowRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      </Link>
+                      user.role === "OWNER" ? (
+                        <Link href="/club-admin">
+                          <Button size="sm" variant="outline" data-testid={`button-manage-club-${club.id}`}>
+                            Manage
+                            <ArrowRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Link href={`/clubs/${club.id}/join`}>
+                          <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>
+                            Join
+                            <ArrowRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </Link>
+                      )
                     ) : (
                       <Link href="/register">
                         <Button size="sm" variant="outline">

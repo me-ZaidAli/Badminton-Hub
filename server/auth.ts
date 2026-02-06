@@ -43,13 +43,13 @@ export function setupAuth(app: Express) {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
+          console.log(`[AUTH] LOGIN FAILED: email=${username} reason=invalid_credentials`);
           return done(null, false, { message: "Invalid email or password" });
         }
-        // Note: We now use club-specific membership approval (playerProfiles.membershipStatus)
-        // instead of global account status. Login is allowed, but dashboard access is 
-        // controlled by club membership status.
+        console.log(`[AUTH] LOGIN SUCCESS: userId=${user.id} email=${username} role=${user.role}`);
         return done(null, user);
       } catch (err) {
+        console.error(`[AUTH] LOGIN ERROR: email=${username}`, err);
         return done(err);
       }
     }),

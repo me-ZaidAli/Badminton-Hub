@@ -33,7 +33,8 @@ export default function ClubAdmin() {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
+  const isSuperAdmin = user?.role === "OWNER";
+  const ownedClubs = isSuperAdmin ? (clubs || []) : (clubs?.filter(club => club.ownerId === user?.id) || []);
   const clubId = selectedClubId ?? ownedClubs[0]?.id ?? null;
 
   const { data: members, isLoading } = useQuery<MemberWithUser[]>({
@@ -147,7 +148,7 @@ export default function ClubAdmin() {
     deleteMembersMutation.mutate(Array.from(selectedIds));
   };
 
-  if (!ownedClubs.length && user?.role !== "OWNER" && user?.role !== "ADMIN") {
+  if (!ownedClubs.length && !isSuperAdmin && user?.role !== "ADMIN") {
     return (
       <div className="space-y-8">
         <PageHeader title="Club Admin" description="You don't own any clubs." />
