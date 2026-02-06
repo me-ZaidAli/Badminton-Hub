@@ -519,6 +519,21 @@ export async function registerRoutes(
     }
   });
 
+  // === ADMIN: All sessions for a club (including private) ===
+  app.get("/api/clubs/:clubId/sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const sessions = await storage.getSessionsByClub(clubId);
+      res.json(sessions);
+    } catch (err: any) {
+      console.error("Error fetching club sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
   // === PUBLIC: Sessions for a club (no auth required) ===
   app.get("/api/public/clubs/:clubId/sessions", async (req, res) => {
     try {

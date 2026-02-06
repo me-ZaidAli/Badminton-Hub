@@ -177,6 +177,7 @@ export default function Sessions() {
               >
                 <Checkbox
                   checked={selectedIds.has(session.id)}
+                  onCheckedChange={() => {}}
                   data-testid={`checkbox-session-${session.id}`}
                 />
               </div>

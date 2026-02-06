@@ -84,9 +84,9 @@ export default function ClubsManagement() {
   });
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<SessionData[]>({
-    queryKey: ["/api/public/clubs", selectedClub?.id, "sessions"],
+    queryKey: ["/api/clubs", selectedClub?.id, "sessions"],
     queryFn: async () => {
-      const res = await fetch(`/api/public/clubs/${selectedClub!.id}/sessions`, { credentials: "include" });
+      const res = await fetch(`/api/clubs/${selectedClub!.id}/sessions`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch sessions");
       return res.json();
     },
@@ -122,7 +122,7 @@ export default function ClubsManagement() {
       await apiRequest("DELETE", `/api/sessions/${sessionId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/public/clubs", selectedClub?.id, "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", selectedClub?.id, "sessions"] });
       toast({ title: "Session deleted successfully" });
       setDeleteSessionId(null);
     },
@@ -136,7 +136,7 @@ export default function ClubsManagement() {
       await apiRequest("DELETE", "/api/sessions", { sessionIds });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/public/clubs", selectedClub?.id, "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", selectedClub?.id, "sessions"] });
       toast({ title: "Sessions deleted successfully" });
       setSelectedSessions(new Set());
       setBulkDeleteOpen(false);
@@ -152,7 +152,7 @@ export default function ClubsManagement() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/public/clubs", selectedClub?.id, "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", selectedClub?.id, "sessions"] });
       toast({ title: "Session updated successfully" });
       setEditingSessionId(null);
       setEditForm({});

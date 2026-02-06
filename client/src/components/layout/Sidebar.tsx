@@ -168,6 +168,9 @@ export function MobileNav() {
     navItems.push({ href: "/admin/venues", icon: MapPin });
   }
 
+  if (isSuperAdmin) {
+    navItems.push({ href: "/admin/clubs-management", icon: FolderKanban });
+  }
   if (isAdmin) {
     navItems.push({ href: "/admin", icon: ShieldCheck });
   }
