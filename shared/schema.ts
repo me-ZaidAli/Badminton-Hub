@@ -101,7 +101,7 @@ export const playerProfiles = pgTable("player_profiles", {
   playerStatus: playerStatusEnum("player_status").default("ACTIVE").notNull(), // Active, Suspended, or Archived
   gender: genderEnum("gender"),
   category: categoryEnum("category").default("D"),
-  rankingPoints: integer("ranking_points").default(1000).notNull(),
+  rankingPoints: integer("ranking_points").default(0).notNull(),
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
   membershipId: integer("membership_id").references(() => memberships.id),

@@ -512,6 +512,89 @@ export async function registerRoutes(
     }
   });
 
+  // === PUBLIC: All sessions across all clubs (no auth required) ===
+  app.get("/api/public/all-sessions", async (req, res) => {
+    try {
+      const allClubs = await storage.getClubs();
+      const approvedClubs = allClubs.filter((c: any) => c.status === "APPROVED" && c.isActive);
+      
+      const allSessions: any[] = [];
+      for (const club of approvedClubs) {
+        const sessions = await storage.getSessionsByClub(club.id);
+        const publicSessions = sessions.filter(s => s.status !== "CANCELLED" && !s.isPrivate);
+        
+        for (const session of publicSessions) {
+          const signups = await storage.getSessionSignups(session.id);
+          const matches = await storage.getSessionMatches(session.id);
+          
+          const liveMatches = matches.filter((m: any) => m.status === "LIVE");
+          const queuedMatches = matches.filter((m: any) => m.status === "QUEUED");
+          const completedMatches = matches.filter((m: any) => m.status === "COMPLETED");
+
+          const sanitizePlayer = (p: any) => p ? ({
+            id: p.id,
+            fullName: p.user?.fullName,
+            category: p.category,
+            gender: p.gender,
+          }) : null;
+
+          allSessions.push({
+            id: session.id,
+            clubId: session.clubId,
+            clubName: club.name,
+            clubSlug: (club as any).slug,
+            title: session.title,
+            date: session.date,
+            startTime: session.startTime,
+            durationMinutes: session.durationMinutes,
+            maxPlayers: session.maxPlayers,
+            courtsAvailable: session.courtsAvailable,
+            matchMode: session.matchMode,
+            genderRestriction: session.genderRestriction,
+            status: session.status,
+            signupCount: signups.length,
+            liveMatchCount: liveMatches.length,
+            queuedMatchCount: queuedMatches.length,
+            completedMatchCount: completedMatches.length,
+            liveMatches: liveMatches.slice(0, 4).map(m => ({
+              id: m.id,
+              courtNumber: m.courtNumber,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
+              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
+              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            })),
+            queuedMatches: queuedMatches.slice(0, 3).map(m => ({
+              id: m.id,
+              queuePosition: m.queuePosition,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
+              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
+              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            })),
+            recentResults: completedMatches.slice(0, 3).map(m => ({
+              id: m.id,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
+              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
+              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            })),
+          });
+        }
+      }
+      
+      allSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      res.json(allSessions);
+    } catch (err: any) {
+      console.error("Error fetching all public sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
   // === PUBLIC: Sessions for a club (no auth required) ===
   app.get("/api/public/clubs/:clubId/sessions", async (req, res) => {
     try {

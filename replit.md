@@ -28,7 +28,15 @@ Key design patterns include:
 - **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation capabilities.
 - **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED), allows users to join clubs, and provides an admin panel for membership requests and role assignments.
 - **Venue Management**: Enables clubs to manage multiple venues, linking sessions to specific locations, with CRUD operations for venues. Club admins (OWNER or ADMIN club role) can add and manage venues for their clubs. Super admins see all venues across all clubs.
-- **Public Viewing System**: Provides public access to club information, upcoming sessions, and match details without requiring authentication, while safeguarding sensitive data.
+- **Public Viewing System**: Comprehensive public landing page at `/` accessible without login. Features:
+  - Hero section with "Get Started" CTA
+  - Club directory with search/filter by name/city/postcode and list/map toggle (reuses ClubMap component with Leaflet)
+  - All sessions from all clubs via `/api/public/all-sessions` endpoint with live match counts, queued matches, and recent results
+  - Live sessions section showing matches in progress with scores, queued games, and recent results
+  - Per-club leaderboard with club selector buttons
+  - Session cards link to `/public/session/:id` for detailed live view with players, courts, and match status
+  - Player rankings start at 0 points (default) and category D, building up through match wins
+  - All data sanitized to exclude sensitive user info (email, password)
 - **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
 - **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
   - Club selector to view players from any club (including pending/inactive clubs)
