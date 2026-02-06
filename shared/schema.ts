@@ -36,6 +36,9 @@ export const users = pgTable("users", {
   accountStatus: accountStatusEnum("account_status").default("PENDING").notNull(),
   claimedProfileId: integer("claimed_profile_id"),
   dateOfBirth: timestamp("date_of_birth"),
+  isJunior: boolean("is_junior").default(false).notNull(),
+  parentGuardianName: text("parent_guardian_name"),
+  parentGuardianEmail: text("parent_guardian_email"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -377,6 +380,15 @@ export const announcements = pgTable("announcements", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// === POLICY ACCEPTANCES ===
+export const policyAcceptances = pgTable("policy_acceptances", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  policyType: text("policy_type").notNull(),
+  policyVersion: text("policy_version").notNull(),
+  acceptedAt: timestamp("accepted_at").defaultNow().notNull(),
+});
+
 // === RELATIONS ===
 export const clubsRelations = relations(clubs, ({ many }) => ({
   playerProfiles: many(playerProfiles),
@@ -498,6 +510,8 @@ export const insertTournamentCategorySchema = createInsertSchema(tournamentCateg
 export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).omit({ id: true, createdAt: true });
 export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
 
+export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
+
 // === TYPES ===
 export type User = typeof users.$inferSelect;
 export type Club = typeof clubs.$inferSelect;
@@ -533,3 +547,5 @@ export type InsertTournament = z.infer<typeof insertTournamentSchema>;
 export type InsertTournamentCategory = z.infer<typeof insertTournamentCategorySchema>;
 export type InsertTournamentTeam = z.infer<typeof insertTournamentTeamSchema>;
 export type InsertTournamentMatch = z.infer<typeof insertTournamentMatchSchema>;
+export type PolicyAcceptance = typeof policyAcceptances.$inferSelect;
+export type InsertPolicyAcceptance = z.infer<typeof insertPolicyAcceptanceSchema>;

@@ -92,6 +92,16 @@ Key design patterns include:
   - Coach fields: fullName, email, phone, location, city, postcode, areaCoverage, qualifications, badmintonEnglandCert, yearsTraining, professionalCareer, experience, status (PENDING/APPROVED/REJECTED/SUSPENDED)
 - **Searchable Club Dropdowns**: ExploreSessions and ExploreRankings pages use Popover + Command combobox pattern for searchable type-ahead club selection
 - **Location-Based Filtering**: ExploreSessions and ExploreRankings support filtering by postcode, city, or address text
+- **Legal Policies System**: Comprehensive in-app legal content for Dragon Badminton Club – BPG Ltd:
+  - Dedicated pages: Privacy Policy (`/privacy-policy`), Terms & Conditions (`/terms-conditions`), Junior & Parental Consent Policy (`/junior-consent-policy`)
+  - Hub page at `/policy` linking to all three policy documents
+  - UK GDPR compliant Privacy Policy covering data collection, usage, rights, and cookies
+  - Terms & Conditions covering bookings, payments, refunds, code of conduct, health/liability, account suspension
+  - Junior & Parental Consent Policy for under-18 accounts with safeguarding responsibilities
+  - Policy acceptance logging: `policy_acceptances` table stores userId, policyType, policyVersion, acceptedAt
+  - Registration flow requires 3 mandatory checkboxes: accurate info, T&C agreement, Privacy Policy consent
+  - Junior account support: `isJunior`, `parentGuardianName`, `parentGuardianEmail` fields on users table
+  - Junior registration requires additional parental consent checkbox and parent/guardian details
 
 ## External Dependencies
 

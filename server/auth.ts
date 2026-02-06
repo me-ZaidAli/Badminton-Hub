@@ -79,12 +79,39 @@ export function setupAuth(app: Express) {
         return res.status(400).send("Invalid club selected");
       }
 
+      // Server-side validation: require policy acceptances
+      const acceptedPolicies = req.body.acceptedPolicies;
+      if (!acceptedPolicies || !Array.isArray(acceptedPolicies)) {
+        return res.status(400).send("Policy acceptances are required");
+      }
+      if (!acceptedPolicies.includes("TERMS_CONDITIONS") || !acceptedPolicies.includes("PRIVACY_POLICY")) {
+        return res.status(400).send("You must accept the Terms & Conditions and Privacy Policy");
+      }
+
+      const isJunior = req.body.isJunior || false;
+
+      // Server-side validation: junior accounts require parent details and consent
+      if (isJunior) {
+        if (!req.body.parentGuardianName || req.body.parentGuardianName.length < 2) {
+          return res.status(400).send("Parent/guardian name is required for junior accounts");
+        }
+        if (!req.body.parentGuardianEmail || !req.body.parentGuardianEmail.includes("@")) {
+          return res.status(400).send("A valid parent/guardian email is required for junior accounts");
+        }
+        if (!acceptedPolicies.includes("JUNIOR_PARENTAL_CONSENT")) {
+          return res.status(400).send("Parental consent is required for junior accounts");
+        }
+      }
+
       const hashedPassword = await hashPassword(req.body.password);
       const user = await storage.createUser({
         ...req.body,
         password: hashedPassword,
         emailVerified: false,
         dateOfBirth: req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null,
+        isJunior,
+        parentGuardianName: isJunior ? req.body.parentGuardianName : null,
+        parentGuardianEmail: isJunior ? req.body.parentGuardianEmail : null,
       });
 
       // Create profile automatically for the selected club
@@ -95,6 +122,18 @@ export function setupAuth(app: Express) {
         category: req.body.category || "D",
         membershipId: null // No membership by default
       });
+
+      // Store policy acceptance logs
+      const policyVersion = "1.0";
+      if (req.body.acceptedPolicies && Array.isArray(req.body.acceptedPolicies)) {
+        for (const policyType of req.body.acceptedPolicies) {
+          await storage.createPolicyAcceptance({
+            userId: user.id,
+            policyType,
+            policyVersion,
+          });
+        }
+      }
 
       req.login(user, (err) => {
         if (err) return next(err);

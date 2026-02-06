@@ -2,7 +2,7 @@ import { db, pool } from "./db";
 import { 
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
-  coaches, coachSeekerMemberships, reviews, contactMessages, notifications,
+  coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
@@ -12,7 +12,8 @@ import {
   type TournamentStanding,
   type Coach, type InsertCoach, type CoachSeekerMembership, type InsertCoachSeekerMembership,
   type Review, type InsertReview, type ContactMessage, type InsertContactMessage,
-  type Notification, type InsertNotification
+  type Notification, type InsertNotification,
+  type PolicyAcceptance, type InsertPolicyAcceptance
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -163,6 +164,10 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<Notification>;
   markAllNotificationsRead(userId: number): Promise<void>;
+
+  // Policy Acceptances
+  createPolicyAcceptance(acceptance: InsertPolicyAcceptance): Promise<PolicyAcceptance>;
+  getPolicyAcceptances(userId: number): Promise<PolicyAcceptance[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -942,6 +947,15 @@ export class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(userId: number): Promise<void> {
     await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
+  }
+
+  async createPolicyAcceptance(acceptance: InsertPolicyAcceptance): Promise<PolicyAcceptance> {
+    const [result] = await db.insert(policyAcceptances).values(acceptance).returning();
+    return result;
+  }
+
+  async getPolicyAcceptances(userId: number): Promise<PolicyAcceptance[]> {
+    return await db.select().from(policyAcceptances).where(eq(policyAcceptances.userId, userId)).orderBy(desc(policyAcceptances.acceptedAt));
   }
 }
 

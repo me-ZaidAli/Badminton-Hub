@@ -57,6 +57,9 @@ import CoachManagement from "@/pages/admin/CoachManagement";
 import ContactForm from "@/pages/ContactForm";
 import Messages from "@/pages/admin/Messages";
 import PolicyPage from "@/pages/PolicyPage";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsConditions from "@/pages/TermsConditions";
+import JuniorConsentPolicy from "@/pages/JuniorConsentPolicy";
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -235,6 +238,15 @@ function Router() {
       </Route>
       <Route path="/policy">
         <PublicRoute component={PolicyPage} />
+      </Route>
+      <Route path="/privacy-policy">
+        <PublicRoute component={PrivacyPolicy} />
+      </Route>
+      <Route path="/terms-conditions">
+        <PublicRoute component={TermsConditions} />
+      </Route>
+      <Route path="/junior-consent-policy">
+        <PublicRoute component={JuniorConsentPolicy} />
       </Route>
       <Route path="/profile">
         <Profile />
