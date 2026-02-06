@@ -100,6 +100,11 @@ export default function Login() {
               Join now
             </Link>
           </div>
+          <div className="mt-3 text-center">
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-back-home">
+              Back to Home
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

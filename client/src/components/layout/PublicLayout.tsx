@@ -1,0 +1,99 @@
+import { Link, useLocation } from "wouter";
+import logoPath from "@assets/image_1770381062912.png";
+import { Button } from "@/components/ui/button";
+import { Home, Search, Calendar, Trophy, Menu, X } from "lucide-react";
+import { useState } from "react";
+
+const navItems = [
+  { label: "Home", href: "/", icon: Home },
+  { label: "Clubs", href: "/explore/clubs", icon: Search },
+  { label: "Sessions", href: "/explore/sessions", icon: Calendar },
+  { label: "Rankings", href: "/explore/rankings", icon: Trophy },
+];
+
+export default function PublicLayout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50 bg-background/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <Link href="/">
+            <div className="flex items-center gap-2 cursor-pointer" data-testid="link-home-logo">
+              <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
+              <span className="font-display font-bold text-xl">Club Master</span>
+            </div>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-1" data-testid="nav-public">
+            {navItems.map((item) => {
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    size="sm"
+                    className="gap-2"
+                    data-testid={`nav-${item.label.toLowerCase()}`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Link href="/login">
+              <Button variant="ghost" size="sm" data-testid="button-sign-in">Sign In</Button>
+            </Link>
+            <Link href="/register">
+              <Button size="sm" data-testid="button-join">Join Club</Button>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              data-testid="button-mobile-menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+          </div>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border/40 bg-background px-4 py-3 space-y-1" data-testid="mobile-nav-menu">
+            {navItems.map((item) => {
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="w-full justify-start gap-2"
+                    size="sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid={`mobile-nav-${item.label.toLowerCase()}`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </header>
+
+      <main className="flex-1">
+        {children}
+      </main>
+
+      <footer className="py-8 border-t border-border text-center text-muted-foreground text-sm">
+        <p>Club Master - Badminton Club Management Platform</p>
+      </footer>
+    </div>
+  );
+}

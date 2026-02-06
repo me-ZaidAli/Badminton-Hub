@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileNav } from "@/components/layout/Sidebar";
+import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 
@@ -26,6 +27,9 @@ import ManageOrganizers from "@/pages/ManageOrganizers";
 import OrganizerDashboard from "@/pages/OrganizerDashboard";
 import PendingApproval from "@/pages/PendingApproval";
 import Profile from "@/pages/Profile";
+import ExploreClubs from "@/pages/explore/ExploreClubs";
+import ExploreSessions from "@/pages/explore/ExploreSessions";
+import ExploreRankings from "@/pages/explore/ExploreRankings";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -144,20 +148,13 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
     );
   }
 
-  // Not logged in - show standalone page with simple header
+  // Not logged in - show with PublicLayout (shared nav)
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card px-6 py-4 flex justify-between items-center">
-        <a href="/" className="text-xl font-bold text-primary">Club Master</a>
-        <div className="flex gap-2">
-          <a href="/login" className="px-4 py-2 text-sm font-medium rounded-md hover:bg-muted transition-colors">Login</a>
-          <a href="/register" className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">Register</a>
-        </div>
-      </header>
-      <main className="p-4 md:p-8 max-w-7xl mx-auto">
+    <PublicLayout>
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
         <Component />
-      </main>
-    </div>
+      </div>
+    </PublicLayout>
   );
 }
 
@@ -167,6 +164,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/explore/clubs" component={ExploreClubs} />
+      <Route path="/explore/sessions" component={ExploreSessions} />
+      <Route path="/explore/rankings" component={ExploreRankings} />
       
       {/* Protected Routes */}
       <Route path="/dashboard">

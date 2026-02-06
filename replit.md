@@ -37,6 +37,10 @@ Key design patterns include:
   - Session cards link to `/public/session/:id` for detailed live view with players, courts, and match status
   - Player rankings start at 0 points (default) and category D, building up through match wins
   - All data sanitized to exclude sensitive user info (email, password)
+  - Separate dedicated pages: `/explore/clubs`, `/explore/sessions`, `/explore/rankings`
+  - Shared `PublicLayout` component (client/src/components/layout/PublicLayout.tsx) provides consistent navigation across all public pages
+  - Login page includes "Back to Home" link
+  - PublicRoute wrapper uses PublicLayout for non-logged-in users (consistent nav on /public/session/:id etc.)
 - **Personal Ranking View**: Offers logged-in users a personalized view of their ranking progress and match history.
 - **Super Admin Player Management**: OWNER role users can manage all players across all clubs through `/admin/players`. Features include:
   - Club selector to view players from any club (including pending/inactive clubs)
