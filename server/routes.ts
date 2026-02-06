@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { users, sessionSignups, playerProfiles, clubs, sessions } from "@shared/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -2466,6 +2466,156 @@ export async function registerRoutes(
       res.status(201).json(results);
     } catch (err: any) {
       console.error("Error importing members:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ===================== CSV EXPORTS =====================
+
+  app.get("/api/admin/export/users", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const allUsers = await db
+        .select({
+          userId: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          role: users.role,
+          accountStatus: users.accountStatus,
+          emailVerified: users.emailVerified,
+          dateOfBirth: users.dateOfBirth,
+          createdAt: users.createdAt,
+          clubName: clubs.name,
+          clubRole: playerProfiles.clubRole,
+          membershipStatus: playerProfiles.membershipStatus,
+          playerStatus: playerProfiles.playerStatus,
+          gender: playerProfiles.gender,
+          category: playerProfiles.category,
+          rankingPoints: playerProfiles.rankingPoints,
+          matchesPlayed: playerProfiles.matchesPlayed,
+          matchesWon: playerProfiles.matchesWon,
+        })
+        .from(users)
+        .leftJoin(playerProfiles, eq(users.id, playerProfiles.userId))
+        .leftJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .orderBy(users.fullName);
+
+      const headers = [
+        "User ID", "Full Name", "Email", "Platform Role", "Account Status",
+        "Email Verified", "Date of Birth", "Created At",
+        "Club Name", "Club Role", "Membership Status", "Player Status",
+        "Gender", "Category", "Ranking Points", "Matches Played", "Matches Won"
+      ];
+
+      const escapeCSV = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const rows = allUsers.map((row) => [
+        row.userId,
+        row.fullName,
+        row.email,
+        row.role,
+        row.accountStatus,
+        row.emailVerified ? "Yes" : "No",
+        row.dateOfBirth ? new Date(row.dateOfBirth).toISOString().split("T")[0] : "",
+        row.createdAt ? new Date(row.createdAt).toISOString().split("T")[0] : "",
+        row.clubName || "",
+        row.clubRole || "",
+        row.membershipStatus || "",
+        row.playerStatus || "",
+        row.gender || "",
+        row.category || "",
+        row.rankingPoints ?? "",
+        row.matchesPlayed ?? "",
+        row.matchesWon ?? "",
+      ].map(escapeCSV).join(","));
+
+      const csv = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="club_master_users_${new Date().toISOString().split("T")[0]}.csv"`);
+      res.send(csv);
+    } catch (err: any) {
+      console.error("Error exporting users:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/export/attendance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const attendanceData = await db
+        .select({
+          userId: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          clubName: clubs.name,
+          gender: playerProfiles.gender,
+          category: playerProfiles.category,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          startTime: sessions.startTime,
+          attendanceStatus: sessionSignups.attendanceStatus,
+          paymentStatus: sessionSignups.paymentStatus,
+          fee: sessionSignups.fee,
+          signupTime: sessionSignups.signupTime,
+        })
+        .from(sessionSignups)
+        .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .innerJoin(clubs, eq(sessions.clubId, clubs.id))
+        .orderBy(users.fullName, sessions.date);
+
+      const headers = [
+        "User ID", "Full Name", "Email", "Club Name",
+        "Gender", "Category",
+        "Session Title", "Session Date", "Start Time",
+        "Attendance Status", "Payment Status", "Fee (£)", "Signup Time"
+      ];
+
+      const escapeCSV = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const rows = attendanceData.map((row) => [
+        row.userId,
+        row.fullName,
+        row.email,
+        row.clubName,
+        row.gender || "",
+        row.category || "",
+        row.sessionTitle,
+        row.sessionDate ? new Date(row.sessionDate).toISOString().split("T")[0] : "",
+        row.startTime || "",
+        row.attendanceStatus,
+        row.paymentStatus,
+        row.fee != null ? (row.fee / 100).toFixed(2) : "",
+        row.signupTime ? new Date(row.signupTime).toISOString().replace("T", " ").slice(0, 19) : "",
+      ].map(escapeCSV).join(","));
+
+      const csv = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="club_master_attendance_${new Date().toISOString().split("T")[0]}.csv"`);
+      res.send(csv);
+    } catch (err: any) {
+      console.error("Error exporting attendance:", err);
       res.status(500).json({ message: err.message });
     }
   });

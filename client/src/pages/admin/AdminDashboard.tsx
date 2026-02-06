@@ -2,19 +2,51 @@ import { Link } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download } from "lucide-react";
+import { useState } from "react";
 
 export default function AdminDashboard() {
   const { data: user } = useUser();
   const { data: players } = usePlayers();
   const { data: sessions } = useSessions();
   const { data: pendingUsers } = usePendingUsers();
+  const { toast } = useToast();
+  const [downloadingUsers, setDownloadingUsers] = useState(false);
+  const [downloadingAttendance, setDownloadingAttendance] = useState(false);
 
   const isOwner = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || isOwner;
+
+  const handleExport = async (type: "users" | "attendance") => {
+    const setLoading = type === "users" ? setDownloadingUsers : setDownloadingAttendance;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/export/${type}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || `export_${type}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export error:", err);
+      toast({
+        title: "Export Failed",
+        description: "Could not download the export file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const totalPlayers = players?.length || 0;
   const upcomingSessions = sessions?.filter(s => new Date(s.date) >= new Date()).length || 0;
@@ -223,6 +255,57 @@ export default function AdminDashboard() {
           </Card>
         )}
       </div>
+
+      {isOwner && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-display font-bold">Export Data</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Export All Users
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Download a CSV file with all user details including name, email, club membership, role, category, and ranking stats.
+                </p>
+                <Button
+                  onClick={() => handleExport("users")}
+                  disabled={downloadingUsers}
+                  data-testid="button-export-users"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloadingUsers ? "Downloading..." : "Download Users CSV"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-blue-500" />
+                  Export Attendance History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Download a CSV file with all users and their session attendance history, including session dates, payment status, and fees.
+                </p>
+                <Button
+                  onClick={() => handleExport("attendance")}
+                  disabled={downloadingAttendance}
+                  data-testid="button-export-attendance"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloadingAttendance ? "Downloading..." : "Download Attendance CSV"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
