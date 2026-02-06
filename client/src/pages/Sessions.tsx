@@ -17,7 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
 import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -278,7 +278,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
     defaultValues: {
-      clubId: sessionClubs.length === 1 ? sessionClubs[0].id : undefined,
+      clubId: sessionClubs.length === 1 ? sessionClubs[0].id : (sessionClubs.length > 0 ? sessionClubs[0].id : undefined),
       title: "",
       startTime: "18:00",
       maxPlayers: 24,
@@ -292,6 +292,12 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
     }
   });
 
+  useEffect(() => {
+    if (sessionClubs.length > 0 && !form.getValues("clubId")) {
+      form.setValue("clubId", sessionClubs[0].id);
+    }
+  }, [sessionClubs, form]);
+
   function onSubmit(values: z.infer<typeof createSessionSchema>) {
     create(values, {
       onSuccess: () => {
@@ -304,7 +310,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="shadow-lg shadow-primary/25">
+        <Button className="shadow-lg shadow-primary/25" data-testid="button-new-session">
           <Plus className="h-4 w-4 mr-2" /> New Session
         </Button>
       </DialogTrigger>
@@ -314,32 +320,30 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {sessionClubs.length > 1 && (
-              <FormField
-                control={form.control}
-                name="clubId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Club</FormLabel>
-                    <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-session-club">
-                          <SelectValue placeholder="Select club" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {sessionClubs.map(club => (
-                          <SelectItem key={club.id} value={club.id.toString()}>
-                            {club.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name="clubId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Club</FormLabel>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-session-club">
+                        <SelectValue placeholder="Select club" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {sessionClubs.map(club => (
+                        <SelectItem key={club.id} value={club.id.toString()}>
+                          {club.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="title"

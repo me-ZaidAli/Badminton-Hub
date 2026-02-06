@@ -242,7 +242,9 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
 export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
 export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
-export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true });
+export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true }).extend({
+  date: z.coerce.date(),
+});
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 
