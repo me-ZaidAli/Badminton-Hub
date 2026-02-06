@@ -3,12 +3,16 @@ import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useClubs, useLeaderboard } from "@/hooks/use-clubs";
+import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { Trophy, Loader2 } from "lucide-react";
 
 export default function ExploreRankings() {
   const { data: clubs } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
+  const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
 
   useEffect(() => {
     if (clubs?.length && !selectedClubId) {
@@ -18,6 +22,11 @@ export default function ExploreRankings() {
 
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(selectedClubId);
   const topPlayers = leaderboard?.slice(0, 20) || [];
+
+  const handlePlayerClick = (playerId: number) => {
+    setStatsPlayerId(playerId);
+    setStatsOpen(true);
+  };
 
   return (
     <PublicLayout>
@@ -30,19 +39,21 @@ export default function ExploreRankings() {
 
           {clubs && clubs.length > 0 && (
             <div className="flex justify-center mb-8">
-              <div className="flex flex-wrap items-center gap-2">
-                {clubs.map(club => (
-                  <Button
-                    key={club.id}
-                    variant={selectedClubId === club.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedClubId(club.id)}
-                    data-testid={`button-ranking-club-${club.id}`}
-                  >
-                    {club.name}
-                  </Button>
-                ))}
-              </div>
+              <Select
+                value={selectedClubId?.toString() || ""}
+                onValueChange={(v) => setSelectedClubId(Number(v))}
+              >
+                <SelectTrigger className="w-[250px]" data-testid="select-ranking-club">
+                  <SelectValue placeholder="Select a club..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clubs.map(club => (
+                    <SelectItem key={club.id} value={club.id.toString()} data-testid={`select-ranking-club-${club.id}`}>
+                      {club.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -52,7 +63,7 @@ export default function ExploreRankings() {
                 <Trophy className="h-5 w-5 text-amber-500" />
                 Top Players
               </CardTitle>
-              <CardDescription>Ranked by points earned through matches</CardDescription>
+              <CardDescription>Click a player to view detailed stats</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="relative bg-green-600 p-6 min-h-[400px]">
@@ -69,9 +80,11 @@ export default function ExploreRankings() {
                     </div>
                   ) : topPlayers.length > 0 ? (
                     topPlayers.map((player, index) => (
-                      <div
+                      <button
                         key={player.id}
-                        className="flex items-center gap-3 bg-background/95 rounded-lg px-4 py-2 shadow-lg w-full max-w-md"
+                        type="button"
+                        onClick={() => handlePlayerClick(player.id)}
+                        className="flex items-center gap-3 bg-background/95 rounded-lg px-4 py-2 shadow-lg w-full max-w-md cursor-pointer hover-elevate text-left"
                         data-testid={`ranking-player-${player.id}`}
                       >
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
@@ -90,7 +103,7 @@ export default function ExploreRankings() {
                           </div>
                         </div>
                         <div className="text-right font-bold text-primary">{player.rankingPoints}</div>
-                      </div>
+                      </button>
                     ))
                   ) : (
                     <div className="bg-background/90 rounded-lg px-6 py-8 text-center">
@@ -104,6 +117,12 @@ export default function ExploreRankings() {
           </Card>
         </div>
       </section>
+
+      <PlayerStatsDialog
+        playerId={statsPlayerId}
+        open={statsOpen}
+        onOpenChange={setStatsOpen}
+      />
     </PublicLayout>
   );
 }

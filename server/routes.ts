@@ -2485,11 +2485,9 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Player not found" });
       }
 
-      // Get match history for this player
-      const matches = await storage.getPlayerMatchHistory(profileId);
+      const matchList = await storage.getPlayerMatchHistory(profileId);
       
-      // Calculate recent form (last 5 matches)
-      const recentMatches = matches.slice(0, 5);
+      const recentMatches = matchList.slice(0, 5);
       const recentForm = recentMatches.map(match => {
         const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
         return isTeamA 
@@ -2501,6 +2499,21 @@ export async function registerRoutes(
         ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) 
         : 0;
 
+      const matchHistory = matchList.map(match => {
+        const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
+        const won = isTeamA
+          ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
+          : (match.scoreB ?? 0) > (match.scoreA ?? 0);
+        return {
+          id: match.id,
+          scoreA: match.scoreA,
+          scoreB: match.scoreB,
+          isTeamA,
+          won,
+          completedAt: match.completedAt,
+        };
+      });
+
       res.json({
         id: profile.id,
         fullName: profile.user.fullName,
@@ -2511,7 +2524,8 @@ export async function registerRoutes(
         matchesWon: profile.matchesWon,
         matchesLost: profile.matchesPlayed - profile.matchesWon,
         winRatio,
-        recentForm, // Array of booleans [W, L, W, W, L]
+        recentForm,
+        matchHistory,
       });
     } catch (err: any) {
       console.error("Error fetching player stats:", err);

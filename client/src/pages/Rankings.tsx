@@ -11,12 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { format } from "date-fns";
+import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
 export default function Rankings() {
   const { data: user } = useUser();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"club" | "personal">("club");
+  const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   
   // Auto-select first club if none selected
   const clubId = selectedClubId ?? clubs?.[0]?.id ?? null;
@@ -126,7 +129,12 @@ export default function Rankings() {
                 const winRate = player.matchesPlayed ? Math.round((player.matchesWon / player.matchesPlayed) * 100) : 0;
                 
                 return (
-                  <TableRow key={player.id} className="hover:bg-muted/30 transition-colors" data-testid={`leaderboard-row-${player.id}`}>
+                  <TableRow
+                    key={player.id}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
+                    data-testid={`leaderboard-row-${player.id}`}
+                  >
                     <TableCell className="text-center font-bold text-lg text-muted-foreground">
                       {index + 1}
                     </TableCell>
@@ -317,6 +325,12 @@ export default function Rankings() {
           ) : null}
         </div>
       )}
+
+      <PlayerStatsDialog
+        playerId={statsPlayerId}
+        open={statsOpen}
+        onOpenChange={setStatsOpen}
+      />
     </div>
   );
 }
