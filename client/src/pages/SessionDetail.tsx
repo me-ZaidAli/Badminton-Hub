@@ -56,7 +56,8 @@ export default function SessionDetail() {
   
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
-  const isOrganiser = session ? managedClubIds.has(session.clubId) : false;
+  const isSuperAdmin = user?.role === "OWNER";
+  const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
   // allPlayers returns users with playerProfile, filter those with profiles
@@ -409,6 +410,8 @@ export default function SessionDetail() {
             courtsAvailable={session.courtsAvailable}
             courtNames={session.courtNames}
             signups={signups || []}
+            playersPerSide={session.playersPerSide}
+            matchGenderType={session.matchGenderType}
           />
         </TabsContent>
       </Tabs>
@@ -416,13 +419,15 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, courtNames: initialCourtNames, signups }: { 
+function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType }: { 
   sessionId: number; 
   isOrganiser: boolean; 
   matchMode: "COMPETITIVE" | "SOCIAL";
   courtsAvailable: number;
   courtNames?: string[] | null;
   signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];
+  playersPerSide: number;
+  matchGenderType: string;
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
@@ -434,7 +439,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [matchesToGenerate, setMatchesToGenerate] = useState(8);
-  const [generateGenderType, setGenerateGenderType] = useState(session?.matchGenderType || "MIXED");
+  const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
 
   useEffect(() => {
@@ -536,7 +541,7 @@ function MatchesView({ sessionId, isOrganiser, matchMode, courtsAvailable, court
                   <div>
                     <Label>Match Format</Label>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {session?.playersPerSide === 1 ? "Singles (1v1)" : "Doubles (2v2)"}
+                      {playersPerSide === 1 ? "Singles (1v1)" : "Doubles (2v2)"}
                     </p>
                   </div>
                   <div>

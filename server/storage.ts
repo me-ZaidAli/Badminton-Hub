@@ -603,6 +603,140 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(matches.completedAt));
     return result;
   }
+
+  // === TOURNAMENT METHODS ===
+  async getTournaments(clubId?: number): Promise<Tournament[]> {
+    if (clubId) {
+      return db.select().from(tournaments).where(eq(tournaments.clubId, clubId)).orderBy(desc(tournaments.startDate));
+    }
+    return db.select().from(tournaments).orderBy(desc(tournaments.startDate));
+  }
+
+  async getTournament(id: number): Promise<Tournament | undefined> {
+    const [result] = await db.select().from(tournaments).where(eq(tournaments.id, id));
+    return result;
+  }
+
+  async createTournament(tournament: InsertTournament & { createdBy: number }): Promise<Tournament> {
+    const [result] = await db.insert(tournaments).values(tournament).returning();
+    return result;
+  }
+
+  async updateTournament(id: number, updates: Partial<Tournament>): Promise<Tournament> {
+    const [result] = await db.update(tournaments).set(updates).where(eq(tournaments.id, id)).returning();
+    return result;
+  }
+
+  async deleteTournament(id: number): Promise<void> {
+    const cats = await db.select({ id: tournamentCategories.id }).from(tournamentCategories).where(eq(tournamentCategories.tournamentId, id));
+    for (const cat of cats) {
+      await this.deleteTournamentCategory(cat.id);
+    }
+    await db.delete(tournaments).where(eq(tournaments.id, id));
+  }
+
+  async getTournamentCategories(tournamentId: number): Promise<TournamentCategory[]> {
+    return db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId)).orderBy(asc(tournamentCategories.id));
+  }
+
+  async getTournamentCategory(id: number): Promise<TournamentCategory | undefined> {
+    const [result] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, id));
+    return result;
+  }
+
+  async createTournamentCategory(category: InsertTournamentCategory): Promise<TournamentCategory> {
+    const [result] = await db.insert(tournamentCategories).values(category).returning();
+    return result;
+  }
+
+  async updateTournamentCategory(id: number, updates: Partial<TournamentCategory>): Promise<TournamentCategory> {
+    const [result] = await db.update(tournamentCategories).set(updates).where(eq(tournamentCategories.id, id)).returning();
+    return result;
+  }
+
+  async deleteTournamentCategory(id: number): Promise<void> {
+    await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, id));
+    await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, id));
+    await db.delete(tournamentTeams).where(eq(tournamentTeams.categoryId, id));
+    await db.delete(tournamentCategories).where(eq(tournamentCategories.id, id));
+  }
+
+  async getTournamentTeams(categoryId: number): Promise<(TournamentTeam & { player1: PlayerProfile & { user: User }; player2?: PlayerProfile & { user: User } | null })[]> {
+    const teams = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, categoryId)).orderBy(asc(tournamentTeams.seedNumber));
+    const result: any[] = [];
+    for (const team of teams) {
+      const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player1Id));
+      const [u1] = p1 ? await db.select().from(users).where(eq(users.id, p1.userId)) : [undefined];
+      let player2 = null;
+      if (team.player2Id) {
+        const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player2Id));
+        const [u2] = p2 ? await db.select().from(users).where(eq(users.id, p2.userId)) : [undefined];
+        player2 = p2 ? { ...p2, user: u2 } : null;
+      }
+      result.push({ ...team, player1: { ...p1, user: u1 }, player2 });
+    }
+    return result;
+  }
+
+  async createTournamentTeam(team: InsertTournamentTeam): Promise<TournamentTeam> {
+    const [result] = await db.insert(tournamentTeams).values(team).returning();
+    return result;
+  }
+
+  async deleteTournamentTeam(id: number): Promise<void> {
+    await db.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, id), eq(tournamentMatches.teamBId, id)));
+    await db.delete(tournamentStandings).where(eq(tournamentStandings.teamId, id));
+    await db.delete(tournamentTeams).where(eq(tournamentTeams.id, id));
+  }
+
+  async updateTournamentTeam(id: number, updates: Partial<TournamentTeam>): Promise<TournamentTeam> {
+    const [result] = await db.update(tournamentTeams).set(updates).where(eq(tournamentTeams.id, id)).returning();
+    return result;
+  }
+
+  async getTournamentMatches(categoryId: number): Promise<TournamentMatch[]> {
+    return db.select().from(tournamentMatches).where(eq(tournamentMatches.categoryId, categoryId)).orderBy(asc(tournamentMatches.round), asc(tournamentMatches.matchOrder));
+  }
+
+  async getTournamentMatch(id: number): Promise<TournamentMatch | undefined> {
+    const [result] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, id));
+    return result;
+  }
+
+  async createTournamentMatch(match: any): Promise<TournamentMatch> {
+    const [result] = await db.insert(tournamentMatches).values(match).returning();
+    return result;
+  }
+
+  async updateTournamentMatch(id: number, updates: Partial<TournamentMatch>): Promise<TournamentMatch> {
+    const [result] = await db.update(tournamentMatches).set(updates).where(eq(tournamentMatches.id, id)).returning();
+    return result;
+  }
+
+  async deleteTournamentMatchesByCategory(categoryId: number): Promise<void> {
+    await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, categoryId));
+  }
+
+  async getTournamentStandings(categoryId: number): Promise<TournamentStanding[]> {
+    return db.select().from(tournamentStandings).where(eq(tournamentStandings.categoryId, categoryId)).orderBy(desc(tournamentStandings.points), desc(sql`${tournamentStandings.gamesWon} - ${tournamentStandings.gamesLost}`));
+  }
+
+  async upsertTournamentStanding(standing: Omit<TournamentStanding, "id">): Promise<TournamentStanding> {
+    const existing = await db.select().from(tournamentStandings).where(and(
+      eq(tournamentStandings.categoryId, standing.categoryId),
+      eq(tournamentStandings.teamId, standing.teamId)
+    ));
+    if (existing.length > 0) {
+      const [result] = await db.update(tournamentStandings).set(standing).where(eq(tournamentStandings.id, existing[0].id)).returning();
+      return result;
+    }
+    const [result] = await db.insert(tournamentStandings).values(standing).returning();
+    return result;
+  }
+
+  async deleteTournamentStandingsByCategory(categoryId: number): Promise<void> {
+    await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, categoryId));
+  }
 }
 
 export const storage = new DatabaseStorage();

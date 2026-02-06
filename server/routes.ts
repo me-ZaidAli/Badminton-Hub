@@ -2419,5 +2419,469 @@ export async function registerRoutes(
     }
   });
 
+  // ===================== TOURNAMENT ROUTES =====================
+
+  // Get tournaments (optionally filtered by clubId)
+  app.get("/api/tournaments", async (req, res) => {
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const allTournaments = await storage.getTournaments(clubId);
+      if (!req.isAuthenticated()) {
+        return res.json(allTournaments.filter(t => t.status !== "DRAFT"));
+      }
+      res.json(allTournaments);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Public: Get published tournament
+  app.get("/api/public/tournaments/:id", async (req, res) => {
+    try {
+      const tournament = await storage.getTournament(Number(req.params.id));
+      if (!tournament || tournament.status === "DRAFT") {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+      const categories = await storage.getTournamentCategories(tournament.id);
+      const venue = tournament.venueId ? await storage.getVenue(tournament.venueId) : null;
+      const club = await storage.getClub(tournament.clubId);
+      res.json({ ...tournament, categories, venue, club });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get single tournament with details
+  app.get("/api/tournaments/:id", async (req, res) => {
+    try {
+      const tournament = await storage.getTournament(Number(req.params.id));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      const categories = await storage.getTournamentCategories(tournament.id);
+      const venue = tournament.venueId ? await storage.getVenue(tournament.venueId) : null;
+      const club = await storage.getClub(tournament.clubId);
+      res.json({ ...tournament, categories, venue, club });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Create tournament
+  app.post("/api/tournaments", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+      const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
+      const canManage = profiles.some(p => ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
+      if (!canManage) return res.sendStatus(403);
+    }
+    try {
+      const tournament = await storage.createTournament({ ...req.body, createdBy: req.user!.id });
+      res.status(201).json(tournament);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update tournament
+  app.patch("/api/tournaments/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournament = await storage.getTournament(Number(req.params.id));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      const hasAccess = req.user!.role === "OWNER" || req.user!.role === "ADMIN" || tournament.createdBy === req.user!.id;
+      if (!hasAccess) {
+        const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
+        const canManage = profiles.some(p => p.clubId === tournament.clubId && ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole) && p.membershipStatus === "APPROVED");
+        if (!canManage) return res.sendStatus(403);
+      }
+      const updated = await storage.updateTournament(tournament.id, req.body);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Delete tournament
+  app.delete("/api/tournaments/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournament = await storage.getTournament(Number(req.params.id));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      const hasAccess = req.user!.role === "OWNER" || tournament.createdBy === req.user!.id;
+      if (!hasAccess) return res.sendStatus(403);
+      await storage.deleteTournament(tournament.id);
+      res.sendStatus(204);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === Tournament Categories ===
+  app.get("/api/tournaments/:id/categories", async (req, res) => {
+    try {
+      const categories = await storage.getTournamentCategories(Number(req.params.id));
+      res.json(categories);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournament = await storage.getTournament(Number(req.params.id));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+      const category = await storage.createTournamentCategory({ ...req.body, tournamentId: tournament.id });
+      res.status(201).json(category);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/tournament-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const updated = await storage.updateTournamentCategory(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/tournament-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      await storage.deleteTournamentCategory(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === Tournament Teams ===
+  app.get("/api/tournament-categories/:id/teams", async (req, res) => {
+    try {
+      const teams = await storage.getTournamentTeams(Number(req.params.id));
+      res.json(teams);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/tournament-categories/:id/teams", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const team = await storage.createTournamentTeam({ ...req.body, categoryId: Number(req.params.id) });
+      res.status(201).json(team);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/tournament-teams/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      await storage.deleteTournamentTeam(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === Tournament Matches ===
+  app.get("/api/tournament-categories/:id/matches", async (req, res) => {
+    try {
+      const matches = await storage.getTournamentMatches(Number(req.params.id));
+      res.json(matches);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Score a tournament match
+  app.patch("/api/tournament-matches/:id/score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const match = await storage.getTournamentMatch(Number(req.params.id));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      
+      const { scores, winnerId, status } = req.body;
+      const updates: any = {};
+      if (scores !== undefined) updates.scores = scores;
+      if (winnerId !== undefined) updates.winnerId = winnerId;
+      if (status !== undefined) updates.status = status;
+      
+      const updated = await storage.updateTournamentMatch(match.id, updates);
+      
+      // Recalculate standings for the category if match is finished
+      if (status === "FINISHED" && winnerId) {
+        await recalculateStandings(match.categoryId);
+      }
+      
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update tournament match (court, time, etc.)
+  app.patch("/api/tournament-matches/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const updated = await storage.updateTournamentMatch(Number(req.params.id), req.body);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === Tournament Standings ===
+  app.get("/api/tournament-categories/:id/standings", async (req, res) => {
+    try {
+      const standings = await storage.getTournamentStandings(Number(req.params.id));
+      res.json(standings);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Generate matches for a category
+  app.post("/api/tournament-categories/:id/generate-matches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const category = await storage.getTournamentCategory(Number(req.params.id));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+
+      // Clear existing matches and standings
+      await storage.deleteTournamentMatchesByCategory(category.id);
+      await storage.deleteTournamentStandingsByCategory(category.id);
+
+      const teams = await storage.getTournamentTeams(category.id);
+      if (teams.length < 2) {
+        return res.status(400).json({ message: "Need at least 2 teams to generate matches" });
+      }
+
+      let generatedMatches: any[] = [];
+
+      if (category.format === "ROUND_ROBIN") {
+        generatedMatches = generateRoundRobinMatches(teams, category.id);
+      } else if (category.format === "KNOCKOUT") {
+        generatedMatches = generateKnockoutMatches(teams, category.id);
+      } else if (category.format === "GROUP_KNOCKOUT") {
+        generatedMatches = generateGroupKnockoutMatches(teams, category.id, category.groupCount || 2, category.advancePerGroup || 2);
+      }
+
+      const createdMatches = [];
+      for (const match of generatedMatches) {
+        const created = await storage.createTournamentMatch(match);
+        createdMatches.push(created);
+      }
+
+      // Initialize standings for round robin / group stages
+      if (category.format === "ROUND_ROBIN" || category.format === "GROUP_KNOCKOUT") {
+        for (const team of teams) {
+          await storage.upsertTournamentStanding({
+            categoryId: category.id,
+            teamId: team.id,
+            groupNumber: team.groupNumber || 1,
+            matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
+            gamesWon: 0, gamesLost: 0, pointsFor: 0, pointsAgainst: 0, points: 0
+          });
+        }
+      }
+
+      res.json(createdMatches);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Advance winners from knockout round
+  app.post("/api/tournament-categories/:id/advance-winners", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const category = await storage.getTournamentCategory(Number(req.params.id));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+
+      const allMatches = await storage.getTournamentMatches(category.id);
+      const currentRound = Math.max(...allMatches.map(m => m.round));
+      const currentRoundMatches = allMatches.filter(m => m.round === currentRound);
+
+      const allFinished = currentRoundMatches.every(m => m.status === "FINISHED" || m.isBye);
+      if (!allFinished) {
+        return res.status(400).json({ message: "Not all matches in the current round are finished" });
+      }
+
+      const winners = currentRoundMatches.map(m => m.winnerId || m.teamAId).filter(Boolean);
+      if (winners.length < 2) {
+        return res.json({ message: "Tournament complete", winners });
+      }
+
+      const nextRound = currentRound + 1;
+      const newMatches = [];
+      for (let i = 0; i < winners.length; i += 2) {
+        const teamA = winners[i];
+        const teamB = winners[i + 1] || null;
+        const isBye = !teamB;
+        newMatches.push({
+          categoryId: category.id,
+          teamAId: teamA,
+          teamBId: teamB,
+          round: nextRound,
+          matchOrder: Math.floor(i / 2),
+          bracketPosition: Math.floor(i / 2),
+          status: "UPCOMING" as const,
+          isBye,
+          isWalkover: false,
+          winnerId: isBye ? teamA : null,
+        });
+      }
+
+      const created = [];
+      for (const match of newMatches) {
+        const m = await storage.createTournamentMatch(match);
+        created.push(m);
+      }
+
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Helper: Recalculate standings for a category
+  async function recalculateStandings(categoryId: number) {
+    const category = await storage.getTournamentCategory(categoryId);
+    if (!category) return;
+    
+    const allMatches = await storage.getTournamentMatches(categoryId);
+    const teams = await storage.getTournamentTeams(categoryId);
+    const finishedMatches = allMatches.filter(m => m.status === "FINISHED" && !m.isBye);
+
+    await storage.deleteTournamentStandingsByCategory(categoryId);
+
+    for (const team of teams) {
+      const teamMatches = finishedMatches.filter(m => m.teamAId === team.id || m.teamBId === team.id);
+      let matchesWon = 0, matchesLost = 0, gamesWon = 0, gamesLost = 0, pointsFor = 0, pointsAgainst = 0;
+
+      for (const m of teamMatches) {
+        const isTeamA = m.teamAId === team.id;
+        const won = m.winnerId === team.id;
+        if (won) matchesWon++; else matchesLost++;
+
+        const scores = (m.scores as Array<{scoreA: number; scoreB: number}>) || [];
+        for (const game of scores) {
+          const myScore = isTeamA ? game.scoreA : game.scoreB;
+          const oppScore = isTeamA ? game.scoreB : game.scoreA;
+          pointsFor += myScore;
+          pointsAgainst += oppScore;
+          if (myScore > oppScore) gamesWon++;
+          else gamesLost++;
+        }
+      }
+
+      await storage.upsertTournamentStanding({
+        categoryId,
+        teamId: team.id,
+        groupNumber: team.groupNumber || 1,
+        matchesPlayed: teamMatches.length,
+        matchesWon,
+        matchesLost,
+        gamesWon,
+        gamesLost,
+        pointsFor,
+        pointsAgainst,
+        points: matchesWon * (category.pointsPerWin || 2) + matchesLost * (category.pointsPerLoss || 0),
+      });
+    }
+  }
+
+  // Match generation helpers
+  function generateRoundRobinMatches(teams: any[], categoryId: number) {
+    const matches: any[] = [];
+    let matchOrder = 0;
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        matches.push({
+          categoryId,
+          teamAId: teams[i].id,
+          teamBId: teams[j].id,
+          round: 1,
+          matchOrder: matchOrder++,
+          status: "UPCOMING",
+          isBye: false,
+          isWalkover: false,
+        });
+      }
+    }
+    return matches;
+  }
+
+  function generateKnockoutMatches(teams: any[], categoryId: number) {
+    // Pad to next power of 2
+    const n = teams.length;
+    let size = 1;
+    while (size < n) size *= 2;
+
+    const seeded = [...teams];
+    while (seeded.length < size) seeded.push(null); // byes
+
+    const matches: any[] = [];
+    for (let i = 0; i < seeded.length; i += 2) {
+      const teamA = seeded[i];
+      const teamB = seeded[i + 1];
+      const isBye = !teamA || !teamB;
+      matches.push({
+        categoryId,
+        teamAId: teamA?.id || null,
+        teamBId: teamB?.id || null,
+        round: 1,
+        matchOrder: Math.floor(i / 2),
+        bracketPosition: Math.floor(i / 2),
+        status: isBye ? "FINISHED" : "UPCOMING",
+        isBye,
+        isWalkover: false,
+        winnerId: isBye ? (teamA?.id || teamB?.id) : null,
+      });
+    }
+    return matches;
+  }
+
+  function generateGroupKnockoutMatches(teams: any[], categoryId: number, groupCount: number, advancePerGroup: number) {
+    // Distribute teams into groups
+    const groups: any[][] = Array.from({ length: groupCount }, () => []);
+    teams.forEach((team, i) => {
+      const groupIdx = i % groupCount;
+      groups[groupIdx].push(team);
+      // Update team group number
+      storage.updateTournamentTeam(team.id, { groupNumber: groupIdx + 1 });
+    });
+
+    const matches: any[] = [];
+    let matchOrder = 0;
+
+    // Generate round robin within each group
+    for (let g = 0; g < groups.length; g++) {
+      const groupTeams = groups[g];
+      for (let i = 0; i < groupTeams.length; i++) {
+        for (let j = i + 1; j < groupTeams.length; j++) {
+          matches.push({
+            categoryId,
+            teamAId: groupTeams[i].id,
+            teamBId: groupTeams[j].id,
+            round: 1,
+            matchOrder: matchOrder++,
+            groupNumber: g + 1,
+            status: "UPCOMING",
+            isBye: false,
+            isWalkover: false,
+          });
+        }
+      }
+    }
+
+    return matches;
+  }
+
   return httpServer;
 }
