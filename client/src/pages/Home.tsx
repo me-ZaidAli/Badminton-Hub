@@ -7,7 +7,7 @@ import { useUser } from "@/hooks/use-auth";
 import { useClubs } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import heroBannerPath from "@assets/image_1770505906309.png";
+import heroBannerPath from "@assets/image_1770507072388.png";
 
 export default function Home() {
   const { data: user } = useUser();
