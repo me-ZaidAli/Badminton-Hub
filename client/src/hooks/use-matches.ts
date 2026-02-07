@@ -247,6 +247,33 @@ export function useUpdateMatchTarget() {
   });
 }
 
+export function useReshuffleMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, mode, genderType }: { matchId: number; mode?: string; genderType?: string }) => {
+      const res = await fetch(`/api/matches/${matchId}/reshuffle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, genderType }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to reshuffle match");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Reshuffled", description: "New player combination generated." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Reshuffle Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useDeleteQueuedMatch() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

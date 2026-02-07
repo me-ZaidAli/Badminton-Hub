@@ -5,11 +5,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useUpdateMatchTarget } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget } from "@/hooks/use-matches";
 import { format } from "date-fns";
 
 type Player = {
@@ -112,6 +112,7 @@ export function MatchQueue({
   defaultPointsToPlayTo = 21,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
+  const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
   const { mutate: updateTarget } = useUpdateMatchTarget();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
 
@@ -243,14 +244,27 @@ export function MatchQueue({
                         </div>
                       )}
                       {isOrganiser && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => setDeleteConfirm(match)}
-                          data-testid={`button-delete-queued-${match.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-${match.id}`}
+                            title="Reshuffle players"
+                          >
+                            <Shuffle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setDeleteConfirm(match)}
+                            data-testid={`button-delete-queued-${match.id}`}
+                            title="Remove match"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>

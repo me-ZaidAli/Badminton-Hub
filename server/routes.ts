@@ -1632,6 +1632,93 @@ export async function registerRoutes(
     }
   });
 
+  // === Reshuffle Queued Match - replace players with a fresh smart-generated combination ===
+  app.post("/api/matches/:id/reshuffle", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      if (match.status !== "QUEUED") {
+        return res.status(400).json({ message: "Only queued matches can be reshuffled" });
+      }
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins can reshuffle matches" });
+      }
+
+      const mode = req.query.mode as string || req.body?.mode;
+      const genderType = req.query.genderType as string || req.body?.genderType;
+      const matchMode = mode || session.matchMode || "SOCIAL";
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const gType = genderType || session.matchGenderType || "MIXED";
+
+      const signups = await storage.getSessionSignups(match.sessionId);
+      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const players = eligibleSignups
+        .filter(s => !s.isPaused)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          category: s.player.category,
+          isPaused: s.isPaused,
+          genderOverride: s.genderOverride,
+        }));
+
+      if (players.length < playersPerMatch) {
+        return res.status(400).json({ message: `Need at least ${playersPerMatch} active players to reshuffle` });
+      }
+
+      const existingMatches = await storage.getSessionMatches(match.sessionId);
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        existingMatches
+          .filter(m => m.id !== matchId)
+          .map(m => ({
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            status: m.status,
+          }))
+      );
+
+      const generated = generateSmartMatches({
+        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+        players,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: gType,
+        queueTarget: 1,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+      });
+
+      if (generated.length === 0) {
+        return res.status(400).json({ message: "Could not generate a replacement match" });
+      }
+
+      const updated = await storage.updateMatch(matchId, {
+        teamAPlayer1Id: generated[0].teamAPlayer1Id,
+        teamAPlayer2Id: generated[0].teamAPlayer2Id,
+        teamBPlayer1Id: generated[0].teamBPlayer1Id,
+        teamBPlayer2Id: generated[0].teamBPlayer2Id,
+      });
+
+      res.json({ message: "Match reshuffled", match: updated });
+    } catch (err: any) {
+      console.error("Error reshuffling match:", err);
+      res.status(500).json({ message: err.message || "Failed to reshuffle match" });
+    }
+  });
+
   // Edit completed match score - admin/organiser only (for disputes)
   app.patch("/api/matches/:id/edit-score", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
