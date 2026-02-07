@@ -96,7 +96,8 @@ export default function SessionDetail() {
     enabled: !!user,
   });
 
-  const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
+  const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
+  const isSignedUp = signups?.some(s => s.playerId === userProfileForClub?.id);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
@@ -110,13 +111,16 @@ export default function SessionDetail() {
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
   const availablePlayers = allPlayers
-    ?.filter(u => u.playerProfile && !signedUpPlayerIds.has(u.playerProfile.id))
-    .map(u => ({ 
-      id: u.playerProfile!.id, 
-      fullName: u.fullName, 
-      gender: u.playerProfile!.gender, 
-      category: u.playerProfile!.category 
-    })) || [];
+    ?.flatMap(u => {
+      const clubProfile = session ? u.playerProfiles?.find((p: any) => p.clubId === session.clubId) : u.playerProfiles?.[0];
+      if (!clubProfile || signedUpPlayerIds.has(clubProfile.id)) return [];
+      return [{ 
+        id: clubProfile.id, 
+        fullName: u.fullName, 
+        gender: clubProfile.gender, 
+        category: clubProfile.category 
+      }];
+    }) || [];
 
   const handleAddPlayer = (playerId: number) => {
     if (addingPlayerIds.has(playerId)) return;

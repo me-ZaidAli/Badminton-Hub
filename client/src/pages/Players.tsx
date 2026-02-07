@@ -10,9 +10,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Trophy, Search, Users, Pencil, Loader2, Phone, Mail, Calendar, Shield, Building2 } from "lucide-react";
-import { useState } from "react";
+import { Trophy, Search, Users, Pencil, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
+
+type ProfileData = {
+  id: number;
+  clubId: number;
+  gender: string | null;
+  category: string | null;
+  rankingPoints: number;
+  matchesPlayed: number;
+  matchesWon: number;
+};
 
 type PlayerData = {
   id: number;
@@ -24,16 +34,17 @@ type PlayerData = {
   isJunior?: boolean;
   parentGuardianName?: string | null;
   parentGuardianEmail?: string | null;
-  playerProfile?: {
-    id: number;
-    clubId: number;
-    gender: string | null;
-    category: string | null;
-    rankingPoints: number;
-    matchesPlayed: number;
-    matchesWon: number;
-  } | null;
+  playerProfiles: ProfileData[];
 };
+
+function getDisplayProfile(player: PlayerData, selectedClubId: string): ProfileData | null {
+  if (!player.playerProfiles || player.playerProfiles.length === 0) return null;
+  if (selectedClubId !== "all") {
+    const clubProfile = player.playerProfiles.find(p => p.clubId === Number(selectedClubId));
+    if (clubProfile) return clubProfile;
+  }
+  return player.playerProfiles[0];
+}
 
 export default function Players() {
   const { data: user } = useUser();
@@ -44,19 +55,38 @@ export default function Players() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
   const [editPlayer, setEditPlayer] = useState<PlayerData | null>(null);
+  const [editProfileClubId, setEditProfileClubId] = useState<string>("all");
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN" || user?.role === "ORGANISER";
 
-  const filteredPlayers = players?.filter((p: any) => {
-    const matchesSearch = p.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase());
-    const matchesClub = selectedClubId === "all" || 
-      p.playerProfile?.clubId === Number(selectedClubId);
-    const matchesCategory = categoryFilter === "all" ||
-      p.playerProfile?.category === categoryFilter;
-    const matchesGender = genderFilter === "all" ||
-      p.playerProfile?.gender === genderFilter;
-    return matchesSearch && matchesClub && matchesCategory && matchesGender;
-  });
+  const filteredPlayers = useMemo(() => {
+    if (!players) return [];
+    return players.filter((p: any) => {
+      const profiles: ProfileData[] = p.playerProfiles || [];
+      const searchLower = search.toLowerCase();
+      const matchesSearch = !search || 
+        p.fullName.toLowerCase().includes(searchLower) ||
+        p.email.toLowerCase().includes(searchLower);
+
+      if (!matchesSearch) return false;
+
+      const matchesClub = selectedClubId === "all" || 
+        profiles.some(pr => pr.clubId === Number(selectedClubId));
+
+      if (!matchesClub) return false;
+
+      const relevantProfiles = selectedClubId === "all" 
+        ? profiles 
+        : profiles.filter(pr => pr.clubId === Number(selectedClubId));
+
+      const matchesCategory = categoryFilter === "all" ||
+        relevantProfiles.some(pr => pr.category === categoryFilter);
+
+      const matchesGender = genderFilter === "all" ||
+        relevantProfiles.some(pr => pr.gender === genderFilter);
+
+      return matchesCategory && matchesGender;
+    });
+  }, [players, search, selectedClubId, categoryFilter, genderFilter]);
 
   const getCategoryColor = (category: string | null) => {
     switch (category) {
@@ -135,69 +165,81 @@ export default function Players() {
             <div key={i} className="h-32 bg-muted/30 animate-pulse rounded-xl" />
           ))}
         </div>
-      ) : filteredPlayers?.length === 0 ? (
+      ) : filteredPlayers.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No players found matching "{search}"</p>
+            <p>No players found{search ? ` matching "${search}"` : ""}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPlayers?.map((player: any) => (
-            <Card key={player.id} className="border-border/50 hover-elevate relative" data-testid={`card-player-${player.id}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-                    <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{player.fullName}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant="outline" className={getCategoryColor(player.playerProfile?.category || null)}>
-                        {player.playerProfile?.category || "N/A"}
-                      </Badge>
-                      {player.playerProfile && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Trophy className="h-3 w-3" />
-                          {player.playerProfile.rankingPoints} pts
-                        </span>
-                      )}
-                      {player.isJunior && (
-                        <Badge variant="secondary" className="text-[10px] py-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
-                          Junior
+          {filteredPlayers.map((player: any) => {
+            const profile = getDisplayProfile(player, selectedClubId);
+            const clubName = profile && clubs ? clubs.find(c => c.id === profile.clubId)?.name : null;
+            return (
+              <Card key={player.id} className="border-border/50 hover-elevate relative" data-testid={`card-player-${player.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-14 w-14">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+                      <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{player.fullName}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="outline" className={getCategoryColor(profile?.category || null)}>
+                          {profile?.category || "N/A"}
                         </Badge>
-                      )}
+                        {profile && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Trophy className="h-3 w-3" />
+                            {profile.rankingPoints} pts
+                          </span>
+                        )}
+                        {clubName && selectedClubId === "all" && player.playerProfiles.length > 1 && (
+                          <Badge variant="secondary" className="text-[10px] py-0">
+                            {clubName}
+                          </Badge>
+                        )}
+                        {player.isJunior && (
+                          <Badge variant="secondary" className="text-[10px] py-0 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                            Junior
+                          </Badge>
+                        )}
+                      </div>
                     </div>
+                    {isAdmin && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditPlayer(player);
+                          setEditProfileClubId(selectedClubId !== "all" ? selectedClubId : (profile?.clubId?.toString() || ""));
+                        }}
+                        data-testid={`button-edit-player-${player.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setEditPlayer(player)}
-                      data-testid={`button-edit-player-${player.id}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                {player.playerProfile && (
-                  <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Matches</span>
-                    <span className="font-medium">
-                      {player.playerProfile.matchesWon} / {player.playerProfile.matchesPlayed}
-                      <span className="text-muted-foreground ml-1">
-                        ({player.playerProfile.matchesPlayed > 0 
-                          ? Math.round((player.playerProfile.matchesWon / player.playerProfile.matchesPlayed) * 100) 
-                          : 0}%)
+                  {profile && (
+                    <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Matches</span>
+                      <span className="font-medium">
+                        {profile.matchesWon} / {profile.matchesPlayed}
+                        <span className="text-muted-foreground ml-1">
+                          ({profile.matchesPlayed > 0 
+                            ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) 
+                            : 0}%)
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -205,6 +247,7 @@ export default function Players() {
         <EditPlayerDialog
           player={editPlayer}
           clubs={clubs || []}
+          initialClubId={editProfileClubId}
           open={!!editPlayer}
           onOpenChange={(open) => { if (!open) setEditPlayer(null); }}
         />
@@ -216,22 +259,26 @@ export default function Players() {
 function EditPlayerDialog({
   player,
   clubs,
+  initialClubId,
   open,
   onOpenChange,
 }: {
   player: PlayerData;
   clubs: { id: number; name: string }[];
+  initialClubId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { mutate: updatePlayer, isPending } = useUpdatePlayer();
   
+  const activeProfile = player.playerProfiles.find(p => p.clubId === Number(initialClubId)) || player.playerProfiles[0] || null;
+
   const [fullName, setFullName] = useState(player.fullName);
   const [email, setEmail] = useState(player.email);
   const [phone, setPhone] = useState(player.phone || "");
-  const [gender, setGender] = useState(player.playerProfile?.gender || "");
-  const [category, setCategory] = useState(player.playerProfile?.category || "D");
-  const [clubId, setClubId] = useState(player.playerProfile?.clubId?.toString() || "");
+  const [gender, setGender] = useState(activeProfile?.gender || "");
+  const [category, setCategory] = useState(activeProfile?.category || "D");
+  const [clubId, setClubId] = useState(activeProfile?.clubId?.toString() || initialClubId || "");
   const [dateOfBirth, setDateOfBirth] = useState(
     player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : ""
   );
@@ -246,9 +293,9 @@ function EditPlayerDialog({
     if (fullName !== player.fullName) updates.fullName = fullName;
     if (email !== player.email) updates.email = email;
     if (phone !== (player.phone || "")) updates.phone = phone || null;
-    if (gender !== (player.playerProfile?.gender || "")) updates.gender = gender;
-    if (category !== (player.playerProfile?.category || "D")) updates.category = category;
-    if (clubId && Number(clubId) !== player.playerProfile?.clubId) updates.clubId = Number(clubId);
+    if (gender !== (activeProfile?.gender || "")) updates.gender = gender;
+    if (category !== (activeProfile?.category || "D")) updates.category = category;
+    if (clubId && Number(clubId) !== activeProfile?.clubId) updates.clubId = Number(clubId);
     
     const origDob = player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : "";
     if (dateOfBirth !== origDob) updates.dateOfBirth = dateOfBirth || null;

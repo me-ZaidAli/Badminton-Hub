@@ -65,7 +65,7 @@ export const api = {
       method: "GET" as const,
       path: "/api/auth/me",
       responses: {
-        200: z.custom<typeof users.$inferSelect & { playerProfile?: typeof playerProfiles.$inferSelect | null }>(),
+        200: z.custom<typeof users.$inferSelect & { playerProfile?: typeof playerProfiles.$inferSelect | null; playerProfiles?: (typeof playerProfiles.$inferSelect)[] }>(),
         401: errorSchemas.unauthorized,
       },
     },
@@ -75,7 +75,7 @@ export const api = {
       method: "GET" as const,
       path: "/api/users",
       responses: {
-        200: z.array(z.custom<typeof users.$inferSelect & { playerProfile?: typeof playerProfiles.$inferSelect | null }>()),
+        200: z.array(z.custom<typeof users.$inferSelect & { playerProfiles: (typeof playerProfiles.$inferSelect)[] }>()),
       },
     },
     profile: {

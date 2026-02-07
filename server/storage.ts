@@ -42,7 +42,7 @@ export interface IStorage {
   getPlayerProfileById(id: number): Promise<(PlayerProfile & { user: User }) | undefined>;
   getPlayerProfilesByUser(userId: number): Promise<(PlayerProfile & { club: Club })[]>;
   createPlayerProfile(profile: InsertPlayerProfile): Promise<PlayerProfile>;
-  getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
+  getAllUsers(): Promise<(User & { playerProfiles: PlayerProfile[] })[]>;
   getUsersByRole(role: string): Promise<User[]>;
   getAllPlayerProfiles(): Promise<(PlayerProfile & { user: User })[]>;
   getClubLeaderboard(clubId: number): Promise<(PlayerProfile & { user: User })[]>;
@@ -399,9 +399,18 @@ export class DatabaseStorage implements IStorage {
     return newProfile;
   }
 
-  async getAllUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]> {
+  async getAllUsers(): Promise<(User & { playerProfiles: PlayerProfile[] })[]> {
     const result = await db.select().from(users).leftJoin(playerProfiles, eq(users.id, playerProfiles.userId));
-    return result.map(r => ({ ...r.users, playerProfile: r.player_profiles }));
+    const userMap = new Map<number, User & { playerProfiles: PlayerProfile[] }>();
+    for (const r of result) {
+      if (!userMap.has(r.users.id)) {
+        userMap.set(r.users.id, { ...r.users, playerProfiles: [] });
+      }
+      if (r.player_profiles) {
+        userMap.get(r.users.id)!.playerProfiles.push(r.player_profiles);
+      }
+    }
+    return Array.from(userMap.values());
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
