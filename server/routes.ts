@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications } from "@shared/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -276,18 +276,15 @@ export async function registerRoutes(
         return res.status(403).json({ message: "You can only update your own profile" });
       }
       
-      const { fullName, gender, category } = req.body;
+      const { fullName, gender } = req.body;
       
-      // Update user's fullName if provided
       if (fullName && typeof fullName === 'string') {
         await db.update(users).set({ fullName: fullName.trim() }).where(eq(users.id, req.user!.id));
       }
       
-      // Update profile if gender or category provided
-      if (gender || category) {
+      if (gender) {
         await storage.updatePlayerProfile(profileId, { 
           gender: gender || undefined,
-          category: category || undefined 
         });
       }
       
@@ -3576,6 +3573,62 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error resetting password:", err);
       res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // === CLOSE ACCOUNT (self-service) ===
+  app.post("/api/account/close", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = req.user!.id;
+    const { reason } = req.body || {};
+
+    try {
+      await db.update(users).set({
+        closedAt: new Date(),
+        closedReason: reason || "User requested account closure",
+        accountStatus: "REJECTED",
+      }).where(eq(users.id, userId));
+
+      const ownerUsers = await db.select().from(users).where(eq(users.role, "OWNER"));
+      for (const owner of ownerUsers) {
+        await storage.createNotification({
+          userId: owner.id,
+          type: "ACCOUNT_CLOSED",
+          title: "Account Closed",
+          message: `${req.user!.fullName} (${req.user!.email}) has closed their account.`,
+          linkUrl: "/admin",
+        });
+      }
+
+      req.logout((err) => {
+        if (err) console.error("Logout error:", err);
+        req.session.destroy(() => {
+          res.json({ message: "Account closed successfully" });
+        });
+      });
+    } catch (err: any) {
+      console.error("Error closing account:", err);
+      res.status(500).json({ message: "Failed to close account" });
+    }
+  });
+
+  // === ADMIN: View closed accounts ===
+  app.get("/api/admin/closed-accounts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const closedUsers = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        role: users.role,
+        closedAt: users.closedAt,
+        closedReason: users.closedReason,
+      }).from(users).where(sql`${users.closedAt} IS NOT NULL`).orderBy(desc(users.closedAt));
+      res.json(closedUsers);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch closed accounts" });
     }
   });
 

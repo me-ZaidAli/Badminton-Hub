@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,18 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, User, Settings, Shield, Loader2 } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, Home, ArrowLeft } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function Profile() {
   const [, navigate] = useLocation();
@@ -26,13 +37,13 @@ export default function Profile() {
   const [editForm, setEditForm] = useState({
     fullName: "",
     gender: "",
-    category: "",
   });
+  const [closeReason, setCloseReason] = useState("");
 
   const profile = profiles?.[0];
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: { fullName?: string; gender?: string; category?: string }) => {
+    mutationFn: async (data: { fullName?: string; gender?: string }) => {
       if (!profile) throw new Error("No profile found");
       const res = await apiRequest("PATCH", `/api/player-profiles/${profile.id}`, data);
       if (!res.ok) {
@@ -52,6 +63,25 @@ export default function Profile() {
     },
   });
 
+  const closeAccountMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const res = await apiRequest("POST", "/api/account/close", { reason });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to close account");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Account Closed", description: "Your account has been closed. You will now be signed out." });
+      queryClient.clear();
+      navigate("/");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleLogout = () => {
     logout.mutate();
     navigate("/");
@@ -61,7 +91,6 @@ export default function Profile() {
     setEditForm({
       fullName: user?.fullName || "",
       gender: profile?.gender || "",
-      category: profile?.category || "D",
     });
     setIsEditing(true);
   };
@@ -70,7 +99,6 @@ export default function Profile() {
     updateProfileMutation.mutate({
       fullName: editForm.fullName,
       gender: editForm.gender,
-      category: editForm.category,
     });
   };
 
@@ -101,6 +129,15 @@ export default function Profile() {
 
   return (
     <div className="container max-w-2xl mx-auto p-6 space-y-6">
+      <div className="flex items-center gap-2">
+        <Link href="/">
+          <Button variant="ghost" size="sm" data-testid="button-back-home">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Home
+          </Button>
+        </Link>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -187,23 +224,6 @@ export default function Profile() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={editForm.category}
-                  onValueChange={(value) => setEditForm({ ...editForm, category: value })}
-                >
-                  <SelectTrigger data-testid="select-category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="A">A - Advanced</SelectItem>
-                    <SelectItem value="B">B - Intermediate</SelectItem>
-                    <SelectItem value="C">C - Beginner</SelectItem>
-                    <SelectItem value="D">D - Novice</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex gap-2">
                 <Button
                   onClick={handleSave}
@@ -248,6 +268,56 @@ export default function Profile() {
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/20">
+        <CardHeader>
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <XCircle className="h-5 w-5" />
+            Close Account
+          </CardTitle>
+          <CardDescription>Permanently close your account. This action cannot be undone.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" data-testid="button-close-account">
+                <XCircle className="h-4 w-4 mr-2" />
+                Close My Account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-background">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure you want to close your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently close your account. You will be signed out and will no longer be able to log in. Your data will be archived for administrative purposes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="py-2">
+                <Label htmlFor="closeReason">Reason (optional)</Label>
+                <Input
+                  id="closeReason"
+                  placeholder="Tell us why you're leaving..."
+                  value={closeReason}
+                  onChange={(e) => setCloseReason(e.target.value)}
+                  data-testid="input-close-reason"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-close">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => closeAccountMutation.mutate(closeReason)}
+                  disabled={closeAccountMutation.isPending}
+                  data-testid="button-confirm-close"
+                >
+                  {closeAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Yes, Close My Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     </div>

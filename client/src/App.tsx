@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Sidebar, MobileNav } from "@/components/layout/Sidebar";
+import { Sidebar, MobileTopNav } from "@/components/layout/Sidebar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -78,12 +78,14 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
-        <Component />
-      </main>
-      <MobileNav />
+    <div className="flex flex-col min-h-screen bg-background">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <Component />
+        </main>
+      </div>
     </div>
   );
 }
@@ -108,12 +110,14 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
-        <Component />
-      </main>
-      <MobileNav />
+    <div className="flex flex-col min-h-screen bg-background">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <Component />
+        </main>
+      </div>
     </div>
   );
 }
@@ -137,12 +141,14 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
-        <Component />
-      </main>
-      <MobileNav />
+    <div className="flex flex-col min-h-screen bg-background">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <Component />
+        </main>
+      </div>
     </div>
   );
 }
@@ -150,15 +156,16 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
 function PublicRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user } = useUser();
   
-  // Public route - show with sidebar if logged in, otherwise show standalone
   if (user) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
-          <Component />
-        </main>
-        <MobileNav />
+      <div className="flex flex-col min-h-screen bg-background">
+        <MobileTopNav />
+        <div className="flex flex-1">
+          <Sidebar />
+          <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+            <Component />
+          </main>
+        </div>
       </div>
     );
   }
@@ -254,7 +261,7 @@ function Router() {
         <PublicRoute component={JuniorConsentPolicy} />
       </Route>
       <Route path="/profile">
-        <Profile />
+        <PrivateRoute component={Profile} />
       </Route>
 
       {/* Admin Routes - OWNER only */}

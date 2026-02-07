@@ -48,6 +48,10 @@ export function setupAuth(app: Express) {
           console.log(`[AUTH] LOGIN FAILED: email=${username} reason=invalid_credentials`);
           return done(null, false, { message: "Invalid email or password" });
         }
+        if ((user as any).closedAt) {
+          console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_closed`);
+          return done(null, false, { message: "This account has been closed. Please contact your club administrator." });
+        }
         console.log(`[AUTH] LOGIN SUCCESS: userId=${user.id} email=${username} role=${user.role}`);
         return done(null, user);
       } catch (err) {

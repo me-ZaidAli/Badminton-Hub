@@ -1,8 +1,10 @@
 import { Link, useLocation } from "wouter";
 import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap, Mail } from "lucide-react";
+import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap, Mail, LayoutDashboard, User, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useUser, useLogout } from "@/hooks/use-auth";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navItems = [
   { label: "Home", href: "/", icon: Home },
@@ -16,6 +18,8 @@ const navItems = [
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { data: user } = useUser();
+  const logout = useLogout();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -48,12 +52,32 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </nav>
 
           <div className="flex items-center gap-2">
-            <Link href="/login">
-              <Button variant="ghost" size="sm" data-testid="button-sign-in">Sign In</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm" data-testid="button-join">Join Club</Button>
-            </Link>
+            {user ? (
+              <>
+                <NotificationBell />
+                <Link href="/dashboard">
+                  <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-2" data-testid="button-go-dashboard">
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-2" data-testid="button-go-profile">
+                    <User className="w-4 h-4" />
+                    Profile
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm" data-testid="button-sign-in">Sign In</Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm" data-testid="button-join">Join Club</Button>
+                </Link>
+              </>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -67,7 +91,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border/40 bg-background px-4 py-3 space-y-1" data-testid="mobile-nav-menu">
+          <div className="md:hidden border-t border-border/40 bg-white dark:bg-card px-4 py-3 space-y-1" data-testid="mobile-nav-menu">
             {navItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (
@@ -85,6 +109,71 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                 </Link>
               );
             })}
+            {user ? (
+              <div className="border-t border-border/40 pt-2 mt-2 space-y-1">
+                <Link href="/dashboard">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    size="sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="mobile-nav-dashboard"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </Button>
+                </Link>
+                <Link href="/profile">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    size="sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="mobile-nav-profile"
+                  >
+                    <User className="w-4 h-4" />
+                    My Profile
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-destructive"
+                  size="sm"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout.mutate();
+                  }}
+                  data-testid="mobile-nav-logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <div className="border-t border-border/40 pt-2 mt-2 space-y-1">
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    size="sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="mobile-nav-signin"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button
+                    className="w-full justify-start gap-2"
+                    size="sm"
+                    onClick={() => setMobileMenuOpen(false)}
+                    data-testid="mobile-nav-join"
+                  >
+                    Join Club
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </header>

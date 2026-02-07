@@ -46,6 +46,8 @@ export const users = pgTable("users", {
   city: text("city"),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
+  closedAt: timestamp("closed_at"),
+  closedReason: text("closed_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import logoPath from "@assets/image_1770381062912.png";
+import { useState } from "react";
 import { 
   Calendar, 
   Users, 
@@ -23,16 +24,17 @@ import {
   GraduationCap,
   Search,
   Mail,
-  KeyRound
+  KeyRound,
+  Menu,
+  X,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/NotificationBell";
 
-export function Sidebar() {
-  const [location] = useLocation();
+function useNavItems() {
   const { data: user } = useUser();
-  const { mutate: logout } = useLogout();
   const { data: clubs } = useClubs();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
@@ -59,7 +61,6 @@ export function Sidebar() {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
   }
 
-  // Show Venues to platform super admins, club owners, or club admins
   if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
@@ -84,9 +85,17 @@ export function Sidebar() {
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
   }
 
+  return navItems;
+}
+
+export function Sidebar() {
+  const [location] = useLocation();
+  const { data: user } = useUser();
+  const { mutate: logout } = useLogout();
+  const navItems = useNavItems();
+
   return (
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
-      {/* Brand */}
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
           <Link href="/">
@@ -103,10 +112,9 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(`${item.href}/`);
+          const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
           return (
             <Link key={item.href} href={item.href}>
               <div 
@@ -125,7 +133,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User Footer */}
       <div className="p-4 border-t border-border/50 bg-muted/20">
         {user ? (
           <div className="flex items-center gap-3 mb-4">
@@ -158,66 +165,101 @@ export function Sidebar() {
   );
 }
 
-export function MobileNav() {
+export function MobileTopNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
-  const { data: clubs } = useClubs();
-  const { data: myAdminClubs } = useMyAdminClubs(!!user);
-  const isOrganiser = user?.role === "ORGANISER";
-  const isSuperAdmin = user?.role === "OWNER";
-  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
-  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
-  const isClubOwner = ownedClubs.length > 0;
-  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  const { mutate: logout } = useLogout();
+  const navItems = useNavItems();
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const navItems = isOrganiser ? [
-    { href: "/", icon: Home },
-    { href: "/organizer", icon: LayoutDashboard },
-    { href: "/sessions", icon: Calendar },
-  ] : [
-    { href: "/", icon: Home },
-    { href: "/dashboard", icon: LayoutDashboard },
-    { href: "/sessions", icon: Calendar },
-  ];
-
-  if (isSuperAdmin || isClubOwner) {
-    navItems.push({ href: "/club-admin", icon: Building2 });
-  }
-
-  // Show Venues to platform super admins, club owners, or club admins
-  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
-    navItems.push({ href: "/admin/venues", icon: MapPin });
-  }
-
-  if (isSuperAdmin || isAdmin || isOrganiser || user?.role === "COACH" || hasClubAdminAccess) {
-    navItems.push({ href: "/admin/rankings", icon: Trophy });
-  }
-
-  if (isSuperAdmin) {
-    navItems.push({ href: "/admin/clubs-management", icon: FolderKanban });
-  }
-  if (isAdmin) {
-    navItems.push({ href: "/admin", icon: ShieldCheck });
-  }
-  
-  // Always add Profile for mobile
-  navItems.push({ href: "/profile", icon: Users });
+  if (!user) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-2 md:hidden z-50 flex justify-around shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-      {navItems.map((item) => {
-        const isActive = location === item.href;
-        return (
-          <Link key={item.href} href={item.href}>
-            <div className={cn(
-              "p-3 rounded-xl transition-all active:scale-95",
-              isActive ? "text-primary bg-primary/10" : "text-muted-foreground"
-            )}>
-              <item.icon className="h-6 w-6" />
+    <div className="md:hidden sticky top-0 z-50">
+      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40">
+        <Link href="/">
+          <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
+            <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
+            <span className="font-display font-bold text-lg">Club Master</span>
+          </div>
+        </Link>
+
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMenuOpen(!menuOpen)}
+            data-testid="button-mobile-menu"
+          >
+            {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
+      </div>
+
+      {menuOpen && (
+        <div className="bg-white dark:bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu">
+          <div className="px-4 py-3 border-b border-border/40">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="text-sm">
+                  {user.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="font-semibold text-sm text-foreground">{user.fullName}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user.role.toLowerCase()}</p>
+              </div>
             </div>
-          </Link>
-        );
-      })}
+          </div>
+          <div className="py-2 px-2 space-y-1">
+            {navItems.map((item) => {
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="w-full justify-start gap-3"
+                    size="sm"
+                    onClick={() => setMenuOpen(false)}
+                    data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="border-t border-border/40 p-2 space-y-1">
+            <Link href="/profile">
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3"
+                size="sm"
+                onClick={() => setMenuOpen(false)}
+                data-testid="mobile-nav-profile"
+              >
+                <User className="w-4 h-4" />
+                My Profile
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-destructive"
+              size="sm"
+              onClick={() => {
+                setMenuOpen(false);
+                logout();
+              }}
+              data-testid="mobile-nav-logout"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

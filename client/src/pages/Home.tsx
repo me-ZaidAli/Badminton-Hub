@@ -21,10 +21,6 @@ export default function Home() {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
   }, [allSessions]);
 
-  if (user) {
-    window.location.href = "/dashboard";
-    return null;
-  }
 
   return (
     <PublicLayout>
