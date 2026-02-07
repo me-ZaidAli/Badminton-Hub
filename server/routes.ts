@@ -1749,7 +1749,9 @@ export async function registerRoutes(
 
     try {
       const userId = Number(req.params.id);
-      const { fullName, email, role: newRole, gender, category, rankingPoints } = req.body;
+      const { fullName, email, role: newRole, gender, category, rankingPoints,
+              phone, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail,
+              password, clubId } = req.body;
 
       // Check email uniqueness if changing email
       if (email) {
@@ -1764,6 +1766,21 @@ export async function registerRoutes(
       if (fullName) userUpdates.fullName = fullName;
       if (email) userUpdates.email = email;
       if (newRole) userUpdates.role = newRole;
+      if (phone !== undefined) userUpdates.phone = phone || null;
+      if (dateOfBirth !== undefined) userUpdates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (isJunior !== undefined) {
+        userUpdates.isJunior = isJunior;
+        if (!isJunior) {
+          userUpdates.parentGuardianName = null;
+          userUpdates.parentGuardianEmail = null;
+        }
+      }
+      if (parentGuardianName !== undefined) userUpdates.parentGuardianName = parentGuardianName || null;
+      if (parentGuardianEmail !== undefined) userUpdates.parentGuardianEmail = parentGuardianEmail || null;
+      if (password) {
+        const hashedPassword = await hashPassword(password);
+        userUpdates.password = hashedPassword;
+      }
       
       const updatedUser = await storage.updateUser(userId, userUpdates);
 
@@ -1774,14 +1791,15 @@ export async function registerRoutes(
         if (gender) profileUpdates.gender = gender;
         if (category) profileUpdates.category = category;
         if (rankingPoints !== undefined) profileUpdates.rankingPoints = rankingPoints;
+        if (clubId && clubId !== profile.clubId) profileUpdates.clubId = clubId;
         
         await storage.updatePlayerProfile(profile.id, profileUpdates);
-      } else if (gender || category) {
-        // Create profile if any profile fields are provided
+      } else if (gender || category || clubId) {
         await storage.createPlayerProfile({
           userId,
-          gender: gender as any,
-          category: category as any,
+          gender: gender as any || null,
+          category: category as any || null,
+          clubId: clubId ? Number(clubId) : undefined,
           membershipId: null
         });
       }

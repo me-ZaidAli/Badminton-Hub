@@ -16,7 +16,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home } from "lucide-react";
+import { useVenues } from "@/hooks/use-venues";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -355,8 +356,10 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
     }
   });
 
+  const watchClubId = form.watch("clubId");
   const watchSessionType = form.watch("sessionType");
   const watchGenderRestriction = form.watch("genderRestriction");
+  const { data: venues } = useVenues(watchClubId || null);
 
   useEffect(() => {
     if (sessionClubs.length > 0 && !form.getValues("clubId")) {
@@ -410,6 +413,37 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
                 </FormItem>
               )}
             />
+            {venues && venues.length > 0 && (
+              <FormField
+                control={form.control}
+                name="venueId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Venue</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "none" ? undefined : Number(v))}
+                      value={field.value?.toString() || "none"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-session-venue">
+                          <Home className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <SelectValue placeholder="Select venue (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No venue selected</SelectItem>
+                        {venues.map(venue => (
+                          <SelectItem key={venue.id} value={venue.id.toString()}>
+                            {venue.name}{venue.city ? ` - ${venue.city}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="title"

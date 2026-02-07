@@ -90,8 +90,19 @@ export interface IStorage {
   getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
   
   // Player Management
-  updateUser(id: number, updates: { fullName?: string; email?: string; role?: string; accountStatus?: string }): Promise<User>;
-  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string }): Promise<PlayerProfile>;
+  updateUser(id: number, updates: Partial<{
+    fullName: string;
+    email: string;
+    role: string;
+    phone: string | null;
+    dateOfBirth: Date | null;
+    isJunior: boolean;
+    parentGuardianName: string | null;
+    parentGuardianEmail: string | null;
+    password: string;
+    accountStatus: string;
+  }>): Promise<User>;
+  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile>;
   updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
   deletePlayerProfile(id: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
@@ -696,12 +707,23 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async updateUser(id: number, updates: { fullName?: string; email?: string; role?: string }): Promise<User> {
-    const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+  async updateUser(id: number, updates: Partial<{
+    fullName: string;
+    email: string;
+    role: string;
+    phone: string | null;
+    dateOfBirth: Date | null;
+    isJunior: boolean;
+    parentGuardianName: string | null;
+    parentGuardianEmail: string | null;
+    password: string;
+    accountStatus: string;
+  }>): Promise<User> {
+    const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
     return updated;
   }
 
-  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string }): Promise<PlayerProfile> {
+  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile> {
     const [updated] = await db.update(playerProfiles).set(updates as any).where(eq(playerProfiles.id, id)).returning();
     return updated;
   }

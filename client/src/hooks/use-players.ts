@@ -57,7 +57,22 @@ export function useUpdatePlayer() {
   const { toast } = useToast();
   
   return useMutation({
-    mutationFn: async (data: { id: number; fullName?: string; email?: string; role?: string; gender?: string; category?: string; rankingPoints?: number }) => {
+    mutationFn: async (data: {
+      id: number;
+      fullName?: string;
+      email?: string;
+      role?: string;
+      gender?: string;
+      category?: string;
+      rankingPoints?: number;
+      phone?: string | null;
+      dateOfBirth?: string | null;
+      isJunior?: boolean;
+      parentGuardianName?: string | null;
+      parentGuardianEmail?: string | null;
+      password?: string;
+      clubId?: number;
+    }) => {
       const { id, ...updates } = data;
       const res = await fetch(`/api/admin/players/${id}`, {
         method: "PATCH",

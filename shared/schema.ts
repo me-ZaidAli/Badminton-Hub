@@ -37,6 +37,7 @@ export const users = pgTable("users", {
   claimedProfileId: integer("claimed_profile_id"),
   dateOfBirth: timestamp("date_of_birth"),
   isJunior: boolean("is_junior").default(false).notNull(),
+  phone: text("phone"),
   parentGuardianName: text("parent_guardian_name"),
   parentGuardianEmail: text("parent_guardian_email"),
   passwordResetToken: text("password_reset_token"),
