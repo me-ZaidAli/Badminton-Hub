@@ -16,11 +16,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert } from "lucide-react";
 import { useVenues } from "@/hooks/use-venues";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +58,18 @@ export default function Sessions() {
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+
+  const { data: memberships } = useQuery<{ clubId: number; membershipStatus: string }[]>({
+    queryKey: ["/api/user/memberships"],
+    enabled: !!user,
+  });
+
+  const getSessionAccess = (clubId: number): "allowed" | "denied" => {
+    if (!user) return "denied";
+    if (isSuperUser) return "allowed";
+    const m = memberships?.find(m => m.clubId === clubId);
+    return m?.membershipStatus === "APPROVED" ? "allowed" : "denied";
+  };
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (sessionIds: number[]) => {
@@ -288,13 +300,22 @@ export default function Sessions() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50 gap-2">
                     <span className="font-bold text-lg">
                       {format(new Date(session.date), "EEE, MMM d")}
                     </span>
-                    <Button size="sm" variant="outline">
-                      Details
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {user && !isSuperUser && (
+                        getSessionAccess(session.clubId) === "allowed" ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" data-testid={`icon-session-allowed-${session.id}`} />
+                        ) : (
+                          <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
+                        )
+                      )}
+                      <Button size="sm" variant="outline">
+                        Details
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

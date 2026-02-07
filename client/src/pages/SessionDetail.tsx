@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
@@ -13,14 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget } from "@/hooks/use-matches";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -91,10 +91,22 @@ export default function SessionDetail() {
   const { data: sessionClubs } = useMySessionClubs(!!user);
   const { data: allClubs } = useClubs();
   
+  const { data: memberships } = useQuery<{ clubId: number; membershipStatus: string }[]>({
+    queryKey: ["/api/user/memberships"],
+    enabled: !!user,
+  });
+
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
+  
+  const isApprovedMember = (() => {
+    if (!user || !session) return false;
+    if (isSuperAdmin) return true;
+    const m = memberships?.find(m => m.clubId === session.clubId);
+    return m?.membershipStatus === "APPROVED";
+  })();
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
   const availablePlayers = allPlayers
@@ -413,6 +425,27 @@ export default function SessionDetail() {
               <Badge variant="secondary" className="w-full justify-center py-2 text-base">
                 Private Session (Invite Only)
               </Badge>
+            ) : !user ? (
+              <Link href="/login">
+                <Button className="w-full" variant="outline" data-testid="button-login-to-join">
+                  Sign in to Join
+                </Button>
+              </Link>
+            ) : !isApprovedMember ? (
+              <div className="space-y-2">
+                <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+                  <Lock className="w-4 h-4 mr-2" />
+                  Membership Required
+                </Badge>
+                <p className="text-xs text-muted-foreground text-center">
+                  You must be an accepted member of this club to join this session.
+                </p>
+                <Link href="/clubs">
+                  <Button variant="outline" className="w-full" size="sm" data-testid="button-browse-clubs">
+                    Browse Clubs
+                  </Button>
+                </Link>
+              </div>
             ) : (
               <Button 
                 className="w-full shadow-lg shadow-primary/25" 

@@ -85,13 +85,6 @@ export function setupAuth(app: Express) {
         });
       }
 
-      // Validate club exists
-      const clubId = req.body.clubId ? Number(req.body.clubId) : 1;
-      const club = await storage.getClub(clubId);
-      if (!club) {
-        return res.status(400).send("Invalid club selected");
-      }
-
       // Server-side validation: require policy acceptances
       const acceptedPolicies = req.body.acceptedPolicies;
       if (!acceptedPolicies || !Array.isArray(acceptedPolicies)) {
@@ -127,15 +120,6 @@ export function setupAuth(app: Express) {
         parentGuardianEmail: isJunior ? req.body.parentGuardianEmail : null,
       });
 
-      // Create profile automatically for the selected club
-      await storage.createPlayerProfile({
-        userId: user.id,
-        clubId: clubId,
-        gender: req.body.gender,
-        category: req.body.category || "D",
-        membershipId: null
-      });
-
       // Store policy acceptance logs
       const policyVersion = "1.0";
       if (req.body.acceptedPolicies && Array.isArray(req.body.acceptedPolicies)) {
@@ -156,7 +140,7 @@ export function setupAuth(app: Express) {
             userId: owner.id,
             type: "NEW_REGISTRATION",
             title: "New Player Registration",
-            message: `${req.body.fullName} (${req.body.email}) has registered and is awaiting approval for ${club.name}.`,
+            message: `${req.body.fullName} (${req.body.email}) has registered on the platform.`,
             linkUrl: "/admin/approvals",
           });
         }
@@ -434,8 +418,8 @@ export function setupAuth(app: Express) {
   app.get("/api/auth/me", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
-    // Enrich with profile
-    const profile = await storage.getPlayerProfile(req.user!.id);
-    res.json({ ...req.user, playerProfile: profile });
+    const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
+    const profile = profiles.length > 0 ? profiles[0] : null;
+    res.json({ ...req.user, playerProfile: profile, playerProfiles: profiles });
   });
 }

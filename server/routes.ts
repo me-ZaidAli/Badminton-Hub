@@ -470,14 +470,57 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/user/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { fullName, phone, dateOfBirth, city, country, region, continent } = req.body;
+      const updates: any = {};
+      if (fullName && typeof fullName === 'string' && fullName.trim().length >= 2) {
+        updates.fullName = fullName.trim();
+      }
+      if (phone !== undefined) updates.phone = phone || null;
+      if (dateOfBirth !== undefined) updates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (city !== undefined) updates.city = city || null;
+      if (country !== undefined) updates.country = country || null;
+      if (region !== undefined) updates.region = region || null;
+      if (continent !== undefined) updates.continent = continent || null;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+
+      const updated = await storage.updateUser(req.user!.id, updates);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating user profile:", err);
+      res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
+  });
+
+  app.get("/api/user/memberships", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
+      const memberships = profiles.map(p => ({
+        clubId: (p as any).club?.id || p.clubId,
+        clubName: (p as any).club?.name || "",
+        membershipStatus: p.membershipStatus,
+        profileId: p.id,
+      }));
+      res.json(memberships);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch memberships" });
+    }
+  });
+
   app.post("/api/clubs/join", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
       const { clubId, gender } = req.body;
+      const user = req.user!;
       
-      if (isSuperAdmin(req.user!)) {
-        console.log(`[JOIN] BLOCKED: Super admin (userId=${req.user!.id}) attempted to join club ${clubId} - super admins have automatic access`);
+      if (isSuperAdmin(user)) {
         return res.status(403).json({ message: "Super admins already have full access to all clubs. No need to join." });
       }
 
@@ -485,8 +528,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Club ID is required" });
       }
 
-      if (gender && !["MALE", "FEMALE"].includes(gender)) {
-        return res.status(400).json({ message: "Gender must be MALE or FEMALE" });
+      if (!user.fullName || user.fullName.trim().length < 2) {
+        return res.status(400).json({ message: "Please complete your profile before requesting to join a club.", code: "PROFILE_INCOMPLETE" });
+      }
+      if (!gender || !["MALE", "FEMALE"].includes(gender)) {
+        return res.status(400).json({ message: "Please complete your profile (gender is required) before requesting to join a club.", code: "PROFILE_INCOMPLETE" });
       }
 
       const club = await storage.getClub(clubId);
@@ -494,7 +540,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Club not found" });
       }
 
-      const existingProfile = await storage.getPlayerProfile(req.user!.id, clubId);
+      const existingProfile = await storage.getPlayerProfile(user.id, clubId);
       if (existingProfile) {
         if (existingProfile.membershipStatus === "PENDING") {
           return res.status(400).json({ message: "Your join request is already pending" });
@@ -506,7 +552,7 @@ export async function registerRoutes(
       }
 
       const profile = await storage.createPlayerProfile({
-        userId: req.user!.id,
+        userId: user.id,
         clubId,
         clubRole: "PLAYER",
         membershipStatus: "PENDING",
@@ -515,7 +561,40 @@ export async function registerRoutes(
         membershipId: null
       });
 
-      console.log(`[JOIN] REQUEST: userId=${req.user!.id} requested to join clubId=${clubId}`);
+      const profileSnapshot = [
+        `Name: ${user.fullName}`,
+        `Email: ${user.email}`,
+        `Gender: ${gender}`,
+        user.dateOfBirth ? `Date of Birth: ${new Date(user.dateOfBirth).toLocaleDateString()}` : null,
+        user.city ? `City: ${user.city}` : null,
+        user.region ? `Region: ${user.region}` : null,
+        user.country ? `Country: ${user.country}` : null,
+        user.phone ? `Phone: ${user.phone}` : null,
+      ].filter(Boolean).join("\n");
+
+      try {
+        const owners = await storage.getUsersByRole("OWNER");
+        const clubProfiles = await storage.getClubPlayers(clubId);
+        const clubAdmins = clubProfiles
+          .filter((p: any) => p.profile.clubRole === "ADMIN" || p.profile.clubRole === "OWNER")
+          .map((p: any) => p.profile.userId);
+        
+        const notifyUserIds = new Set([...owners.map(o => o.id), ...clubAdmins]);
+        
+        for (const notifyUserId of notifyUserIds) {
+          await storage.createNotification({
+            userId: notifyUserId,
+            type: "JOIN_REQUEST",
+            title: "New Club Join Request",
+            message: `${user.fullName} has requested to join ${club.name}.\n\n${profileSnapshot}`,
+            linkUrl: "/admin/approvals",
+          });
+        }
+      } catch (notifErr) {
+        console.error("[JOIN] Failed to send notifications:", notifErr);
+      }
+
+      console.log(`[JOIN] REQUEST: userId=${user.id} requested to join clubId=${clubId}`);
       res.status(201).json(profile);
     } catch (err: any) {
       console.error("[JOIN] ERROR:", err);
@@ -895,11 +974,16 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    // Check if profile exists
-    const profile = await storage.getPlayerProfile(req.user!.id);
-    if (!profile) return res.status(400).json({ message: "Player profile required" });
+    const profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
+    if (!profile) return res.status(403).json({ message: "You must be an accepted member of this club to join this session." });
 
-    // Check capacity (basic check, could be racy without transaction but OK for MVP)
+    if (profile.membershipStatus !== "APPROVED") {
+      const statusMsg = profile.membershipStatus === "PENDING"
+        ? "Your membership is pending approval. You cannot join sessions until approved."
+        : "You must be an accepted member of this club to join this session.";
+      return res.status(403).json({ message: statusMsg });
+    }
+
     const signups = await storage.getSessionSignups(sessionId);
     if (signups.length >= session.maxPlayers) {
       return res.status(400).json({ message: "Session full" });
