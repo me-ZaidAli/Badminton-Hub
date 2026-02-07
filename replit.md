@@ -1,7 +1,7 @@
 # Club Master - Badminton Club Management System
 
 ## Overview
-Club Master is a full-stack web application designed for comprehensive badminton club management. It offers session scheduling, a player ranking system using Elo ratings, match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles, streamlining club operations, enhancing player engagement, and providing a centralized hub for all club activities. The project aims to improve efficiency for club owners and provide an engaging experience for players.
+Club Master is a full-stack web application designed for comprehensive badminton club management. It offers session scheduling, a dynamic player ranking system (wins/losses/win%), match organization, member profile management, and administrative tools. The platform supports a robust role-based access control system for various user roles, streamlining club operations, enhancing player engagement, and providing a centralized hub for all club activities. The project aims to improve efficiency for club owners and provide an engaging experience for players.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -29,7 +29,8 @@ Key design patterns include:
 - **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED) and allows users to join clubs.
 - **Venue Management**: Enables clubs to manage multiple venues and link sessions to locations.
 - **Public Viewing System**: A comprehensive public landing page accessible without login, featuring a club directory, public sessions, live session views, and club leaderboards. All sensitive user data is excluded.
-- **Personal Ranking View**: Logged-in users can view their ranking progress and match history.
+- **Dynamic Leaderboard System**: All player rankings are computed dynamically from completed matches. Leaderboard shows wins, losses, and win percentage instead of static ranking points. Includes club leaderboard (`/api/leaderboard/:clubId`), session leaderboard (`/api/sessions/:id/leaderboard`), and personal ranking view. Players ranked by (1) matches won, (2) win percentage, (3) matches played.
+- **Personal Ranking View**: Logged-in users can view their match results history and win/loss record.
 - **Registration & Account Claiming**: New user registrations trigger in-app notifications to super admins. Users can "claim" pre-existing PENDING or guest accounts by setting a password.
 - **Password Reset / Forgot Password**: Users request a reset via `/forgot-password`, generating a 24h token. OWNER users are notified and can view/copy reset links at `/admin/password-resets`. Users set a new password at `/reset-password/:token`. Endpoints: POST `/api/auth/forgot-password`, POST `/api/auth/reset-password`, GET `/api/admin/password-resets`.
 - **Admin & Player Management**: Super admins have access to user approval panels with bulk actions, and can manage players across all clubs, including bulk actions for player status and cross-club allocation. Club admins can manage venues and administrators for their specific clubs.

@@ -97,6 +97,26 @@ export interface IStorage {
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
+  getDynamicClubLeaderboard(clubId: number): Promise<{
+    id: number;
+    fullName: string;
+    gender: string | null;
+    category: string | null;
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+    winPercentage: number;
+  }[]>;
+  getDynamicSessionLeaderboard(sessionId: number): Promise<{
+    id: number;
+    fullName: string;
+    gender: string | null;
+    category: string | null;
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+    winPercentage: number;
+  }[]>;
 
   // Tournaments
   getTournaments(clubId?: number): Promise<Tournament[]>;
@@ -677,6 +697,156 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(matches.completedAt));
     return result;
+  }
+
+  private computeLeaderboardFromMatches(
+    matchList: Match[],
+    players: Map<number, { fullName: string; gender: string | null; category: string | null }>
+  ) {
+    const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number }>();
+
+    for (const match of matchList) {
+      if (match.status !== "COMPLETED" || !match.isCompleted) continue;
+
+      const teamAWon = (match.scoreA ?? 0) > (match.scoreB ?? 0);
+      const playerIds = [
+        match.teamAPlayer1Id,
+        match.teamAPlayer2Id,
+        match.teamBPlayer1Id,
+        match.teamBPlayer2Id,
+      ].filter((id): id is number => id !== null);
+
+      for (const pid of playerIds) {
+        if (!statsMap.has(pid)) {
+          statsMap.set(pid, { matchesPlayed: 0, matchesWon: 0 });
+        }
+        const s = statsMap.get(pid)!;
+        s.matchesPlayed++;
+        const isTeamA = pid === match.teamAPlayer1Id || pid === match.teamAPlayer2Id;
+        if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) {
+          s.matchesWon++;
+        }
+      }
+    }
+
+    const results: {
+      id: number;
+      fullName: string;
+      gender: string | null;
+      category: string | null;
+      matchesPlayed: number;
+      matchesWon: number;
+      matchesLost: number;
+      winPercentage: number;
+    }[] = [];
+
+    for (const [pid, stats] of statsMap) {
+      const player = players.get(pid);
+      if (!player) continue;
+      results.push({
+        id: pid,
+        fullName: player.fullName,
+        gender: player.gender,
+        category: player.category,
+        matchesPlayed: stats.matchesPlayed,
+        matchesWon: stats.matchesWon,
+        matchesLost: stats.matchesPlayed - stats.matchesWon,
+        winPercentage: stats.matchesPlayed > 0
+          ? Math.round((stats.matchesWon / stats.matchesPlayed) * 100)
+          : 0,
+      });
+    }
+
+    results.sort((a, b) => {
+      if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+      if (b.winPercentage !== a.winPercentage) return b.winPercentage - a.winPercentage;
+      return b.matchesPlayed - a.matchesPlayed;
+    });
+
+    return results;
+  }
+
+  async getDynamicClubLeaderboard(clubId: number) {
+    const clubSessions = await db.select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.clubId, clubId));
+
+    if (clubSessions.length === 0) return [];
+
+    const sessionIds = clubSessions.map(s => s.id);
+    const completedMatches = await db.select()
+      .from(matches)
+      .where(
+        and(
+          inArray(matches.sessionId, sessionIds),
+          eq(matches.isCompleted, true),
+          eq(matches.status, "COMPLETED")
+        )
+      );
+
+    if (completedMatches.length === 0) return [];
+
+    const playerIds = new Set<number>();
+    for (const m of completedMatches) {
+      if (m.teamAPlayer1Id) playerIds.add(m.teamAPlayer1Id);
+      if (m.teamAPlayer2Id) playerIds.add(m.teamAPlayer2Id);
+      if (m.teamBPlayer1Id) playerIds.add(m.teamBPlayer1Id);
+      if (m.teamBPlayer2Id) playerIds.add(m.teamBPlayer2Id);
+    }
+
+    const profileRows = await db.select()
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(inArray(playerProfiles.id, [...playerIds]));
+
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null }>();
+    for (const r of profileRows) {
+      playerMap.set(r.player_profiles.id, {
+        fullName: r.users.fullName,
+        gender: r.player_profiles.gender,
+        category: r.player_profiles.category,
+      });
+    }
+
+    return this.computeLeaderboardFromMatches(completedMatches, playerMap);
+  }
+
+  async getDynamicSessionLeaderboard(sessionId: number) {
+    const completedMatches = await db.select()
+      .from(matches)
+      .where(
+        and(
+          eq(matches.sessionId, sessionId),
+          eq(matches.isCompleted, true),
+          eq(matches.status, "COMPLETED")
+        )
+      );
+
+    if (completedMatches.length === 0) return [];
+
+    const playerIds = new Set<number>();
+    for (const m of completedMatches) {
+      if (m.teamAPlayer1Id) playerIds.add(m.teamAPlayer1Id);
+      if (m.teamAPlayer2Id) playerIds.add(m.teamAPlayer2Id);
+      if (m.teamBPlayer1Id) playerIds.add(m.teamBPlayer1Id);
+      if (m.teamBPlayer2Id) playerIds.add(m.teamBPlayer2Id);
+    }
+
+    const profileRows = await db.select()
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(inArray(playerProfiles.id, [...playerIds]));
+
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null }>();
+    for (const r of profileRows) {
+      playerMap.set(r.player_profiles.id, {
+        fullName: r.users.fullName,
+        gender: r.player_profiles.gender,
+        category: r.player_profiles.category,
+      });
+    }
+
+    return this.computeLeaderboardFromMatches(completedMatches, playerMap);
   }
 
   // === TOURNAMENT METHODS ===

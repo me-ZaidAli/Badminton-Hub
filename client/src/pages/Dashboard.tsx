@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link, Redirect } from "wouter";
 import { format } from "date-fns";
-import { Calendar, Trophy, Zap, Target, TrendingUp, Info, Building2, Plus } from "lucide-react";
+import { Calendar, Trophy, Zap, TrendingUp, Info, Building2, Plus, Percent } from "lucide-react";
 
 export default function Dashboard() {
   const { data: user, isLoading: userLoading } = useUser();
@@ -43,10 +43,15 @@ export default function Dashboard() {
     return <Redirect to="/clubs" />;
   }
 
+  const myLeaderboardEntry = leaderboard?.find(p => p.id === playerProfile?.id);
+  const myMatchesPlayed = myLeaderboardEntry?.matchesPlayed ?? 0;
+  const myMatchesWon = myLeaderboardEntry?.matchesWon ?? 0;
+  const myWinPct = myLeaderboardEntry?.winPercentage ?? 0;
+
   const stats = [
-    { label: "Matches Played", value: user?.playerProfile?.matchesPlayed || 0, icon: Zap, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { label: "Matches Won", value: user?.playerProfile?.matchesWon || 0, icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { label: "Rank Points", value: user?.playerProfile?.rankingPoints || 1000, icon: Target, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { label: "Matches Played", value: myMatchesPlayed, icon: Zap, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Matches Won", value: myMatchesWon, icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { label: "Win Rate", value: `${myWinPct}%`, icon: Percent, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   ];
 
   const upcomingSessions = sessions?.filter(s => new Date(s.date) > new Date()).slice(0, 3);
@@ -75,7 +80,6 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold font-display">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">+2.5% from last month</p>
             </CardContent>
           </Card>
         ))}
@@ -94,7 +98,7 @@ export default function Dashboard() {
                 <Button variant="ghost" size="sm">View All</Button>
               </Link>
             </div>
-            <CardDescription>Top 5 players by ranking points</CardDescription>
+            <CardDescription>Top 5 players by wins and win rate</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative bg-green-600 p-4 min-h-[280px]">
@@ -128,10 +132,10 @@ export default function Dashboard() {
                         <div className="font-semibold text-sm truncate">{player.fullName}</div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Badge variant="outline" className="text-xs py-0">{player.category || "?"}</Badge>
-                          <span>{player.matchesWon}W / {player.matchesPlayed}P</span>
+                          <span>{player.matchesWon}W / {player.matchesLost}L</span>
                         </div>
                       </div>
-                      <div className="text-right font-bold text-primary">{player.rankingPoints}</div>
+                      <div className="text-right font-bold text-sm text-foreground">{player.winPercentage}%</div>
                     </div>
                   ))
                 ) : (
@@ -175,12 +179,9 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Our ranking system uses an Elo-based point system. Every player starts at 1000 points. 
-                When you win a match, you gain points based on your opponent's strength - beating higher-ranked 
-                players earns more points. Losing to lower-ranked players costs more points. Your category 
-                (A, B, C, D) is determined by your point total: A (1400+), B (1200-1399), C (1000-1199), D (below 1000). 
-                To move up, consistently win matches, especially against stronger opponents. Stay active - 
-                the more you play, the more opportunities to climb the rankings!
+                Rankings are calculated from completed match results. Players are ranked by total wins first,
+                then win percentage, then matches played. All players start at zero and build their rankings
+                through competitive play. The more you play and win, the higher you climb!
               </p>
             </CardContent>
           </Card>

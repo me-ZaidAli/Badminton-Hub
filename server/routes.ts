@@ -719,28 +719,32 @@ export async function registerRoutes(
     }
   });
 
-  // === PUBLIC: Leaderboard (no auth required) ===
+  // === PUBLIC: Leaderboard (no auth required) - dynamically calculated from matches ===
   app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);
     
-    // Verify club is approved and active for public access
     const club = await storage.getClub(clubId);
     if (!club || !club.isActive || (club as any).status !== "APPROVED") {
       return res.status(404).json({ message: "Club not found" });
     }
     
-    const leaderboard = await storage.getClubLeaderboard(clubId);
-    // Return public-safe data (no email/password)
-    const safeLeaderboard = leaderboard.map(player => ({
-      id: player.id,
-      fullName: player.user.fullName,
-      gender: player.gender,
-      category: player.category,
-      rankingPoints: player.rankingPoints,
-      matchesPlayed: player.matchesPlayed,
-      matchesWon: player.matchesWon
-    }));
-    res.json(safeLeaderboard);
+    const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
+    res.json(leaderboard);
+  });
+
+  // === PUBLIC: Session mini-leaderboard (no auth required) ===
+  app.get("/api/sessions/:id/leaderboard", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      const leaderboard = await storage.getDynamicSessionLeaderboard(sessionId);
+      res.json(leaderboard);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to fetch session leaderboard" });
+    }
   });
 
   // === Personal Match History (requires auth) ===
@@ -754,17 +758,13 @@ export async function registerRoutes(
       return res.status(404).json({ message: "No player profile in this club" });
     }
 
-    // Get match history
     const matches = await storage.getPlayerMatchHistory(profile.id);
     
-    // Calculate points for each match (simplified: +10 for wins, -10 for losses)
     const matchHistory = matches.map(match => {
       const isTeamA = match.teamAPlayer1Id === profile.id || match.teamAPlayer2Id === profile.id;
       const won = isTeamA 
         ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
         : (match.scoreB ?? 0) > (match.scoreA ?? 0);
-      // Simple point change estimation (actual Elo would be more complex)
-      const pointsChange = won ? 15 : -10;
       
       return {
         id: match.id,
@@ -773,17 +773,20 @@ export async function registerRoutes(
         scoreB: match.scoreB,
         isTeamA,
         won,
-        pointsChange
       };
     });
+
+    const matchesPlayed = matchHistory.length;
+    const matchesWon = matchHistory.filter(m => m.won).length;
+    const matchesLost = matchesPlayed - matchesWon;
 
     res.json({
       profile: {
         id: profile.id,
         fullName: profile.user.fullName,
-        rankingPoints: profile.rankingPoints,
-        matchesPlayed: profile.matchesPlayed,
-        matchesWon: profile.matchesWon,
+        matchesPlayed,
+        matchesWon,
+        matchesLost,
         category: profile.category
       },
       matchHistory
@@ -2621,23 +2624,13 @@ export async function registerRoutes(
 
       const matchList = await storage.getPlayerMatchHistory(profileId);
       
-      const recentMatches = matchList.slice(0, 5);
-      const recentForm = recentMatches.map(match => {
-        const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
-        return isTeamA 
-          ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
-          : (match.scoreB ?? 0) > (match.scoreA ?? 0);
-      });
-
-      const winRatio = profile.matchesPlayed > 0 
-        ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) 
-        : 0;
-
+      let matchesWon = 0;
       const matchHistory = matchList.map(match => {
         const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
         const won = isTeamA
           ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
           : (match.scoreB ?? 0) > (match.scoreA ?? 0);
+        if (won) matchesWon++;
         return {
           id: match.id,
           scoreA: match.scoreA,
@@ -2648,15 +2641,23 @@ export async function registerRoutes(
         };
       });
 
+      const matchesPlayed = matchList.length;
+      const matchesLost = matchesPlayed - matchesWon;
+      const winRatio = matchesPlayed > 0
+        ? Math.round((matchesWon / matchesPlayed) * 100)
+        : 0;
+
+      const recentMatches = matchHistory.slice(0, 5);
+      const recentForm = recentMatches.map(m => m.won);
+
       res.json({
         id: profile.id,
         fullName: profile.user.fullName,
         category: profile.category,
         gender: profile.gender,
-        rankingPoints: profile.rankingPoints,
-        matchesPlayed: profile.matchesPlayed,
-        matchesWon: profile.matchesWon,
-        matchesLost: profile.matchesPlayed - profile.matchesWon,
+        matchesPlayed,
+        matchesWon,
+        matchesLost,
         winRatio,
         recentForm,
         matchHistory,
@@ -3170,7 +3171,6 @@ export async function registerRoutes(
           email: users.email,
           gender: playerProfiles.gender,
           category: playerProfiles.category,
-          rankingPoints: playerProfiles.rankingPoints,
           matchesPlayed: playerProfiles.matchesPlayed,
           matchesWon: playerProfiles.matchesWon,
           playerStatus: playerProfiles.playerStatus,
@@ -3179,7 +3179,7 @@ export async function registerRoutes(
         .from(playerProfiles)
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
-        .orderBy(desc(playerProfiles.rankingPoints));
+        .orderBy(desc(playerProfiles.matchesWon));
 
       res.json(rankings);
     } catch (err: any) {

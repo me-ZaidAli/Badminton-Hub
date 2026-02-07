@@ -4,14 +4,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Trophy, Target, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, Target, TrendingUp, TrendingDown } from "lucide-react";
 
 interface PlayerStats {
   id: number;
   fullName: string;
   category: string | null;
   gender: string | null;
-  rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
@@ -81,18 +80,6 @@ export function PlayerStatsPopup({ profileId, playerName, open, onOpenChange }: 
                 </div>
               </div>
             </div>
-
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-primary" />
-                    <span className="font-medium">Ranking Points</span>
-                  </div>
-                  <span className="text-2xl font-bold text-primary">{stats.rankingPoints}</span>
-                </div>
-              </CardContent>
-            </Card>
 
             <div className="grid grid-cols-3 gap-3 text-center">
               <Card>

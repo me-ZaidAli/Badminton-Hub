@@ -18,7 +18,6 @@ interface AdminRankingPlayer {
   email: string;
   gender: string;
   category: string;
-  rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
   playerStatus: string;
@@ -48,11 +47,11 @@ export default function AdminRankings() {
       if (genderFilter !== "all" && p.gender !== genderFilter) return false;
       return true;
     })
-    .sort((a, b) => b.rankingPoints - a.rankingPoints);
+    .sort((a, b) => b.matchesWon - a.matchesWon || (b.matchesPlayed > 0 ? b.matchesWon / b.matchesPlayed : 0) - (a.matchesPlayed > 0 ? a.matchesWon / a.matchesPlayed : 0));
 
   const totalPlayers = filtered.length;
-  const avgPoints = totalPlayers > 0
-    ? Math.round(filtered.reduce((sum, p) => sum + p.rankingPoints, 0) / totalPlayers)
+  const totalMatches = totalPlayers > 0
+    ? filtered.reduce((sum, p) => sum + p.matchesPlayed, 0)
     : 0;
 
   if (isLoading) {
@@ -134,11 +133,11 @@ export default function AdminRankings() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Points</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Matches</CardTitle>
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-avg-points">{avgPoints}</div>
+            <div className="text-2xl font-bold" data-testid="text-total-matches">{totalMatches}</div>
           </CardContent>
         </Card>
       </div>
@@ -154,8 +153,8 @@ export default function AdminRankings() {
                 <TableHead className="text-center">Gender</TableHead>
                 <TableHead className="text-center">Category</TableHead>
                 <TableHead className="text-right">Matches</TableHead>
-                <TableHead className="text-right">Win %</TableHead>
-                <TableHead className="text-right pr-6">Points</TableHead>
+                <TableHead className="text-right">W / L</TableHead>
+                <TableHead className="text-right pr-6">Win %</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -197,11 +196,13 @@ export default function AdminRankings() {
                       <TableCell className="text-right font-medium" data-testid={`text-matches-${player.profileId}`}>
                         {player.matchesPlayed}
                       </TableCell>
-                      <TableCell className="text-right" data-testid={`text-winrate-${player.profileId}`}>
-                        <span className={winRate > 50 ? "text-green-600" : "text-muted-foreground"}>{winRate}%</span>
+                      <TableCell className="text-right font-medium" data-testid={`text-wl-${player.profileId}`}>
+                        <span className="text-green-600">{player.matchesWon}</span>
+                        <span className="text-muted-foreground"> / </span>
+                        <span className="text-red-500">{player.matchesPlayed - player.matchesWon}</span>
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg pr-6" data-testid={`text-points-${player.profileId}`}>
-                        {player.rankingPoints}
+                      <TableCell className="text-right font-bold text-lg pr-6" data-testid={`text-winrate-${player.profileId}`}>
+                        <span className={winRate > 50 ? "text-green-600" : "text-muted-foreground"}>{winRate}%</span>
                       </TableCell>
                     </TableRow>
                   );

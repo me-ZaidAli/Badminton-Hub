@@ -170,10 +170,10 @@ export default function ExploreRankings() {
                           <div className="font-semibold text-sm truncate">{player.fullName}</div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Badge variant="outline" className="text-xs">{player.category || "D"}</Badge>
-                            <span>{player.matchesWon}W / {player.matchesPlayed}P</span>
+                            <span>{player.matchesWon}W / {player.matchesLost}L ({player.matchesPlayed} played)</span>
                           </div>
                         </div>
-                        <div className="text-right font-bold text-primary">{player.rankingPoints}</div>
+                        <div className="text-right font-bold text-sm text-foreground">{player.winPercentage}%</div>
                       </button>
                     ))
                   ) : (

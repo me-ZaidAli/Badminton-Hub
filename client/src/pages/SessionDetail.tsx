@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useMySessionClubs } from "@/hooks/use-clubs";
+import { useMySessionClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -596,7 +596,6 @@ export default function SessionDetail() {
                         {effectiveGender}
                       </Badge>
                       <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
-                      <span className="text-xs text-muted-foreground">Rank {signup.player.rankingPoints}</span>
                       {isPaused && (
                         <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" data-testid={`badge-paused-${signup.id}`}>
                           Paused
@@ -1000,6 +999,60 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         
         <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
       </div>
+
+      <SessionMiniLeaderboard sessionId={sessionId} />
     </div>
+  );
+}
+
+function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
+  const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!leaderboard || leaderboard.length === 0) return null;
+
+  return (
+    <Card data-testid="card-session-leaderboard">
+      <CardContent className="pt-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
+          <Trophy className="w-5 h-5 text-amber-500" />
+          Session Leaderboard
+        </h3>
+        <div className="space-y-2">
+          {leaderboard.map((player, index) => (
+            <div
+              key={player.id}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 bg-muted/30"
+              data-testid={`session-leaderboard-player-${player.id}`}
+            >
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                index === 0 ? "bg-amber-500 text-white" :
+                index === 1 ? "bg-gray-400 text-white" :
+                index === 2 ? "bg-amber-700 text-white" :
+                "bg-muted text-muted-foreground"
+              }`}>
+                {index + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">{player.fullName}</div>
+                <div className="text-xs text-muted-foreground">
+                  {player.matchesWon}W / {player.matchesLost}L ({player.matchesPlayed} played)
+                </div>
+              </div>
+              <div className="text-sm font-semibold text-foreground">{player.winPercentage}%</div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

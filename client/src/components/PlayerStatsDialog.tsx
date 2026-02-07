@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, TrendingUp, TrendingDown, Target, Percent, Swords, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Percent, Swords, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 
@@ -12,7 +12,6 @@ type PlayerStats = {
   fullName: string;
   category: string | null;
   gender: string | null;
-  rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
@@ -107,16 +106,7 @@ export function PlayerStatsDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Card>
-                <CardContent className="p-3 text-center">
-                  <Trophy className="w-4 h-4 mx-auto mb-1 text-amber-500" />
-                  <div className="text-xl font-bold text-primary" data-testid="text-ranking-points">
-                    {stats.rankingPoints}
-                  </div>
-                  <div className="text-xs text-muted-foreground">Points</div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-3 text-center">
                   <Swords className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />

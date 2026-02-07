@@ -93,9 +93,10 @@ export type LeaderboardPlayer = {
   fullName: string;
   gender: string | null;
   category: string | null;
-  rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
+  matchesLost: number;
+  winPercentage: number;
 };
 
 export function useLeaderboard(clubId: number | null) {
@@ -107,6 +108,18 @@ export function useLeaderboard(clubId: number | null) {
       return res.json();
     },
     enabled: clubId !== null,
+  });
+}
+
+export function useSessionLeaderboard(sessionId: number | null) {
+  return useQuery<LeaderboardPlayer[]>({
+    queryKey: ["/api/sessions", sessionId, "leaderboard"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/leaderboard`);
+      if (!res.ok) throw new Error("Failed to fetch session leaderboard");
+      return res.json();
+    },
+    enabled: sessionId !== null,
   });
 }
 
@@ -129,16 +142,15 @@ export type PersonalMatchHistory = {
   scoreB: number | null;
   isTeamA: boolean;
   won: boolean;
-  pointsChange: number;
 };
 
 export type PersonalRankingData = {
   profile: {
     id: number;
     fullName: string;
-    rankingPoints: number;
     matchesPlayed: number;
     matchesWon: number;
+    matchesLost: number;
     category: string | null;
   };
   matchHistory: PersonalMatchHistory[];

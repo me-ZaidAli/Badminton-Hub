@@ -5,11 +5,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, TrendingUp, TrendingDown, Minus, User, Calendar, Target } from "lucide-react";
+import { Trophy, TrendingUp, TrendingDown, User, Calendar, Target } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
@@ -31,28 +31,22 @@ export default function Rankings() {
 
   const isLoading = clubsLoading || (viewMode === "club" ? leaderboardLoading : personalLoading);
 
-  // Generate chart data from match history
-  const chartData = personalData?.matchHistory ? 
+  const chartData = personalData?.matchHistory ?
     [...personalData.matchHistory]
       .reverse()
-      .reduce((acc, match, index) => {
-        const prevPoints = index === 0 
-          ? personalData.profile.rankingPoints - personalData.matchHistory.reduce((sum, m) => sum + m.pointsChange, 0)
-          : acc[acc.length - 1].points;
-        acc.push({
-          match: index + 1,
-          points: prevPoints + match.pointsChange,
-          date: match.completedAt ? format(new Date(match.completedAt), "MMM d") : `Match ${index + 1}`
-        });
-        return acc;
-      }, [] as { match: number; points: number; date: string }[])
+      .map((match, index) => ({
+        match: index + 1,
+        result: match.won ? 1 : 0,
+        won: match.won,
+        date: match.completedAt ? format(new Date(match.completedAt), "MMM d") : `Match ${index + 1}`
+      }))
     : [];
 
   return (
     <div className="space-y-8">
       <PageHeader 
         title="Club Rankings" 
-        description="Top players based on Elo rating system."
+        description="Top players ranked by wins and win percentage."
       />
 
       <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -105,9 +99,9 @@ export default function Rankings() {
                 <TableHead className="w-[80px] text-center">Rank</TableHead>
                 <TableHead>Player</TableHead>
                 <TableHead className="text-center">Category</TableHead>
-                <TableHead className="text-right">Matches</TableHead>
-                <TableHead className="text-right">Win %</TableHead>
-                <TableHead className="text-right pr-8">Points</TableHead>
+                <TableHead className="text-right">Played</TableHead>
+                <TableHead className="text-right">W / L</TableHead>
+                <TableHead className="text-right pr-8">Win %</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -125,10 +119,7 @@ export default function Rankings() {
                     No players found for this club.
                   </TableCell>
                 </TableRow>
-              ) : leaderboard?.map((player, index) => {
-                const winRate = player.matchesPlayed ? Math.round((player.matchesWon / player.matchesPlayed) * 100) : 0;
-                
-                return (
+              ) : leaderboard?.map((player, index) => (
                   <TableRow
                     key={player.id}
                     className="hover:bg-muted/30 transition-colors cursor-pointer"
@@ -156,18 +147,16 @@ export default function Rankings() {
                     <TableCell className="text-right font-medium">
                       {player.matchesPlayed}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className={winRate > 50 ? "text-green-600" : "text-muted-foreground"}>{winRate}%</span>
-                        {winRate > 50 ? <TrendingUp className="w-3 h-3 text-green-500" /> : <Minus className="w-3 h-3 text-muted-foreground" />}
-                      </div>
+                    <TableCell className="text-right font-medium">
+                      <span className="text-green-600">{player.matchesWon}</span>
+                      <span className="text-muted-foreground"> / </span>
+                      <span className="text-red-500">{player.matchesLost}</span>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg pr-8 text-primary">
-                      {player.rankingPoints}
+                    <TableCell className="text-right font-bold text-lg pr-8">
+                      <span className={player.winPercentage > 50 ? "text-green-600" : "text-muted-foreground"}>{player.winPercentage}%</span>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                ))}
             </TableBody>
           </Table>
         </div>
@@ -208,9 +197,9 @@ export default function Rankings() {
                 <div>
                   <h2 className="text-xl font-bold">{personalData.profile.fullName}</h2>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="font-bold text-primary text-lg">{personalData.profile.rankingPoints} pts</span>
                     <Badge variant="outline">{personalData.profile.category || "D"}</Badge>
-                    <span>{personalData.profile.matchesWon}/{personalData.profile.matchesPlayed} wins</span>
+                    <span className="font-medium"><span className="text-green-600">{personalData.profile.matchesWon}W</span> / <span className="text-red-500">{personalData.profile.matchesLost || (personalData.profile.matchesPlayed - personalData.profile.matchesWon)}L</span></span>
+                    <span>({personalData.profile.matchesPlayed} played)</span>
                   </div>
                 </div>
               </div>
@@ -220,7 +209,7 @@ export default function Rankings() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="w-5 h-5" />
-                      Ranking Progress
+                      Match Results
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -232,28 +221,35 @@ export default function Rankings() {
                             tick={{ fontSize: 12 }}
                             tickLine={false}
                           />
-                          <YAxis 
-                            domain={['dataMin - 20', 'dataMax + 20']}
-                            tick={{ fontSize: 12 }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
+                          <YAxis hide />
                           <Tooltip 
                             contentStyle={{ 
                               backgroundColor: 'hsl(var(--card))', 
                               border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px'
+                              borderRadius: '8px',
+                              fontSize: '12px'
                             }}
-                            labelFormatter={(label) => `Date: ${label}`}
-                            formatter={(value: number) => [`${value} pts`, 'Ranking']}
+                            labelFormatter={(label) => `${label}`}
+                            formatter={(_: unknown, __: unknown, props: any) => [
+                              props?.payload?.won ? 'Win' : 'Loss',
+                              'Result'
+                            ]}
                           />
-                          <ReferenceLine y={1000} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                           <Line 
                             type="monotone" 
-                            dataKey="points" 
+                            dataKey="result" 
                             stroke="hsl(var(--primary))" 
                             strokeWidth={2}
-                            dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
+                            dot={({ cx, cy, payload }: any) => (
+                              <circle
+                                key={`${cx}-${cy}`}
+                                cx={cx}
+                                cy={cy}
+                                r={4}
+                                fill={payload.won ? "#22c55e" : "#ef4444"}
+                                stroke="none"
+                              />
+                            )}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -298,13 +294,13 @@ export default function Rankings() {
                                 </div>
                               </div>
                             </div>
-                            <div className={`font-bold flex items-center gap-1 ${match.pointsChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {match.pointsChange > 0 ? (
+                            <div className={`font-bold flex items-center gap-1 ${match.won ? 'text-green-600' : 'text-red-600'}`}>
+                              {match.won ? (
                                 <TrendingUp className="w-4 h-4" />
                               ) : (
                                 <TrendingDown className="w-4 h-4" />
                               )}
-                              {match.pointsChange > 0 ? '+' : ''}{match.pointsChange}
+                              {match.won ? 'W' : 'L'}
                             </div>
                           </div>
                         ))}

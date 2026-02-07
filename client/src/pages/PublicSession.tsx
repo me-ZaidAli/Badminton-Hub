@@ -147,8 +147,7 @@ export default function PublicSession() {
                       <p className="font-semibold">{signup.player.fullName}</p>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs h-5">{signup.player.gender || "?"}</Badge>
-                        <Badge variant="outline" className="text-xs h-5">Rank {signup.player.rankingPoints}</Badge>
-                        <span className="text-xs text-muted-foreground">Level {signup.player.category}</span>
+                        <Badge variant="outline" className="text-xs h-5">Level {signup.player.category}</Badge>
                       </div>
                     </div>
                   </div>

@@ -1,0 +1,103 @@
+Perfect — here’s a single, clean, copy-paste prompt you can drop straight into your AI app builder / Replit to fix the leaderboard properly. No extras, no explanation needed.
+
+
+---
+
+🔧 LEADERBOARD FIX PROMPT (COPY & PASTE)
+
+> Fix the leaderboard so it is fully dynamic and correctly linked to match and session results.
+
+Remove all static, seeded, or hardcoded leaderboard data. No player should start with points, rankings, or percentages. All values must begin at zero.
+
+Leaderboards must be calculated ONLY from completed matches. If a player has not played a match, their matches played = 0, wins = 0, losses = 0, points = 0, and win percentage = 0%.
+
+GLOBAL LEADERBOARD LOGIC:
+
+For each player, calculate:
+
+Matches played
+
+Matches won
+
+Matches lost
+
+Win percentage
+
+
+Win percentage = (matches won ÷ matches played) × 100
+
+If matches played = 0, win percentage must be 0
+
+Rank players by:
+
+1. Matches won
+
+
+2. Win percentage
+
+
+3. Matches played
+
+
+
+
+SESSION-BASED DATA LINKING:
+
+Matches are linked to sessions
+
+Only completed matches within sessions affect leaderboards
+
+When a match is completed, edited, or deleted, all leaderboards must automatically recalculate
+
+
+SESSION MINI-LEADERBOARD:
+
+Inside each session view, generate a mini leaderboard using only matches from that session
+
+Show per player:
+
+Matches played in that session
+
+Matches won in that session
+
+Win percentage for that session
+
+
+Rank players using the same rules as the global leaderboard
+
+
+CONSISTENCY RULES:
+
+The same global leaderboard must appear consistently across all dashboard sections
+
+No random rankings, no inflated points, no legacy values
+
+Leaderboards must always be derived from match results, never stored manually
+
+
+FINAL RESULT:
+
+Global leaderboard updates correctly after every match
+
+Session leaderboard reflects only that session’s matches
+
+All players start from zero and rankings reflect real results only
+
+
+
+
+
+---
+
+If you want, next I can:
+
+Convert this into backend-only logic
+
+Make a Supabase / Firebase-specific version
+
+Add doubles + mixed logic
+
+Add tie-break rules (points difference, head-to-head)
+
+
+Just say the word 👍
