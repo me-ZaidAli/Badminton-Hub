@@ -46,7 +46,6 @@ export default function Profile() {
     city: "",
     country: "",
   });
-  const [closeReason, setCloseReason] = useState("");
 
   const profile = profiles?.[0];
 
@@ -72,17 +71,17 @@ export default function Profile() {
     },
   });
 
-  const closeAccountMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const res = await apiRequest("POST", "/api/account/close", { reason });
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/account/close");
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Failed to close account");
+        throw new Error(error.message || "Failed to delete account");
       }
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Account Closed", description: "Your account has been closed. You will now be signed out." });
+      toast({ title: "Account Deleted", description: "Your account has been permanently deleted. You can create a new account anytime." });
       queryClient.clear();
       navigate("/");
     },
@@ -375,45 +374,35 @@ export default function Profile() {
         <CardHeader>
           <CardTitle className="text-destructive flex items-center gap-2">
             <XCircle className="h-5 w-5" />
-            Close Account
+            Delete Account
           </CardTitle>
-          <CardDescription>Permanently close your account. This action cannot be undone.</CardDescription>
+          <CardDescription>Permanently delete your account and all associated data. You can create a new account in the future.</CardDescription>
         </CardHeader>
         <CardContent>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" data-testid="button-close-account">
+              <Button variant="destructive" data-testid="button-delete-account">
                 <XCircle className="h-4 w-4 mr-2" />
-                Close My Account
+                Delete My Account
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="bg-background">
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to close your account?</AlertDialogTitle>
+                <AlertDialogTitle>Are you sure you want to delete your account?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently close your account. You will be signed out and will no longer be able to log in. Your data will be archived for administrative purposes.
+                  This will permanently delete your account and all your data, including match history, club memberships, and session signups. You will be signed out immediately. You can create a new account in the future using the same email.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <div className="py-2">
-                <Label htmlFor="closeReason">Reason (optional)</Label>
-                <Input
-                  id="closeReason"
-                  placeholder="Tell us why you're leaving..."
-                  value={closeReason}
-                  onChange={(e) => setCloseReason(e.target.value)}
-                  data-testid="input-close-reason"
-                />
-              </div>
               <AlertDialogFooter>
-                <AlertDialogCancel data-testid="button-cancel-close">Cancel</AlertDialogCancel>
+                <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground"
-                  onClick={() => closeAccountMutation.mutate(closeReason)}
-                  disabled={closeAccountMutation.isPending}
-                  data-testid="button-confirm-close"
+                  onClick={() => deleteAccountMutation.mutate()}
+                  disabled={deleteAccountMutation.isPending}
+                  data-testid="button-confirm-delete"
                 >
-                  {closeAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Yes, Close My Account
+                  {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Yes, Delete My Account
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

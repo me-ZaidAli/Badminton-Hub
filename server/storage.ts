@@ -105,6 +105,7 @@ export interface IStorage {
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile>;
   updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
   deletePlayerProfile(id: number): Promise<void>;
+  deleteUserCompletely(userId: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
@@ -741,6 +742,49 @@ export class DatabaseStorage implements IStorage {
     await db.delete(sessionSignups).where(eq(sessionSignups.playerId, id));
     // Then delete the player profile
     await db.delete(playerProfiles).where(eq(playerProfiles.id, id));
+  }
+
+  async deleteUserCompletely(userId: number): Promise<void> {
+    const userProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+    const profileIds = userProfiles.map(p => p.id);
+
+    if (profileIds.length > 0) {
+      await db.delete(sessionSignups).where(inArray(sessionSignups.playerId, profileIds));
+
+      for (const pid of profileIds) {
+        await db.execute(sql`DELETE FROM matches WHERE team_a_player_1_id = ${pid} OR team_b_player_1_id = ${pid}`);
+        await db.execute(sql`UPDATE matches SET team_a_player_2_id = NULL WHERE team_a_player_2_id = ${pid}`);
+        await db.execute(sql`UPDATE matches SET team_b_player_2_id = NULL WHERE team_b_player_2_id = ${pid}`);
+
+        const teamIds = await db.execute(sql`SELECT id FROM tournament_teams WHERE player1_id = ${pid}`);
+        if (teamIds.rows && teamIds.rows.length > 0) {
+          const ids = teamIds.rows.map((r: any) => r.id);
+          for (const tid of ids) {
+            await db.execute(sql`DELETE FROM tournament_standings WHERE team_id = ${tid}`);
+            await db.execute(sql`DELETE FROM tournament_matches WHERE team_a_id = ${tid} OR team_b_id = ${tid} OR winner_id = ${tid}`);
+          }
+          await db.execute(sql`DELETE FROM tournament_teams WHERE player1_id = ${pid}`);
+        }
+        await db.execute(sql`UPDATE tournament_teams SET player2_id = NULL WHERE player2_id = ${pid}`);
+      }
+
+      await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
+    }
+
+    await db.delete(notifications).where(eq(notifications.userId, userId));
+    await db.delete(policyAcceptances).where(eq(policyAcceptances.userId, userId));
+    await db.delete(reviews).where(eq(reviews.userId, userId));
+    await db.delete(coaches).where(eq(coaches.userId, userId));
+    await db.delete(coachSeekerMemberships).where(eq(coachSeekerMemberships.userId, userId));
+    await db.delete(announcements).where(eq(announcements.authorId, userId));
+    await db.execute(sql`UPDATE contact_messages SET sender_user_id = NULL WHERE sender_user_id = ${userId}`);
+    await db.execute(sql`UPDATE sessions SET created_by = NULL WHERE created_by = ${userId}`);
+    await db.execute(sql`UPDATE clubs SET owner_id = NULL WHERE owner_id = ${userId}`);
+    await db.execute(sql`UPDATE tournaments SET created_by = NULL WHERE created_by = ${userId}`);
+    await db.execute(sql`UPDATE matches SET score_entered_by_user_id = NULL WHERE score_entered_by_user_id = ${userId}`);
+    await db.execute(sql`UPDATE matches SET score_updated_by_user_id = NULL WHERE score_updated_by_user_id = ${userId}`);
+
+    await db.delete(users).where(eq(users.id, userId));
   }
 
   async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }> {

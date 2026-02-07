@@ -16,9 +16,19 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, Check, X, Shield, User, Clock, Loader2, UserPlus, Pencil, Trash2, Filter } from "lucide-react";
+import { Users, Check, X, Shield, User, Clock, Loader2, UserPlus, Pencil, Trash2, Filter, UserX } from "lucide-react";
 import { PlayerProfile, User as UserType } from "@shared/schema";
 import { Link } from "wouter";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type MemberWithUser = PlayerProfile & { user: UserType };
 
@@ -32,6 +42,7 @@ export default function ClubAdmin() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingAccountMember, setDeletingAccountMember] = useState<MemberWithUser | null>(null);
 
   const isSuperAdmin = user?.role === "OWNER";
   const ownedClubs = isSuperAdmin ? (clubs || []) : (clubs?.filter(club => club.ownerId === user?.id) || []);
@@ -92,6 +103,21 @@ export default function ClubAdmin() {
       const action = vars.status === "APPROVED" ? "approved" : "rejected";
       toast({ title: `${vars.profileIds.length} member(s) ${action}` });
       setSelectedIds(new Set());
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "members"] });
+      toast({ title: "Account deleted", description: "The user account and all associated data have been permanently removed." });
+      setDeletingAccountMember(null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -367,7 +393,7 @@ export default function ClubAdmin() {
                           <Badge variant="outline">{member.gender || "Not specified"}</Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <Button size="sm" onClick={() => handleApprove(member.id)} data-testid={`approve-${member.id}`}>
                               <Check className="w-4 h-4 mr-1" />
                               Approve
@@ -376,6 +402,16 @@ export default function ClubAdmin() {
                               <X className="w-4 h-4 mr-1" />
                               Reject
                             </Button>
+                            {(isSuperAdmin || user?.role === "ADMIN") && member.userId !== user?.id && (
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                onClick={() => setDeletingAccountMember(member)}
+                                data-testid={`delete-account-pending-${member.id}`}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -498,14 +534,26 @@ export default function ClubAdmin() {
                         </TableCell>
                         <TableCell className="font-medium">{member.rankingPoints}</TableCell>
                         <TableCell>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => openEditDialog(member)}
-                            data-testid={`edit-${member.id}`}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button 
+                              size="icon" 
+                              variant="outline"
+                              onClick={() => openEditDialog(member)}
+                              data-testid={`edit-${member.id}`}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            {(isSuperAdmin || user?.role === "ADMIN") && member.userId !== user?.id && (
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                onClick={() => setDeletingAccountMember(member)}
+                                data-testid={`delete-account-${member.id}`}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -567,9 +615,21 @@ export default function ClubAdmin() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button size="sm" variant="outline" onClick={() => handleApprove(member.id)}>
-                            Approve
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => handleApprove(member.id)}>
+                              Approve
+                            </Button>
+                            {(isSuperAdmin || user?.role === "ADMIN") && member.userId !== user?.id && (
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                onClick={() => setDeletingAccountMember(member)}
+                                data-testid={`delete-account-rejected-${member.id}`}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -680,6 +740,36 @@ export default function ClubAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Account Confirmation */}
+      <AlertDialog open={!!deletingAccountMember} onOpenChange={(open) => !open && setDeletingAccountMember(null)}>
+        <AlertDialogContent className="bg-background">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the account for <strong>{deletingAccountMember?.user.fullName}</strong> ({deletingAccountMember?.user.email}) and all their associated data including match history, session signups, and club memberships. This cannot be undone. The user will be able to create a new account in the future.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-account">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => deletingAccountMember && deleteAccountMutation.mutate(deletingAccountMember.userId)}
+              disabled={deleteAccountMutation.isPending}
+              data-testid="button-confirm-delete-account"
+            >
+              {deleteAccountMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Account"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

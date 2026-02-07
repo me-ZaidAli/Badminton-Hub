@@ -2456,6 +2456,39 @@ export async function registerRoutes(
     }
   });
 
+  // === Delete a user account completely (admin/super admin) ===
+  app.delete("/api/admin/users/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const requestingUser = req.user!;
+
+    if (requestingUser.role !== "OWNER" && requestingUser.role !== "ADMIN") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const targetUserId = Number(req.params.userId);
+
+      if (targetUserId === requestingUser.id) {
+        return res.status(400).json({ message: "You cannot delete your own account from here" });
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (targetUser.role === "OWNER" && requestingUser.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can delete other super admin accounts" });
+      }
+
+      await storage.deleteUserCompletely(targetUserId);
+      res.json({ message: "User account deleted completely" });
+    } catch (err: any) {
+      console.error("Error deleting user account:", err);
+      res.status(500).json({ message: err.message || "Failed to delete user account" });
+    }
+  });
+
   // === Allocate player to additional clubs ===
   app.post("/api/admin/players/:userId/allocate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -3660,39 +3693,41 @@ export async function registerRoutes(
     }
   });
 
-  // === CLOSE ACCOUNT (self-service) ===
+  // === DELETE ACCOUNT (self-service) ===
   app.post("/api/account/close", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = req.user!.id;
-    const { reason } = req.body || {};
+    const userName = req.user!.fullName;
+    const userEmail = req.user!.email;
 
     try {
-      await db.update(users).set({
-        closedAt: new Date(),
-        closedReason: reason || "User requested account closure",
-        accountStatus: "REJECTED",
-      }).where(eq(users.id, userId));
+      const ownerUsers = await db.select().from(users).where(and(eq(users.role, "OWNER"), sql`${users.id} != ${userId}`));
 
-      const ownerUsers = await db.select().from(users).where(eq(users.role, "OWNER"));
+      await storage.deleteUserCompletely(userId);
+
       for (const owner of ownerUsers) {
-        await storage.createNotification({
-          userId: owner.id,
-          type: "ACCOUNT_CLOSED",
-          title: "Account Closed",
-          message: `${req.user!.fullName} (${req.user!.email}) has closed their account.`,
-          linkUrl: "/admin",
-        });
+        try {
+          await storage.createNotification({
+            userId: owner.id,
+            type: "ACCOUNT_DELETED",
+            title: "Account Deleted",
+            message: `${userName} (${userEmail}) has deleted their account.`,
+            linkUrl: "/admin",
+          });
+        } catch (notifErr) {
+          console.error("Failed to notify owner:", notifErr);
+        }
       }
 
       req.logout((err) => {
         if (err) console.error("Logout error:", err);
         req.session.destroy(() => {
-          res.json({ message: "Account closed successfully" });
+          res.json({ message: "Account deleted successfully" });
         });
       });
     } catch (err: any) {
-      console.error("Error closing account:", err);
-      res.status(500).json({ message: "Failed to close account" });
+      console.error("Error deleting account:", err);
+      res.status(500).json({ message: "Failed to delete account" });
     }
   });
 

@@ -156,7 +156,7 @@ export const sessions = pgTable("sessions", {
   juniorAgeGroups: jsonb("junior_age_groups").$type<string[]>(),
   playersPerSide: integer("players_per_side").default(2).notNull(),
   matchGenderType: matchGenderTypeEnum("match_gender_type").default("MIXED").notNull(),
-  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdBy: integer("created_by").references(() => users.id),
   status: text("status").default("UPCOMING"),
   shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
   sessionFee: integer("session_fee"),
@@ -216,7 +216,7 @@ export const tournaments = pgTable("tournaments", {
   status: tournamentStatusEnum("status").default("DRAFT").notNull(),
   description: text("description"),
   courtsAvailable: integer("courts_available").default(4).notNull(),
-  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
