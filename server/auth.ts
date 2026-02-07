@@ -247,15 +247,18 @@ export function setupAuth(app: Express) {
 
       try {
         const owners = await storage.getUsersByRole("OWNER");
+        console.log(`[AUTH] Found ${owners.length} OWNER users to notify about password reset for ${user.email}`);
         for (const owner of owners) {
+          console.log(`[AUTH] Creating password reset notification for owner ${(owner as any).id} (${(owner as any).email})`);
           await storage.createNotification({
-            userId: owner.id,
+            userId: (owner as any).id,
             type: "PASSWORD_RESET_REQUEST",
             title: "Password Reset Request",
             message: `${user.fullName} (${user.email}) has requested a password reset. Share the reset link from Admin > Password Resets.`,
             linkUrl: "/admin/password-resets",
           });
         }
+        console.log("[AUTH] All password reset notifications created successfully");
       } catch (notifErr) {
         console.error("[AUTH] Failed to send password reset notifications:", notifErr);
       }
