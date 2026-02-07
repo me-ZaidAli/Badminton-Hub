@@ -40,6 +40,10 @@ export const users = pgTable("users", {
   phone: text("phone"),
   parentGuardianName: text("parent_guardian_name"),
   parentGuardianEmail: text("parent_guardian_email"),
+  continent: text("continent"),
+  country: text("country"),
+  region: text("region"),
+  city: text("city"),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -62,6 +66,9 @@ export const clubs = pgTable("clubs", {
   latitude: text("latitude"), // Stored as text to avoid floating point issues
   longitude: text("longitude"),
   googleMapsUrl: text("google_maps_url"),
+  continent: text("continent"),
+  country: text("country"),
+  region: text("region"),
   // Registration & Affiliation
   isRegisteredWithBE: boolean("is_registered_with_be").default(false).notNull(), // Badminton England
   beRegistrationNumber: text("be_registration_number"), // Optional BE reg number

@@ -135,6 +135,10 @@ export interface IStorage {
     matchType?: string;
     dateFrom?: Date;
     dateTo?: Date;
+    continent?: string;
+    country?: string;
+    region?: string;
+    city?: string;
   }): Promise<{
     id: number;
     fullName: string;
@@ -147,6 +151,10 @@ export interface IStorage {
     matchesLost: number;
     winPercentage: number;
     isJunior: boolean;
+    continent: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
   }[]>;
   getDetailedPlayerStats(profileId: number, filters?: {
     dateFrom?: Date;
