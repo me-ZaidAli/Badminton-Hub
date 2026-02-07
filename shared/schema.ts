@@ -161,6 +161,7 @@ export const sessions = pgTable("sessions", {
   shuttlecockType: text("shuttlecock_type"),
   courtNames: jsonb("court_names").$type<string[]>(),
   liveStreamUrl: text("live_stream_url"),
+  defaultPointsToPlayTo: integer("default_points_to_play_to").default(21),
 });
 
 // === SESSION SIGNUPS ===
@@ -197,6 +198,7 @@ export const matches = pgTable("matches", {
   scoreEnteredAt: timestamp("score_entered_at"),
   scoreUpdatedByUserId: integer("score_updated_by_user_id").references(() => users.id),
   scoreUpdatedAt: timestamp("score_updated_at"),
+  pointsToPlayTo: integer("points_to_play_to").default(21),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

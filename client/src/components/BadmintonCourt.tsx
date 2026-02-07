@@ -34,6 +34,7 @@ export type CourtMatch = {
   startedAt: string | null;
   completedAt: string | null;
   queuePosition: number | null;
+  pointsToPlayTo?: number | null;
   scoreEnteredByUserId?: number | null;
   scoreEnteredAt?: string | null;
   scoreEnteredByUser?: { id: number; fullName: string } | null;
@@ -53,6 +54,8 @@ type BadmintonCourtProps = {
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => void;
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
   onCourtNameChange?: (courtNumber: number, name: string) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  defaultPointsToPlayTo?: number;
 };
 
 function formatTime(seconds: number): string {
@@ -163,13 +166,18 @@ export function BadmintonCourt({
   onCompleteMatch,
   onSwapPlayer,
   onCourtNameChange,
+  onUpdatePointsTarget,
+  defaultPointsToPlayTo = 21,
 }: BadmintonCourtProps) {
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(courtName || `Court ${courtNumber}`);
+  const [isEditingTarget, setIsEditingTarget] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const target = match?.pointsToPlayTo || defaultPointsToPlayTo;
 
   useEffect(() => {
     setEditName(courtName || `Court ${courtNumber}`);
@@ -189,8 +197,19 @@ export function BadmintonCourt({
     }
   }, [isEditingName]);
 
+  const validateScore = (sA: number, sB: number): string | null => {
+    const aWins = sA >= target && sB < target;
+    const bWins = sB >= target && sA < target;
+    if (!aWins && !bWins) {
+      return `One side must reach ${target} points, the other must be below ${target}`;
+    }
+    return null;
+  };
+
+  const scoreError = validateScore(scoreA, scoreB);
+
   const handleComplete = () => {
-    if (match) {
+    if (match && !scoreError) {
       onCompleteMatch(match.id, scoreA, scoreB);
       setShowScoreDialog(false);
     }
@@ -208,8 +227,8 @@ export function BadmintonCourt({
 
   return (
     <Card className="overflow-hidden border-2 border-primary/20" data-testid={`court-${courtNumber}`}>
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-3 flex items-center justify-between border-b border-border/50">
-        <div className="flex items-center gap-2">
+      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-3 flex items-center justify-between gap-2 border-b border-border/50 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {isEditingName ? (
             <Input
               ref={nameInputRef}
@@ -236,6 +255,41 @@ export function BadmintonCourt({
           )}
           {match?.status === "LIVE" && (
             <Badge variant="secondary" className="bg-green-500/20 text-green-700 animate-pulse">LIVE</Badge>
+          )}
+          {match && (
+            isEditingTarget && isOrganiser ? (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Play to</span>
+                <select
+                  className="border rounded px-1 py-0.5 text-xs bg-background"
+                  defaultValue={target}
+                  autoFocus
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (match && onUpdatePointsTarget) {
+                      onUpdatePointsTarget(match.id, val);
+                    }
+                    setIsEditingTarget(false);
+                  }}
+                  onBlur={() => setIsEditingTarget(false)}
+                  data-testid={`select-points-target-${match.id}`}
+                >
+                  {[7, 11, 15, 21, 25, 30].map(v => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <Badge
+                variant="outline"
+                className={cn("text-xs", isOrganiser && "cursor-pointer")}
+                onClick={() => isOrganiser && setIsEditingTarget(true)}
+                data-testid={`badge-points-target-${match.id}`}
+              >
+                Play to {target}
+                {isOrganiser && <Pencil className="w-2.5 h-2.5 ml-1 inline-block opacity-60" />}
+              </Badge>
+            )
           )}
         </div>
         {match?.status === "LIVE" && match.startedAt && (
@@ -348,6 +402,11 @@ export function BadmintonCourt({
             <DialogTitle>Enter Final Scores</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
+            <div className="text-center">
+              <Badge variant="outline" className="text-sm" data-testid="badge-dialog-target">
+                Playing to {target} points
+              </Badge>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">
@@ -357,7 +416,7 @@ export function BadmintonCourt({
                 <Input 
                   type="number" 
                   min="0" 
-                  max="30"
+                  max="50"
                   value={scoreA} 
                   onChange={(e) => setScoreA(Number(e.target.value))}
                   className="text-2xl text-center font-bold h-14"
@@ -372,7 +431,7 @@ export function BadmintonCourt({
                 <Input 
                   type="number" 
                   min="0" 
-                  max="30"
+                  max="50"
                   value={scoreB} 
                   onChange={(e) => setScoreB(Number(e.target.value))}
                   className="text-2xl text-center font-bold h-14"
@@ -380,7 +439,17 @@ export function BadmintonCourt({
                 />
               </div>
             </div>
-            <Button className="w-full" onClick={handleComplete} data-testid="button-confirm-complete">
+            {scoreError && (
+              <p className="text-sm text-destructive text-center" data-testid="text-score-error">
+                {scoreError}
+              </p>
+            )}
+            <Button 
+              className="w-full" 
+              onClick={handleComplete} 
+              disabled={!!scoreError}
+              data-testid="button-confirm-complete"
+            >
               Confirm & Complete Match
             </Button>
           </div>

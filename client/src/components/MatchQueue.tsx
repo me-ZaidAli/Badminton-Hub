@@ -5,11 +5,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useUpdateMatchTarget } from "@/hooks/use-matches";
 import { format } from "date-fns";
 
 type Player = {
@@ -25,6 +25,9 @@ type MatchQueueProps = {
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
   onAssignToCourt: (matchId: number, courtNumber: number) => void;
   availableCourts: number[];
+  activeMode?: string;
+  genderType?: string;
+  defaultPointsToPlayTo?: number;
 };
 
 function PlayerBadge({
@@ -104,7 +107,14 @@ export function MatchQueue({
   onSwapPlayer,
   onAssignToCourt,
   availableCourts,
+  activeMode,
+  genderType,
+  defaultPointsToPlayTo = 21,
 }: MatchQueueProps) {
+  const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
+  const { mutate: updateTarget } = useUpdateMatchTarget();
+  const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
+
   const queuedMatches = matches
     .filter(m => m.status === "QUEUED")
     .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
@@ -122,101 +132,163 @@ export function MatchQueue({
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <GripVertical className="w-5 h-5" />
-          Match Queue ({queuedMatches.length} pending)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[300px]">
-          <div className="space-y-2 p-4">
-            {queuedMatches.map((match, index) => (
-              <div
-                key={match.id}
-                className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50"
-                data-testid={`queue-match-${match.id}`}
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
-                  {index + 1}
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-1 mb-1">
-                    <PlayerBadge
-                      player={match.teamAPlayer1}
-                      position="teamAPlayer1Id"
-                      matchId={match.id}
-                      availablePlayers={availablePlayers}
-                      isOrganiser={isOrganiser}
-                      onSwap={onSwapPlayer}
-                    />
-                    {match.teamAPlayer2 && (
-                      <>
-                        <span className="text-muted-foreground">&</span>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <GripVertical className="w-5 h-5" />
+            Match Queue ({queuedMatches.length} pending)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-3 p-4">
+              {queuedMatches.map((match, index) => {
+                const matchTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+                return (
+                  <div
+                    key={match.id}
+                    className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border/50"
+                    data-testid={`queue-match-${match.id}`}
+                  >
+                    <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0 mt-1">
+                      {index + 1}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
+                          Play to {matchTarget}
+                        </Badge>
+                        {isOrganiser && (
+                          <select
+                            className="border rounded px-1 py-0.5 text-xs bg-background"
+                            value={matchTarget}
+                            onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
+                            data-testid={`select-queue-target-${match.id}`}
+                          >
+                            {[7, 11, 15, 21, 25, 30].map(v => (
+                              <option key={v} value={v}>{v}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 mb-1">
                         <PlayerBadge
-                          player={match.teamAPlayer2}
-                          position="teamAPlayer2Id"
+                          player={match.teamAPlayer1}
+                          position="teamAPlayer1Id"
                           matchId={match.id}
                           availablePlayers={availablePlayers}
                           isOrganiser={isOrganiser}
                           onSwap={onSwapPlayer}
                         />
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                    <span>vs</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1 mt-1">
-                    <PlayerBadge
-                      player={match.teamBPlayer1}
-                      position="teamBPlayer1Id"
-                      matchId={match.id}
-                      availablePlayers={availablePlayers}
-                      isOrganiser={isOrganiser}
-                      onSwap={onSwapPlayer}
-                    />
-                    {match.teamBPlayer2 && (
-                      <>
-                        <span className="text-muted-foreground">&</span>
+                        {match.teamAPlayer2 && (
+                          <>
+                            <span className="text-muted-foreground">&</span>
+                            <PlayerBadge
+                              player={match.teamAPlayer2}
+                              position="teamAPlayer2Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                            />
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground text-xs my-1">
+                        <span>vs</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
                         <PlayerBadge
-                          player={match.teamBPlayer2}
-                          position="teamBPlayer2Id"
+                          player={match.teamBPlayer1}
+                          position="teamBPlayer1Id"
                           matchId={match.id}
                           availablePlayers={availablePlayers}
                           isOrganiser={isOrganiser}
                           onSwap={onSwapPlayer}
                         />
-                      </>
-                    )}
-                  </div>
-                </div>
+                        {match.teamBPlayer2 && (
+                          <>
+                            <span className="text-muted-foreground">&</span>
+                            <PlayerBadge
+                              player={match.teamBPlayer2}
+                              position="teamBPlayer2Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                {isOrganiser && availableCourts.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    {availableCourts.slice(0, 2).map(court => (
-                      <Button
-                        key={court}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onAssignToCourt(match.id, court)}
-                        className="gap-1"
-                        data-testid={`button-assign-${match.id}-court-${court}`}
-                      >
-                        <ArrowRight className="w-3 h-3" />
-                        Court {court}
-                      </Button>
-                    ))}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {isOrganiser && availableCourts.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          {availableCourts.slice(0, 2).map(court => (
+                            <Button
+                              key={court}
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onAssignToCourt(match.id, court)}
+                              className="gap-1"
+                              data-testid={`button-assign-${match.id}-court-${court}`}
+                            >
+                              <ArrowRight className="w-3 h-3" />
+                              Court {court}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      {isOrganiser && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteConfirm(match)}
+                          data-testid={`button-delete-queued-${match.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Queued Match</DialogTitle>
+            <DialogDescription>
+              This match will be removed and a replacement will be automatically generated.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)} data-testid="button-cancel-delete-queued">Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (deleteConfirm) {
+                  deleteQueuedMatch({ matchId: deleteConfirm.id, mode: activeMode, genderType }, {
+                    onSuccess: () => setDeleteConfirm(null),
+                  });
+                }
+              }} 
+              disabled={isDeleting} 
+              data-testid="button-confirm-delete-queued"
+            >
+              {isDeleting ? "Removing..." : "Remove & Replace"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

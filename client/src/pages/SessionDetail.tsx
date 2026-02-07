@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause, useUpdateMatchTarget } from "@/hooks/use-matches";
 import { useQueryClient } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -427,6 +427,7 @@ export default function SessionDetail() {
         signups={signups || []}
         playersPerSide={session.playersPerSide}
         matchGenderType={session.matchGenderType}
+        defaultPointsToPlayTo={(session as any).defaultPointsToPlayTo || 21}
       />
 
       <div className="space-y-6">
@@ -788,7 +789,7 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21 }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
@@ -798,11 +799,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];
   playersPerSide: number;
   matchGenderType: string;
+  defaultPointsToPlayTo?: number;
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
   const { mutate: completeMatch } = useCompleteMatch();
   const { mutate: swapPlayer } = useSwapPlayer();
+  const { mutate: updateMatchTarget } = useUpdateMatchTarget();
   const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();
   const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
   const { mutate: updateSession } = useUpdateSession();
@@ -853,6 +856,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     startedAt: m.startedAt ? (m.startedAt instanceof Date ? m.startedAt.toISOString() : m.startedAt) : null,
     completedAt: m.completedAt ? (m.completedAt instanceof Date ? m.completedAt.toISOString() : m.completedAt) : null,
     queuePosition: m.queuePosition,
+    pointsToPlayTo: (m as any).pointsToPlayTo,
   }));
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
@@ -1075,6 +1079,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
                     onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
                     onCourtNameChange={handleCourtNameChange}
+                    onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
+                    defaultPointsToPlayTo={defaultPointsToPlayTo}
                   />
                 );
               })}
@@ -1090,6 +1096,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
               onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
               availableCourts={availableCourts}
+              activeMode={activeMode}
+              genderType={generateGenderType}
+              defaultPointsToPlayTo={defaultPointsToPlayTo}
             />
             <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
           </div>

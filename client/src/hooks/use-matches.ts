@@ -101,6 +101,9 @@ export function useCompleteMatch() {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       toast({ title: "Match Completed", description: "Scores have been recorded." });
     },
+    onError: (error: Error) => {
+      toast({ title: "Cannot Complete Match", description: error.message, variant: "destructive" });
+    },
   });
 }
 
@@ -191,6 +194,61 @@ export function useHandlePause() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+    },
+  });
+}
+
+export function useUpdateMatchTarget() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, pointsToPlayTo }: { matchId: number; pointsToPlayTo: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/points-target`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pointsToPlayTo }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update points target");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Points Target Updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteQueuedMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, mode, genderType }: { matchId: number; mode?: string; genderType?: string }) => {
+      const params = new URLSearchParams();
+      if (mode) params.set("mode", mode);
+      if (genderType) params.set("genderType", genderType);
+      const res = await fetch(`/api/matches/${matchId}/queued?${params.toString()}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to delete queued match");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Removed", description: "A replacement match has been generated." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
     },
   });
 }

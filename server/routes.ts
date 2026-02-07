@@ -1344,7 +1344,8 @@ export async function registerRoutes(
         teamBPlayer2Id: playersPerSide === 2 ? shuffled[idx + playersPerSide + 1].id : null,
         scoreA: 0,
         scoreB: 0,
-        isCompleted: false
+        isCompleted: false,
+        pointsToPlayTo: session.defaultPointsToPlayTo || 21,
       });
     }
 
@@ -1418,12 +1419,24 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only session participants or admins can complete matches" });
       }
 
+      const target = currentMatch.pointsToPlayTo || session.defaultPointsToPlayTo || 21;
+      const sA = Number(scoreA);
+      const sB = Number(scoreB);
+
+      const aWins = sA >= target && sB < target;
+      const bWins = sB >= target && sA < target;
+      if (!aWins && !bWins) {
+        return res.status(400).json({ 
+          message: `Invalid score. One side must reach ${target} points and the other must be below ${target}. Valid examples: ${target}-0 to ${target}-${target - 1}.`
+        });
+      }
+
       const freedCourt = currentMatch.courtNumber;
       
       const updated = await storage.updateMatch(matchId, {
         status: "COMPLETED",
-        scoreA,
-        scoreB,
+        scoreA: sA,
+        scoreB: sB,
         isCompleted: true,
         completedAt: new Date(),
         courtNumber: null,
@@ -1489,6 +1502,133 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error swapping player:", err);
       res.status(500).json({ message: err.message || "Failed to swap player" });
+    }
+  });
+
+  // Update match points-to-play-to target - admin/organiser only
+  app.patch("/api/matches/:id/points-target", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const { pointsToPlayTo } = req.body;
+
+      if (!pointsToPlayTo || pointsToPlayTo < 1 || pointsToPlayTo > 50) {
+        return res.status(400).json({ message: "Points target must be between 1 and 50" });
+      }
+
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins and organisers can change points target" });
+      }
+
+      const updated = await storage.updateMatch(matchId, { pointsToPlayTo });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating points target:", err);
+      res.status(500).json({ message: err.message || "Failed to update points target" });
+    }
+  });
+
+  // Delete a queued match and regenerate a replacement
+  app.delete("/api/matches/:id/queued", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      if (match.status !== "QUEUED") {
+        return res.status(400).json({ message: "Only queued matches can be deleted with this endpoint" });
+      }
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins can delete queued matches" });
+      }
+
+      await storage.deleteMatch(matchId);
+
+      const mode = req.query.mode as string || req.body?.mode;
+      const genderType = req.query.genderType as string || req.body?.genderType;
+      const matchMode = mode || session.matchMode || "SOCIAL";
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const gType = genderType || session.matchGenderType || "MIXED";
+
+      const signups = await storage.getSessionSignups(match.sessionId);
+      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const players = eligibleSignups
+        .filter(s => !s.isPaused)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          category: s.player.category,
+          isPaused: s.isPaused,
+          genderOverride: s.genderOverride,
+        }));
+
+      let replacement = null;
+      if (players.length >= playersPerMatch) {
+        const existingMatches = await storage.getSessionMatches(match.sessionId);
+        const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+          existingMatches.map(m => ({
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            status: m.status,
+          }))
+        );
+
+        const generated = generateSmartMatches({
+          mode: matchMode as "SOCIAL" | "COMPETITIVE",
+          players,
+          playersPerSide: playersPerSide as 1 | 2,
+          genderType: gType,
+          queueTarget: 1,
+          recentPairings,
+          recentOpponents,
+          playerMatchCounts,
+        });
+
+        if (generated.length > 0) {
+          const maxQueuePos = Math.max(0, ...existingMatches
+            .filter(m => m.queuePosition !== null)
+            .map(m => m.queuePosition || 0));
+
+          replacement = await storage.createMatch({
+            sessionId: match.sessionId,
+            courtNumber: null,
+            queuePosition: maxQueuePos + 1,
+            status: "QUEUED" as const,
+            teamAPlayer1Id: generated[0].teamAPlayer1Id,
+            teamAPlayer2Id: generated[0].teamAPlayer2Id,
+            teamBPlayer1Id: generated[0].teamBPlayer1Id,
+            teamBPlayer2Id: generated[0].teamBPlayer2Id,
+            scoreA: 0,
+            scoreB: 0,
+            isCompleted: false,
+            pointsToPlayTo: session.defaultPointsToPlayTo || 21,
+          });
+        }
+      }
+
+      res.json({ message: "Match deleted", replacement });
+    } catch (err: any) {
+      console.error("Error deleting queued match:", err);
+      res.status(500).json({ message: err.message || "Failed to delete queued match" });
     }
   });
 
@@ -1750,6 +1890,7 @@ export async function registerRoutes(
         .filter(m => m.queuePosition !== null)
         .map(m => m.queuePosition || 0));
 
+      const defaultTarget = session.defaultPointsToPlayTo || 21;
       const createdMatches = await Promise.all(
         generated.map((m, i) => storage.createMatch({
           sessionId,
@@ -1763,6 +1904,7 @@ export async function registerRoutes(
           scoreA: 0,
           scoreB: 0,
           isCompleted: false,
+          pointsToPlayTo: defaultTarget,
         }))
       );
 

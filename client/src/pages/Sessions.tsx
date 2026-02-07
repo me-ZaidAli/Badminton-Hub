@@ -353,6 +353,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       sessionFee: undefined,
       shuttlecockType: undefined,
       liveStreamUrl: undefined,
+      defaultPointsToPlayTo: 21,
     }
   });
 
@@ -798,6 +799,35 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="defaultPointsToPlayTo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Points to Play To</FormLabel>
+                  <Select
+                    value={String(field.value || 21)}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-default-points">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="7">7 Points</SelectItem>
+                      <SelectItem value="11">11 Points</SelectItem>
+                      <SelectItem value="15">15 Points</SelectItem>
+                      <SelectItem value="21">21 Points</SelectItem>
+                      <SelectItem value="25">25 Points</SelectItem>
+                      <SelectItem value="30">30 Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>Default score target for all matches (can be changed per match)</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="liveStreamUrl"
