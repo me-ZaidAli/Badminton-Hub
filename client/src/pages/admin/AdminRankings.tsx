@@ -22,7 +22,7 @@ interface AdminRankingPlayer {
   clubCity: string | null;
   clubCountry: string | null;
   fullName: string;
-  email: string;
+  email?: string;
   gender: string;
   category: string;
   matchesPlayed: number;
@@ -168,7 +168,7 @@ export default function AdminRankings() {
       result = result.filter(
         (p) =>
           p.fullName.toLowerCase().includes(q) ||
-          p.email.toLowerCase().includes(q) ||
+          (p.email || "").toLowerCase().includes(q) ||
           p.clubName.toLowerCase().includes(q)
       );
     }
@@ -237,7 +237,7 @@ export default function AdminRankings() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, email, or club..."
+                placeholder="Search by name or club..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -441,7 +441,6 @@ export default function AdminRankings() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className="text-xs text-muted-foreground truncate">{player.email}</div>
                             </div>
                           </div>
                         </TableCell>
