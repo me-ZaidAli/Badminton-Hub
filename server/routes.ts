@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema } from "@shared/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -3688,18 +3688,113 @@ export async function registerRoutes(
     }
   });
 
-  // === ADMIN: Global rankings for all clubs (OWNER only) ===
+  // === ADMIN: Global rankings (OWNER, ADMIN, or club ORGANISER/ADMIN) ===
   app.get("/api/admin/rankings", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    let accessibleClubIds: number[] | null = null;
+    if (!isOwner && !isAdmin) {
+      const profiles = await storage.getUserPlayerProfiles(user.id);
+      const adminProfiles = profiles.filter(
+        (p) =>
+          p.membershipStatus === "APPROVED" &&
+          ["ADMIN", "ORGANISER"].includes(p.clubRole)
+      );
+      if (adminProfiles.length === 0) return res.sendStatus(403);
+      accessibleClubIds = adminProfiles.map((p) => p.clubId);
+    }
 
     try {
+      const conditions: any[] = [];
+      if (accessibleClubIds) {
+        conditions.push(inArray(playerProfiles.clubId, accessibleClubIds));
+      }
+
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+      if (qClubId) conditions.push(eq(playerProfiles.clubId, qClubId));
+      if (req.query.category) conditions.push(eq(playerProfiles.category, req.query.category as string));
+      if (req.query.gender) conditions.push(eq(playerProfiles.gender, req.query.gender as string));
+      if (req.query.city) conditions.push(eq(clubs.city, req.query.city as string));
+      if (req.query.country) conditions.push(eq(clubs.country, req.query.country as string));
+
+      const hasDateFilter = req.query.dateFrom || req.query.dateTo;
+
+      if (hasDateFilter) {
+        const profileRows = await db
+          .select({
+            profileId: playerProfiles.id,
+            userId: playerProfiles.userId,
+            clubId: playerProfiles.clubId,
+            clubName: clubs.name,
+            clubCity: clubs.city,
+            clubCountry: clubs.country,
+            fullName: users.fullName,
+            email: users.email,
+            gender: playerProfiles.gender,
+            category: playerProfiles.category,
+            playerStatus: playerProfiles.playerStatus,
+            clubRole: playerProfiles.clubRole,
+          })
+          .from(playerProfiles)
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+        if (profileRows.length === 0) return res.json([]);
+
+        const profileIds = profileRows.map(p => p.profileId);
+        const matchConditions: any[] = [
+          eq(matches.isCompleted, true),
+          eq(matches.status, "COMPLETED"),
+        ];
+        if (req.query.dateFrom) matchConditions.push(sql`${matches.completedAt} >= ${new Date(req.query.dateFrom as string)}`);
+        if (req.query.dateTo) matchConditions.push(sql`${matches.completedAt} <= ${new Date(req.query.dateTo as string)}`);
+
+        const completedMatches = await db.select()
+          .from(matches)
+          .where(and(...matchConditions));
+
+        const statsMap: Record<number, { played: number; won: number }> = {};
+        for (const id of profileIds) statsMap[id] = { played: 0, won: 0 };
+
+        for (const m of completedMatches) {
+          const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(Boolean) as number[];
+          const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+          const aWon = (m.scoreA || 0) > (m.scoreB || 0);
+          for (const pid of [...teamA, ...teamB]) {
+            if (statsMap[pid] !== undefined) {
+              statsMap[pid].played++;
+              if ((teamA.includes(pid) && aWon) || (teamB.includes(pid) && !aWon)) {
+                statsMap[pid].won++;
+              }
+            }
+          }
+        }
+
+        const rankings = profileRows
+          .map(p => ({
+            ...p,
+            matchesPlayed: statsMap[p.profileId]?.played || 0,
+            matchesWon: statsMap[p.profileId]?.won || 0,
+          }))
+          .filter(p => p.matchesPlayed > 0)
+          .sort((a, b) => b.matchesWon - a.matchesWon);
+
+        return res.json(rankings);
+      }
+
       const rankings = await db
         .select({
           profileId: playerProfiles.id,
           userId: playerProfiles.userId,
           clubId: playerProfiles.clubId,
           clubName: clubs.name,
+          clubCity: clubs.city,
+          clubCountry: clubs.country,
           fullName: users.fullName,
           email: users.email,
           gender: playerProfiles.gender,
@@ -3712,6 +3807,7 @@ export async function registerRoutes(
         .from(playerProfiles)
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(playerProfiles.matchesWon));
 
       res.json(rankings);
