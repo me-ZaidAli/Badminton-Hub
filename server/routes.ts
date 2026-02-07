@@ -1782,7 +1782,9 @@ export async function registerRoutes(
         userUpdates.password = hashedPassword;
       }
       
-      const updatedUser = await storage.updateUser(userId, userUpdates);
+      if (Object.keys(userUpdates).length > 0) {
+        await storage.updateUser(userId, userUpdates);
+      }
 
       // Update profile - create if it doesn't exist
       let profile = await storage.getPlayerProfile(userId);
@@ -1793,7 +1795,9 @@ export async function registerRoutes(
         if (rankingPoints !== undefined) profileUpdates.rankingPoints = rankingPoints;
         if (clubId && clubId !== profile.clubId) profileUpdates.clubId = clubId;
         
-        await storage.updatePlayerProfile(profile.id, profileUpdates);
+        if (Object.keys(profileUpdates).length > 0) {
+          await storage.updatePlayerProfile(profile.id, profileUpdates);
+        }
       } else if (gender || category || clubId) {
         await storage.createPlayerProfile({
           userId,
