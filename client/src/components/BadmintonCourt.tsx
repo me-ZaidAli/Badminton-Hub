@@ -260,24 +260,31 @@ export function BadmintonCourt({
             isEditingTarget && isOrganiser ? (
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground">Play to</span>
-                <select
-                  className="border rounded px-1 py-0.5 text-xs bg-background"
+                <input
+                  type="number"
+                  min="1"
+                  className="w-14 border rounded px-1.5 py-0.5 text-xs bg-background text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   defaultValue={target}
                   autoFocus
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (match && onUpdatePointsTarget) {
+                  onBlur={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1 && val !== target && match && onUpdatePointsTarget) {
                       onUpdatePointsTarget(match.id, val);
                     }
                     setIsEditingTarget(false);
                   }}
-                  onBlur={() => setIsEditingTarget(false)}
-                  data-testid={`select-points-target-${match.id}`}
-                >
-                  {[7, 11, 15, 21, 25, 30].map(v => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseInt((e.target as HTMLInputElement).value, 10);
+                      if (!isNaN(val) && val >= 1 && val !== target && match && onUpdatePointsTarget) {
+                        onUpdatePointsTarget(match.id, val);
+                      }
+                      setIsEditingTarget(false);
+                    }
+                    if (e.key === "Escape") setIsEditingTarget(false);
+                  }}
+                  data-testid={`input-points-target-${match.id}`}
+                />
               </div>
             ) : (
               <Badge

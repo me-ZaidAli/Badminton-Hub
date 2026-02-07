@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
 import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget } from "@/hooks/use-matches";
@@ -97,6 +97,75 @@ function PlayerBadge({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function EditableTarget({
+  matchId,
+  value,
+  isOrganiser,
+  onUpdate,
+}: {
+  matchId: number;
+  value: number;
+  isOrganiser: boolean;
+  onUpdate: (params: { matchId: number; pointsToPlayTo: number }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    const num = parseInt(draft, 10);
+    if (!isNaN(num) && num >= 1) {
+      if (num !== value) {
+        onUpdate({ matchId, pointsToPlayTo: num });
+      }
+    } else {
+      setDraft(String(value));
+    }
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        min="1"
+        className="w-14 border rounded px-1.5 py-0.5 text-xs bg-background text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") { setDraft(String(value)); setEditing(false); }
+        }}
+        data-testid={`input-queue-target-${matchId}`}
+      />
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn("text-xs", isOrganiser && "cursor-pointer")}
+      onClick={() => isOrganiser && setEditing(true)}
+      data-testid={`badge-queue-target-${matchId}`}
+    >
+      Play to {value}
+    </Badge>
   );
 }
 
@@ -226,23 +295,12 @@ export function MatchQueue({
                       )}
 
                       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
-                            Play to {matchTarget}
-                          </Badge>
-                          {isOrganiser && (
-                            <select
-                              className="border rounded px-1 py-0.5 text-xs bg-background"
-                              value={matchTarget}
-                              onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
-                              data-testid={`select-queue-target-${match.id}`}
-                            >
-                              {[7, 11, 15, 21, 25, 30].map(v => (
-                                <option key={v} value={v}>{v}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
+                        <EditableTarget
+                          matchId={match.id}
+                          value={matchTarget}
+                          isOrganiser={isOrganiser}
+                          onUpdate={updateTarget}
+                        />
                         {isOrganiser && (
                           <div className="flex items-center gap-1">
                             <Button
@@ -277,21 +335,12 @@ export function MatchQueue({
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
-                            Play to {matchTarget}
-                          </Badge>
-                          {isOrganiser && (
-                            <select
-                              className="border rounded px-1 py-0.5 text-xs bg-background"
-                              value={matchTarget}
-                              onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
-                              data-testid={`select-queue-target-${match.id}`}
-                            >
-                              {[7, 11, 15, 21, 25, 30].map(v => (
-                                <option key={v} value={v}>{v}</option>
-                              ))}
-                            </select>
-                          )}
+                          <EditableTarget
+                            matchId={match.id}
+                            value={matchTarget}
+                            isOrganiser={isOrganiser}
+                            onUpdate={updateTarget}
+                          />
                         </div>
                         <div className="flex flex-wrap items-center gap-1 mb-1">
                           <PlayerBadge
