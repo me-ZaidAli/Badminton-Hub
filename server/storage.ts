@@ -117,6 +117,58 @@ export interface IStorage {
     matchesLost: number;
     winPercentage: number;
   }[]>;
+  getFilteredLeaderboard(filters: {
+    clubId?: number;
+    category?: string;
+    gender?: string;
+    matchType?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }): Promise<{
+    id: number;
+    fullName: string;
+    gender: string | null;
+    category: string | null;
+    clubId: number;
+    clubName: string;
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+    winPercentage: number;
+    isJunior: boolean;
+  }[]>;
+  getDetailedPlayerStats(profileId: number, filters?: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    matchType?: string;
+  }): Promise<{
+    id: number;
+    fullName: string;
+    category: string | null;
+    gender: string | null;
+    clubId: number;
+    clubName: string;
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+    winRatio: number;
+    recentForm: boolean[];
+    isJunior: boolean;
+    matchHistory: {
+      id: number;
+      sessionId: number;
+      sessionTitle: string;
+      scoreA: number | null;
+      scoreB: number | null;
+      isTeamA: boolean;
+      won: boolean;
+      completedAt: string | null;
+      opponent1: string;
+      opponent2: string | null;
+      partner: string | null;
+      playersPerSide: number;
+    }[];
+  } | null>;
 
   // Tournaments
   getTournaments(clubId?: number): Promise<Tournament[]>;
@@ -847,6 +899,308 @@ export class DatabaseStorage implements IStorage {
     }
 
     return this.computeLeaderboardFromMatches(completedMatches, playerMap);
+  }
+
+  async getFilteredLeaderboard(filters: {
+    clubId?: number;
+    category?: string;
+    gender?: string;
+    matchType?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }) {
+    const conditions: any[] = [
+      eq(matches.isCompleted, true),
+      eq(matches.status, "COMPLETED")
+    ];
+
+    if (filters.dateFrom) {
+      conditions.push(sql`${matches.completedAt} >= ${filters.dateFrom}`);
+    }
+    if (filters.dateTo) {
+      conditions.push(sql`${matches.completedAt} <= ${filters.dateTo}`);
+    }
+
+    let sessionFilter: number[] | null = null;
+    if (filters.clubId || filters.matchType) {
+      const sessionConditions: any[] = [];
+      if (filters.clubId) {
+        sessionConditions.push(eq(sessions.clubId, filters.clubId));
+      }
+      if (filters.matchType === "SINGLES") {
+        sessionConditions.push(eq(sessions.playersPerSide, 1));
+      } else if (filters.matchType === "DOUBLES") {
+        sessionConditions.push(eq(sessions.playersPerSide, 2));
+        sessionConditions.push(sql`${sessions.matchGenderType} != 'MIXED'`);
+      } else if (filters.matchType === "MIXED") {
+        sessionConditions.push(eq(sessions.playersPerSide, 2));
+        sessionConditions.push(eq(sessions.matchGenderType, "MIXED"));
+      }
+
+      const filteredSessions = await db.select({ id: sessions.id })
+        .from(sessions)
+        .where(and(...sessionConditions));
+
+      if (filteredSessions.length === 0) return [];
+      sessionFilter = filteredSessions.map(s => s.id);
+    }
+
+    if (sessionFilter) {
+      conditions.push(inArray(matches.sessionId, sessionFilter));
+    }
+
+    const completedMatches = await db.select()
+      .from(matches)
+      .where(and(...conditions));
+
+    if (completedMatches.length === 0) return [];
+
+    const playerIds = new Set<number>();
+    for (const m of completedMatches) {
+      if (m.teamAPlayer1Id) playerIds.add(m.teamAPlayer1Id);
+      if (m.teamAPlayer2Id) playerIds.add(m.teamAPlayer2Id);
+      if (m.teamBPlayer1Id) playerIds.add(m.teamBPlayer1Id);
+      if (m.teamBPlayer2Id) playerIds.add(m.teamBPlayer2Id);
+    }
+
+    const profileRows = await db.select()
+      .from(playerProfiles)
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+      .where(inArray(playerProfiles.id, [...playerIds]));
+
+    const playerMap = new Map<number, {
+      fullName: string;
+      gender: string | null;
+      category: string | null;
+      clubId: number;
+      clubName: string;
+      isJunior: boolean;
+    }>();
+
+    for (const r of profileRows) {
+      if (filters.category && r.player_profiles.category !== filters.category) continue;
+      if (filters.gender === "JUNIOR") {
+        if (!r.users.isJunior) continue;
+      } else if (filters.gender && r.player_profiles.gender !== filters.gender) continue;
+
+      playerMap.set(r.player_profiles.id, {
+        fullName: r.users.fullName,
+        gender: r.player_profiles.gender,
+        category: r.player_profiles.category,
+        clubId: r.player_profiles.clubId,
+        clubName: r.clubs.name,
+        isJunior: r.users.isJunior,
+      });
+    }
+
+    const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number }>();
+
+    for (const match of completedMatches) {
+      const teamAWon = (match.scoreA ?? 0) > (match.scoreB ?? 0);
+      const pids = [
+        match.teamAPlayer1Id,
+        match.teamAPlayer2Id,
+        match.teamBPlayer1Id,
+        match.teamBPlayer2Id,
+      ].filter((id): id is number => id !== null);
+
+      for (const pid of pids) {
+        if (!playerMap.has(pid)) continue;
+        if (!statsMap.has(pid)) statsMap.set(pid, { matchesPlayed: 0, matchesWon: 0 });
+        const s = statsMap.get(pid)!;
+        s.matchesPlayed++;
+        const isTeamA = pid === match.teamAPlayer1Id || pid === match.teamAPlayer2Id;
+        if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) s.matchesWon++;
+      }
+    }
+
+    const results: any[] = [];
+    for (const [pid, stats] of statsMap) {
+      const player = playerMap.get(pid);
+      if (!player) continue;
+      results.push({
+        id: pid,
+        fullName: player.fullName,
+        gender: player.gender,
+        category: player.category,
+        clubId: player.clubId,
+        clubName: player.clubName,
+        matchesPlayed: stats.matchesPlayed,
+        matchesWon: stats.matchesWon,
+        matchesLost: stats.matchesPlayed - stats.matchesWon,
+        winPercentage: stats.matchesPlayed > 0
+          ? Math.round((stats.matchesWon / stats.matchesPlayed) * 100)
+          : 0,
+        isJunior: player.isJunior,
+      });
+    }
+
+    results.sort((a, b) => {
+      if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+      if (b.winPercentage !== a.winPercentage) return b.winPercentage - a.winPercentage;
+      return b.matchesPlayed - a.matchesPlayed;
+    });
+
+    return results;
+  }
+
+  async getDetailedPlayerStats(profileId: number, filters?: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    matchType?: string;
+  }) {
+    const profile = await this.getPlayerProfileById(profileId);
+    if (!profile) return null;
+
+    const club = await this.getClub(profile.clubId);
+
+    const conditions: any[] = [
+      eq(matches.isCompleted, true),
+      or(
+        eq(matches.teamAPlayer1Id, profileId),
+        eq(matches.teamAPlayer2Id, profileId),
+        eq(matches.teamBPlayer1Id, profileId),
+        eq(matches.teamBPlayer2Id, profileId)
+      )
+    ];
+
+    if (filters?.dateFrom) {
+      conditions.push(sql`${matches.completedAt} >= ${filters.dateFrom}`);
+    }
+    if (filters?.dateTo) {
+      conditions.push(sql`${matches.completedAt} <= ${filters.dateTo}`);
+    }
+
+    let sessionFilter: number[] | null = null;
+    if (filters?.matchType) {
+      const sessionConditions: any[] = [];
+      if (filters.matchType === "SINGLES") {
+        sessionConditions.push(eq(sessions.playersPerSide, 1));
+      } else if (filters.matchType === "DOUBLES") {
+        sessionConditions.push(eq(sessions.playersPerSide, 2));
+        sessionConditions.push(sql`${sessions.matchGenderType} != 'MIXED'`);
+      } else if (filters.matchType === "MIXED") {
+        sessionConditions.push(eq(sessions.playersPerSide, 2));
+        sessionConditions.push(eq(sessions.matchGenderType, "MIXED"));
+      }
+      if (sessionConditions.length > 0) {
+        const filteredSessions = await db.select({ id: sessions.id })
+          .from(sessions)
+          .where(and(...sessionConditions));
+        if (filteredSessions.length === 0) {
+          return {
+            id: profile.id,
+            fullName: profile.user.fullName,
+            category: profile.category,
+            gender: profile.gender,
+            clubId: profile.clubId,
+            clubName: club?.name || "Unknown",
+            matchesPlayed: 0,
+            matchesWon: 0,
+            matchesLost: 0,
+            winRatio: 0,
+            recentForm: [],
+            isJunior: profile.user.isJunior,
+            matchHistory: [],
+          };
+        }
+        sessionFilter = filteredSessions.map(s => s.id);
+      }
+    }
+
+    if (sessionFilter) {
+      conditions.push(inArray(matches.sessionId, sessionFilter));
+    }
+
+    const matchList = await db.select()
+      .from(matches)
+      .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+      .where(and(...conditions))
+      .orderBy(desc(matches.completedAt));
+
+    const allPlayerIds = new Set<number>();
+    for (const m of matchList) {
+      if (m.matches.teamAPlayer1Id) allPlayerIds.add(m.matches.teamAPlayer1Id);
+      if (m.matches.teamAPlayer2Id) allPlayerIds.add(m.matches.teamAPlayer2Id);
+      if (m.matches.teamBPlayer1Id) allPlayerIds.add(m.matches.teamBPlayer1Id);
+      if (m.matches.teamBPlayer2Id) allPlayerIds.add(m.matches.teamBPlayer2Id);
+    }
+    allPlayerIds.delete(profileId);
+
+    const nameMap = new Map<number, string>();
+    if (allPlayerIds.size > 0) {
+      const otherProfiles = await db.select()
+        .from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(inArray(playerProfiles.id, [...allPlayerIds]));
+      for (const r of otherProfiles) {
+        nameMap.set(r.player_profiles.id, r.users.fullName);
+      }
+    }
+
+    let matchesWon = 0;
+    const matchHistory = matchList.map(row => {
+      const m = row.matches;
+      const s = row.sessions;
+      const isTeamA = m.teamAPlayer1Id === profileId || m.teamAPlayer2Id === profileId;
+      const won = isTeamA
+        ? (m.scoreA ?? 0) > (m.scoreB ?? 0)
+        : (m.scoreB ?? 0) > (m.scoreA ?? 0);
+      if (won) matchesWon++;
+
+      let opponent1 = "";
+      let opponent2: string | null = null;
+      let partner: string | null = null;
+
+      if (isTeamA) {
+        opponent1 = nameMap.get(m.teamBPlayer1Id) || "Unknown";
+        opponent2 = m.teamBPlayer2Id ? nameMap.get(m.teamBPlayer2Id) || null : null;
+        const partnerId = m.teamAPlayer1Id === profileId ? m.teamAPlayer2Id : m.teamAPlayer1Id;
+        partner = partnerId ? nameMap.get(partnerId) || null : null;
+      } else {
+        opponent1 = nameMap.get(m.teamAPlayer1Id) || "Unknown";
+        opponent2 = m.teamAPlayer2Id ? nameMap.get(m.teamAPlayer2Id) || null : null;
+        const partnerId = m.teamBPlayer1Id === profileId ? m.teamBPlayer2Id : m.teamBPlayer1Id;
+        partner = partnerId ? nameMap.get(partnerId) || null : null;
+      }
+
+      return {
+        id: m.id,
+        sessionId: s.id,
+        sessionTitle: s.title,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        isTeamA,
+        won,
+        completedAt: m.completedAt?.toISOString() || null,
+        opponent1,
+        opponent2,
+        partner,
+        playersPerSide: s.playersPerSide,
+      };
+    });
+
+    const matchesPlayed = matchList.length;
+    const matchesLost = matchesPlayed - matchesWon;
+    const winRatio = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
+    const recentForm = matchHistory.slice(0, 5).map(m => m.won);
+
+    return {
+      id: profile.id,
+      fullName: profile.user.fullName,
+      category: profile.category,
+      gender: profile.gender,
+      clubId: profile.clubId,
+      clubName: club?.name || "Unknown",
+      matchesPlayed,
+      matchesWon,
+      matchesLost,
+      winRatio,
+      recentForm,
+      isJunior: profile.user.isJunior,
+      matchHistory,
+    };
   }
 
   // === TOURNAMENT METHODS ===

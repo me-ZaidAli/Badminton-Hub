@@ -1,42 +1,50 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Target, Percent, Swords, Loader2 } from "lucide-react";
+import { useDetailedPlayerStats, type DetailedPlayerStats } from "@/hooks/use-clubs";
+import {
+  TrendingUp, TrendingDown, Target, Percent, Swords, Loader2,
+  Building2, Flame, Star, Award, Zap, Medal, Calendar, Users
+} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 
-type PlayerStats = {
-  id: number;
-  fullName: string;
-  category: string | null;
-  gender: string | null;
-  matchesPlayed: number;
-  matchesWon: number;
-  matchesLost: number;
-  winRatio: number;
-  recentForm: boolean[];
-  matchHistory: {
-    id: number;
-    scoreA: number | null;
-    scoreB: number | null;
-    isTeamA: boolean;
-    won: boolean;
-    completedAt: string | null;
-  }[];
-};
+function computeAchievements(stats: DetailedPlayerStats) {
+  const badges: { icon: any; label: string; description: string; color: string }[] = [];
 
-function usePlayerStats(profileId: number | null) {
-  return useQuery<PlayerStats>({
-    queryKey: ["/api/players", profileId, "stats"],
-    queryFn: async () => {
-      const res = await fetch(`/api/players/${profileId}/stats`);
-      if (!res.ok) throw new Error("Failed to fetch player stats");
-      return res.json();
-    },
-    enabled: profileId !== null,
-  });
+  let currentStreak = 0;
+  let maxStreak = 0;
+  for (const m of [...stats.matchHistory].reverse()) {
+    if (m.won) {
+      currentStreak++;
+      maxStreak = Math.max(maxStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+  }
+
+  if (maxStreak >= 5) {
+    badges.push({ icon: Flame, label: "Hot Streak", description: `${maxStreak} wins in a row`, color: "text-orange-500" });
+  }
+
+  if (stats.matchesWon >= 1) {
+    badges.push({ icon: Zap, label: "First Win", description: "Won their first match", color: "text-green-500" });
+  }
+
+  if (stats.matchesPlayed >= 10) {
+    badges.push({ icon: Star, label: "Veteran", description: "10+ matches played", color: "text-amber-500" });
+  }
+
+  if (stats.winRatio >= 75 && stats.matchesPlayed >= 4) {
+    badges.push({ icon: Award, label: "Top Performer", description: "75%+ win rate", color: "text-purple-500" });
+  }
+
+  if (stats.winRatio === 100 && stats.matchesPlayed >= 3) {
+    badges.push({ icon: Medal, label: "Undefeated", description: "100% win rate (3+ matches)", color: "text-yellow-500" });
+  }
+
+  return badges;
 }
 
 export function PlayerStatsDialog({
@@ -48,7 +56,7 @@ export function PlayerStatsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: stats, isLoading } = usePlayerStats(open ? playerId : null);
+  const { data: stats, isLoading } = useDetailedPlayerStats(open ? playerId : null);
 
   const chartData = stats?.matchHistory
     ? [...stats.matchHistory]
@@ -63,81 +71,71 @@ export function PlayerStatsDialog({
         }))
     : [];
 
-  const winStreak = stats?.matchHistory
-    ? stats.matchHistory.reduce((streak, m) => {
-        if (m.won && streak >= 0) return streak + 1;
-        return streak;
-      }, 0)
-    : 0;
+  const achievements = stats ? computeAchievements(stats) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Player Stats</DialogTitle>
+          <DialogDescription>Detailed statistics and match history</DialogDescription>
         </DialogHeader>
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="animate-spin w-6 h-6 text-primary" />
           </div>
         ) : stats ? (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border-2 border-primary">
-                <AvatarImage
-                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${stats.fullName}`}
-                />
-                <AvatarFallback>
-                  {stats.fullName.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
+                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${stats.fullName}`} />
+                <AvatarFallback>{stats.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div>
-                <h3 className="text-lg font-bold" data-testid="text-player-name">
-                  {stats.fullName}
-                </h3>
-                <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold truncate" data-testid="text-player-name">{stats.fullName}</h3>
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{stats.category || "D"}</Badge>
                   {stats.gender && (
-                    <Badge variant="secondary" className="text-xs">
-                      {stats.gender}
-                    </Badge>
+                    <Badge variant="secondary" className="text-xs">{stats.gender}</Badge>
+                  )}
+                  {stats.isJunior && (
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">Junior</Badge>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Building2 className="w-4 h-4" />
+              <span>{stats.clubName}</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Card>
                 <CardContent className="p-3 text-center">
                   <Swords className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-xl font-bold" data-testid="text-matches-played">
-                    {stats.matchesPlayed}
-                  </div>
+                  <div className="text-xl font-bold" data-testid="text-matches-played">{stats.matchesPlayed}</div>
                   <div className="text-xs text-muted-foreground">Played</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3 text-center">
                   <TrendingUp className="w-4 h-4 mx-auto mb-1 text-green-500" />
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="text-xl font-bold text-green-600" data-testid="text-matches-won">
-                      {stats.matchesWon}
-                    </span>
-                    <span className="text-muted-foreground">/</span>
-                    <span className="text-xl font-bold text-red-500" data-testid="text-matches-lost">
-                      {stats.matchesLost}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">W / L</div>
+                  <div className="text-xl font-bold text-green-600" data-testid="text-matches-won">{stats.matchesWon}</div>
+                  <div className="text-xs text-muted-foreground">Won</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 text-center">
+                  <TrendingDown className="w-4 h-4 mx-auto mb-1 text-red-500" />
+                  <div className="text-xl font-bold text-red-500" data-testid="text-matches-lost">{stats.matchesLost}</div>
+                  <div className="text-xs text-muted-foreground">Lost</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3 text-center">
                   <Percent className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
-                  <div
-                    className={`text-xl font-bold ${stats.winRatio >= 50 ? "text-green-600" : "text-muted-foreground"}`}
-                    data-testid="text-win-percentage"
-                  >
+                  <div className={`text-xl font-bold ${stats.winRatio >= 50 ? "text-green-600" : "text-muted-foreground"}`} data-testid="text-win-percentage">
                     {stats.winRatio}%
                   </div>
                   <div className="text-xs text-muted-foreground">Win Rate</div>
@@ -162,11 +160,23 @@ export function PlayerStatsDialog({
                       {won ? "W" : "L"}
                     </div>
                   ))}
-                  {winStreak > 0 && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      {winStreak} win streak
-                    </Badge>
-                  )}
+                </div>
+              </div>
+            )}
+
+            {achievements.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Achievements</h4>
+                <div className="flex flex-wrap gap-2">
+                  {achievements.map((a, i) => (
+                    <div key={i} className="flex items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-1.5">
+                      <a.icon className={`w-4 h-4 ${a.color}`} />
+                      <div>
+                        <div className="text-xs font-semibold">{a.label}</div>
+                        <div className="text-[10px] text-muted-foreground">{a.description}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -176,17 +186,13 @@ export function PlayerStatsDialog({
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Target className="w-4 h-4" />
-                    Match Results
+                    Progress
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={180}>
+                  <ResponsiveContainer width="100%" height={160}>
                     <LineChart data={chartData}>
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10 }}
-                        tickLine={false}
-                      />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} />
                       <YAxis hide />
                       <Tooltip
                         contentStyle={{
@@ -225,36 +231,52 @@ export function PlayerStatsDialog({
             {stats.matchHistory.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-2">
+                  <Calendar className="w-4 h-4 inline mr-1" />
                   Match History ({stats.matchHistory.length})
                 </h4>
-                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                  {stats.matchHistory.slice(0, 20).map((match) => (
+                <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  {stats.matchHistory.map((match) => (
                     <div
                       key={match.id}
-                      className="flex items-center justify-between p-2 rounded-md bg-muted/40 text-sm"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2.5 rounded-lg bg-muted/40 text-sm"
                       data-testid={`stat-match-${match.id}`}
                     >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            match.won
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                          }`}
-                        >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          match.won
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                        }`}>
                           {match.won ? "W" : "L"}
                         </div>
-                        <span className="font-mono font-medium">
-                          {match.isTeamA
-                            ? `${match.scoreA} - ${match.scoreB}`
-                            : `${match.scoreB} - ${match.scoreA}`}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-mono font-medium">
+                            {match.isTeamA
+                              ? `${match.scoreA} - ${match.scoreB}`
+                              : `${match.scoreB} - ${match.scoreA}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            vs {match.opponent1}
+                            {match.opponent2 && ` & ${match.opponent2}`}
+                            {match.partner && (
+                              <span className="ml-1 opacity-75">
+                                (w/ {match.partner})
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {match.completedAt
-                          ? format(new Date(match.completedAt), "MMM d, yyyy")
-                          : ""}
-                      </span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-right shrink-0 pl-9 sm:pl-0">
+                        <span className="truncate max-w-[120px]">{match.sessionTitle}</span>
+                        {match.completedAt && (
+                          <span className="whitespace-nowrap">
+                            {format(new Date(match.completedAt), "MMM d, yy")}
+                          </span>
+                        )}
+                        <Badge variant="outline" className="text-[9px] py-0 shrink-0">
+                          {match.playersPerSide === 1 ? "S" : "D"}
+                        </Badge>
+                      </div>
                     </div>
                   ))}
                 </div>

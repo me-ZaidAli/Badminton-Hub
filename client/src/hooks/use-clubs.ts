@@ -97,6 +97,9 @@ export type LeaderboardPlayer = {
   matchesWon: number;
   matchesLost: number;
   winPercentage: number;
+  clubId?: number;
+  clubName?: string;
+  isJunior?: boolean;
 };
 
 export function useLeaderboard(clubId: number | null) {
@@ -108,6 +111,82 @@ export function useLeaderboard(clubId: number | null) {
       return res.json();
     },
     enabled: clubId !== null,
+  });
+}
+
+export type LeaderboardFilters = {
+  clubId?: number;
+  category?: string;
+  gender?: string;
+  matchType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export function useFilteredLeaderboard(filters: LeaderboardFilters) {
+  const params = new URLSearchParams();
+  if (filters.clubId) params.set("clubId", filters.clubId.toString());
+  if (filters.category) params.set("category", filters.category);
+  if (filters.gender) params.set("gender", filters.gender);
+  if (filters.matchType) params.set("matchType", filters.matchType);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  const qs = params.toString();
+
+  return useQuery<LeaderboardPlayer[]>({
+    queryKey: ["/api/leaderboard", filters],
+    queryFn: async () => {
+      const res = await fetch(`/api/leaderboard${qs ? `?${qs}` : ""}`);
+      if (!res.ok) throw new Error("Failed to fetch leaderboard");
+      return res.json();
+    },
+  });
+}
+
+export type DetailedPlayerStats = {
+  id: number;
+  fullName: string;
+  category: string | null;
+  gender: string | null;
+  clubId: number;
+  clubName: string;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  winRatio: number;
+  recentForm: boolean[];
+  isJunior: boolean;
+  matchHistory: {
+    id: number;
+    sessionId: number;
+    sessionTitle: string;
+    scoreA: number | null;
+    scoreB: number | null;
+    isTeamA: boolean;
+    won: boolean;
+    completedAt: string | null;
+    opponent1: string;
+    opponent2: string | null;
+    partner: string | null;
+    playersPerSide: number;
+  }[];
+};
+
+export function useDetailedPlayerStats(profileId: number | null, filters?: { dateFrom?: string; dateTo?: string; matchType?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters?.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters?.matchType) params.set("matchType", filters.matchType);
+  const qs = params.toString();
+
+  return useQuery<DetailedPlayerStats>({
+    queryKey: ["/api/players", profileId, "detailed-stats", filters],
+    queryFn: async () => {
+      const res = await fetch(`/api/players/${profileId}/detailed-stats${qs ? `?${qs}` : ""}`);
+      if (!res.ok) throw new Error("Failed to fetch player stats");
+      return res.json();
+    },
+    enabled: profileId !== null,
   });
 }
 

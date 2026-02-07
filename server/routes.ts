@@ -747,6 +747,44 @@ export async function registerRoutes(
     }
   });
 
+  // === Enhanced Leaderboard with filters ===
+  app.get("/api/leaderboard", async (req, res) => {
+    try {
+      const filters: any = {};
+      if (req.query.clubId) filters.clubId = Number(req.query.clubId);
+      if (req.query.category) filters.category = req.query.category as string;
+      if (req.query.gender) filters.gender = req.query.gender as string;
+      if (req.query.matchType) filters.matchType = req.query.matchType as string;
+      if (req.query.dateFrom) filters.dateFrom = new Date(req.query.dateFrom as string);
+      if (req.query.dateTo) filters.dateTo = new Date(req.query.dateTo as string);
+
+      const leaderboard = await storage.getFilteredLeaderboard(filters);
+      res.json(leaderboard);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to fetch leaderboard" });
+    }
+  });
+
+  // === Enhanced Player Stats with filters ===
+  app.get("/api/players/:profileId/detailed-stats", async (req, res) => {
+    try {
+      const profileId = Number(req.params.profileId);
+      const filters: any = {};
+      if (req.query.dateFrom) filters.dateFrom = new Date(req.query.dateFrom as string);
+      if (req.query.dateTo) filters.dateTo = new Date(req.query.dateTo as string);
+      if (req.query.matchType) filters.matchType = req.query.matchType as string;
+
+      const stats = await storage.getDetailedPlayerStats(profileId, filters);
+      if (!stats) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+      res.json(stats);
+    } catch (err: any) {
+      console.error("Error fetching detailed player stats:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch player stats" });
+    }
+  });
+
   // === Personal Match History (requires auth) ===
   app.get("/api/personal-ranking/:clubId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
