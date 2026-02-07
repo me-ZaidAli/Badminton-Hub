@@ -22,6 +22,7 @@ type GenerateOptions = {
   recentPairings: Map<string, number>;
   recentOpponents: Map<string, number>;
   playerMatchCounts: Map<number, number>;
+  priorityPlayerIds?: number[];
 };
 
 function pairKey(a: number, b: number): string {
@@ -56,7 +57,8 @@ function scorePairing(
   opponents: number[],
   recentPairings: Map<string, number>,
   recentOpponents: Map<string, number>,
-  playerMatchCounts: Map<number, number>
+  playerMatchCounts: Map<number, number>,
+  priorityPlayerIds?: number[]
 ): number {
   let score = 0;
   
@@ -82,20 +84,38 @@ function scorePairing(
   }
   
   const allPlayers = [...team, ...opponents];
-  const avgPlayed = allPlayers.reduce((s, p) => s + (playerMatchCounts.get(p) || 0), 0) / allPlayers.length;
-  const minPlayed = Math.min(...allPlayers.map(p => playerMatchCounts.get(p) || 0));
-  score += (avgPlayed - minPlayed) > 0 ? 5 : 0;
+  
+  const globalMin = playerMatchCounts.size > 0 
+    ? Math.min(...Array.from(playerMatchCounts.values())) 
+    : 0;
   
   for (const p of allPlayers) {
     const played = playerMatchCounts.get(p) || 0;
-    score -= played * 2;
+    const deficit = played - globalMin;
+    score -= deficit * 15;
+    score -= played * 3;
+  }
+  
+  const matchMin = Math.min(...allPlayers.map(p => playerMatchCounts.get(p) || 0));
+  const matchMax = Math.max(...allPlayers.map(p => playerMatchCounts.get(p) || 0));
+  const spread = matchMax - matchMin;
+  if (spread > 1) {
+    score -= spread * 20;
+  }
+  
+  if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+    for (const p of allPlayers) {
+      if (priorityPlayerIds.includes(p)) {
+        score += 50;
+      }
+    }
   }
   
   return score;
 }
 
 function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType } = opts;
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   const eligible = filterByGender(players, genderType);
   
   if (eligible.length < 4) return [];
@@ -120,7 +140,7 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts);
+      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds);
       if (s > bestScore) {
         bestScore = s;
         bestMatch = candidate;
@@ -137,7 +157,7 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
 }
 
 function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType } = opts;
+  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   const eligible = filterByGender(players, genderType);
   
   if (eligible.length < 2) return [];
@@ -145,6 +165,7 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
   const results: MatchResult[] = [];
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
+  const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
   
   for (let q = 0; q < queueTarget; q++) {
     if (eligible.length < 2) break;
@@ -153,14 +174,22 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
     let bestScore = -Infinity;
     
     const shuffled = shuffleArray(eligible);
-    const attempts = Math.min(shuffled.length * (shuffled.length - 1) / 2, 30);
     
-    for (let a = 0; a < shuffled.length && a < attempts; a++) {
+    for (let a = 0; a < shuffled.length; a++) {
       for (let b = a + 1; b < shuffled.length; b++) {
         const key = pairKey(shuffled[a].id, shuffled[b].id);
         const oppScore = -(localOpponents.get(key) || 0) * 10;
-        const countScore = -((localCounts.get(shuffled[a].id) || 0) + (localCounts.get(shuffled[b].id) || 0)) * 2;
-        const total = oppScore + countScore;
+        const countA = localCounts.get(shuffled[a].id) || 0;
+        const countB = localCounts.get(shuffled[b].id) || 0;
+        const deficitA = countA - globalMin;
+        const deficitB = countB - globalMin;
+        const countScore = -(deficitA + deficitB) * 15 - (countA + countB) * 3;
+        let total = oppScore + countScore;
+        
+        if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+          if (priorityPlayerIds.includes(shuffled[a].id)) total += 50;
+          if (priorityPlayerIds.includes(shuffled[b].id)) total += 50;
+        }
         
         if (total > bestScore) {
           bestScore = total;
@@ -187,7 +216,7 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
 }
 
 function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType } = opts;
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   const eligible = filterByGender(players, genderType);
   
   if (eligible.length < 4) return [];
@@ -217,7 +246,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts);
+      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds);
       
       const catA1 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer1Id)?.category || null);
       const catA2 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer2Id)?.category || null);
@@ -244,7 +273,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
 }
 
 function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType } = opts;
+  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   const eligible = filterByGender(players, genderType);
   
   if (eligible.length < 2) return [];
@@ -253,6 +282,7 @@ function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
   const results: MatchResult[] = [];
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
+  const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
   
   for (let q = 0; q < queueTarget; q++) {
     let bestMatch: MatchResult | null = null;
@@ -265,9 +295,18 @@ function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
         
         const key = pairKey(sorted[a].id, sorted[b].id);
         const oppScore = -(localOpponents.get(key) || 0) * 10;
-        const countScore = -((localCounts.get(sorted[a].id) || 0) + (localCounts.get(sorted[b].id) || 0)) * 2;
+        const countA = localCounts.get(sorted[a].id) || 0;
+        const countB = localCounts.get(sorted[b].id) || 0;
+        const deficitA = countA - globalMin;
+        const deficitB = countB - globalMin;
+        const countScore = -(deficitA + deficitB) * 15 - (countA + countB) * 3;
         const catScore = -catDiff * 3;
-        const total = oppScore + countScore + catScore;
+        let total = oppScore + countScore + catScore;
+        
+        if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+          if (priorityPlayerIds.includes(sorted[a].id)) total += 50;
+          if (priorityPlayerIds.includes(sorted[b].id)) total += 50;
+        }
         
         if (total > bestScore) {
           bestScore = total;

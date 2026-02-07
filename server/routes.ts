@@ -1964,6 +1964,105 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sessions/:sessionId/handle-resume", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { resumedPlayerId, mode, genderType } = req.body;
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.sendStatus(403);
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = existingMatches
+        .filter(m => m.status === "QUEUED")
+        .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+      for (const qm of queuedMatches) {
+        await storage.deleteMatch(qm.id);
+      }
+
+      const queueTarget = Math.max(queuedMatches.length, 3);
+      const matchMode = (mode || session.matchMode || "SOCIAL") as "SOCIAL" | "COMPETITIVE";
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const gType = genderType || session.matchGenderType || "MIXED";
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const players = eligibleSignups
+        .filter(s => !s.isPaused)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          category: s.player.category,
+          isPaused: false,
+          genderOverride: s.genderOverride,
+        }));
+
+      if (players.length < playersPerMatch) {
+        return res.json({ message: "Not enough active players to regenerate queue", rebalanced: 0, matches: [] });
+      }
+
+      const nonQueuedMatches = existingMatches.filter(m => m.status !== "QUEUED");
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        nonQueuedMatches.map(m => ({
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          status: m.status,
+        }))
+      );
+
+      for (const p of players) {
+        if (!playerMatchCounts.has(p.id)) {
+          playerMatchCounts.set(p.id, 0);
+        }
+      }
+
+      const generated = generateSmartMatches({
+        mode: matchMode,
+        players,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: gType,
+        queueTarget,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+        priorityPlayerIds: [resumedPlayerId],
+      });
+
+      const defaultTarget = session.defaultPointsToPlayTo || 21;
+      const createdMatches = await Promise.all(
+        generated.map((m, i) => storage.createMatch({
+          sessionId,
+          courtNumber: null,
+          queuePosition: i + 1,
+          status: "QUEUED" as const,
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          scoreA: 0,
+          scoreB: 0,
+          isCompleted: false,
+          pointsToPlayTo: defaultTarget,
+        }))
+      );
+
+      res.json({ rebalanced: createdMatches.length, matches: createdMatches });
+    } catch (err: any) {
+      console.error("Error handling resume:", err);
+      res.status(500).json({ message: err.message || "Failed to handle resume" });
+    }
+  });
+
   // === Announcements ===
   app.get(api.announcements.list.path, async (req, res) => {
     const announcements = await storage.getAnnouncements();

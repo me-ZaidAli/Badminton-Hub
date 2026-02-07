@@ -198,6 +198,28 @@ export function useHandlePause() {
   });
 }
 
+export function useHandleResume() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, resumedPlayerId, mode, genderType }: { sessionId: number; resumedPlayerId: number; mode?: string; genderType?: string }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/handle-resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumedPlayerId, mode, genderType }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to handle resume");
+      }
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+    },
+  });
+}
+
 export function useUpdateMatchTarget() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

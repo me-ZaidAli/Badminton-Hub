@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause, useUpdateMatchTarget } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget } from "@/hooks/use-matches";
 import { useQueryClient } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -53,6 +53,7 @@ export default function SessionDetail() {
   const { mutate: toggleGender } = useToggleGender();
   const { mutate: togglePause } = useTogglePause();
   const { mutate: handlePauseReplacement } = useHandlePause();
+  const { mutate: handleResumeRebalance } = useHandleResume();
   const { mutate: setPairGroup } = useSetPairGroup();
   const { mutate: addGuestPlayer, isPending: isAddingGuest } = useAddGuestPlayer();
   
@@ -624,6 +625,8 @@ export default function SessionDetail() {
                           onSuccess: () => {
                             if (newPaused) {
                               handlePauseReplacement({ sessionId: id, pausedPlayerId: signup.playerId });
+                            } else {
+                              handleResumeRebalance({ sessionId: id, resumedPlayerId: signup.playerId, mode: session?.matchMode, genderType: session?.matchGenderType });
                             }
                           }
                         });
