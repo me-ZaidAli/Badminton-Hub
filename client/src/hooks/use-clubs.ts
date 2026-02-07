@@ -199,6 +199,7 @@ export function useSessionLeaderboard(sessionId: number | null) {
       return res.json();
     },
     enabled: sessionId !== null,
+    refetchInterval: 5000,
   });
 }
 

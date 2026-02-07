@@ -25,7 +25,7 @@ Key design patterns include:
 - **API Contracts**: Clear API route definitions with Zod schemas for type-safe communication.
 - **Role-Based Access Control (RBAC)**: A centralized RBAC system (`server/rbac.ts`) with functions like `canPerform(user, action, clubId)` and an action enum. Supports platform-level OWNER and club-level roles (ADMIN, ORGANISER, COACH, PLAYER). Requires APPROVED club membership status for club-level access.
 - **Multi-Club Support**: The system supports multiple badminton clubs, each with specific player profiles and administration. Clubs undergo an approval workflow.
-- **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation.
+- **Match Management**: Features a visual court component, match lifecycle (QUEUED, LIVE, COMPLETED), a queuing system, and auto-generation. Includes a **Smart Match Engine** (`server/matchEngine.ts`) with Social (round-robin) and Competitive (category-based) modes, female player matching rules, anti-repetition logic, and player pause replacement. Endpoint: POST `/api/sessions/:id/matches/smart-generate`.
 - **Membership System**: Manages club membership status (PENDING, APPROVED, REJECTED) and allows users to join clubs.
 - **Venue Management**: Enables clubs to manage multiple venues and link sessions to locations.
 - **Public Viewing System**: A comprehensive public landing page accessible without login, featuring a club directory, public sessions, live session views, and club leaderboards. All sensitive user data is excluded.

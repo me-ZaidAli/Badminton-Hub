@@ -12,6 +12,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
+import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1674,6 +1675,150 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error auto-generating matches:", err);
       res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
+  // === Smart Match Generation ===
+  app.post("/api/sessions/:sessionId/matches/smart-generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, sessionId);
+      if (!isAdmin && !isSignedUp) {
+        return res.status(403).json({ message: "Only session participants or admins can generate matches" });
+      }
+
+      const { mode, queueTargetSize, genderType } = req.body;
+      const matchMode = mode || session.matchMode || "SOCIAL";
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const gType = genderType || session.matchGenderType || "MIXED";
+      const queueTarget = Math.min(Math.max(queueTargetSize || 3, 1), 10);
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const players = eligibleSignups
+        .filter(s => !s.isPaused)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          category: s.player.category,
+          isPaused: s.isPaused,
+          genderOverride: s.genderOverride,
+        }));
+
+      if (players.length < playersPerMatch) {
+        return res.status(400).json({ message: `Need at least ${playersPerMatch} active (non-paused) players` });
+      }
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const queuedCount = existingMatches.filter(m => m.status === "QUEUED").length;
+      const matchesNeeded = Math.max(0, queueTarget - queuedCount);
+
+      if (matchesNeeded === 0) {
+        return res.json({ message: "Queue is already full", matches: [] });
+      }
+
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        existingMatches.map(m => ({
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          status: m.status,
+        }))
+      );
+
+      const generated = generateSmartMatches({
+        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+        players,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: gType,
+        queueTarget: matchesNeeded,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+      });
+
+      const maxQueuePos = Math.max(0, ...existingMatches
+        .filter(m => m.queuePosition !== null)
+        .map(m => m.queuePosition || 0));
+
+      const createdMatches = await Promise.all(
+        generated.map((m, i) => storage.createMatch({
+          sessionId,
+          courtNumber: null,
+          queuePosition: maxQueuePos + i + 1,
+          status: "QUEUED" as const,
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          scoreA: 0,
+          scoreB: 0,
+          isCompleted: false,
+        }))
+      );
+
+      res.status(201).json(createdMatches);
+    } catch (err: any) {
+      console.error("Error smart-generating matches:", err);
+      res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
+  // === Handle Player Pause - Replace in queued matches ===
+  app.post("/api/sessions/:sessionId/handle-pause", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { pausedPlayerId } = req.body;
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.sendStatus(403);
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = existingMatches
+        .filter(m => m.status === "QUEUED")
+        .map(m => ({
+          id: m.id,
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+        }));
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const availablePlayers = signups
+        .filter(s => !s.isPaused && s.player.id !== pausedPlayerId)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          category: s.player.category,
+          isPaused: false,
+          genderOverride: s.genderOverride,
+        }));
+
+      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers);
+
+      for (const rep of replacements) {
+        await storage.updateMatch(rep.matchId, { [rep.position]: rep.newPlayerId });
+      }
+
+      res.json({ replacements: replacements.length });
+    } catch (err: any) {
+      console.error("Error handling pause:", err);
+      res.status(500).json({ message: err.message || "Failed to handle pause" });
     }
   });
 

@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause } from "@/hooks/use-matches";
+import { useQueryClient } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
@@ -51,6 +52,7 @@ export default function SessionDetail() {
   const { mutate: deleteSession, isPending: isDeleting } = useDeleteSession();
   const { mutate: toggleGender } = useToggleGender();
   const { mutate: togglePause } = useTogglePause();
+  const { mutate: handlePauseReplacement } = useHandlePause();
   const { mutate: setPairGroup } = useSetPairGroup();
   const { mutate: addGuestPlayer, isPending: isAddingGuest } = useAddGuestPlayer();
   
@@ -616,7 +618,14 @@ export default function SessionDetail() {
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
-                        togglePause({ sessionId: id, signupId: signup.id, isPaused: !isPaused });
+                        const newPaused = !isPaused;
+                        togglePause({ sessionId: id, signupId: signup.id, isPaused: newPaused }, {
+                          onSuccess: () => {
+                            if (newPaused) {
+                              handlePauseReplacement({ sessionId: id, pausedPlayerId: signup.playerId });
+                            }
+                          }
+                        });
                       }}
                       data-testid={`button-toggle-pause-${signup.id}`}
                     >
@@ -795,17 +804,29 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutate: completeMatch } = useCompleteMatch();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();
+  const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
   const { mutate: updateSession } = useUpdateSession();
+  const queryClient = useQueryClient();
 
-  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
-  const [matchesToGenerate, setMatchesToGenerate] = useState(8);
-  const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
+  const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
+  const [queueTargetSize, setQueueTargetSize] = useState(3);
+  const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
 
   useEffect(() => {
     setCourtNamesState(initialCourtNames || []);
   }, [initialCourtNames]);
+
+  useEffect(() => {
+    if (!isAutoGenerating) return;
+    const interval = setInterval(() => {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isAutoGenerating, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -819,7 +840,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
-  // Transform matches to CourtMatch type
   const typedMatches: CourtMatch[] = (matches || []).map(m => ({
     id: m.id,
     courtNumber: m.courtNumber,
@@ -835,177 +855,267 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     queuePosition: m.queuePosition,
   }));
 
-  // Get live matches assigned to courts
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
+  const queuedMatches = typedMatches.filter(m => m.status === "QUEUED");
+  const completedCount = typedMatches.filter(m => m.status === "COMPLETED").length;
   
-  // Available courts (not currently occupied)
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
     .filter(c => !occupiedCourts.has(c));
 
-  // Available players for swapping (those signed up)
   const availablePlayers = signups.map(s => ({
     id: s.player.id,
     fullName: s.player.user.fullName,
     category: s.player.category,
   }));
 
-  const handleGenerate = () => {
-    autoGenerate({ sessionId, numberOfMatches: matchesToGenerate, courtsToUse, matchGenderType: generateGenderType });
-    setShowGenerateDialog(false);
+  const handleSmartGenerate = () => {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+  };
+
+  const handleStartAutoGenerate = () => {
+    setIsAutoGenerating(true);
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+  };
+
+  const handleStopAutoGenerate = () => {
+    setIsAutoGenerating(false);
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Control Bar */}
       {(isOrganiser || isSignedUp) && (
-        <div className="flex justify-between items-center flex-wrap gap-4">
-          {isOrganiser && <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Courts:</span>
-            <div className="flex items-center gap-1">
-              <Button 
-                size="icon" 
-                variant="outline" 
-                onClick={() => setCourtsToUse(Math.max(1, courtsToUse - 1))}
-                disabled={courtsToUse <= 1}
-                data-testid="button-decrease-courts"
-              >
-                <Minus className="w-4 h-4" />
-              </Button>
-              <Badge variant="secondary" className="text-lg px-4 py-1 min-w-[3rem] justify-center" data-testid="badge-courts-count">
-                {courtsToUse}
-              </Badge>
-              <Button 
-                size="icon" 
-                variant="outline" 
-                onClick={() => setCourtsToUse(Math.min(courtsAvailable, 10, courtsToUse + 1))}
-                disabled={courtsToUse >= Math.min(courtsAvailable, 10)}
-                data-testid="button-increase-courts"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <span className="text-xs text-muted-foreground">(max {Math.min(courtsAvailable, 10)})</span>
-          </div>}
-          <div className="flex gap-2">
-            <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" data-testid="button-generate-matches">
-                  <Shuffle className="w-4 h-4" />
-                  Generate Matches
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Generate Matches</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div>
-                    <Label>Match Format</Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {playersPerSide === 1 ? "Singles (1v1)" : "Doubles (2v2)"}
-                    </p>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4">
+              {/* Top row: Mode toggle + Courts */}
+              <div className="flex justify-between items-center flex-wrap gap-4">
+                {isOrganiser && (
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* Mode Toggle */}
+                    <div className="flex items-center gap-2" data-testid="mode-toggle-container">
+                      <Label className="text-sm font-medium">Mode:</Label>
+                      <div className="flex items-center gap-2 rounded-md border p-1">
+                        <Button
+                          size="sm"
+                          variant={activeMode === "SOCIAL" ? "default" : "ghost"}
+                          onClick={() => setActiveMode("SOCIAL")}
+                          data-testid="button-mode-social"
+                        >
+                          Social
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeMode === "COMPETITIVE" ? "default" : "ghost"}
+                          onClick={() => setActiveMode("COMPETITIVE")}
+                          data-testid="button-mode-competitive"
+                        >
+                          Competitive
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Courts Control */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Courts:</span>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          onClick={() => setCourtsToUse(Math.max(1, courtsToUse - 1))}
+                          disabled={courtsToUse <= 1}
+                          data-testid="button-decrease-courts"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                        <Badge variant="secondary" className="text-lg px-4 py-1 min-w-[3rem] justify-center" data-testid="badge-courts-count">
+                          {courtsToUse}
+                        </Badge>
+                        <Button 
+                          size="icon" 
+                          variant="outline" 
+                          onClick={() => setCourtsToUse(Math.min(courtsAvailable, 10, courtsToUse + 1))}
+                          disabled={courtsToUse >= Math.min(courtsAvailable, 10)}
+                          data-testid="button-increase-courts"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label>Match Gender Type</Label>
-                    <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
-                      <SelectTrigger className="mt-2" data-testid="select-generate-gender-type">
+                )}
+
+                {/* Session Stats */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Badge variant="outline" data-testid="badge-live-count">
+                    {liveMatches.length} Live
+                  </Badge>
+                  <Badge variant="outline" data-testid="badge-queued-count">
+                    {queuedMatches.length} Queued
+                  </Badge>
+                  <Badge variant="outline" data-testid="badge-completed-count">
+                    {completedCount} Completed
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Bottom row: Generation controls */}
+              {isOrganiser && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Queue Target */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm whitespace-nowrap">Queue Size:</Label>
+                    <Select value={String(queueTargetSize)} onValueChange={(v) => setQueueTargetSize(Number(v))}>
+                      <SelectTrigger className="w-[70px]" data-testid="select-queue-size">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="MIXED">Mixed</SelectItem>
-                        <SelectItem value="FEMALE">Female Only</SelectItem>
-                        <SelectItem value="MALE">Male Only</SelectItem>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="5">5</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>Number of Courts to Use (max {courtsAvailable})</Label>
-                    <Input 
-                      type="number" 
-                      min={1} 
-                      max={Math.min(courtsAvailable, 10)}
-                      value={courtsToUse}
-                      onChange={(e) => setCourtsToUse(Math.min(Number(e.target.value), courtsAvailable, 10))}
-                      className="mt-2"
-                      data-testid="input-courts-to-use"
-                    />
-                  </div>
-                  <div>
-                    <Label>Number of Matches to Queue (max 8)</Label>
-                    <Input 
-                      type="number" 
-                      min={1} 
-                      max={8}
-                      value={matchesToGenerate}
-                      onChange={(e) => setMatchesToGenerate(Math.min(Number(e.target.value), 8))}
-                      className="mt-2"
-                      data-testid="input-matches-to-generate"
-                    />
-                  </div>
+
+                  {/* Gender Type */}
+                  <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                    <SelectTrigger className="w-[120px]" data-testid="select-generate-gender-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MIXED">Mixed</SelectItem>
+                      <SelectItem value="FEMALE">Female Only</SelectItem>
+                      <SelectItem value="MALE">Male Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Generate / Stop Buttons */}
+                  {!isAutoGenerating ? (
+                    <>
+                      <Button 
+                        onClick={handleSmartGenerate}
+                        disabled={isSmartGenerating}
+                        className="gap-2"
+                        data-testid="button-generate-matches"
+                      >
+                        <Shuffle className="w-4 h-4" />
+                        {isSmartGenerating ? "Generating..." : "Generate Matches"}
+                      </Button>
+                      <Button 
+                        onClick={handleStartAutoGenerate}
+                        variant="outline"
+                        className="gap-2"
+                        data-testid="button-start-auto-generate"
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        Auto Generate
+                      </Button>
+                    </>
+                  ) : (
+                    <Button 
+                      onClick={handleStopAutoGenerate}
+                      variant="destructive"
+                      className="gap-2"
+                      data-testid="button-stop-generating"
+                    >
+                      <X className="w-4 h-4" />
+                      Stop Generating
+                    </Button>
+                  )}
+
+                  {/* End Session */}
                   <Button 
-                    className="w-full" 
-                    onClick={handleGenerate}
-                    disabled={isGenerating}
-                    data-testid="button-confirm-generate"
+                    variant="outline"
+                    className="gap-2 ml-auto"
+                    onClick={() => setEndSessionModalOpen(true)}
+                    data-testid="button-end-session"
                   >
-                    {isGenerating ? "Generating..." : "Generate Matches"}
+                    <Trophy className="w-4 h-4" />
+                    End Session
                   </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Auto-generating indicator */}
+      {isAutoGenerating && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2" data-testid="auto-generate-indicator">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
         </div>
       )}
 
-      {/* Live Courts */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-primary" />
-          Live Courts
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
-            const match = liveMatches.find(m => m.courtNumber === courtNum) || 
-                         (availableCourts.includes(courtNum) ? null : null);
-            return (
-              <BadmintonCourt
-                key={courtNum}
-                courtNumber={courtNum}
-                courtName={courtNamesState[courtNum - 1]}
-                match={match}
-                availablePlayers={availablePlayers}
-                isOrganiser={isOrganiser}
-                isSignedUp={isSignedUp}
-                onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
-                onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
-                onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                onCourtNameChange={handleCourtNameChange}
-              />
-            );
-          })}
+      {/* Main content: Courts + Leaderboard side by side */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+        <div className="space-y-6">
+          {/* Live Courts */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-primary" />
+              Live Courts
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
+                const match = liveMatches.find(m => m.courtNumber === courtNum) || null;
+                return (
+                  <BadmintonCourt
+                    key={courtNum}
+                    courtNumber={courtNum}
+                    courtName={courtNamesState[courtNum - 1]}
+                    match={match}
+                    availablePlayers={availablePlayers}
+                    isOrganiser={isOrganiser}
+                    isSignedUp={isSignedUp}
+                    onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
+                    onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+                    onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                    onCourtNameChange={handleCourtNameChange}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Match Queue + Completed */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <MatchQueue
+              matches={typedMatches}
+              availablePlayers={availablePlayers}
+              isOrganiser={isOrganiser}
+              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+              onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+              availableCourts={availableCourts}
+            />
+            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
+          </div>
+        </div>
+
+        {/* Always-visible Session Leaderboard */}
+        <div className="xl:sticky xl:top-4 xl:self-start">
+          <SessionLiveLeaderboard sessionId={sessionId} />
         </div>
       </div>
 
-      {/* Match Queue */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MatchQueue
-          matches={typedMatches}
-          availablePlayers={availablePlayers}
-          isOrganiser={isOrganiser}
-          onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-          onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-          availableCourts={availableCourts}
-        />
-        
-        <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
-      </div>
-
-      <SessionMiniLeaderboard sessionId={sessionId} />
+      {/* End Session Leaderboard Modal */}
+      <EndSessionLeaderboardModal 
+        sessionId={sessionId} 
+        open={endSessionModalOpen} 
+        onClose={() => setEndSessionModalOpen(false)}
+        onEndSession={() => {
+          updateSession({ sessionId, updates: { status: "COMPLETED" } });
+          setIsAutoGenerating(false);
+        }}
+      />
     </div>
   );
 }
 
-function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
+function SessionLiveLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
 
   if (isLoading) {
@@ -1018,20 +1128,32 @@ function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
     );
   }
 
-  if (!leaderboard || leaderboard.length === 0) return null;
+  if (!leaderboard || leaderboard.length === 0) {
+    return (
+      <Card data-testid="card-session-leaderboard">
+        <CardContent className="pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
+            <Trophy className="w-5 h-5 text-amber-500" />
+            Live Leaderboard
+          </h3>
+          <p className="text-sm text-muted-foreground text-center py-4">No matches completed yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card data-testid="card-session-leaderboard">
       <CardContent className="pt-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
           <Trophy className="w-5 h-5 text-amber-500" />
-          Session Leaderboard
+          Live Leaderboard
         </h3>
         <div className="space-y-2">
           {leaderboard.map((player, index) => (
             <div
               key={player.id}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 bg-muted/30"
+              className="flex items-center gap-3 rounded-md px-3 py-2 bg-muted/30"
               data-testid={`session-leaderboard-player-${player.id}`}
             >
               <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
@@ -1054,5 +1176,85 @@ function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function EndSessionLeaderboardModal({ sessionId, open, onClose, onEndSession }: { 
+  sessionId: number; 
+  open: boolean; 
+  onClose: () => void;
+  onEndSession: () => void;
+}) {
+  const { data: leaderboard } = useSessionLeaderboard(sessionId);
+
+  if (!open) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="modal-end-session-leaderboard">
+        <DialogHeader>
+          <DialogTitle className="text-2xl flex items-center gap-3">
+            <Trophy className="w-7 h-7 text-amber-500" />
+            Session Leaderboard
+          </DialogTitle>
+          <DialogDescription>
+            Final rankings based on match results
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-4">
+          {(!leaderboard || leaderboard.length === 0) ? (
+            <p className="text-center text-muted-foreground py-8">No completed matches yet</p>
+          ) : (
+            leaderboard.map((player, index) => (
+              <div
+                key={player.id}
+                className={`flex items-center gap-4 rounded-md px-4 py-3 ${
+                  index === 0 ? "bg-amber-500/10 border border-amber-500/30" :
+                  index === 1 ? "bg-gray-400/10 border border-gray-400/30" :
+                  index === 2 ? "bg-amber-700/10 border border-amber-700/30" :
+                  "bg-muted/30"
+                }`}
+                data-testid={`modal-leaderboard-player-${player.id}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                  index === 0 ? "bg-amber-500 text-white" :
+                  index === 1 ? "bg-gray-400 text-white" :
+                  index === 2 ? "bg-amber-700 text-white" :
+                  "bg-muted text-muted-foreground"
+                }`}>
+                  {index + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-base truncate">{player.fullName}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {player.matchesWon} Won / {player.matchesLost} Lost / {player.matchesPlayed} Played
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-foreground">{player.winPercentage}%</div>
+                  <div className="text-xs text-muted-foreground">Win Rate</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} data-testid="button-close-leaderboard">
+            Back to Session
+          </Button>
+          <Button 
+            variant="destructive"
+            onClick={() => {
+              onEndSession();
+              onClose();
+            }}
+            data-testid="button-confirm-end-session"
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            End Session
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

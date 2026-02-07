@@ -149,6 +149,52 @@ export function useAutoGenerateMatches() {
   });
 }
 
+export function useSmartGenerateMatches() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, mode, queueTargetSize, genderType }: { sessionId: number; mode: "SOCIAL" | "COMPETITIVE"; queueTargetSize: number; genderType?: string }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/smart-generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, queueTargetSize, genderType }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to generate matches");
+      }
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+    },
+  });
+}
+
+export function useHandlePause() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, pausedPlayerId }: { sessionId: number; pausedPlayerId: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/handle-pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pausedPlayerId }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to handle pause");
+      }
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+    },
+  });
+}
+
 export function useEditMatchScore() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
