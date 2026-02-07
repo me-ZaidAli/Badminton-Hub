@@ -7,6 +7,7 @@ import { useUser } from "@/hooks/use-auth";
 import { useClubs } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import heroBannerPath from "@assets/image_1770505906309.png";
 
 export default function Home() {
   const { data: user } = useUser();
@@ -24,6 +25,14 @@ export default function Home() {
 
   return (
     <PublicLayout>
+      <section className="w-full" data-testid="section-hero-banner">
+        <img
+          src={heroBannerPath}
+          alt="Badminton Club Master - we know what you need"
+          className="w-full h-auto object-cover"
+        />
+      </section>
+
       <section className="py-20 lg:py-28 overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent -z-10" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
