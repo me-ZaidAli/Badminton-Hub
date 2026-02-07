@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 function useNavItems() {
   const { data: user } = useUser();
@@ -152,14 +153,17 @@ export function Sidebar() {
           </div>
         ) : null}
         
-        <Button 
-          variant="outline" 
-          className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20"
-          onClick={() => logout()}
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex-1 justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20"
+            onClick={() => logout()}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );
@@ -185,6 +189,7 @@ export function MobileTopNav() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <NotificationBell />
           <Button
             variant="ghost"

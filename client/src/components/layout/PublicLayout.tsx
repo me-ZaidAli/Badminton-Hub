@@ -5,6 +5,7 @@ import { Home, Search, Calendar, Trophy, Menu, X, GraduationCap, Mail, LayoutDas
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { label: "Home", href: "/", icon: Home },
@@ -52,6 +53,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </nav>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {user ? (
               <>
                 <NotificationBell />
