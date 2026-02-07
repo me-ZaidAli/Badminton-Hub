@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useMySessionClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
+import { useMySessionClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,7 @@ export default function SessionDetail() {
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
+  const [editClubId, setEditClubId] = useState<number | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
@@ -88,6 +89,7 @@ export default function SessionDetail() {
   ];
 
   const { data: sessionClubs } = useMySessionClubs(!!user);
+  const { data: allClubs } = useClubs();
   
   const isSignedUp = signups?.some(s => s.playerId === user?.playerProfile?.id);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
@@ -205,6 +207,7 @@ export default function SessionDetail() {
                   setEditShuttleTubes(session.shuttleTubesUsed || 0);
                   setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
                   setEditLiveStreamUrl(session.liveStreamUrl || "");
+                  setEditClubId(session.clubId);
                 }
               }}>
                 <DialogTrigger asChild>
@@ -265,6 +268,24 @@ export default function SessionDetail() {
                         ))}
                       </div>
                     </div>
+                    {isSuperAdmin && allClubs && allClubs.length > 1 && (
+                      <div>
+                        <Label>Assign to Club</Label>
+                        <p className="text-sm text-muted-foreground mb-2">Move this session to a different club if it was set up incorrectly.</p>
+                        <Select value={editClubId?.toString() || ""} onValueChange={(v) => setEditClubId(Number(v))}>
+                          <SelectTrigger className="mt-2" data-testid="select-reassign-club">
+                            <SelectValue placeholder="Select club" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allClubs.map(club => (
+                              <SelectItem key={club.id} value={club.id.toString()}>
+                                {club.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div>
                       <Label>Live Stream Link</Label>
                       <Input
@@ -279,14 +300,18 @@ export default function SessionDetail() {
                     <Button 
                       className="w-full" 
                       onClick={() => {
-                        updateSession({ 
-                          sessionId: id, 
-                          updates: { 
+                        const sessionUpdates: any = { 
                             courtsAvailable: editCourts, 
                             shuttleTubesUsed: editShuttleTubes,
                             allowedCategories: editCategories,
                             liveStreamUrl: editLiveStreamUrl || ""
-                          } 
+                        };
+                        if (editClubId && editClubId !== session.clubId) {
+                          sessionUpdates.clubId = editClubId;
+                        }
+                        updateSession({ 
+                          sessionId: id, 
+                          updates: sessionUpdates
                         }, {
                           onSuccess: () => setSettingsOpen(false)
                         });

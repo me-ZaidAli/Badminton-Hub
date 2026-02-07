@@ -1039,9 +1039,15 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId } = req.body;
 
       const updates: any = {};
+      if (clubId !== undefined && clubId !== session.clubId) {
+        if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Only platform owners can reassign sessions to another club" });
+        const targetClub = await storage.getClub(clubId);
+        if (!targetClub) return res.status(400).json({ message: "Target club not found" });
+        updates.clubId = clubId;
+      }
       if (courtsAvailable !== undefined) updates.courtsAvailable = courtsAvailable;
       if (maxPlayers !== undefined) updates.maxPlayers = maxPlayers;
       if (matchMode !== undefined) updates.matchMode = matchMode;
@@ -3722,6 +3728,7 @@ export async function registerRoutes(
       if (req.query.country) conditions.push(eq(clubs.country, req.query.country as string));
 
       const hasDateFilter = req.query.dateFrom || req.query.dateTo;
+      const combineAcrossClubs = !qClubId;
 
       if (hasDateFilter) {
         const profileRows = await db
@@ -3775,6 +3782,37 @@ export async function registerRoutes(
           }
         }
 
+        if (combineAcrossClubs) {
+          const userMap = new Map<number, any>();
+          for (const p of profileRows) {
+            const s = statsMap[p.profileId] || { played: 0, won: 0 };
+            if (userMap.has(p.userId)) {
+              const existing = userMap.get(p.userId);
+              existing.matchesPlayed += s.played;
+              existing.matchesWon += s.won;
+              if (!existing._clubNames.includes(p.clubName)) {
+                existing._clubNames.push(p.clubName);
+                existing.clubName = existing._clubNames.join(", ");
+              }
+              if (!existing.clubCity && p.clubCity) existing.clubCity = p.clubCity;
+              if (!existing.clubCountry && p.clubCountry) existing.clubCountry = p.clubCountry;
+            } else {
+              userMap.set(p.userId, { ...p, matchesPlayed: s.played, matchesWon: s.won, _clubNames: [p.clubName] });
+            }
+          }
+          const rankings = [...userMap.values()]
+            .map(({ _clubNames, ...rest }: any) => rest)
+            .filter((p: any) => p.matchesPlayed > 0)
+            .sort((a: any, b: any) => {
+              if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+              const bPct = b.matchesPlayed > 0 ? b.matchesWon / b.matchesPlayed : 0;
+              const aPct = a.matchesPlayed > 0 ? a.matchesWon / a.matchesPlayed : 0;
+              if (bPct !== aPct) return bPct - aPct;
+              return b.matchesPlayed - a.matchesPlayed;
+            });
+          return res.json(rankings);
+        }
+
         const rankings = profileRows
           .map(p => ({
             ...p,
@@ -3787,7 +3825,7 @@ export async function registerRoutes(
         return res.json(rankings);
       }
 
-      const rankings = await db
+      const profileRows = await db
         .select({
           profileId: playerProfiles.id,
           userId: playerProfiles.userId,
@@ -3810,7 +3848,36 @@ export async function registerRoutes(
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(playerProfiles.matchesWon));
 
-      res.json(rankings);
+      if (combineAcrossClubs) {
+        const userMap = new Map<number, any>();
+        for (const p of profileRows) {
+          if (userMap.has(p.userId)) {
+            const existing = userMap.get(p.userId);
+            existing.matchesPlayed += p.matchesPlayed;
+            existing.matchesWon += p.matchesWon;
+            if (!existing._clubNames.includes(p.clubName)) {
+              existing._clubNames.push(p.clubName);
+              existing.clubName = existing._clubNames.join(", ");
+            }
+            if (!existing.clubCity && p.clubCity) existing.clubCity = p.clubCity;
+            if (!existing.clubCountry && p.clubCountry) existing.clubCountry = p.clubCountry;
+          } else {
+            userMap.set(p.userId, { ...p, _clubNames: [p.clubName] });
+          }
+        }
+        const rankings = [...userMap.values()]
+          .map(({ _clubNames, ...rest }: any) => rest)
+          .sort((a: any, b: any) => {
+            if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+            const bPct = b.matchesPlayed > 0 ? b.matchesWon / b.matchesPlayed : 0;
+            const aPct = a.matchesPlayed > 0 ? a.matchesWon / a.matchesPlayed : 0;
+            if (bPct !== aPct) return bPct - aPct;
+            return b.matchesPlayed - a.matchesPlayed;
+          });
+        return res.json(rankings);
+      }
+
+      res.json(profileRows);
     } catch (err: any) {
       console.error("Error fetching global rankings:", err);
       res.status(500).json({ message: "Failed to fetch rankings" });
