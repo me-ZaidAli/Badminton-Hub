@@ -10,14 +10,14 @@
   --font-body: 'Plus Jakarta Sans', sans-serif;
 
   /* Vibrant Blue-Green Sports Theme */
-  --background: 210 40% 98%;
+  --background: 0 0% 100%;
   --foreground: 222 47% 11%;
   
   --primary: 200 98% 39%;     /* Deep Sport Blue */
-  --primary-foreground: 210 40% 98%;
+  --primary-foreground: 0 0% 100%;
   
   --secondary: 160 84% 39%;   /* Court Green */
-  --secondary-foreground: 210 40% 98%;
+  --secondary-foreground: 0 0% 100%;
   
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
@@ -26,7 +26,17 @@
   --accent-foreground: 222 47% 11%;
   
   --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive-foreground: 0 0% 100%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 214 32% 91%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 214 32% 91%;
+
+  --sidebar-background: 0 0% 100%;
 
   --border: 214 32% 91%;
   --input: 214 32% 91%;
@@ -53,6 +63,16 @@
   
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
+
+  --card: 222 47% 14%;
+  --card-foreground: 210 40% 98%;
+  --card-border: 217 33% 17%;
+
+  --popover: 222 47% 14%;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 217 33% 17%;
+
+  --sidebar-background: 222 47% 14%;
   
   --border: 217 33% 17%;
   --input: 217 33% 17%;
