@@ -334,6 +334,79 @@ export function setupAuth(app: Express) {
     res.json(pendingResets);
   });
 
+  app.post("/api/admin/generate-reset", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      const user = await storage.getUserByUsername(email);
+      if (!user) {
+        return res.status(404).json({ message: "No user found with that email address" });
+      }
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.update(users).set({
+        passwordResetToken: token,
+        passwordResetExpiry: expiry,
+      }).where(eq(users.id, user.id));
+      res.json({ token, fullName: user.fullName, email: user.email, id: user.id });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/admin/set-password", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { userId, password } = req.body;
+      if (!userId || !password) {
+        return res.status(400).json({ message: "User ID and password are required" });
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const hashedPassword = await hashPassword(password);
+      await db.update(users).set({
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      }).where(eq(users.id, userId));
+      res.json({ message: `Password updated successfully for ${user.fullName}` });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get("/api/admin/search-users", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const q = (req.query.q as string || "").trim().toLowerCase();
+    if (q.length < 2) {
+      return res.json([]);
+    }
+    const allUsers = await db.select({
+      id: users.id,
+      fullName: users.fullName,
+      email: users.email,
+      role: users.role,
+    }).from(users);
+    const filtered = allUsers.filter(u =>
+      u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    ).slice(0, 20);
+    res.json(filtered);
+  });
+
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: User | false, info: { message?: string }) => {
       if (err) return next(err);
