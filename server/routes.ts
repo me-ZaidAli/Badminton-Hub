@@ -3708,7 +3708,7 @@ export async function registerRoutes(
       const adminProfiles = profiles.filter(
         (p) =>
           p.membershipStatus === "APPROVED" &&
-          ["ADMIN", "ORGANISER"].includes(p.clubRole)
+          ["ADMIN", "ORGANISER", "COACH"].includes(p.clubRole)
       );
       if (adminProfiles.length === 0) return res.sendStatus(403);
       accessibleClubIds = adminProfiles.map((p) => p.clubId);

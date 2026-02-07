@@ -101,7 +101,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
     return null;
   }
 
-  const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER";
+  const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER" || user.role === "COACH";
   if (!isAdmin) {
     setLocation("/dashboard");
     return null;
@@ -298,7 +298,7 @@ function Router() {
         <OwnerRoute component={Analytics} />
       </Route>
       <Route path="/admin/rankings">
-        <OwnerRoute component={AdminRankings} />
+        <AdminRoute component={AdminRankings} />
       </Route>
       <Route path="/admin/import-members">
         <OwnerRoute component={MemberImport} />

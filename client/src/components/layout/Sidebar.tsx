@@ -67,6 +67,10 @@ export function Sidebar() {
   navItems.push({ href: "/explore/coaches", label: "Coaches", icon: GraduationCap });
   navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
 
+  if (isSuperAdmin || isAdmin || isOrganiser || user?.role === "COACH" || hasClubAdminAccess) {
+    navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
+  }
+
   if (user?.role === "OWNER") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
@@ -76,7 +80,6 @@ export function Sidebar() {
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound });
     navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
-    navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
   }
@@ -184,6 +187,10 @@ export function MobileNav() {
   // Show Venues to platform super admins, club owners, or club admins
   if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
     navItems.push({ href: "/admin/venues", icon: MapPin });
+  }
+
+  if (isSuperAdmin || isAdmin || isOrganiser || user?.role === "COACH" || hasClubAdminAccess) {
+    navItems.push({ href: "/admin/rankings", icon: Trophy });
   }
 
   if (isSuperAdmin) {
