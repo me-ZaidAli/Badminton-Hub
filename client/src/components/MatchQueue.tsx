@@ -149,32 +149,19 @@ export function MatchQueue({
                 return (
                   <div
                     key={match.id}
-                    className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border/50"
+                    className="p-3 sm:p-4 bg-muted/30 rounded-lg border border-border/50"
                     data-testid={`queue-match-${match.id}`}
                   >
-                    <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0 mt-1">
-                      {index + 1}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
-                          Play to {matchTarget}
-                        </Badge>
-                        {isOrganiser && (
-                          <select
-                            className="border rounded px-1 py-0.5 text-xs bg-background"
-                            value={matchTarget}
-                            onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
-                            data-testid={`select-queue-target-${match.id}`}
-                          >
-                            {[7, 11, 15, 21, 25, 30].map(v => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
-                          </select>
-                        )}
+                    {/* --- MOBILE LAYOUT (< sm) --- */}
+                    <div className="sm:hidden">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0">
+                          {index + 1}
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium">Match {index + 1}</span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 mb-1">
+
+                      <div className="flex items-center justify-center gap-2 mb-1.5">
                         <PlayerBadge
                           player={match.teamAPlayer1}
                           position="teamAPlayer1Id"
@@ -184,23 +171,22 @@ export function MatchQueue({
                           onSwap={onSwapPlayer}
                         />
                         {match.teamAPlayer2 && (
-                          <>
-                            <span className="text-muted-foreground">&</span>
-                            <PlayerBadge
-                              player={match.teamAPlayer2}
-                              position="teamAPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                            />
-                          </>
+                          <PlayerBadge
+                            player={match.teamAPlayer2}
+                            position="teamAPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                          />
                         )}
                       </div>
-                      <div className="flex items-center gap-1 text-muted-foreground text-xs my-1">
-                        <span>vs</span>
+
+                      <div className="flex items-center justify-center my-1">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">VS</span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1">
+
+                      <div className="flex items-center justify-center gap-2 mt-1.5">
                         <PlayerBadge
                           player={match.teamBPlayer1}
                           position="teamBPlayer1Id"
@@ -210,31 +196,26 @@ export function MatchQueue({
                           onSwap={onSwapPlayer}
                         />
                         {match.teamBPlayer2 && (
-                          <>
-                            <span className="text-muted-foreground">&</span>
-                            <PlayerBadge
-                              player={match.teamBPlayer2}
-                              position="teamBPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                            />
-                          </>
+                          <PlayerBadge
+                            player={match.teamBPlayer2}
+                            position="teamBPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                          />
                         )}
                       </div>
-                    </div>
 
-                    <div className="flex flex-col items-end gap-2 shrink-0">
                       {isOrganiser && availableCourts.length > 0 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center justify-center gap-1.5 mt-3">
                           {availableCourts.slice(0, 2).map(court => (
                             <Button
                               key={court}
                               size="sm"
                               variant="outline"
                               onClick={() => onAssignToCourt(match.id, court)}
-                              className="gap-1"
+                              className="gap-1 text-xs"
                               data-testid={`button-assign-${match.id}-court-${court}`}
                             >
                               <ArrowRight className="w-3 h-3" />
@@ -243,29 +224,168 @@ export function MatchQueue({
                           ))}
                         </div>
                       )}
-                      {isOrganiser && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-${match.id}`}
-                            title="Reshuffle players"
-                          >
-                            <Shuffle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setDeleteConfirm(match)}
-                            data-testid={`button-delete-queued-${match.id}`}
-                            title="Remove match"
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+
+                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
+                            Play to {matchTarget}
+                          </Badge>
+                          {isOrganiser && (
+                            <select
+                              className="border rounded px-1 py-0.5 text-xs bg-background"
+                              value={matchTarget}
+                              onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
+                              data-testid={`select-queue-target-${match.id}`}
+                            >
+                              {[7, 11, 15, 21, 25, 30].map(v => (
+                                <option key={v} value={v}>{v}</option>
+                              ))}
+                            </select>
+                          )}
                         </div>
-                      )}
+                        {isOrganiser && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-${match.id}`}
+                              title="Reshuffle players"
+                            >
+                              <Shuffle className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteConfirm(match)}
+                              data-testid={`button-delete-queued-${match.id}`}
+                              title="Remove match"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* --- DESKTOP/TABLET LAYOUT (>= sm) --- */}
+                    <div className="hidden sm:flex items-start gap-3">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0 mt-1">
+                        {index + 1}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs" data-testid={`badge-queue-target-${match.id}`}>
+                            Play to {matchTarget}
+                          </Badge>
+                          {isOrganiser && (
+                            <select
+                              className="border rounded px-1 py-0.5 text-xs bg-background"
+                              value={matchTarget}
+                              onChange={(e) => updateTarget({ matchId: match.id, pointsToPlayTo: Number(e.target.value) })}
+                              data-testid={`select-queue-target-${match.id}`}
+                            >
+                              {[7, 11, 15, 21, 25, 30].map(v => (
+                                <option key={v} value={v}>{v}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 mb-1">
+                          <PlayerBadge
+                            player={match.teamAPlayer1}
+                            position="teamAPlayer1Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                          />
+                          {match.teamAPlayer2 && (
+                            <>
+                              <span className="text-muted-foreground">&</span>
+                              <PlayerBadge
+                                player={match.teamAPlayer2}
+                                position="teamAPlayer2Id"
+                                matchId={match.id}
+                                availablePlayers={availablePlayers}
+                                isOrganiser={isOrganiser}
+                                onSwap={onSwapPlayer}
+                              />
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-muted-foreground text-xs my-1">
+                          <span>vs</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <PlayerBadge
+                            player={match.teamBPlayer1}
+                            position="teamBPlayer1Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                          />
+                          {match.teamBPlayer2 && (
+                            <>
+                              <span className="text-muted-foreground">&</span>
+                              <PlayerBadge
+                                player={match.teamBPlayer2}
+                                position="teamBPlayer2Id"
+                                matchId={match.id}
+                                availablePlayers={availablePlayers}
+                                isOrganiser={isOrganiser}
+                                onSwap={onSwapPlayer}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        {isOrganiser && availableCourts.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            {availableCourts.slice(0, 2).map(court => (
+                              <Button
+                                key={court}
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onAssignToCourt(match.id, court)}
+                                className="gap-1"
+                                data-testid={`button-assign-${match.id}-court-${court}`}
+                              >
+                                <ArrowRight className="w-3 h-3" />
+                                Court {court}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        {isOrganiser && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-${match.id}`}
+                              title="Reshuffle players"
+                            >
+                              <Shuffle className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteConfirm(match)}
+                              data-testid={`button-delete-queued-${match.id}`}
+                              title="Remove match"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
