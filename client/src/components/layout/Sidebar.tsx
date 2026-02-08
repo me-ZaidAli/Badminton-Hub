@@ -56,7 +56,7 @@ function useNavItems() {
     { href: "/rankings", label: "Rankings", icon: Activity },
   ];
 
-  if (isSuperAdmin || isClubOwner) {
+  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
     navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
   }
 
