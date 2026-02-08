@@ -48,7 +48,6 @@ import MemberImport from "@/pages/admin/MemberImport";
 import UserApproval from "@/pages/admin/UserApproval";
 import ClubManagement from "@/pages/admin/ClubManagement";
 import ClubApprovals from "@/pages/admin/ClubApprovals";
-import ClubAdmins from "@/pages/admin/ClubAdmins";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Analytics from "@/pages/admin/Analytics";
 import AdminRankings from "@/pages/admin/AdminRankings";
@@ -287,9 +286,6 @@ function Router() {
       </Route>
       <Route path="/admin/club-approvals">
         <OwnerRoute component={ClubApprovals} />
-      </Route>
-      <Route path="/admin/club-admins">
-        <OwnerRoute component={ClubAdmins} />
       </Route>
       <Route path="/admin/venues">
         <PrivateRoute component={Venues} />

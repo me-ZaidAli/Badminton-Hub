@@ -15,7 +15,6 @@ import {
   Building2,
   MapPin,
   Home,
-  UserCog,
   FolderKanban,
   Upload,
   BarChart3,
@@ -80,7 +79,6 @@ function useNavItems() {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
-    navItems.push({ href: "/admin/club-admins", label: "Club Admins", icon: UserCog });
     navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound });
     navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail });
