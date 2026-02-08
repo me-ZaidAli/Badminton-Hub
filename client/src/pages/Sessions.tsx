@@ -249,6 +249,11 @@ export default function Sessions() {
                       <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
                         {session.matchMode}
                       </Badge>
+                      {clubs?.find(c => c.id === session.clubId)?.name && (
+                        <Badge variant="outline" className="text-xs">
+                          {clubs.find(c => c.id === session.clubId)!.name}
+                        </Badge>
+                      )}
                       {session.playersPerSide === 1 && (
                         <Badge variant="outline">Singles</Badge>
                       )}
