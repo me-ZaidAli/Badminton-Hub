@@ -3499,7 +3499,7 @@ export async function registerRoutes(
         membershipStatus: "APPROVED",
       });
 
-      await storage.addPlayerToSession(sessionId, newProfile.id, session.sessionFee || 0);
+      await storage.createSessionSignup(sessionId, newProfile.id, session.sessionFee || 0);
 
       res.status(201).json({ userId: newUser.id, profileId: newProfile.id, fullName });
     } catch (err: any) {
