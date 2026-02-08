@@ -1124,9 +1124,10 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive } = req.body;
 
       const updates: any = {};
+      if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
       if (clubId !== undefined && clubId !== session.clubId) {
         if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Only platform owners can reassign sessions to another club" });
         const targetClub = await storage.getClub(clubId);
@@ -2011,7 +2012,16 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only session participants or admins can generate matches" });
       }
 
-      const { mode, queueTargetSize, genderType } = req.body;
+      if (session.status === "COMPLETED") {
+        return res.status(400).json({ message: "Cannot generate matches for a completed session" });
+      }
+
+      const { mode, queueTargetSize, genderType, isAutoGenerate } = req.body;
+
+      if (isAutoGenerate && !session.autoGenerateActive) {
+        return res.status(400).json({ message: "Auto-generation is stopped for this session" });
+      }
+
       const matchMode = mode || session.matchMode || "SOCIAL";
       const playersPerSide = session.playersPerSide || 2;
       const playersPerMatch = playersPerSide * 2;
@@ -2090,6 +2100,42 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error smart-generating matches:", err);
       res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
+  // === Stop All Matches - Delete queued, freeze live ===
+  app.post("/api/sessions/:sessionId/matches/stop-all", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Only admins and organisers can stop all matches" });
+      }
+
+      await storage.updateSession(sessionId, { autoGenerateActive: false });
+
+      const allMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = allMatches.filter(m => m.status === "QUEUED");
+      const liveMatches = allMatches.filter(m => m.status === "LIVE");
+
+      for (const m of queuedMatches) {
+        await storage.deleteMatch(m.id);
+      }
+
+      res.json({
+        deletedQueued: queuedMatches.length,
+        frozenLive: liveMatches.length,
+        liveMatchIds: liveMatches.map(m => m.id),
+        frozenMatches: liveMatches,
+      });
+    } catch (err: any) {
+      console.error("Error stopping all matches:", err);
+      res.status(500).json({ message: err.message || "Failed to stop all matches" });
     }
   });
 

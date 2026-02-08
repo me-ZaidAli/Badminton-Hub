@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useAutoGenerateMatches, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -20,7 +20,7 @@ import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -491,6 +491,8 @@ export default function SessionDetail() {
         playersPerSide={session.playersPerSide}
         matchGenderType={session.matchGenderType}
         defaultPointsToPlayTo={(session as any).defaultPointsToPlayTo || 21}
+        sessionStatus={session.status || "UPCOMING"}
+        autoGenerateActive={(session as any).autoGenerateActive || false}
       />
 
       <div className="space-y-6">
@@ -854,7 +856,7 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21 }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
@@ -865,15 +867,17 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   playersPerSide: number;
   matchGenderType: string;
   defaultPointsToPlayTo?: number;
+  sessionStatus: string;
+  autoGenerateActive: boolean;
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
   const { mutateAsync: completeMatch } = useCompleteMatch();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: updateMatchTarget } = useUpdateMatchTarget();
-  const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();
   const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
   const { mutate: updateSession } = useUpdateSession();
+  const { mutate: stopAllMatches, isPending: isStoppingAll } = useStopAllMatches();
   const queryClient = useQueryClient();
 
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
@@ -881,20 +885,30 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
   const [queueTargetSize, setQueueTargetSize] = useState(3);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
-  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
   const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
+  const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
+  const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
+  const [forcedMatches, setForcedMatches] = useState<CourtMatch[]>([]);
+  const [fcWinner, setFcWinner] = useState<"A" | "B" | null>(null);
+  const [fcWinnerScore, setFcWinnerScore] = useState("");
+  const [fcLoserScore, setFcLoserScore] = useState("");
+  const [fcStep, setFcStep] = useState<1 | 2 | 3 | 4>(1);
+  const [fcSubmitting, setFcSubmitting] = useState(false);
+  const [fcShowSuccess, setFcShowSuccess] = useState(false);
+
+  const isSessionCompleted = sessionStatus === "COMPLETED";
 
   useEffect(() => {
     setCourtNamesState(initialCourtNames || []);
   }, [initialCourtNames]);
 
   useEffect(() => {
-    if (!isAutoGenerating) return;
+    if (!autoGenerateActive || !isOrganiser) return;
     const interval = setInterval(() => {
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true });
     }, 8000);
     return () => clearInterval(interval);
-  }, [isAutoGenerating, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
+  }, [autoGenerateActive, isOrganiser, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -926,7 +940,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
   const queuedMatches = typedMatches.filter(m => m.status === "QUEUED");
-  const completedCount = typedMatches.filter(m => m.status === "COMPLETED").length;
+  const completedMatches = typedMatches.filter(m => m.status === "COMPLETED");
+  const completedCount = completedMatches.length;
   
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
@@ -943,26 +958,161 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const handleStartAutoGenerate = () => {
-    setIsAutoGenerating(true);
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+    updateSession({ sessionId, updates: { autoGenerateActive: true } });
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true });
   };
 
   const handleStopAutoGenerate = () => {
-    setIsAutoGenerating(false);
+    updateSession({ sessionId, updates: { autoGenerateActive: false } });
   };
+
+  const handleStopAllMatches = () => {
+    stopAllMatches({ sessionId }, {
+      onSuccess: (data: any) => {
+        if (data.frozenLive > 0 && data.frozenMatches?.length > 0) {
+          const mapped: CourtMatch[] = data.frozenMatches.map((m: any) => ({
+            id: m.id,
+            courtNumber: m.courtNumber,
+            status: m.status || "LIVE",
+            teamAPlayer1: m.teamAPlayer1,
+            teamAPlayer2: m.teamAPlayer2,
+            teamBPlayer1: m.teamBPlayer1,
+            teamBPlayer2: m.teamBPlayer2,
+            scoreA: m.scoreA,
+            scoreB: m.scoreB,
+            startedAt: m.startedAt,
+            completedAt: m.completedAt,
+            queuePosition: m.queuePosition,
+            pointsToPlayTo: m.pointsToPlayTo,
+          }));
+          const sorted = mapped.sort((a: CourtMatch, b: CourtMatch) => {
+            const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+            const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+            return aTime - bTime;
+          });
+          setForcedMatches(sorted);
+          setForcedCompletionIndex(0);
+          setForcedCompletionActive(true);
+          resetFcFlow();
+        }
+      }
+    });
+  };
+
+  const resetFcFlow = () => {
+    setFcWinner(null);
+    setFcWinnerScore("");
+    setFcLoserScore("");
+    setFcStep(1);
+    setFcShowSuccess(false);
+  };
+
+  const getCurrentForcedMatch = () => {
+    if (!forcedCompletionActive || forcedCompletionIndex >= forcedMatches.length) return null;
+    return forcedMatches[forcedCompletionIndex];
+  };
+
+  const handleFcConfirm = async () => {
+    const match = getCurrentForcedMatch();
+    if (!match || !fcWinner || !fcWinnerScore || !fcLoserScore) return;
+    const wScore = Number(fcWinnerScore);
+    const lScore = Number(fcLoserScore);
+    if (isNaN(wScore) || isNaN(lScore) || wScore < 0 || lScore < 0) return;
+    if (wScore <= lScore) return;
+    const sA = fcWinner === "A" ? wScore : lScore;
+    const sB = fcWinner === "B" ? wScore : lScore;
+    setFcSubmitting(true);
+    try {
+      await completeMatch({ matchId: match.id, scoreA: sA, scoreB: sB });
+      setFcShowSuccess(true);
+      setTimeout(() => {
+        setFcShowSuccess(false);
+        const nextIndex = forcedCompletionIndex + 1;
+        if (nextIndex >= forcedMatches.length) {
+          setForcedCompletionActive(false);
+          setEndSessionModalOpen(true);
+        } else {
+          setForcedCompletionIndex(nextIndex);
+          resetFcFlow();
+        }
+      }, 1500);
+    } catch {
+    } finally {
+      setFcSubmitting(false);
+    }
+  };
+
+  const fcMatch = getCurrentForcedMatch();
+  const fcGetTeamALabel = () => {
+    if (!fcMatch) return "Team A";
+    const p1 = fcMatch.teamAPlayer1?.user?.fullName || "Player 1";
+    const p2 = fcMatch.teamAPlayer2?.user?.fullName;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
+  const fcGetTeamBLabel = () => {
+    if (!fcMatch) return "Team B";
+    const p1 = fcMatch.teamBPlayer1?.user?.fullName || "Player 1";
+    const p2 = fcMatch.teamBPlayer2?.user?.fullName;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
+  const fcGetWinnerLabel = () => fcWinner === "A" ? fcGetTeamALabel() : fcGetTeamBLabel();
+  const fcGetLoserLabel = () => fcWinner === "A" ? fcGetTeamBLabel() : fcGetTeamALabel();
+
+  if (isSessionCompleted) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="pt-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-completed-matches-title">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  Matches Played ({completedCount})
+                </h3>
+                {completedMatches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No matches were played in this session</p>
+                ) : (
+                  <div className="space-y-3">
+                    {completedMatches.map(m => (
+                      <div key={m.id} className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30" data-testid={`completed-match-${m.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className={`font-medium ${(m.scoreA ?? 0) > (m.scoreB ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
+                              {m.teamAPlayer1?.user?.fullName}{m.teamAPlayer2 ? ` & ${m.teamAPlayer2.user?.fullName}` : ""}
+                            </span>
+                            <Badge variant="secondary" className="text-xs">{m.scoreA ?? 0}</Badge>
+                            <span className="text-muted-foreground">vs</span>
+                            <Badge variant="secondary" className="text-xs">{m.scoreB ?? 0}</Badge>
+                            <span className={`font-medium ${(m.scoreB ?? 0) > (m.scoreA ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
+                              {m.teamBPlayer1?.user?.fullName}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2.user?.fullName}` : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="xl:sticky xl:top-4 xl:self-start">
+            <SessionLiveLeaderboard sessionId={sessionId} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Control Bar */}
       {(isOrganiser || isSignedUp) && (
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
-              {/* Top row: Mode toggle + Courts */}
               <div className="flex justify-between items-center flex-wrap gap-4">
                 {isOrganiser && (
                   <div className="flex items-center gap-4 flex-wrap">
-                    {/* Mode Toggle */}
                     <div className="flex items-center gap-2" data-testid="mode-toggle-container">
                       <Label className="text-sm font-medium">Mode:</Label>
                       <div className="flex items-center gap-2 rounded-md border p-1">
@@ -985,7 +1135,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                       </div>
                     </div>
 
-                    {/* Courts Control */}
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Courts:</span>
                       <div className="flex items-center gap-1">
@@ -1015,7 +1164,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                   </div>
                 )}
 
-                {/* Session Stats */}
                 <div className="flex items-center gap-3 flex-wrap">
                   <Badge variant="outline" data-testid="badge-live-count">
                     {liveMatches.length} Live
@@ -1029,10 +1177,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                 </div>
               </div>
 
-              {/* Bottom row: Generation controls */}
               {isOrganiser && (
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Queue Target */}
                   <div className="flex items-center gap-2">
                     <Label className="text-sm whitespace-nowrap">Queue Size:</Label>
                     <Select value={String(queueTargetSize)} onValueChange={(v) => setQueueTargetSize(Number(v))}>
@@ -1048,7 +1194,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     </Select>
                   </div>
 
-                  {/* Gender Type */}
                   <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
                     <SelectTrigger className="w-[120px]" data-testid="select-generate-gender-type">
                       <SelectValue />
@@ -1060,8 +1205,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     </SelectContent>
                   </Select>
 
-                  {/* Generate / Stop Buttons */}
-                  {!isAutoGenerating ? (
+                  {!autoGenerateActive ? (
                     <>
                       <Button 
                         onClick={handleSmartGenerate}
@@ -1090,15 +1234,26 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                       data-testid="button-stop-generating"
                     >
                       <X className="w-4 h-4" />
-                      Stop Generating
+                      Stop Auto-Generated Matches
                     </Button>
                   )}
 
-                  {/* End Session */}
+                  <Button
+                    variant="destructive"
+                    className="gap-2"
+                    onClick={handleStopAllMatches}
+                    disabled={isStoppingAll || (liveMatches.length === 0 && queuedMatches.length === 0)}
+                    data-testid="button-stop-all-matches"
+                  >
+                    <OctagonX className="w-4 h-4" />
+                    {isStoppingAll ? "Stopping..." : "Stop All Matches"}
+                  </Button>
+
                   <Button 
                     variant="outline"
                     className="gap-2 ml-auto"
                     onClick={() => setEndSessionModalOpen(true)}
+                    disabled={liveMatches.length > 0}
                     data-testid="button-end-session"
                   >
                     <Trophy className="w-4 h-4" />
@@ -1111,18 +1266,15 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         </Card>
       )}
 
-      {/* Auto-generating indicator */}
-      {isAutoGenerating && (
+      {autoGenerateActive && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2" data-testid="auto-generate-indicator">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
         </div>
       )}
 
-      {/* Main content: Courts + Leaderboard side by side */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
         <div className="space-y-6">
-          {/* Live Courts */}
           <div>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-primary" />
@@ -1152,7 +1304,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
             </div>
           </div>
 
-          {/* Match Queue + Completed */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <MatchQueue
               matches={typedMatches}
@@ -1169,22 +1320,157 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
           </div>
         </div>
 
-        {/* Always-visible Session Leaderboard */}
         <div className="xl:sticky xl:top-4 xl:self-start">
           <SessionLiveLeaderboard sessionId={sessionId} />
         </div>
       </div>
 
-      {/* End Session Leaderboard Modal */}
       <EndSessionLeaderboardModal 
         sessionId={sessionId} 
         open={endSessionModalOpen} 
         onClose={() => setEndSessionModalOpen(false)}
         onEndSession={() => {
-          updateSession({ sessionId, updates: { status: "COMPLETED" } });
-          setIsAutoGenerating(false);
+          updateSession({ sessionId, updates: { status: "COMPLETED", autoGenerateActive: false } });
         }}
       />
+
+      <Dialog open={forcedCompletionActive && !!fcMatch} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>
+              {fcShowSuccess ? "Score Saved" : fcStep === 1 ? "Who won the match?" : fcStep === 2 ? "Winning team score" : fcStep === 3 ? "Losing team score" : "Confirm match result"}
+            </DialogTitle>
+            <DialogDescription>
+              Complete match {forcedCompletionIndex + 1} of {forcedMatches.length} — all live matches must be scored
+            </DialogDescription>
+          </DialogHeader>
+
+          {fcShowSuccess ? (
+            <div className="py-8 text-center space-y-3">
+              <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+              <p className="text-lg font-medium">Score saved. {forcedCompletionIndex + 1 < forcedMatches.length ? "Moving to next match..." : "All matches completed."}</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                {[1, 2, 3, 4].map((s) => (
+                  <div
+                    key={s}
+                    className={`w-8 h-1 rounded-full ${s <= fcStep ? "bg-primary" : "bg-muted"}`}
+                  />
+                ))}
+              </div>
+
+              {fcStep === 1 && (
+                <div className="space-y-3 py-4">
+                  <Button
+                    variant={fcWinner === "A" ? "default" : "outline"}
+                    className="w-full justify-start gap-3"
+                    onClick={() => setFcWinner("A")}
+                    data-testid="fc-button-winner-a"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    {fcGetTeamALabel()}
+                  </Button>
+                  <Button
+                    variant={fcWinner === "B" ? "default" : "outline"}
+                    className="w-full justify-start gap-3"
+                    onClick={() => setFcWinner("B")}
+                    data-testid="fc-button-winner-b"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    {fcGetTeamBLabel()}
+                  </Button>
+                  <Button
+                    className="w-full gap-2 mt-2"
+                    disabled={!fcWinner}
+                    onClick={() => setFcStep(2)}
+                    data-testid="fc-button-next-step1"
+                  >
+                    Next <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {fcStep === 2 && (
+                <div className="space-y-3 py-4">
+                  <Label className="text-sm text-muted-foreground">{fcGetWinnerLabel()} scored:</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={fcWinnerScore}
+                    onChange={(e) => setFcWinnerScore(e.target.value)}
+                    placeholder="Enter score"
+                    className="text-center text-2xl"
+                    data-testid="fc-input-winner-score"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setFcStep(1)} data-testid="fc-button-back-step2">
+                      <RotateCcw className="w-4 h-4" /> Back
+                    </Button>
+                    <Button className="flex-1 gap-2" disabled={!fcWinnerScore} onClick={() => setFcStep(3)} data-testid="fc-button-next-step2">
+                      Next <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {fcStep === 3 && (
+                <div className="space-y-3 py-4">
+                  <Label className="text-sm text-muted-foreground">{fcGetLoserLabel()} scored:</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={fcLoserScore}
+                    onChange={(e) => setFcLoserScore(e.target.value)}
+                    placeholder="Enter score"
+                    className="text-center text-2xl"
+                    data-testid="fc-input-loser-score"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setFcStep(2)} data-testid="fc-button-back-step3">
+                      <RotateCcw className="w-4 h-4" /> Back
+                    </Button>
+                    <Button className="flex-1 gap-2" disabled={!fcLoserScore} onClick={() => setFcStep(4)} data-testid="fc-button-next-step3">
+                      Next <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {fcStep === 4 && (
+                <div className="space-y-4 py-4">
+                  <div className="bg-muted/50 rounded-md p-4 text-center space-y-2">
+                    <div className="text-sm text-muted-foreground">Winner</div>
+                    <div className="font-semibold">{fcGetWinnerLabel()}</div>
+                    <div className="text-3xl font-bold">{fcWinnerScore} - {fcLoserScore}</div>
+                    <div className="text-sm text-muted-foreground">{fcGetLoserLabel()}</div>
+                  </div>
+                  {Number(fcWinnerScore) <= Number(fcLoserScore) && (
+                    <p className="text-sm text-destructive text-center">Winner's score must be higher than the losing team's score</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={resetFcFlow} data-testid="fc-button-amend">
+                      <RotateCcw className="w-4 h-4" /> Amend
+                    </Button>
+                    <Button
+                      className="flex-1 gap-2"
+                      disabled={fcSubmitting || Number(fcWinnerScore) <= Number(fcLoserScore)}
+                      onClick={handleFcConfirm}
+                      data-testid="fc-button-save"
+                    >
+                      {fcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      {forcedCompletionIndex + 1 < forcedMatches.length ? "Save & Next Match" : "Save Result"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -164,6 +164,7 @@ export const sessions = pgTable("sessions", {
   courtNames: jsonb("court_names").$type<string[]>(),
   liveStreamUrl: text("live_stream_url"),
   defaultPointsToPlayTo: integer("default_points_to_play_to").default(21),
+  autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
 });
 
 // === SESSION SIGNUPS ===

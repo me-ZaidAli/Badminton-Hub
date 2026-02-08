@@ -156,11 +156,11 @@ export function useSmartGenerateMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, mode, queueTargetSize, genderType }: { sessionId: number; mode: "SOCIAL" | "COMPETITIVE"; queueTargetSize: number; genderType?: string }) => {
+    mutationFn: async ({ sessionId, mode, queueTargetSize, genderType, isAutoGenerate }: { sessionId: number; mode: "SOCIAL" | "COMPETITIVE"; queueTargetSize: number; genderType?: string; isAutoGenerate?: boolean }) => {
       const res = await fetch(`/api/sessions/${sessionId}/matches/smart-generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, queueTargetSize, genderType }),
+        body: JSON.stringify({ mode, queueTargetSize, genderType, isAutoGenerate }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -374,6 +374,34 @@ export function useDeleteMatch() {
     },
     onError: (error: Error) => {
       toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useStopAllMatches() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/stop-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to stop all matches");
+      }
+      return res.json();
+    },
+    onSuccess: (data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+      toast({ title: "All Matches Stopped", description: `${data.deletedQueued} queued matches removed. ${data.frozenLive} live matches need score entry.` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Stop Failed", description: error.message, variant: "destructive" });
     },
   });
 }
