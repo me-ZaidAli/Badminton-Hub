@@ -26,14 +26,23 @@ import {
   KeyRound,
   Menu,
   X,
-  User
+  User,
+  Zap,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-function useNavItems() {
+interface NavItem {
+  href: string;
+  label: string;
+  icon: any;
+  section?: string;
+}
+
+function useNavItems(): NavItem[] {
   const { data: user } = useUser();
   const { data: clubs } = useClubs();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
@@ -45,7 +54,7 @@ function useNavItems() {
   const isClubOwner = ownedClubs.length > 0;
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
-  const navItems = isOrganiser ? [
+  const navItems: NavItem[] = isOrganiser ? [
     { href: "/", label: "Home", icon: Home },
     { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
@@ -85,6 +94,11 @@ function useNavItems() {
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
+
+    navItems.push({ href: "/super-admin", label: "Super Admin", icon: Shield, section: "super-admin" });
+    navItems.push({ href: "/super-admin/users", label: "Users Control", icon: Users, section: "super-admin" });
+    navItems.push({ href: "/super-admin/clubs", label: "Clubs Control", icon: Building2, section: "super-admin" });
+    navItems.push({ href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, section: "super-admin" });
   }
 
   return navItems;
@@ -115,22 +129,34 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.map((item, idx) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+          const prevItem = idx > 0 ? navItems[idx - 1] : null;
+          const showSectionDivider = item.section === "super-admin" && prevItem?.section !== "super-admin";
           return (
-            <Link key={item.href} href={item.href}>
-              <div 
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
-                  isActive 
-                    ? "bg-primary/10 text-primary shadow-sm" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-                {item.label}
-              </div>
-            </Link>
+            <div key={item.href}>
+              {showSectionDivider && (
+                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5" data-testid="label-super-admin-section">
+                    <Zap className="w-3 h-3" /> Super Admin
+                  </span>
+                </div>
+              )}
+              <Link href={item.href}>
+                <div 
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
+                    isActive 
+                      ? "bg-primary/10 text-primary shadow-sm" 
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    item.section === "super-admin" && !isActive && "text-muted-foreground/80"
+                  )}
+                >
+                  <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                  {item.label}
+                </div>
+              </Link>
+            </div>
           );
         })}
       </nav>

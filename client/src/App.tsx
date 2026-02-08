@@ -40,6 +40,12 @@ import JoinCoachSeeker from "@/pages/JoinCoachSeeker";
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 
+// Super Admin Pages
+import SuperAdminDashboard from "@/pages/super-admin/SuperAdminDashboard";
+import SuperAdminUsers from "@/pages/super-admin/SuperAdminUsers";
+import SuperAdminClubs from "@/pages/super-admin/SuperAdminClubs";
+import SuperAdminSessions from "@/pages/super-admin/SuperAdminSessions";
+
 import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import Announcements from "@/pages/admin/Announcements";
@@ -310,6 +316,20 @@ function Router() {
       </Route>
       <Route path="/admin/messages">
         <OwnerRoute component={Messages} />
+      </Route>
+
+      {/* Super Admin Routes - OWNER only */}
+      <Route path="/super-admin">
+        <OwnerRoute component={SuperAdminDashboard} />
+      </Route>
+      <Route path="/super-admin/users">
+        <OwnerRoute component={SuperAdminUsers} />
+      </Route>
+      <Route path="/super-admin/clubs">
+        <OwnerRoute component={SuperAdminClubs} />
+      </Route>
+      <Route path="/super-admin/sessions">
+        <OwnerRoute component={SuperAdminSessions} />
       </Route>
       
       {/* Fallback */}

@@ -40,6 +40,13 @@ Key design patterns include:
 - **Google Maps Integration**: Provides "Open in Google Maps" links for clubs and coaches, with fallbacks for coordinate-based links.
 - **Search & Filtering**: Searchable club dropdowns and location-based filtering (postcode, city) for exploration pages.
 - **Legal Policies System**: In-app legal content for Privacy Policy, Terms & Conditions, and Junior & Parental Consent Policy. Includes policy acceptance logging and support for junior accounts with parental consent.
+- **Super Admin Dashboard**: A dedicated god-mode dashboard (`/super-admin`) for OWNER users only, providing unrestricted global read/write access to all system entities. Includes:
+  - **Dashboard Home** (`/super-admin`): Real-time global stats (users by role, clubs by status, sessions, matches, coaches, revenue), pending actions hub, and quick action links.
+  - **Users Control** (`/super-admin/users`): Global user management with search, role/status/verified filters, pagination, edit modal (all fields including role/status), password reset, and user deletion.
+  - **Clubs Control** (`/super-admin/clubs`): Global club management with search, status filter, approve/reject, ownership transfer, and club deletion.
+  - **Sessions Control** (`/super-admin/sessions`): Global session management with search, status filter, session editing (title/status/players/courts), and session cancellation.
+  - API endpoints: `GET /api/super-admin/stats`, `GET /api/super-admin/sessions`, `PATCH /api/super-admin/sessions/:id`, `PATCH /api/super-admin/matches/:id/score`, `PATCH /api/super-admin/users/:id`, `POST /api/super-admin/users/:id/reset-password`, `PATCH /api/super-admin/clubs/:id/transfer`.
+  - Sidebar shows dedicated "Super Admin" section with red label, visible only to OWNER role users.
 
 ## External Dependencies
 

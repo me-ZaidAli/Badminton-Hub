@@ -4560,5 +4560,258 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================================
+  // === SUPER ADMIN DASHBOARD ENDPOINTS (OWNER only) ===
+  // ============================================================
+
+  app.get("/api/super-admin/stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const allUsers = await db.select().from(users);
+      const allClubs = await storage.getClubs();
+      const allSessions = await storage.getSessions();
+      const allMatches = await db.select().from(matches);
+      const allProfiles = await db.select().from(playerProfiles);
+      const allCoaches = await db.select().from(coaches);
+      const allSignups = await db.select().from(sessionSignups);
+
+      const activeUsers = allUsers.filter(u => !u.closedAt);
+      const usersByRole = {
+        OWNER: activeUsers.filter(u => u.role === "OWNER").length,
+        ADMIN: activeUsers.filter(u => u.role === "ADMIN").length,
+        ORGANISER: activeUsers.filter(u => u.role === "ORGANISER").length,
+        COACH: activeUsers.filter(u => u.role === "COACH").length,
+        PLAYER: activeUsers.filter(u => u.role === "PLAYER").length,
+      };
+
+      const clubsByStatus = {
+        APPROVED: allClubs.filter(c => c.status === "APPROVED").length,
+        PENDING: allClubs.filter(c => c.status === "PENDING").length,
+        REJECTED: allClubs.filter(c => c.status === "REJECTED").length,
+      };
+
+      const activeSessions = allSessions.filter(s => s.status === "ACTIVE" || s.status === "LIVE").length;
+      const upcomingSessions = allSessions.filter(s => s.status === "UPCOMING").length;
+      const completedSessions = allSessions.filter(s => s.status === "COMPLETED").length;
+
+      const pendingJoinRequests = allProfiles.filter(p => p.membershipStatus === "PENDING").length;
+      const pendingUserApprovals = allUsers.filter(u => u.accountStatus === "PENDING" && !u.closedAt).length;
+      const pendingClubApprovals = allClubs.filter(c => c.status === "PENDING").length;
+
+      const liveMatches = allMatches.filter(m => m.status === "LIVE").length;
+      const completedMatches = allMatches.filter(m => m.status === "COMPLETED").length;
+      const totalRevenue = allSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
+      const paidRevenue = allSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+
+      res.json({
+        users: {
+          total: activeUsers.length,
+          byRole: usersByRole,
+          pendingApprovals: pendingUserApprovals,
+          closedAccounts: allUsers.filter(u => !!u.closedAt).length,
+        },
+        clubs: {
+          total: allClubs.length,
+          byStatus: clubsByStatus,
+          pendingApprovals: pendingClubApprovals,
+        },
+        sessions: {
+          total: allSessions.length,
+          active: activeSessions,
+          upcoming: upcomingSessions,
+          completed: completedSessions,
+        },
+        matches: {
+          total: allMatches.length,
+          live: liveMatches,
+          completed: completedMatches,
+        },
+        coaches: {
+          total: allCoaches.length,
+          active: allCoaches.filter(c => !c.isSuspended).length,
+          suspended: allCoaches.filter(c => c.isSuspended).length,
+        },
+        memberships: {
+          totalProfiles: allProfiles.length,
+          approved: allProfiles.filter(p => p.membershipStatus === "APPROVED").length,
+          pending: pendingJoinRequests,
+          rejected: allProfiles.filter(p => p.membershipStatus === "REJECTED").length,
+        },
+        financials: {
+          totalRevenue,
+          paidRevenue,
+          unpaidRevenue: totalRevenue - paidRevenue,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error fetching super admin stats:", err);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/super-admin/sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const allSessions = await storage.getSessions();
+      const allClubs = await storage.getClubs();
+      const clubMap = new Map(allClubs.map(c => [c.id, c]));
+      const allSignups = await db.select().from(sessionSignups);
+      const allMatches = await db.select().from(matches);
+
+      const enriched = allSessions.map(s => {
+        const club = clubMap.get(s.clubId);
+        const sSignups = allSignups.filter(su => su.sessionId === s.id);
+        const sMatches = allMatches.filter(m => m.sessionId === s.id);
+        return {
+          ...s,
+          clubName: club?.name || "Unknown",
+          clubCity: club?.city || null,
+          playerCount: sSignups.length,
+          matchCount: sMatches.length,
+          liveMatchCount: sMatches.filter(m => m.status === "LIVE").length,
+          completedMatchCount: sMatches.filter(m => m.status === "COMPLETED").length,
+        };
+      });
+
+      enriched.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      res.json(enriched);
+    } catch (err: any) {
+      console.error("Error fetching super admin sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  app.patch("/api/super-admin/sessions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const sessionId = parseInt(req.params.id);
+      const { status, title, maxPlayers, courtsAvailable } = req.body;
+      const updateData: Record<string, any> = {};
+      if (status !== undefined) updateData.status = status;
+      if (title !== undefined) updateData.title = title;
+      if (maxPlayers !== undefined) updateData.maxPlayers = maxPlayers;
+      if (courtsAvailable !== undefined) updateData.courtsAvailable = courtsAvailable;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db.update(sessions).set(updateData).where(eq(sessions.id, sessionId)).returning();
+      if (!updated) return res.status(404).json({ message: "Session not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating session:", err);
+      res.status(500).json({ message: "Failed to update session" });
+    }
+  });
+
+  app.patch("/api/super-admin/matches/:id/score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const matchId = parseInt(req.params.id);
+      const { scoreA, scoreB } = req.body;
+      if (scoreA === undefined || scoreB === undefined) {
+        return res.status(400).json({ message: "scoreA and scoreB are required" });
+      }
+
+      const [updated] = await db.update(matches)
+        .set({
+          scoreA,
+          scoreB,
+          scoreUpdatedByUserId: req.user!.id,
+          scoreUpdatedAt: new Date(),
+        })
+        .where(eq(matches.id, matchId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Match not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating match score:", err);
+      res.status(500).json({ message: "Failed to update score" });
+    }
+  });
+
+  app.patch("/api/super-admin/users/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const userId = parseInt(req.params.id);
+      const { role, fullName, email, emailVerified, accountStatus, phone, city, country } = req.body;
+      const updateData: Record<string, any> = {};
+      if (role !== undefined) updateData.role = role;
+      if (fullName !== undefined) updateData.fullName = fullName;
+      if (email !== undefined) updateData.email = email;
+      if (emailVerified !== undefined) updateData.emailVerified = emailVerified;
+      if (accountStatus !== undefined) updateData.accountStatus = accountStatus;
+      if (phone !== undefined) updateData.phone = phone;
+      if (city !== undefined) updateData.city = city;
+      if (country !== undefined) updateData.country = country;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db.update(users).set(updateData).where(eq(users.id, userId)).returning();
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      const { password, passwordResetToken, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (err: any) {
+      console.error("Error updating user:", err);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  app.post("/api/super-admin/users/:id/reset-password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const userId = parseInt(req.params.id);
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      const [updated] = await db.update(users)
+        .set({ passwordResetToken: token, passwordResetExpiry: expiry })
+        .where(eq(users.id, userId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      res.json({ token, resetLink: `/reset-password/${token}` });
+    } catch (err: any) {
+      console.error("Error resetting password:", err);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  app.patch("/api/super-admin/clubs/:id/transfer", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const clubId = parseInt(req.params.id);
+      const { newOwnerId } = req.body;
+      if (!newOwnerId) return res.status(400).json({ message: "newOwnerId required" });
+
+      const [updated] = await db.update(clubs)
+        .set({ ownerId: newOwnerId })
+        .where(eq(clubs.id, clubId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Club not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error transferring club:", err);
+      res.status(500).json({ message: "Failed to transfer club" });
+    }
+  });
+
   return httpServer;
 }
