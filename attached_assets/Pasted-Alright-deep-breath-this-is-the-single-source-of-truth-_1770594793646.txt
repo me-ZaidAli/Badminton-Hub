@@ -1,0 +1,678 @@
+Alright, deep breath — this is the single source of truth for your app going forward.
+What follows is everything merged, no contradictions, no loose ends.
+
+You can:
+
+Hand this to an AI builder
+
+Use it as internal product documentation
+
+Use it to test the app and catch bugs early
+
+
+
+---
+
+🏗 MASTER SYSTEM RULES DOCUMENT
+
+Badminton Club Platform – Roles, Permissions, Pages & Logic
+
+
+---
+
+1. GLOBAL ROLE DEFINITIONS
+
+System Roles (Global)
+
+Super Admin
+
+Admin
+
+Organiser
+
+Coach
+
+Player
+
+
+⚠️ Important principle:
+
+> Admins, organisers, and coaches are also players by default.
+
+
+
+Roles are additive, not exclusive.
+
+
+---
+
+2. CLUB ROLE MODEL (CRITICAL)
+
+Roles are club-specific, not global.
+
+A single user can be:
+
+Owner of Club A
+
+Admin of Club B
+
+Player of Club C
+
+
+These roles must never override each other.
+
+
+---
+
+3. CLUBS SYSTEM RULES
+
+3.1 Club Ownership
+
+The user who creates a club becomes:
+
+Club Owner
+
+
+Owner has full control over:
+
+Admin promotion
+
+Member approvals
+
+Club settings
+
+
+
+
+---
+
+3.2 Club Admins Are Also Players
+
+Club admins:
+
+Appear as players in sessions
+
+Appear in rankings
+
+Can join other clubs as players
+
+
+Admin privileges are in addition to player abilities
+
+
+
+---
+
+3.3 Joining Clubs
+
+Own Club
+
+If user owns the club:
+
+❌ No “Join” button
+
+❌ No join request
+
+Already a member by default
+
+
+Other Clubs
+
+Users (including admins) can:
+
+Submit join request
+
+Request is reviewed by:
+
+Club Owner / Admins
+
+
+
+On acceptance:
+
+User is added as Player only
+
+❌ No automatic admin rights
+
+
+Admin promotion:
+
+Only by club owner
+
+Manual action only
+
+
+
+---
+
+3.4 Multiple Clubs
+
+Unlimited club memberships allowed
+
+Roles are isolated per club
+
+Leaving one club does not affect others
+
+
+
+---
+
+4. CLUBS DASHBOARD (ADMINS)
+
+Access
+
+Admin
+
+Super Admin
+
+
+Location
+
+Menu → Clubs
+
+
+Features
+
+View all clubs
+
+Advanced filters:
+
+Postcode
+
+Address
+
+City
+
+Country
+
+Keywords
+
+Sport
+
+
+See membership status:
+
+Owner
+
+Admin
+
+Player
+
+Pending
+
+
+Request to join clubs (except own)
+
+
+
+---
+
+5. COACHES & FIND A COACH (MERGED)
+
+Pages
+
+❌ Remove: Coaches
+
+✅ Keep: Find a Coach
+
+Single unified page
+
+
+Visibility
+
+Logged-in users only
+
+Not visible to Super Admin view changes
+
+
+
+---
+
+5.1 Coach Listings
+
+Coach cards must show immediately:
+
+Name
+
+Profile photo
+
+Sport(s)
+
+Location
+
+⭐ Average review rating
+
+
+
+---
+
+5.2 Membership Logic
+
+Paid Members (£10/month)
+
+Full coach profiles
+
+Reviews
+
+Contact details
+
+Interactive map
+
+Filters by postcode, distance, map
+
+
+Non-Paid Members
+
+Can search locations
+
+Can see:
+
+Map
+
+Number of available coaches
+
+
+❌ Cannot see coach details
+
+
+Clicking coach → Paywall popup:
+
+> “Pay £10/month to unlock full coach details”
+
+
+
+
+---
+
+6. USER MANAGEMENT (ADMINS)
+
+Location
+
+Admin Panel → User Management
+
+Access
+
+Admin
+
+Super Admin
+
+
+
+---
+
+6.1 Add User (Manual)
+
+Required:
+
+Name
+
+Email
+
+
+Optional:
+
+Phone
+
+Gender
+
+DOB
+
+
+Roles allowed:
+
+Player (default)
+
+Coach
+
+
+❌ Cannot create Admins or Super Admins
+
+
+---
+
+6.2 Bulk Import Users
+
+Methods
+
+CSV upload
+
+Copy & paste
+
+
+Required fields:
+
+Name
+
+Email
+
+
+System:
+
+Prevents duplicate emails
+
+Validates format
+
+Shows preview before import
+
+
+
+---
+
+6.3 Email Verification
+
+On creation:
+
+Verification email sent
+
+User must:
+
+Verify email
+
+Set password
+
+
+No login until verified
+
+
+
+---
+
+6.4 Export Users
+
+CSV export
+
+Filters:
+
+Role
+
+Club
+
+Verification status
+
+Active / inactive
+
+
+
+
+---
+
+7. RANKINGS SYSTEM
+
+Pages
+
+❌ Remove: Rankings
+
+✅ Keep: All Rankings
+
+
+
+---
+
+Access
+
+Admin
+
+Super Admin
+
+
+
+---
+
+7.1 Advanced Filters
+
+Filter by:
+
+Country
+
+City
+
+Sex
+
+Age group (Junior / Adult)
+
+Grade
+
+Club
+
+Ranking
+
+Membership status
+
+Verification status
+
+
+Filters:
+
+Stackable
+
+Resettable
+
+Live updating
+
+
+
+---
+
+7.2 Profile Editing from Rankings
+
+Clicking player opens modal
+
+Modal shows:
+
+Full profile info
+
+
+Edit button:
+
+Admin & Super Admin can edit all fields
+
+
+Save updates instantly across system
+
+
+
+---
+
+8. PERMISSIONS SUMMARY (GLOBAL)
+
+Action	Player	Coach	Organiser	Admin	Super Admin
+
+Join clubs	✅	✅	✅	✅	✅
+Own clubs	❌	❌	❌	✅	✅
+Bulk import users	❌	❌	❌	✅	✅
+Edit rankings profiles	❌	❌	❌	✅	✅
+Promote admins	❌	❌	❌	❌	✅
+
+
+
+---
+
+🤖 STEP-BY-STEP AI BUILDER PROMPTS
+
+Prompt 1 – Role Model
+
+> Implement a system where users can hold multiple roles across multiple clubs, with roles being club-specific and additive, not exclusive.
+
+
+
+
+---
+
+Prompt 2 – Clubs Dashboard
+
+> Create a clubs dashboard for admins that lists all clubs with advanced filtering and allows join requests, excluding the admin’s own clubs.
+
+
+
+
+---
+
+Prompt 3 – Coach Discovery
+
+> Merge the Coaches and Find a Coach pages into one Find a Coach page with membership-based access, showing ratings on coach cards and enforcing a subscription paywall.
+
+
+
+
+---
+
+Prompt 4 – User Management
+
+> Allow admins to manually add, bulk import, export, and email-verify users, creating real profiles with minimal required information.
+
+
+
+
+---
+
+Prompt 5 – Rankings
+
+> Remove the Rankings page and enhance the All Rankings page with advanced filters and in-place profile editing via modal for admins and super admins.
+
+
+
+
+---
+
+🧪 ROLE-BASED TEST SCENARIOS
+
+Admin Tests
+
+Admin joins another club → added as Player only
+
+Admin cannot join own club
+
+Admin edits player profile from rankings
+
+Admin bulk imports users and emails are sent
+
+
+
+---
+
+Club Owner Tests
+
+Owner promotes player to admin
+
+Owner rejects join request
+
+Owner owns multiple clubs simultaneously
+
+
+
+---
+
+Player Tests
+
+Player sees Find a Coach
+
+Player without subscription sees only coach counts
+
+Player clicks coach → paywall appears
+
+
+
+---
+
+Super Admin Tests
+
+Can do everything admins can
+
+No loss of existing powers
+
+Can edit profiles from rankings
+
+
+
+---
+
+⚠️ EDGE CASE HANDLING
+
+Club Deleted
+
+All members removed from that club only
+
+User accounts remain intact
+
+Rankings update automatically
+
+
+
+---
+
+Club Owner Leaves
+
+Options:
+
+1. Force owner to assign new owner
+
+
+2. If none:
+
+Super Admin becomes temporary owner
+
+
+
+
+
+---
+
+Admin Leaves Club
+
+Loses admin rights for that club only
+
+Remains admin elsewhere
+
+
+
+---
+
+Duplicate Imports
+
+Skip duplicates
+
+Show error report
+
+Continue valid rows
+
+
+
+---
+
+Unverified Users
+
+Cannot log in
+
+Cannot appear in rankings
+
+Cannot join clubs
+
+
+
+---
+
+✅ FINAL STATUS
+
+You now have:
+
+A complete system ruleset
+
+Builder-ready prompts
+
+QA test scenarios
+
+Edge-case coverage
+
+
+If you want next:
+
+Turn this into technical database rules
+
+Create API permission logic
+
+Build checklists for release
+
+Convert this into developer tickets
+
+
+Just tell me the next step 🚀
