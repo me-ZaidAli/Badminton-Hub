@@ -91,24 +91,38 @@ export default function Dashboard() {
   }
 
   const playerProfile = user?.playerProfile;
+  const playerProfiles = user?.playerProfiles || [];
   const membershipStatus = playerProfile?.membershipStatus;
+  const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const hasClubAdminRole = playerProfiles.some(
+    (p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER" || p.clubRole === "ORGANISER" || p.clubRole === "COACH"
+  );
+  const hasApprovedMembership = playerProfiles.some(
+    (p: any) => p.membershipStatus === "APPROVED"
+  );
+  const canAccessDashboard = isPlatformAdmin || hasClubAdminRole || hasApprovedMembership;
 
-  if (membershipStatus === "PENDING") {
-    return <Redirect to="/pending-approval" />;
-  }
-  if (membershipStatus === "REJECTED") {
-    return <Redirect to="/clubs" />;
-  }
-  if (!playerProfile) {
-    return <Redirect to="/clubs" />;
+  if (!canAccessDashboard) {
+    if (membershipStatus === "PENDING") {
+      return <Redirect to="/pending-approval" />;
+    }
+    if (membershipStatus === "REJECTED") {
+      return <Redirect to="/clubs" />;
+    }
+    if (!playerProfile) {
+      return <Redirect to="/clubs" />;
+    }
   }
 
-  const effectiveClubId = selectedClubId ? Number(selectedClubId) : (playerProfile?.clubId || null);
+  const firstApprovedProfile = playerProfiles.find((p: any) => p.membershipStatus === "APPROVED");
+  const effectiveClubId = selectedClubId 
+    ? Number(selectedClubId) 
+    : (playerProfile?.clubId || firstApprovedProfile?.clubId || null);
 
   return (
     <DashboardContent
       user={user!}
-      playerProfile={playerProfile}
+      playerProfile={playerProfile || firstApprovedProfile || null}
       sessions={sessions || []}
       sessionsLoading={sessionsLoading}
       clubs={clubs || []}
