@@ -19,7 +19,6 @@ import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
 import Rankings from "@/pages/Rankings";
 import PublicSession from "@/pages/PublicSession";
-import Players from "@/pages/Players";
 import NotFound from "@/pages/not-found";
 import CreateClub from "@/pages/CreateClub";
 import Clubs from "@/pages/Clubs";
@@ -209,9 +208,6 @@ function Router() {
       <Route path="/public/session/:id">
         <PublicRoute component={PublicSession} />
       </Route>
-      <Route path="/players">
-        <PrivateRoute component={Players} />
-      </Route>
       <Route path="/create-club">
         <PrivateRoute component={CreateClub} />
       </Route>
@@ -269,10 +265,10 @@ function Router() {
         <OwnerRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/players">
-        <OwnerRoute component={PlayerManagement} />
+        <AdminRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/players/:playerId">
-        <OwnerRoute component={PlayerProfile} />
+        <AdminRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
         <OwnerRoute component={Financials} />

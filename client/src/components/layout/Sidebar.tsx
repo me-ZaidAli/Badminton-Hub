@@ -55,7 +55,6 @@ function useNavItems() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
     { href: "/rankings", label: "Rankings", icon: Activity },
-    { href: "/players", label: "Players", icon: Users },
   ];
 
   if (isSuperAdmin || isClubOwner) {
@@ -71,6 +70,10 @@ function useNavItems() {
 
   if (isSuperAdmin || isAdmin || isOrganiser || user?.role === "COACH" || hasClubAdminAccess) {
     navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
+  }
+
+  if (isAdmin || isSuperAdmin) {
+    navItems.push({ href: "/admin/players", label: "Members", icon: Users });
   }
 
   if (user?.role === "OWNER") {
