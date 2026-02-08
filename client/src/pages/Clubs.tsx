@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ClubMap } from "@/components/ui/club-map";
 import { Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map, CheckCircle, Clock, XCircle, Loader2, Building2 } from "lucide-react";
@@ -67,7 +66,6 @@ export default function Clubs() {
   const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
   const [selectedClub, setSelectedClub] = useState<any | null>(null);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
-  const [joinGender, setJoinGender] = useState<string>("");
 
   const { data: memberships } = useQuery<Membership[]>({
     queryKey: ["/api/user/memberships"],
@@ -75,7 +73,7 @@ export default function Clubs() {
   });
 
   const joinMutation = useMutation({
-    mutationFn: async (data: { clubId: number; gender: string }) => {
+    mutationFn: async (data: { clubId: number }) => {
       const res = await apiRequest("POST", "/api/clubs/join", data);
       if (!res.ok) {
         const error = await res.json();
@@ -123,20 +121,9 @@ export default function Clubs() {
     }
   };
 
-  const existingGender = (user as any)?.playerProfiles?.[0]?.gender || (user as any)?.playerProfile?.gender;
-
   const handleJoinRequest = () => {
     if (!selectedClub || !user) return;
-    const gender = existingGender || joinGender;
-    if (!gender) {
-      toast({
-        title: "Gender required",
-        description: "Please select your gender before requesting to join a club.",
-        variant: "destructive",
-      });
-      return;
-    }
-    joinMutation.mutate({ clubId: selectedClub.id, gender });
+    joinMutation.mutate({ clubId: selectedClub.id });
   };
 
   const getJoinButtonState = (clubId: number) => {
@@ -416,7 +403,7 @@ export default function Clubs() {
         )}
       </div>
 
-      <Dialog open={!!selectedClub} onOpenChange={(open) => { if (!open) { setSelectedClub(null); setJoinGender(""); } }}>
+      <Dialog open={!!selectedClub} onOpenChange={(open) => { if (!open) { setSelectedClub(null); } }}>
         <DialogContent className="sm:max-w-[500px]" data-testid="dialog-club-detail">
           {selectedClub && (
             <>
@@ -478,20 +465,6 @@ export default function Clubs() {
               </div>
 
               <DialogFooter className="flex-col sm:flex-col gap-3">
-                {user && !existingGender && getJoinButtonState(selectedClub.id) === "join" && (
-                  <div className="w-full">
-                    <label className="text-sm font-medium mb-1.5 block">Select your gender to join</label>
-                    <Select value={joinGender} onValueChange={setJoinGender}>
-                      <SelectTrigger data-testid="select-join-gender">
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MALE">Male</SelectItem>
-                        <SelectItem value="FEMALE">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 {user && (() => {
                   const state = getJoinButtonState(selectedClub.id);
                   if (state === "member") {
@@ -514,7 +487,7 @@ export default function Clubs() {
                   return (
                     <Button
                       onClick={handleJoinRequest}
-                      disabled={joinMutation.isPending || (!existingGender && !joinGender)}
+                      disabled={joinMutation.isPending}
                       className="w-full sm:w-auto"
                       data-testid="button-request-join"
                     >

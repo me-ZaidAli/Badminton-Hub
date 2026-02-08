@@ -517,7 +517,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const { clubId, gender } = req.body;
+      const { clubId, gender: providedGender } = req.body;
       const user = req.user!;
       
       if (isSuperAdmin(user)) {
@@ -531,8 +531,12 @@ export async function registerRoutes(
       if (!user.fullName || user.fullName.trim().length < 2) {
         return res.status(400).json({ message: "Please complete your profile before requesting to join a club.", code: "PROFILE_INCOMPLETE" });
       }
+
+      let gender = providedGender;
       if (!gender || !["MALE", "FEMALE"].includes(gender)) {
-        return res.status(400).json({ message: "Please complete your profile (gender is required) before requesting to join a club.", code: "PROFILE_INCOMPLETE" });
+        const existingProfiles = await storage.getPlayerProfilesByUser(user.id);
+        const profileWithGender = existingProfiles?.find((p: any) => p.gender && ["MALE", "FEMALE"].includes(p.gender));
+        gender = profileWithGender?.gender || null;
       }
 
       const club = await storage.getClub(clubId);
