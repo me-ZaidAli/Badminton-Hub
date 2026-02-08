@@ -1,11 +1,31 @@
-import { Link } from "wouter";
+import { useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Search, LogOut, Building2 } from "lucide-react";
-import { useLogout } from "@/hooks/use-auth";
+import { Clock, Search, LogOut, Building2, RefreshCw } from "lucide-react";
+import { useLogout, useUser } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/queryClient";
 
 export default function PendingApproval() {
   const { mutate: logout } = useLogout();
+  const { data: user } = useUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const hasApproved = user?.playerProfiles?.some(
+      (p: any) => p.membershipStatus === "APPROVED"
+    ) || user?.playerProfile?.membershipStatus === "APPROVED";
+    if (hasApproved) {
+      setLocation("/dashboard");
+    }
+  }, [user, setLocation]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center p-4">
@@ -25,6 +45,15 @@ export default function PendingApproval() {
           </div>
           
           <div className="flex flex-col gap-2">
+            <Button 
+              variant="default" 
+              className="w-full"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] })}
+              data-testid="button-check-status"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Check Status
+            </Button>
             <Link href="/clubs">
               <Button variant="outline" className="w-full" data-testid="button-browse-clubs">
                 <Search className="w-4 h-4 mr-2" />

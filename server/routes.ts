@@ -2868,7 +2868,7 @@ export async function registerRoutes(
       if (gender) updates.gender = gender;
 
       if (membershipStatus === "APPROVED" && !clubRole) {
-        updates.clubRole = profile.clubRole || "PLAYER";
+        updates.clubRole = "ADMIN";
       }
 
       const updated = await storage.updatePlayerProfileWithFullName(profileId, updates, fullName);
