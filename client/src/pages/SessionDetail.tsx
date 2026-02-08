@@ -868,7 +868,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
-  const { mutate: completeMatch } = useCompleteMatch();
+  const { mutateAsync: completeMatch } = useCompleteMatch();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: updateMatchTarget } = useUpdateMatchTarget();
   const { mutate: autoGenerate, isPending: isGenerating } = useAutoGenerateMatches();

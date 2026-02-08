@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -476,10 +476,13 @@ export function MatchQueue({
 }
 
 export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean }) {
-  const [editMatch, setEditMatch] = useState<CourtMatch | null>(null);
-  const [playerScoreMatch, setPlayerScoreMatch] = useState<CourtMatch | null>(null);
-  const [editScoreA, setEditScoreA] = useState(0);
-  const [editScoreB, setEditScoreB] = useState(0);
+  const [scoreMatch, setScoreMatch] = useState<CourtMatch | null>(null);
+  const [scoreMode, setScoreMode] = useState<"edit" | "player">("edit");
+  const [finishStep, setFinishStep] = useState<1 | 2 | 3 | 4>(1);
+  const [winner, setWinner] = useState<"A" | "B" | null>(null);
+  const [winnerScore, setWinnerScore] = useState<string>("");
+  const [loserScore, setLoserScore] = useState<string>("");
+  const [showSuccess, setShowSuccess] = useState(false);
   const [deleteMatch, setDeleteMatch] = useState<CourtMatch | null>(null);
   const { mutate: editScore, isPending: isEditPending } = useEditMatchScore();
   const { mutate: enterPlayerScore, isPending: isPlayerScorePending } = usePlayerEnterScore();
@@ -491,32 +494,45 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
 
   if (completedMatches.length === 0) return null;
 
-  const openEditDialog = (match: CourtMatch) => {
-    setEditMatch(match);
-    setEditScoreA(match.scoreA || 0);
-    setEditScoreB(match.scoreB || 0);
+  const openScoreDialog = (match: CourtMatch, mode: "edit" | "player") => {
+    setScoreMatch(match);
+    setScoreMode(mode);
+    setFinishStep(1);
+    setWinner(null);
+    setWinnerScore("");
+    setLoserScore("");
+    setShowSuccess(false);
   };
 
-  const openPlayerScoreDialog = (match: CourtMatch) => {
-    setPlayerScoreMatch(match);
-    setEditScoreA(match.scoreA || 0);
-    setEditScoreB(match.scoreB || 0);
+  const resetFinishFlow = () => {
+    setFinishStep(1);
+    setWinner(null);
+    setWinnerScore("");
+    setLoserScore("");
   };
 
-  const handleSaveScore = () => {
-    if (editMatch) {
-      editScore({ matchId: editMatch.id, scoreA: editScoreA, scoreB: editScoreB }, {
-        onSuccess: () => setEditMatch(null)
-      });
-    }
-  };
+  const getTeamALabel = (m: CourtMatch) =>
+    m.teamAPlayer2 ? `${m.teamAPlayer1.user.fullName} & ${m.teamAPlayer2.user.fullName}` : m.teamAPlayer1.user.fullName;
 
-  const handlePlayerScore = () => {
-    if (playerScoreMatch) {
-      enterPlayerScore({ matchId: playerScoreMatch.id, scoreA: editScoreA, scoreB: editScoreB }, {
-        onSuccess: () => setPlayerScoreMatch(null)
-      });
-    }
+  const getTeamBLabel = (m: CourtMatch) =>
+    m.teamBPlayer2 ? `${m.teamBPlayer1.user.fullName} & ${m.teamBPlayer2.user.fullName}` : m.teamBPlayer1.user.fullName;
+
+  const getWinnerLabel = () => scoreMatch ? (winner === "A" ? getTeamALabel(scoreMatch) : getTeamBLabel(scoreMatch)) : "";
+  const getLoserLabel = () => scoreMatch ? (winner === "A" ? getTeamBLabel(scoreMatch) : getTeamALabel(scoreMatch)) : "";
+
+  const handleFinalConfirm = () => {
+    if (!scoreMatch || !winner || !winnerScore || !loserScore) return;
+    const wScore = Number(winnerScore);
+    const lScore = Number(loserScore);
+    const sA = winner === "A" ? wScore : lScore;
+    const sB = winner === "B" ? wScore : lScore;
+    const mutate = scoreMode === "edit" ? editScore : enterPlayerScore;
+    mutate({ matchId: scoreMatch.id, scoreA: sA, scoreB: sB }, {
+      onSuccess: () => {
+        setShowSuccess(true);
+        setTimeout(() => { setScoreMatch(null); setShowSuccess(false); }, 2000);
+      }
+    });
   };
 
   const handleDeleteMatch = () => {
@@ -567,7 +583,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => openPlayerScoreDialog(match)}
+                            onClick={() => openScoreDialog(match, "player")}
                             data-testid={`button-enter-score-${match.id}`}
                           >
                             Enter Score
@@ -578,7 +594,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              onClick={() => openEditDialog(match)}
+                              onClick={() => openScoreDialog(match, "edit")}
                               data-testid={`button-edit-match-${match.id}`}
                             >
                               <Pencil className="w-3 h-3" />
@@ -619,98 +635,183 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
         </CardContent>
       </Card>
 
-      <Dialog open={!!editMatch} onOpenChange={(open) => !open && setEditMatch(null)}>
-        <DialogContent>
+      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); resetFinishFlow(); setShowSuccess(false); } }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Match Score (Admin)</DialogTitle>
-            <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
+            <DialogTitle>
+              {showSuccess
+                ? "Score Saved"
+                : finishStep === 1
+                ? "Who won the match?"
+                : finishStep === 2
+                ? "Winning team score"
+                : finishStep === 3
+                ? "Losing team score"
+                : "Confirm match result"}
+            </DialogTitle>
+            {!showSuccess && scoreMode === "edit" && finishStep === 1 && (
+              <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
+            )}
+            {!showSuccess && scoreMode === "player" && finishStep === 1 && (
+              <DialogDescription>You can enter the score once. If there is a dispute, contact an admin.</DialogDescription>
+            )}
           </DialogHeader>
-          {editMatch && (
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    {editMatch.teamAPlayer1.user.fullName}
-                    {editMatch.teamAPlayer2 && ` & ${editMatch.teamAPlayer2.user.fullName}`}
-                  </label>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    max="30"
-                    value={editScoreA} 
-                    onChange={(e) => setEditScoreA(Number(e.target.value))}
-                    className="text-2xl text-center font-bold h-14"
-                    data-testid="input-edit-score-a"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    {editMatch.teamBPlayer1.user.fullName}
-                    {editMatch.teamBPlayer2 && ` & ${editMatch.teamBPlayer2.user.fullName}`}
-                  </label>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    max="30"
-                    value={editScoreB} 
-                    onChange={(e) => setEditScoreB(Number(e.target.value))}
-                    className="text-2xl text-center font-bold h-14"
-                    data-testid="input-edit-score-b"
-                  />
-                </div>
-              </div>
-              <Button className="w-full" onClick={handleSaveScore} disabled={isEditPending} data-testid="button-save-edit-score">
-                {isEditPending ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={!!playerScoreMatch} onOpenChange={(open) => !open && setPlayerScoreMatch(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
-            <DialogDescription>You can enter the score once. If there is a dispute, contact an admin to amend.</DialogDescription>
-          </DialogHeader>
-          {playerScoreMatch && (
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    {playerScoreMatch.teamAPlayer1.user.fullName}
-                    {playerScoreMatch.teamAPlayer2 && ` & ${playerScoreMatch.teamAPlayer2.user.fullName}`}
-                  </label>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    max="30"
-                    value={editScoreA} 
-                    onChange={(e) => setEditScoreA(Number(e.target.value))}
-                    className="text-2xl text-center font-bold h-14"
-                    data-testid="input-player-score-a"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    {playerScoreMatch.teamBPlayer1.user.fullName}
-                    {playerScoreMatch.teamBPlayer2 && ` & ${playerScoreMatch.teamBPlayer2.user.fullName}`}
-                  </label>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    max="30"
-                    value={editScoreB} 
-                    onChange={(e) => setEditScoreB(Number(e.target.value))}
-                    className="text-2xl text-center font-bold h-14"
-                    data-testid="input-player-score-b"
-                  />
-                </div>
-              </div>
-              <Button className="w-full" onClick={handlePlayerScore} disabled={isPlayerScorePending} data-testid="button-confirm-player-score">
-                {isPlayerScorePending ? "Saving..." : "Submit Score"}
-              </Button>
+          {showSuccess ? (
+            <div className="py-8 text-center space-y-3" data-testid="score-edit-success">
+              <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+              <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
             </div>
+          ) : scoreMatch && (
+            <>
+              <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                {[1, 2, 3, 4].map((s) => (
+                  <div
+                    key={s}
+                    className={cn(
+                      "w-8 h-1.5 rounded-full transition-colors",
+                      s <= finishStep ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                ))}
+              </div>
+
+              {finishStep === 1 && (
+                <div className="space-y-3 pt-2" data-testid="score-edit-step-1">
+                  <p className="text-sm text-muted-foreground text-center">Select the winning team</p>
+                  <div className="space-y-2">
+                    <Button
+                      variant={winner === "A" ? "default" : "outline"}
+                      className="w-full justify-start gap-3 py-6"
+                      onClick={() => setWinner("A")}
+                      data-testid="button-select-winner-a"
+                    >
+                      <Trophy className={cn("w-5 h-5", winner === "A" ? "text-yellow-300" : "text-muted-foreground")} />
+                      <span className="text-left flex-1 truncate">{getTeamALabel(scoreMatch)}</span>
+                      {winner === "A" && <Check className="w-5 h-5" />}
+                    </Button>
+                    <Button
+                      variant={winner === "B" ? "default" : "outline"}
+                      className="w-full justify-start gap-3 py-6"
+                      onClick={() => setWinner("B")}
+                      data-testid="button-select-winner-b"
+                    >
+                      <Trophy className={cn("w-5 h-5", winner === "B" ? "text-yellow-300" : "text-muted-foreground")} />
+                      <span className="text-left flex-1 truncate">{getTeamBLabel(scoreMatch)}</span>
+                      {winner === "B" && <Check className="w-5 h-5" />}
+                    </Button>
+                  </div>
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() => setFinishStep(2)}
+                    disabled={!winner}
+                    data-testid="button-score-next-1"
+                  >
+                    Next <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {finishStep === 2 && (
+                <div className="space-y-3 pt-2" data-testid="score-edit-step-2">
+                  <div className="text-center space-y-1">
+                    <Badge variant="default" className="gap-1">
+                      <Trophy className="w-3 h-3" /> Winner
+                    </Badge>
+                    <p className="font-semibold">{getWinnerLabel()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block text-center">Enter winning team's score</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder=""
+                      value={winnerScore}
+                      onChange={(e) => setWinnerScore(e.target.value)}
+                      className="text-2xl text-center font-bold h-14"
+                      data-testid="input-edit-winner-score"
+                    />
+                  </div>
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() => setFinishStep(3)}
+                    disabled={winnerScore === "" || isNaN(Number(winnerScore)) || Number(winnerScore) < 0}
+                    data-testid="button-score-next-2"
+                  >
+                    Next <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {finishStep === 3 && (
+                <div className="space-y-3 pt-2" data-testid="score-edit-step-3">
+                  <div className="text-center space-y-1">
+                    <Badge variant="outline" className="gap-1 text-muted-foreground">Losing team</Badge>
+                    <p className="font-semibold">{getLoserLabel()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block text-center">Enter losing team's score</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder=""
+                      value={loserScore}
+                      onChange={(e) => setLoserScore(e.target.value)}
+                      className="text-2xl text-center font-bold h-14"
+                      data-testid="input-edit-loser-score"
+                    />
+                  </div>
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() => setFinishStep(4)}
+                    disabled={loserScore === "" || isNaN(Number(loserScore)) || Number(loserScore) < 0}
+                    data-testid="button-score-next-3"
+                  >
+                    Next <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {finishStep === 4 && (
+                <div className="space-y-4 pt-2" data-testid="score-edit-step-4">
+                  <div className="rounded-lg border border-border p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                        <span className="font-semibold truncate">{getWinnerLabel()}</span>
+                      </div>
+                      <span className="text-2xl font-bold font-mono text-primary">{winnerScore}</span>
+                    </div>
+                    <div className="border-t border-border" />
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-muted-foreground truncate block">{getLoserLabel()}</span>
+                      </div>
+                      <span className="text-2xl font-bold font-mono text-muted-foreground">{loserScore}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-center text-muted-foreground">Do you agree with these scores?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={resetFinishFlow}
+                      className="gap-2"
+                      data-testid="button-score-amend"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Amend Scores
+                    </Button>
+                    <Button
+                      onClick={handleFinalConfirm}
+                      disabled={isEditPending || isPlayerScorePending}
+                      className="gap-2"
+                      data-testid="button-score-confirm"
+                    >
+                      <Check className="w-4 h-4" /> {isEditPending || isPlayerScorePending ? "Saving..." : "Confirm & Finish"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
