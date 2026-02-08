@@ -35,7 +35,7 @@ export default function ClubApprovals() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ clubId, status }: { clubId: number; status: string }) => {
-      return apiRequest(`/api/admin/clubs/${clubId}/status`, "PATCH", { status });
+      return apiRequest("PATCH", `/api/admin/clubs/${clubId}/status`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
