@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -102,7 +102,7 @@ export default function SessionDetail() {
   const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
   const isSignedUp = signups?.some(s => s.playerId === userProfileForClub?.id);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
-  const isSuperAdmin = user?.role === "OWNER";
+  const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   
   const isApprovedMember = (() => {
@@ -923,7 +923,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [fcWinner, setFcWinner] = useState<"A" | "B" | null>(null);
   const [fcWinnerScore, setFcWinnerScore] = useState("");
   const [fcLoserScore, setFcLoserScore] = useState("");
-  const [fcStep, setFcStep] = useState<1 | 2 | 3 | 4>(1);
+  const [fcStep, setFcStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [fcSubmitting, setFcSubmitting] = useState(false);
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
 
@@ -1060,8 +1060,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         setFcShowSuccess(false);
         const nextIndex = forcedCompletionIndex + 1;
         if (nextIndex >= forcedMatches.length) {
-          setForcedCompletionActive(false);
-          setEndSessionModalOpen(true);
+          setFcStep(5);
         } else {
           setForcedCompletionIndex(nextIndex);
           resetFcFlow();
@@ -1091,47 +1090,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   if (isSessionCompleted) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-completed-matches-title">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  Matches Played ({completedCount})
-                </h3>
-                {completedMatches.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No matches were played in this session</p>
-                ) : (
-                  <div className="space-y-3">
-                    {completedMatches.map(m => (
-                      <div key={m.id} className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30" data-testid={`completed-match-${m.id}`}>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className={`font-medium ${(m.scoreA ?? 0) > (m.scoreB ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
-                              {m.teamAPlayer1?.user?.fullName}{m.teamAPlayer2 ? ` & ${m.teamAPlayer2.user?.fullName}` : ""}
-                            </span>
-                            <Badge variant="secondary" className="text-xs">{m.scoreA ?? 0}</Badge>
-                            <span className="text-muted-foreground">vs</span>
-                            <Badge variant="secondary" className="text-xs">{m.scoreB ?? 0}</Badge>
-                            <span className={`font-medium ${(m.scoreB ?? 0) > (m.scoreA ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
-                              {m.teamBPlayer1?.user?.fullName}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2.user?.fullName}` : ""}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="xl:sticky xl:top-4 xl:self-start">
-            <SessionLiveLeaderboard sessionId={sessionId} />
-          </div>
-        </div>
-      </div>
+      <CompletedSessionView
+        sessionId={sessionId}
+        completedMatches={completedMatches}
+        completedCount={completedCount}
+        isOrganiser={isOrganiser}
+        updateSession={updateSession}
+      />
     );
   }
 
@@ -1365,14 +1330,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         }}
       />
 
-      <Dialog open={forcedCompletionActive && !!fcMatch} onOpenChange={() => {}}>
+      <Dialog open={forcedCompletionActive && (!!fcMatch || fcStep === 5)} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
-              {fcShowSuccess ? "Score Saved" : fcStep === 1 ? "Who won the match?" : fcStep === 2 ? "Winning team score" : fcStep === 3 ? "Losing team score" : "Confirm match result"}
+              {fcShowSuccess ? "Score Saved" : fcStep === 5 ? "All Matches Completed" : fcStep === 1 ? "Who won the match?" : fcStep === 2 ? "Winning team score" : fcStep === 3 ? "Losing team score" : "Confirm match result"}
             </DialogTitle>
             <DialogDescription>
-              Complete match {forcedCompletionIndex + 1} of {forcedMatches.length} — all live matches must be scored
+              {fcStep === 5 ? "What would you like to do next?" : `Complete match ${forcedCompletionIndex + 1} of ${forcedMatches.length} — all live matches must be scored`}
             </DialogDescription>
           </DialogHeader>
 
@@ -1494,6 +1459,261 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     >
                       {fcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                       {forcedCompletionIndex + 1 < forcedMatches.length ? "Save & Next Match" : "Save Result"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {fcStep === 5 && (
+                <div className="space-y-4 py-4">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-md p-4 text-center space-y-2">
+                    <CheckCircle className="w-10 h-10 mx-auto text-green-500" />
+                    <p className="font-semibold text-lg">All {forcedMatches.length} matches scored</p>
+                    <p className="text-sm text-muted-foreground">Would you like to continue the session or end it?</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full gap-2"
+                      onClick={() => {
+                        setForcedCompletionActive(false);
+                        resetFcFlow();
+                      }}
+                      data-testid="fc-button-return-to-session"
+                    >
+                      <PlayCircle className="w-4 h-4" />
+                      Return to Session
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        setForcedCompletionActive(false);
+                        resetFcFlow();
+                        setEndSessionModalOpen(true);
+                      }}
+                      data-testid="fc-button-view-leaderboard-end"
+                    >
+                      <Trophy className="w-4 h-4" />
+                      View Leaderboard & End Session
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function CompletedSessionView({ sessionId, completedMatches, completedCount, isOrganiser, updateSession }: {
+  sessionId: number;
+  completedMatches: CourtMatch[];
+  completedCount: number;
+  isOrganiser: boolean;
+  updateSession: any;
+}) {
+  const [editMatch, setEditMatch] = useState<CourtMatch | null>(null);
+  const [editStep, setEditStep] = useState<1 | 2 | 3 | 4>(1);
+  const [editWinner, setEditWinner] = useState<"A" | "B" | null>(null);
+  const [editWinnerScore, setEditWinnerScore] = useState("");
+  const [editLoserScore, setEditLoserScore] = useState("");
+  const [editShowSuccess, setEditShowSuccess] = useState(false);
+  const { mutate: editScore, isPending: isEditPending } = useEditMatchScore();
+
+  const openEditDialog = (match: CourtMatch) => {
+    setEditMatch(match);
+    setEditShowSuccess(false);
+    const sA = match.scoreA ?? 0;
+    const sB = match.scoreB ?? 0;
+    if (sA > 0 || sB > 0) {
+      const winner = sA >= sB ? "A" : "B";
+      setEditWinner(winner as "A" | "B");
+      setEditWinnerScore(String(Math.max(sA, sB)));
+      setEditLoserScore(String(Math.min(sA, sB)));
+      setEditStep(4);
+    } else {
+      setEditStep(1);
+      setEditWinner(null);
+      setEditWinnerScore("");
+      setEditLoserScore("");
+    }
+  };
+
+  const getTeamALabel = (m: CourtMatch) => {
+    const p1 = m.teamAPlayer1?.user?.fullName || "Player 1";
+    const p2 = m.teamAPlayer2?.user?.fullName;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
+  const getTeamBLabel = (m: CourtMatch) => {
+    const p1 = m.teamBPlayer1?.user?.fullName || "Player 1";
+    const p2 = m.teamBPlayer2?.user?.fullName;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
+
+  const handleEditConfirm = () => {
+    if (!editMatch || !editWinner || !editWinnerScore || !editLoserScore) return;
+    const wScore = Number(editWinnerScore);
+    const lScore = Number(editLoserScore);
+    if (isNaN(wScore) || isNaN(lScore) || wScore <= lScore) return;
+    const sA = editWinner === "A" ? wScore : lScore;
+    const sB = editWinner === "B" ? wScore : lScore;
+    editScore({ matchId: editMatch.id, scoreA: sA, scoreB: sB }, {
+      onSuccess: () => {
+        setEditShowSuccess(true);
+        setTimeout(() => { setEditMatch(null); setEditShowSuccess(false); }, 2000);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {isOrganiser && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <p className="text-sm text-muted-foreground">This session has ended. You can reopen it to start new matches.</p>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => updateSession({ sessionId, updates: { status: "ACTIVE" } })}
+                data-testid="button-reopen-session"
+              >
+                <PlayCircle className="w-4 h-4" />
+                Reopen Session
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-completed-matches-title">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                Matches Played ({completedCount})
+              </h3>
+              {completedMatches.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No matches were played in this session</p>
+              ) : (
+                <div className="space-y-3">
+                  {completedMatches.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30" data-testid={`completed-match-${m.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <span className={`font-medium ${(m.scoreA ?? 0) > (m.scoreB ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
+                            {m.teamAPlayer1?.user?.fullName}{m.teamAPlayer2 ? ` & ${m.teamAPlayer2.user?.fullName}` : ""}
+                          </span>
+                          <Badge variant="secondary" className="text-xs">{m.scoreA ?? 0}</Badge>
+                          <span className="text-muted-foreground">vs</span>
+                          <Badge variant="secondary" className="text-xs">{m.scoreB ?? 0}</Badge>
+                          <span className={`font-medium ${(m.scoreB ?? 0) > (m.scoreA ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
+                            {m.teamBPlayer1?.user?.fullName}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2.user?.fullName}` : ""}
+                          </span>
+                        </div>
+                      </div>
+                      {isOrganiser && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(m)}
+                          data-testid={`button-edit-completed-score-${m.id}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="xl:sticky xl:top-4 xl:self-start">
+          <SessionLiveLeaderboard sessionId={sessionId} />
+        </div>
+      </div>
+
+      <Dialog open={!!editMatch} onOpenChange={(open) => { if (!open) setEditMatch(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editShowSuccess ? "Score Updated" : editStep === 1 ? "Who won the match?" : editStep === 2 ? "Winning team score" : editStep === 3 ? "Losing team score" : "Confirm score change"}
+            </DialogTitle>
+            <DialogDescription>Edit the score for this completed match</DialogDescription>
+          </DialogHeader>
+
+          {editShowSuccess ? (
+            <div className="py-8 text-center space-y-3">
+              <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+              <p className="text-lg font-medium">Score updated successfully</p>
+            </div>
+          ) : editMatch && (
+            <>
+              <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                {[1, 2, 3, 4].map((s) => (
+                  <div key={s} className={`w-8 h-1 rounded-full ${s <= editStep ? "bg-primary" : "bg-muted"}`} />
+                ))}
+              </div>
+
+              {editStep === 1 && (
+                <div className="space-y-3 py-4">
+                  <Button variant={editWinner === "A" ? "default" : "outline"} className="w-full justify-start gap-3" onClick={() => setEditWinner("A")} data-testid="edit-button-winner-a">
+                    <Trophy className="w-4 h-4" /> {getTeamALabel(editMatch)}
+                  </Button>
+                  <Button variant={editWinner === "B" ? "default" : "outline"} className="w-full justify-start gap-3" onClick={() => setEditWinner("B")} data-testid="edit-button-winner-b">
+                    <Trophy className="w-4 h-4" /> {getTeamBLabel(editMatch)}
+                  </Button>
+                  <Button className="w-full gap-2 mt-2" disabled={!editWinner} onClick={() => setEditStep(2)} data-testid="edit-button-next-step1">
+                    Next <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {editStep === 2 && (
+                <div className="space-y-3 py-4">
+                  <Label className="text-sm text-muted-foreground">{editWinner === "A" ? getTeamALabel(editMatch) : getTeamBLabel(editMatch)} scored:</Label>
+                  <Input type="number" min="0" max="99" value={editWinnerScore} onChange={(e) => setEditWinnerScore(e.target.value)} placeholder="Enter score" className="text-center text-2xl" data-testid="edit-input-winner-score" />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setEditStep(1)} data-testid="edit-button-back-step2"><RotateCcw className="w-4 h-4" /> Back</Button>
+                    <Button className="flex-1 gap-2" disabled={!editWinnerScore} onClick={() => setEditStep(3)} data-testid="edit-button-next-step2">Next <ArrowRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
+
+              {editStep === 3 && (
+                <div className="space-y-3 py-4">
+                  <Label className="text-sm text-muted-foreground">{editWinner === "A" ? getTeamBLabel(editMatch) : getTeamALabel(editMatch)} scored:</Label>
+                  <Input type="number" min="0" max="99" value={editLoserScore} onChange={(e) => setEditLoserScore(e.target.value)} placeholder="Enter score" className="text-center text-2xl" data-testid="edit-input-loser-score" />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setEditStep(2)} data-testid="edit-button-back-step3"><RotateCcw className="w-4 h-4" /> Back</Button>
+                    <Button className="flex-1 gap-2" disabled={!editLoserScore} onClick={() => setEditStep(4)} data-testid="edit-button-next-step3">Next <ArrowRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
+
+              {editStep === 4 && (
+                <div className="space-y-4 py-4">
+                  <div className="bg-muted/50 rounded-md p-4 text-center space-y-2">
+                    <div className="text-sm text-muted-foreground">Winner</div>
+                    <div className="font-semibold">{editWinner === "A" ? getTeamALabel(editMatch) : getTeamBLabel(editMatch)}</div>
+                    <div className="text-3xl font-bold">{editWinnerScore} - {editLoserScore}</div>
+                    <div className="text-sm text-muted-foreground">{editWinner === "A" ? getTeamBLabel(editMatch) : getTeamALabel(editMatch)}</div>
+                  </div>
+                  {Number(editWinnerScore) <= Number(editLoserScore) && (
+                    <p className="text-sm text-destructive text-center">Winner's score must be higher than the losing team's score</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 gap-2" onClick={() => { setEditStep(1); setEditWinner(null); setEditWinnerScore(""); setEditLoserScore(""); }} data-testid="edit-button-amend">
+                      <RotateCcw className="w-4 h-4" /> Amend
+                    </Button>
+                    <Button className="flex-1 gap-2" disabled={isEditPending || Number(editWinnerScore) <= Number(editLoserScore)} onClick={handleEditConfirm} data-testid="edit-button-save">
+                      {isEditPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Save Score
                     </Button>
                   </div>
                 </div>
