@@ -21,8 +21,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, ChevronDown } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -87,7 +86,6 @@ export default function SessionDetail() {
 
   const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
-  const [editingGradeSignupId, setEditingGradeSignupId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
@@ -784,7 +782,6 @@ export default function SessionDetail() {
             const playerUser = signup.player.user as any;
             const profilePic = playerUser.profilePictureUrl;
             const isEditingName = editingNameSignupId === signup.id;
-            const isEditingGrade = editingGradeSignupId === signup.id;
 
             return (
               <div 
@@ -899,35 +896,30 @@ export default function SessionDetail() {
                         {effectiveGender}
                       </Badge>
                       {isSuperAdmin ? (
-                        <DropdownMenu open={isEditingGrade} onOpenChange={(open) => setEditingGradeSignupId(open ? signup.id : null)}>
-                          <DropdownMenuTrigger asChild>
-                            <Badge 
-                              variant="outline" 
-                              className="text-xs cursor-pointer"
-                              data-testid={`badge-grade-${signup.id}`}
-                            >
-                              {signup.player.category}
-                              <ChevronDown className="w-3 h-3 ml-0.5" />
-                            </Badge>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
+                        <Select
+                          value={signup.player.category || ""}
+                          onValueChange={(grade) => {
+                            adminInlineEdit({ profileId: signup.playerId, sessionId: id, category: grade });
+                          }}
+                        >
+                          <SelectTrigger 
+                            className="h-6 w-auto min-w-0 px-2 py-0 text-xs border rounded-full gap-1"
+                            data-testid={`badge-grade-${signup.id}`}
+                          >
+                            <SelectValue placeholder="Grade" />
+                          </SelectTrigger>
+                          <SelectContent>
                             {["A", "B", "C", "D"].map((grade) => (
-                              <DropdownMenuItem
+                              <SelectItem
                                 key={grade}
-                                onClick={() => {
-                                  adminInlineEdit({ profileId: signup.playerId, sessionId: id, category: grade });
-                                  setEditingGradeSignupId(null);
-                                }}
+                                value={grade}
                                 data-testid={`menu-grade-${grade}-${signup.id}`}
                               >
-                                <span className={signup.player.category === grade ? "font-bold" : ""}>
-                                  Grade {grade}
-                                </span>
-                                {signup.player.category === grade && <Check className="w-3 h-3 ml-2" />}
-                              </DropdownMenuItem>
+                                Grade {grade}
+                              </SelectItem>
                             ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          </SelectContent>
+                        </Select>
                       ) : (
                         <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
                       )}

@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity } from "lucide-react";
 import { useVenues } from "@/hooks/use-venues";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -86,9 +86,9 @@ export default function Sessions() {
     },
   });
 
-  const filteredSessions = useMemo(() => {
+  const baseFilteredSessions = useMemo(() => {
     let result = sessions;
-    if (!result) return result;
+    if (!result) return [];
     if (selectedClubId !== "all") {
       result = result.filter(s => s.clubId === Number(selectedClubId));
     }
@@ -96,17 +96,46 @@ export default function Sessions() {
       const q = searchQuery.toLowerCase();
       result = result.filter(s => s.title.toLowerCase().includes(q));
     }
-    if (statusFilter === "upcoming") {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      result = result.filter(s => new Date(s.date) >= now);
-    } else if (statusFilter === "past") {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      result = result.filter(s => new Date(s.date) < now);
-    }
     return result;
-  }, [sessions, selectedClubId, searchQuery, statusFilter]);
+  }, [sessions, selectedClubId, searchQuery]);
+
+  const now = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const liveSessions = useMemo(() =>
+    baseFilteredSessions.filter(s => s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [baseFilteredSessions]
+  );
+
+  const upcomingSessions = useMemo(() =>
+    baseFilteredSessions.filter(s => {
+      const sessionDate = new Date(s.date);
+      sessionDate.setHours(0, 0, 0, 0);
+      return sessionDate >= now && s.status !== "ACTIVE" && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [baseFilteredSessions, now]
+  );
+
+  const pastSessions = useMemo(() =>
+    baseFilteredSessions.filter(s => {
+      const sessionDate = new Date(s.date);
+      sessionDate.setHours(0, 0, 0, 0);
+      return sessionDate < now || s.status === "COMPLETED";
+    }).filter(s => !liveSessions.some(ls => ls.id === s.id))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [baseFilteredSessions, now, liveSessions]
+  );
+
+  const filteredSessions = useMemo(() => {
+    if (statusFilter === "upcoming") return upcomingSessions;
+    if (statusFilter === "live") return liveSessions;
+    if (statusFilter === "past") return pastSessions;
+    return [...liveSessions, ...upcomingSessions];
+  }, [statusFilter, upcomingSessions, liveSessions, pastSessions]);
 
   // Group sessions by club for super user view
   const sessionsByClub = sessions?.reduce((acc, session) => {
@@ -181,19 +210,42 @@ export default function Sessions() {
             </SelectContent>
           </Select>
         )}
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]" data-testid="select-status-filter">
-            <SelectValue placeholder="All" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="upcoming">Upcoming</SelectItem>
-            <SelectItem value="past">Past</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-muted-foreground">
-          {filteredSessions?.length || 0} sessions
-        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+            data-testid="button-filter-all"
+          >
+            All ({liveSessions.length + upcomingSessions.length})
+          </Button>
+          {liveSessions.length > 0 && (
+            <Button
+              variant={statusFilter === "live" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStatusFilter("live")}
+              data-testid="button-filter-live"
+            >
+              <Activity className="w-3 h-3 mr-1" /> Live ({liveSessions.length})
+            </Button>
+          )}
+          <Button
+            variant={statusFilter === "upcoming" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("upcoming")}
+            data-testid="button-filter-upcoming"
+          >
+            <Calendar className="w-3 h-3 mr-1" /> Upcoming ({upcomingSessions.length})
+          </Button>
+          <Button
+            variant={statusFilter === "past" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("past")}
+            data-testid="button-filter-past"
+          >
+            <CheckCircle className="w-3 h-3 mr-1" /> Past ({pastSessions.length})
+          </Button>
+        </div>
       </div>
 
       {canManageSessions && filteredSessions && filteredSessions.length > 0 && (

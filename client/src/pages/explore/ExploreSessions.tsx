@@ -13,7 +13,7 @@ import { Calendar, Clock, Users, Play, CheckCircle, Activity, Loader2, Building2
 import { cn } from "@/lib/utils";
 
 export default function ExploreSessions() {
-  const [sessionFilter, setSessionFilter] = useState<"all" | "live" | "upcoming">("all");
+  const [sessionFilter, setSessionFilter] = useState<"all" | "live" | "upcoming" | "past">("all");
   const [clubFilter, setClubFilter] = useState<string>("all");
   const [clubComboboxOpen, setClubComboboxOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState("");
@@ -40,7 +40,7 @@ export default function ExploreSessions() {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
   }, [allSessions]);
 
-  const filteredSessions = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     if (!allSessions) return [];
     let result = allSessions;
     if (clubFilter !== "all") {
@@ -55,10 +55,44 @@ export default function ExploreSessions() {
         return city.includes(search) || postcode.includes(search) || address.includes(search);
       });
     }
-    if (sessionFilter === "live") return result.filter(s => s.liveMatchCount > 0 || s.status === "LIVE");
-    if (sessionFilter === "upcoming") return result.filter(s => s.status === "UPCOMING");
     return result;
-  }, [allSessions, sessionFilter, clubFilter, locationSearch]);
+  }, [allSessions, clubFilter, locationSearch]);
+
+  const now = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const liveFiltered = useMemo(() =>
+    baseFiltered.filter(s => s.liveMatchCount > 0 || s.status === "ACTIVE"),
+    [baseFiltered]
+  );
+
+  const upcomingFiltered = useMemo(() =>
+    baseFiltered.filter(s => {
+      const sessionDate = new Date(s.date);
+      sessionDate.setHours(0, 0, 0, 0);
+      return sessionDate >= now && s.status !== "ACTIVE" && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+    }),
+    [baseFiltered, now]
+  );
+
+  const pastFiltered = useMemo(() =>
+    baseFiltered.filter(s => {
+      const sessionDate = new Date(s.date);
+      sessionDate.setHours(0, 0, 0, 0);
+      return (sessionDate < now || s.status === "COMPLETED") && !liveFiltered.some(ls => ls.id === s.id);
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [baseFiltered, now, liveFiltered]
+  );
+
+  const filteredSessions = useMemo(() => {
+    if (sessionFilter === "live") return liveFiltered;
+    if (sessionFilter === "upcoming") return upcomingFiltered;
+    if (sessionFilter === "past") return pastFiltered;
+    return [...liveFiltered, ...upcomingFiltered];
+  }, [sessionFilter, liveFiltered, upcomingFiltered, pastFiltered]);
 
   return (
     <PublicLayout>
@@ -160,23 +194,33 @@ export default function ExploreSessions() {
                 onClick={() => setSessionFilter("all")}
                 data-testid="button-filter-all"
               >
-                All ({filteredSessions.length})
+                All ({liveFiltered.length + upcomingFiltered.length})
               </Button>
-              <Button
-                variant={sessionFilter === "live" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSessionFilter("live")}
-                data-testid="button-filter-live"
-              >
-                <Play className="w-3 h-3 mr-1" /> Live
-              </Button>
+              {liveFiltered.length > 0 && (
+                <Button
+                  variant={sessionFilter === "live" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSessionFilter("live")}
+                  data-testid="button-filter-live"
+                >
+                  <Play className="w-3 h-3 mr-1" /> Live ({liveFiltered.length})
+                </Button>
+              )}
               <Button
                 variant={sessionFilter === "upcoming" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSessionFilter("upcoming")}
                 data-testid="button-filter-upcoming"
               >
-                <Calendar className="w-3 h-3 mr-1" /> Upcoming
+                <Calendar className="w-3 h-3 mr-1" /> Upcoming ({upcomingFiltered.length})
+              </Button>
+              <Button
+                variant={sessionFilter === "past" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSessionFilter("past")}
+                data-testid="button-filter-past"
+              >
+                <CheckCircle className="w-3 h-3 mr-1" /> Past ({pastFiltered.length})
               </Button>
             </div>
           </div>
