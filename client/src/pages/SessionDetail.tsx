@@ -19,6 +19,7 @@ import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw } from "lucide-react";
 
@@ -67,6 +68,8 @@ export default function SessionDetail() {
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [editClubId, setEditClubId] = useState<number | null>(null);
+  const [editMaxPlayers, setEditMaxPlayers] = useState(0);
+  const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
@@ -224,6 +227,8 @@ export default function SessionDetail() {
                   setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
                   setEditLiveStreamUrl(session.liveStreamUrl || "");
                   setEditClubId(session.clubId);
+                  setEditMaxPlayers(session.maxPlayers);
+                  setEditIsPrivate(session.isPrivate);
                 }
               }}>
                 <DialogTrigger asChild>
@@ -246,6 +251,30 @@ export default function SessionDetail() {
                         onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
                         className="mt-2"
                         data-testid="input-edit-courts"
+                      />
+                    </div>
+                    <div>
+                      <Label>Session Capacity</Label>
+                      <p className="text-sm text-muted-foreground mb-1">Maximum number of players allowed in this session.</p>
+                      <Input 
+                        type="number" 
+                        min={2}
+                        max={100}
+                        value={editMaxPlayers}
+                        onChange={(e) => setEditMaxPlayers(Math.min(100, Math.max(2, Number(e.target.value))))}
+                        className="mt-2"
+                        data-testid="input-edit-max-players"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Private Session</Label>
+                        <p className="text-sm text-muted-foreground">When enabled, only organisers can add players.</p>
+                      </div>
+                      <Switch 
+                        checked={editIsPrivate} 
+                        onCheckedChange={setEditIsPrivate}
+                        data-testid="switch-edit-is-private"
                       />
                     </div>
                     <div>
@@ -318,6 +347,8 @@ export default function SessionDetail() {
                       onClick={() => {
                         const sessionUpdates: any = { 
                             courtsAvailable: editCourts, 
+                            maxPlayers: editMaxPlayers,
+                            isPrivate: editIsPrivate,
                             shuttleTubesUsed: editShuttleTubes,
                             allowedCategories: editCategories,
                             liveStreamUrl: editLiveStreamUrl || ""

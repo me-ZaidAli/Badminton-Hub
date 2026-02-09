@@ -1137,10 +1137,12 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
+      if (isPrivate !== undefined) updates.isPrivate = !!isPrivate;
+      if (shuttleTubesUsed !== undefined) updates.shuttleTubesUsed = Number(shuttleTubesUsed);
       if (clubId !== undefined && clubId !== session.clubId) {
         if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Only platform owners can reassign sessions to another club" });
         const targetClub = await storage.getClub(clubId);
