@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, Link } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
@@ -21,7 +21,8 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -57,6 +58,8 @@ export default function SessionDetail() {
   const { mutate: handleResumeRebalance } = useHandleResume();
   const { mutate: setPairGroup } = useSetPairGroup();
   const { mutate: addGuestPlayer, isPending: isAddingGuest } = useAddGuestPlayer();
+  const { mutate: adminInlineEdit } = useAdminInlineEditPlayer();
+  const { mutate: uploadProfilePicture } = useUploadProfilePicture();
   
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addGuestDialogOpen, setAddGuestDialogOpen] = useState(false);
@@ -81,6 +84,11 @@ export default function SessionDetail() {
   const [guestName, setGuestName] = useState("");
   const [guestGender, setGuestGender] = useState("MALE");
   const [guestCategory, setGuestCategory] = useState("D");
+
+  const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
+  const [editingGradeSignupId, setEditingGradeSignupId] = useState<number | null>(null);
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [pairPlayer1, setPairPlayer1] = useState<string>("");
@@ -773,6 +781,10 @@ export default function SessionDetail() {
             const effectiveGender = s.genderOverride || signup.player.gender || "?";
             const isPaused = !!s.isPaused;
             const pairGroupId = s.pairGroupId as number | null;
+            const playerUser = signup.player.user as any;
+            const profilePic = playerUser.profilePictureUrl;
+            const isEditingName = editingNameSignupId === signup.id;
+            const isEditingGrade = editingGradeSignupId === signup.id;
 
             return (
               <div 
@@ -780,30 +792,145 @@ export default function SessionDetail() {
                 className={`flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate ${isPaused ? "opacity-60" : ""}`}
                 data-testid={`signup-${signup.id}`}
               >
-                <div 
-                  className="flex items-center flex-1 min-w-0 cursor-pointer"
-                  onClick={() => setStatsPlayerId(signup.playerId)}
-                  data-testid={`button-player-stats-${signup.playerId}`}
-                >
-                  <Avatar className="h-10 w-10 mr-3 shrink-0">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
-                    <AvatarFallback>P</AvatarFallback>
-                  </Avatar>
+                <div className="flex items-center flex-1 min-w-0">
+                  <div className="relative shrink-0 mr-3">
+                    <Avatar 
+                      className="h-10 w-10 cursor-pointer"
+                      onClick={() => setStatsPlayerId(signup.playerId)}
+                      data-testid={`avatar-player-${signup.playerId}`}
+                    >
+                      {profilePic ? (
+                        <AvatarImage src={profilePic} />
+                      ) : (
+                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
+                      )}
+                      <AvatarFallback>{signup.player.user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    {isSuperAdmin && (
+                      <>
+                        <button
+                          className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5 shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRefs.current[signup.id]?.click();
+                          }}
+                          data-testid={`button-upload-photo-${signup.playerId}`}
+                        >
+                          <Camera className="w-3 h-3" />
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          ref={(el) => { fileInputRefs.current[signup.id] = el; }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              uploadProfilePicture({ userId: playerUser.id, sessionId: id, file });
+                              e.target.value = "";
+                            }
+                          }}
+                          data-testid={`input-photo-${signup.playerId}`}
+                        />
+                      </>
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold truncate">{signup.player.user.fullName}</p>
+                    {isEditingName ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Input
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          className="h-7 text-sm font-semibold"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && editNameValue.trim().length >= 2) {
+                              adminInlineEdit({ profileId: signup.playerId, sessionId: id, fullName: editNameValue.trim() });
+                              setEditingNameSignupId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingNameSignupId(null);
+                            }
+                          }}
+                          data-testid={`input-edit-name-${signup.id}`}
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                          if (editNameValue.trim().length >= 2) {
+                            adminInlineEdit({ profileId: signup.playerId, sessionId: id, fullName: editNameValue.trim() });
+                          }
+                          setEditingNameSignupId(null);
+                        }} data-testid={`button-save-name-${signup.id}`}>
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingNameSignupId(null)} data-testid={`button-cancel-name-${signup.id}`}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <p 
+                        className={`font-semibold truncate ${isSuperAdmin ? "cursor-pointer hover:underline" : ""}`}
+                        onClick={() => {
+                          if (isSuperAdmin) {
+                            setEditNameValue(signup.player.user.fullName);
+                            setEditingNameSignupId(signup.id);
+                          } else {
+                            setStatsPlayerId(signup.playerId);
+                          }
+                        }}
+                        data-testid={`text-player-name-${signup.id}`}
+                      >
+                        {signup.player.user.fullName}
+                      </p>
+                    )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
                       <Badge 
                         variant="outline" 
-                        className="text-xs cursor-pointer"
+                        className={`text-xs ${isSuperAdmin ? "cursor-pointer" : ""}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isOrganiser) handleToggleGender(signup.id, effectiveGender);
+                          if (isSuperAdmin) {
+                            const newGender = effectiveGender === "MALE" ? "FEMALE" : "MALE";
+                            adminInlineEdit({ profileId: signup.playerId, sessionId: id, gender: newGender });
+                          } else if (isOrganiser) {
+                            handleToggleGender(signup.id, effectiveGender);
+                          }
                         }}
                         data-testid={`badge-gender-${signup.id}`}
                       >
                         {effectiveGender}
                       </Badge>
-                      <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
+                      {isSuperAdmin ? (
+                        <DropdownMenu open={isEditingGrade} onOpenChange={(open) => setEditingGradeSignupId(open ? signup.id : null)}>
+                          <DropdownMenuTrigger asChild>
+                            <Badge 
+                              variant="outline" 
+                              className="text-xs cursor-pointer"
+                              data-testid={`badge-grade-${signup.id}`}
+                            >
+                              {signup.player.category}
+                              <ChevronDown className="w-3 h-3 ml-0.5" />
+                            </Badge>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            {["A", "B", "C", "D"].map((grade) => (
+                              <DropdownMenuItem
+                                key={grade}
+                                onClick={() => {
+                                  adminInlineEdit({ profileId: signup.playerId, sessionId: id, category: grade });
+                                  setEditingGradeSignupId(null);
+                                }}
+                                data-testid={`menu-grade-${grade}-${signup.id}`}
+                              >
+                                <span className={signup.player.category === grade ? "font-bold" : ""}>
+                                  Grade {grade}
+                                </span>
+                                {signup.player.category === grade && <Check className="w-3 h-3 ml-2" />}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
+                      )}
                       {isPaused && (
                         <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" data-testid={`badge-paused-${signup.id}`}>
                           Paused

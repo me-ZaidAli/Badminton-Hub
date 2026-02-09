@@ -23,6 +23,10 @@ const uploadsDir = path.join(process.cwd(), "public", "uploads", "coaches");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+const profileUploadsDir = path.join(process.cwd(), "public", "uploads", "profiles");
+if (!fs.existsSync(profileUploadsDir)) {
+  fs.mkdirSync(profileUploadsDir, { recursive: true });
+}
 const coachPhotoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
   filename: (_req, file, cb) => {
@@ -32,6 +36,22 @@ const coachPhotoStorage = multer.diskStorage({
 });
 const uploadCoachPhoto = multer({
   storage: coachPhotoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
+
+const profilePhotoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, profileUploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `profile-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadProfilePhoto = multer({
+  storage: profilePhotoStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -494,6 +514,72 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating user profile:", err);
       res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
+  });
+
+  app.post("/api/user/profile-picture", uploadProfilePhoto.single("photo"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (!req.file) return res.status(400).json({ message: "No image file provided" });
+      const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+      await storage.updateUser(req.user!.id, { profilePictureUrl });
+      res.json({ profilePictureUrl });
+    } catch (err: any) {
+      console.error("Error uploading profile picture:", err);
+      res.status(500).json({ message: err.message || "Failed to upload profile picture" });
+    }
+  });
+
+  app.post("/api/admin/users/:userId/profile-picture", uploadProfilePhoto.single("photo"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      if (!req.file) return res.status(400).json({ message: "No image file provided" });
+      const userId = Number(req.params.userId);
+      const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+      await storage.updateUser(userId, { profilePictureUrl });
+      res.json({ profilePictureUrl });
+    } catch (err: any) {
+      console.error("Error uploading admin profile picture:", err);
+      res.status(500).json({ message: err.message || "Failed to upload profile picture" });
+    }
+  });
+
+  app.patch("/api/admin/player-profiles/:profileId/inline", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+
+    try {
+      const profileId = Number(req.params.profileId);
+      const { fullName, gender, category } = req.body;
+
+      const [profileRow] = await db.select()
+        .from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(eq(playerProfiles.id, profileId));
+      if (!profileRow) return res.status(404).json({ message: "Player profile not found" });
+
+      if (fullName && typeof fullName === 'string' && fullName.trim().length >= 2) {
+        await db.update(users).set({ fullName: fullName.trim() }).where(eq(users.id, profileRow.users.id));
+      }
+
+      const profileUpdates: any = {};
+      if (gender && ["MALE", "FEMALE"].includes(gender)) {
+        profileUpdates.gender = gender;
+      }
+      if (category && ["A", "B", "C", "D"].includes(category)) {
+        profileUpdates.category = category;
+      }
+      if (Object.keys(profileUpdates).length > 0) {
+        await storage.updatePlayerProfile(profileId, profileUpdates);
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error inline updating player profile:", err);
+      res.status(500).json({ message: err.message || "Failed to update player profile" });
     }
   });
 

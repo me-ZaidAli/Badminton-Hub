@@ -354,3 +354,66 @@ export function useDeleteSessions() {
     }
   });
 }
+
+export function useAdminInlineEditPlayer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ profileId, sessionId, fullName, gender, category }: { profileId: number; sessionId: number; fullName?: string; gender?: string; category?: string }) => {
+      const res = await fetch(`/api/admin/player-profiles/${profileId}/inline`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, gender, category }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to update player");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-profiles"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}
+
+export function useUploadProfilePicture() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ userId, sessionId, file }: { userId?: number; sessionId?: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("photo", file);
+      const url = userId ? `/api/admin/users/${userId}/profile-picture` : "/api/user/profile-picture";
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to upload picture");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      if (sessionId) {
+        queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-profiles"] });
+      toast({ title: "Photo Updated", description: "Profile picture has been updated." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+}

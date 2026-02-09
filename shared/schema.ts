@@ -48,6 +48,7 @@ export const users = pgTable("users", {
   passwordResetExpiry: timestamp("password_reset_expiry"),
   closedAt: timestamp("closed_at"),
   closedReason: text("closed_reason"),
+  profilePictureUrl: text("profile_picture_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

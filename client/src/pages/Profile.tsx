@@ -1,17 +1,18 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle } from "lucide-react";
+import { useUploadProfilePicture } from "@/hooks/use-sessions";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,8 @@ import {
 export default function Profile() {
   const [, navigate] = useLocation();
   const { data: user, isLoading: userLoading } = useUser();
+  const { mutate: uploadProfilePicture, isPending: isUploadingPic } = useUploadProfilePicture();
+  const profilePicInputRef = useRef<HTMLInputElement>(null);
   const { data: profiles } = useQuery<any[]>({
     queryKey: ["/api/player-profiles"],
     enabled: !!user,
@@ -171,11 +174,38 @@ export default function Profile() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="text-lg">
-                {user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-16 w-16">
+                {(user as any).profilePictureUrl ? (
+                  <AvatarImage src={(user as any).profilePictureUrl} />
+                ) : null}
+                <AvatarFallback className="text-lg">
+                  {user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1 shadow-sm"
+                onClick={() => profilePicInputRef.current?.click()}
+                disabled={isUploadingPic}
+                data-testid="button-upload-profile-pic"
+              >
+                {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+              </button>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                ref={profilePicInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadProfilePicture({ file });
+                    e.target.value = "";
+                  }
+                }}
+                data-testid="input-profile-pic"
+              />
+            </div>
             <div>
               <CardTitle className="text-2xl">{user.fullName || "New User"}</CardTitle>
               <CardDescription className="flex items-center gap-2">
