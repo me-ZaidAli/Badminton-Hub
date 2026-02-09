@@ -295,9 +295,9 @@ function Router() {
         <PrivateRoute component={Profile} />
       </Route>
 
-      {/* Admin Routes - OWNER only */}
+      {/* Admin Routes */}
       <Route path="/admin">
-        <OwnerRoute component={AdminDashboard} />
+        <AdminRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/players">
         <AdminRoute component={PlayerManagement} />
@@ -339,7 +339,7 @@ function Router() {
         <OwnerRoute component={CoachManagement} />
       </Route>
       <Route path="/admin/password-resets">
-        <OwnerRoute component={PasswordResets} />
+        <AdminRoute component={PasswordResets} />
       </Route>
       <Route path="/admin/messages">
         <OwnerRoute component={Messages} />

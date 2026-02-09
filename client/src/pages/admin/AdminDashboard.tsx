@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy, KeyRound, Upload } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -48,7 +48,7 @@ export default function AdminDashboard() {
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics"],
-    enabled: isOwner,
+    enabled: !!user,
   });
 
   const handleExport = async (type: "users" | "attendance") => {
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {isOwner && analytics?.clubs && analytics.clubs.length > 0 && (
+      {analytics?.clubs && analytics.clubs.length > 0 && (
         <Card className="border-border/50" data-testid="card-club-summary">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -334,6 +334,44 @@ export default function AdminDashboard() {
             </Link>
           </Card>
         )}
+
+        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-password-resets">
+          <Link href="/admin/password-resets">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-amber-500" />
+                  Password Resets
+                </span>
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Generate password reset links or set passwords for members.
+              </p>
+            </CardContent>
+          </Link>
+        </Card>
+
+        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
+          <Link href="/admin/import-members">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-indigo-500" />
+                  Import Members
+                </span>
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Bulk upload members via CSV or add them manually.
+              </p>
+            </CardContent>
+          </Link>
+        </Card>
       </div>
 
       {isOwner && (

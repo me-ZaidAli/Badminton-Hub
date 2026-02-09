@@ -89,14 +89,20 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "super-admin" });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
-    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy });
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "admin" });
+    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "admin" });
+    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "admin" });
+    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "admin" });
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "admin" });
+    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "admin" });
   }
 
   if (!isSuperAdmin && !isAdmin && (isClubOwner || hasClubAdminAccess)) {
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "club-admin" });
+    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "club-admin" });
+    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "club-admin" });
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "club-admin" });
+    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "club-admin" });
   }
 
   return navItems;
@@ -137,6 +143,20 @@ export function Sidebar() {
                 <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5" data-testid="label-super-admin-section">
                     <Zap className="w-3 h-3" /> Super Admin
+                  </span>
+                </div>
+              )}
+              {item.section === "admin" && (!prevItem || prevItem.section !== "admin") && (
+                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5" data-testid="label-admin-section">
+                    <Shield className="w-3 h-3" /> Admin
+                  </span>
+                </div>
+              )}
+              {item.section === "club-admin" && (!prevItem || prevItem.section !== "club-admin") && (
+                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5" data-testid="label-club-admin-section">
+                    <Shield className="w-3 h-3" /> Club Admin
                   </span>
                 </div>
               )}

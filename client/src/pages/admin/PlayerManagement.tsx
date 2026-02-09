@@ -247,7 +247,7 @@ export default function PlayerManagement() {
     setDeleteUserDialogOpen(true);
   };
 
-  if (user?.role !== "OWNER" && user?.role !== "ADMIN") {
+  if (user?.role !== "OWNER" && user?.role !== "ADMIN" && user?.role !== "ORGANISER" && user?.role !== "COACH") {
     return (
       <div className="p-8 text-center">
         <h1 className="text-2xl font-bold text-destructive" data-testid="text-access-denied">Access Denied</h1>

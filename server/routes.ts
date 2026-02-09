@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications } from "@shared/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, or, isNotNull, gt } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -3318,6 +3318,198 @@ export async function registerRoutes(
     }
   });
 
+  // ===================== ADMIN PASSWORD MANAGEMENT =====================
+
+  app.get("/api/admin/search-users", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
+    }
+
+    try {
+      const q = (req.query.q as string || "").trim().toLowerCase();
+      if (q.length < 2) return res.json([]);
+
+      let accessibleClubIds: number[] | null = null;
+      if (!isOwner) {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        accessibleClubIds = [...clubIdSet];
+      }
+
+      let results;
+      if (accessibleClubIds && accessibleClubIds.length > 0) {
+        results = await db.selectDistinct({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          role: users.role,
+        }).from(users)
+          .innerJoin(playerProfiles, eq(users.id, playerProfiles.userId))
+          .where(and(
+            inArray(playerProfiles.clubId, accessibleClubIds),
+            or(
+              sql`LOWER(${users.fullName}) LIKE ${'%' + q + '%'}`,
+              sql`LOWER(${users.email}) LIKE ${'%' + q + '%'}`
+            )
+          ))
+          .limit(20);
+      } else {
+        results = await db.select({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          role: users.role,
+        }).from(users)
+          .where(or(
+            sql`LOWER(${users.fullName}) LIKE ${'%' + q + '%'}`,
+            sql`LOWER(${users.email}) LIKE ${'%' + q + '%'}`
+          ))
+          .limit(20);
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      console.error("Error searching users:", err);
+      res.status(500).json({ message: "Failed to search users" });
+    }
+  });
+
+  app.get("/api/admin/password-resets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
+    }
+
+    try {
+      let accessibleClubIds: number[] | null = null;
+      if (!isOwner) {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        accessibleClubIds = [...clubIdSet];
+      }
+
+      let pendingResets;
+      if (accessibleClubIds && accessibleClubIds.length > 0) {
+        pendingResets = await db.selectDistinct({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          passwordResetToken: users.passwordResetToken,
+          passwordResetExpiry: users.passwordResetExpiry,
+        }).from(users)
+          .innerJoin(playerProfiles, eq(users.id, playerProfiles.userId))
+          .where(and(
+            isNotNull(users.passwordResetToken),
+            gt(users.passwordResetExpiry!, new Date()),
+            inArray(playerProfiles.clubId, accessibleClubIds)
+          ));
+      } else {
+        pendingResets = await db.select({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          passwordResetToken: users.passwordResetToken,
+          passwordResetExpiry: users.passwordResetExpiry,
+        }).from(users)
+          .where(and(
+            isNotNull(users.passwordResetToken),
+            gt(users.passwordResetExpiry!, new Date())
+          ));
+      }
+
+      res.json(pendingResets);
+    } catch (err: any) {
+      console.error("Error fetching password resets:", err);
+      res.status(500).json({ message: "Failed to fetch password resets" });
+    }
+  });
+
+  app.post("/api/admin/generate-reset", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
+    }
+
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email is required" });
+
+      const targetUser = await storage.getUserByUsername(email);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await db.update(users)
+        .set({ passwordResetToken: token, passwordResetExpiry: expiry })
+        .where(eq(users.id, targetUser.id));
+
+      res.json({ token, fullName: targetUser.fullName });
+    } catch (err: any) {
+      console.error("Error generating reset:", err);
+      res.status(500).json({ message: "Failed to generate reset link" });
+    }
+  });
+
+  app.post("/api/admin/set-password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
+    }
+
+    try {
+      const { userId, password } = req.body;
+      if (!userId || !password) return res.status(400).json({ message: "userId and password are required" });
+      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+
+      const hashedPassword = await hashPassword(password);
+      const [updated] = await db.update(users)
+        .set({ password: hashedPassword, passwordResetToken: null, passwordResetExpiry: null })
+        .where(eq(users.id, userId))
+        .returning({ id: users.id, fullName: users.fullName });
+
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      res.json({ message: `Password updated for ${updated.fullName}` });
+    } catch (err: any) {
+      console.error("Error setting password:", err);
+      res.status(500).json({ message: "Failed to set password" });
+    }
+  });
+
   // ===================== CSV EXPORTS =====================
 
   app.get("/api/admin/export/users", async (req, res) => {
@@ -3720,19 +3912,33 @@ export async function registerRoutes(
     }
   });
 
-  // === ADMIN: Analytics summary (OWNER only) ===
+  // === ADMIN: Analytics summary ===
   app.get("/api/admin/analytics", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    let accessibleClubIds: number[] | null = null;
+    if (!isOwner) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+      if (!isAdmin && clubIdSet.size === 0) return res.sendStatus(403);
+      if (clubIdSet.size > 0) accessibleClubIds = [...clubIdSet];
+      else return res.sendStatus(403);
+    }
 
     try {
       const allClubs = await storage.getClubs();
+      const filteredClubs = accessibleClubIds ? allClubs.filter(c => accessibleClubIds!.includes(c.id)) : allClubs;
       const allSessions = await storage.getSessions();
       const allMatches = await db.select().from(matches);
       const allProfiles = await db.select().from(playerProfiles);
       const allSignups = await db.select().from(sessionSignups);
 
-      const clubAnalytics = allClubs.map(club => {
+      const clubAnalytics = filteredClubs.map(club => {
         const clubSessions = allSessions.filter(s => s.clubId === club.id);
         const sessionIds = clubSessions.map(s => s.id);
         const clubMatches = allMatches.filter(m => sessionIds.includes(m.sessionId));
@@ -3759,15 +3965,20 @@ export async function registerRoutes(
         };
       });
 
+      const relevantSessionIds = new Set(filteredClubs.flatMap(club => allSessions.filter(s => s.clubId === club.id).map(s => s.id)));
+      const relevantProfiles = accessibleClubIds ? allProfiles.filter(p => accessibleClubIds!.includes(p.clubId)) : allProfiles;
+      const relevantMatches = accessibleClubIds ? allMatches.filter(m => relevantSessionIds.has(m.sessionId)) : allMatches;
+      const relevantSignups = accessibleClubIds ? allSignups.filter(s => relevantSessionIds.has(s.sessionId)) : allSignups;
+
       const totals = {
-        totalClubs: allClubs.length,
-        totalPlayers: allProfiles.length,
-        totalSessions: allSessions.length,
-        totalMatches: allMatches.length,
-        completedMatches: allMatches.filter(m => m.status === "COMPLETED").length,
-        totalSignups: allSignups.length,
-        totalRevenue: allSignups.reduce((sum, s) => sum + (s.fee || 0), 0),
-        paidRevenue: allSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0),
+        totalClubs: filteredClubs.length,
+        totalPlayers: relevantProfiles.length,
+        totalSessions: accessibleClubIds ? allSessions.filter(s => accessibleClubIds!.includes(s.clubId)).length : allSessions.length,
+        totalMatches: relevantMatches.length,
+        completedMatches: relevantMatches.filter(m => m.status === "COMPLETED").length,
+        totalSignups: relevantSignups.length,
+        totalRevenue: relevantSignups.reduce((sum, s) => sum + (s.fee || 0), 0),
+        paidRevenue: relevantSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0),
       };
 
       res.json({ clubs: clubAnalytics, totals });
