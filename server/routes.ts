@@ -3237,10 +3237,22 @@ export async function registerRoutes(
 
   app.post("/api/admin/clubs/:clubId/import-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
+
+    const user = req.user as any;
+    const clubId = Number(req.params.clubId);
+    const isOwner = user.role === "OWNER";
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      const profiles = await storage.getUserPlayerProfiles(user.id);
+      const hasClubAdmin = profiles.some(
+        (p: any) => p.clubId === clubId && p.membershipStatus === "APPROVED" && ["ADMIN", "ORGANISER"].includes(p.clubRole)
+      );
+      const isClubOwner = await storage.getClub(clubId).then(c => c?.ownerId === user.id);
+      if (!hasClubAdmin && !isClubOwner) return res.sendStatus(403);
+    }
 
     try {
-      const clubId = Number(req.params.clubId);
       const club = await storage.getClub(clubId);
       if (!club) return res.status(404).json({ message: "Club not found" });
 

@@ -333,7 +333,7 @@ function Router() {
         <OwnerRoute component={Analytics} />
       </Route>
       <Route path="/admin/import-members">
-        <OwnerRoute component={MemberImport} />
+        <AdminRoute component={MemberImport} />
       </Route>
       <Route path="/admin/coaches">
         <OwnerRoute component={CoachManagement} />

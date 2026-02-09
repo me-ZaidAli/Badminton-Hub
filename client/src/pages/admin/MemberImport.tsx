@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
+import { useUser } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import { useMemo } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, UserPlus, Trash2, CheckCircle2, AlertCircle, FileSpreadsheet, Download, ClipboardPaste } from "lucide-react";
 
@@ -43,8 +45,18 @@ interface ImportResult {
 
 export default function MemberImport() {
   const { toast } = useToast();
+  const { data: user } = useUser();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const accessibleClubs = useMemo(() => {
+    if (!clubs) return [];
+    if (user?.role === "OWNER" || user?.role === "ADMIN") return clubs;
+    const ownedClubIds = new Set(clubs.filter(c => c.ownerId === user?.id).map(c => c.id));
+    const adminClubIds = new Set((myAdminClubs || []).map((c: any) => c.id));
+    return clubs.filter(c => ownedClubIds.has(c.id) || adminClubIds.has(c.id));
+  }, [clubs, user, myAdminClubs]);
 
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [stagedMembers, setStagedMembers] = useState<StagedMember[]>([]);
@@ -270,7 +282,7 @@ export default function MemberImport() {
                 <SelectValue placeholder={clubsLoading ? "Loading clubs..." : "Select a club"} />
               </SelectTrigger>
               <SelectContent>
-                {clubs?.map((club) => (
+                {accessibleClubs.map((club) => (
                   <SelectItem key={club.id} value={String(club.id)} data-testid={`select-club-option-${club.id}`}>
                     {club.name}
                   </SelectItem>
