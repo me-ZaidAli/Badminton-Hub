@@ -3648,13 +3648,26 @@ export async function registerRoutes(
   // === ADMIN: Update signup fee (OWNER only) ===
   app.patch("/api/admin/signups/:signupId/fee", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
 
     try {
       const signupId = Number(req.params.signupId);
       const { fee } = req.body;
       if (fee === undefined || typeof fee !== "number" || fee < 0) {
         return res.status(400).json({ message: "Fee must be a non-negative number (in pence)" });
+      }
+
+      if (!isOwner) {
+        const signup = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.id, signupId)).limit(1);
+        if (signup.length === 0) return res.status(404).json({ message: "Signup not found" });
+        const session = await db.select({ clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, signup[0].sessionId)).limit(1);
+        if (session.length === 0) return res.status(404).json({ message: "Session not found" });
+        const clubId = session[0].clubId;
+        const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
+        const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        if (ownedClub.length === 0 && adminProfile.length === 0) return res.sendStatus(403);
       }
 
       const [updated] = await db.update(sessionSignups)
@@ -3665,6 +3678,45 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating signup fee:", err);
       res.status(500).json({ message: "Failed to update fee" });
+    }
+  });
+
+  app.patch("/api/sessions/:sessionId/signups/:signupId/payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+
+    try {
+      const signupId = Number(req.params.signupId);
+      const sessionId = Number(req.params.sessionId);
+      const { status } = req.body;
+      if (!status || !["PAID", "UNPAID"].includes(status)) {
+        return res.status(400).json({ message: "Status must be PAID or UNPAID" });
+      }
+
+      const signupRows = await db.select({ id: sessionSignups.id, sessionId: sessionSignups.sessionId })
+        .from(sessionSignups).where(eq(sessionSignups.id, signupId)).limit(1);
+      if (signupRows.length === 0) return res.status(404).json({ message: "Signup not found" });
+      if (signupRows[0].sessionId !== sessionId) return res.status(400).json({ message: "Signup does not belong to this session" });
+
+      if (!isOwner) {
+        const session = await db.select({ clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+        if (session.length === 0) return res.status(404).json({ message: "Session not found" });
+        const clubId = session[0].clubId;
+        const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
+        const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        if (ownedClub.length === 0 && adminProfile.length === 0) return res.sendStatus(403);
+      }
+
+      const [updated] = await db.update(sessionSignups)
+        .set({ paymentStatus: status })
+        .where(eq(sessionSignups.id, signupId))
+        .returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating payment status:", err);
+      res.status(500).json({ message: "Failed to update payment status" });
     }
   });
 
@@ -3725,12 +3777,26 @@ export async function registerRoutes(
     }
   });
 
-  // === ADMIN: Financial summary by session (OWNER only) ===
   app.get("/api/admin/financial-summary", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+
+    let accessibleClubIds: number[] | null = null;
+    if (!isOwner) {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+      const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+      if (clubIdSet.size === 0) return res.sendStatus(403);
+      accessibleClubIds = [...clubIdSet];
+    }
 
     try {
+      const queryConditions = accessibleClubIds && accessibleClubIds.length > 0
+        ? [inArray(sessions.clubId, accessibleClubIds)]
+        : [];
+
       const signupsData = await db
         .select({
           signupId: sessionSignups.id,
@@ -3751,6 +3817,7 @@ export async function registerRoutes(
         .innerJoin(clubs, eq(sessions.clubId, clubs.id))
         .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
         .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(queryConditions.length > 0 ? and(...queryConditions) : undefined)
         .orderBy(desc(sessions.date));
 
       res.json(signupsData);
@@ -3773,10 +3840,25 @@ export async function registerRoutes(
     }
 
     try {
+      let accessibleClubIds: number[] | null = null;
+      if (!isOwner) {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER", "COACH"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        accessibleClubIds = clubIdSet.size > 0 ? [...clubIdSet] : [];
+      }
+
       const conditions: any[] = [];
 
       const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
-      if (qClubId) conditions.push(eq(playerProfiles.clubId, qClubId));
+      if (qClubId) {
+        conditions.push(eq(playerProfiles.clubId, qClubId));
+      } else if (accessibleClubIds && accessibleClubIds.length > 0) {
+        conditions.push(inArray(playerProfiles.clubId, accessibleClubIds));
+      } else if (accessibleClubIds && accessibleClubIds.length === 0) {
+        return res.json([]);
+      }
       if (req.query.category) conditions.push(eq(playerProfiles.category, req.query.category as string));
       if (req.query.gender) conditions.push(eq(playerProfiles.gender, req.query.gender as string));
       if (req.query.city) conditions.push(eq(clubs.city, req.query.city as string));

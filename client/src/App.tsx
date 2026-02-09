@@ -306,7 +306,7 @@ function Router() {
         <AdminRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
-        <OwnerRoute component={Financials} />
+        <AdminRoute component={Financials} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={Announcements} />

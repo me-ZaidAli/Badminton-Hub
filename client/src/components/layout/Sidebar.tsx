@@ -90,10 +90,12 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
     navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy });
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
   }
 
   if (!isSuperAdmin && !isAdmin && (isClubOwner || hasClubAdminAccess)) {
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
   }
 
