@@ -52,7 +52,9 @@ function useNavItems(): NavItem[] {
   const isClubOwner = ownedClubs.length > 0;
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
-  const navItems: NavItem[] = isOrganiser ? [
+  const isRestrictedOrganiser = isOrganiser && !isClubOwner && !hasClubAdminAccess;
+  
+  const navItems: NavItem[] = isRestrictedOrganiser ? [
     { href: "/", label: "Home", icon: Home },
     { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
@@ -79,7 +81,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/super-admin/clubs", label: "Clubs Control", icon: Building2, section: "super-admin" });
     navItems.push({ href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, section: "super-admin" });
     navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "super-admin" });
-    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "super-admin" });
+    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "super-admin" });
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "super-admin" });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2, section: "super-admin" });
     navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap, section: "super-admin" });
@@ -90,7 +92,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "admin" });
-    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "admin" });
+    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "admin" });
     navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "admin" });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "admin" });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "admin" });
@@ -99,7 +101,7 @@ function useNavItems(): NavItem[] {
 
   if (!isSuperAdmin && !isAdmin && (isClubOwner || hasClubAdminAccess)) {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "club-admin" });
-    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "club-admin" });
+    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "club-admin" });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "club-admin" });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "club-admin" });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "club-admin" });

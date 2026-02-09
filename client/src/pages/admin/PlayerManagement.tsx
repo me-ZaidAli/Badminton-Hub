@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { usePlayers, useUpdatePlayer } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@shared/routes";
@@ -80,9 +80,25 @@ export default function PlayerManagement() {
   const { toast } = useToast();
   const { data: players, isLoading } = usePlayers();
   const { data: clubs } = useClubs();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
+
+  const isSuperAdmin = user?.role === "OWNER";
+  const isPlatformAdmin = user?.role === "ADMIN";
+
+  const accessibleClubIds = useMemo(() => {
+    if (isSuperAdmin || isPlatformAdmin) return null;
+    return myAdminClubs?.map(c => c.id) || [];
+  }, [isSuperAdmin, isPlatformAdmin, myAdminClubs]);
 
   const [search, setSearch] = useState("");
   const [clubFilter, setClubFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (!isSuperAdmin && !isPlatformAdmin && myAdminClubs && myAdminClubs.length > 0 && clubFilter === "all") {
+      setClubFilter(myAdminClubs[0].id.toString());
+    }
+  }, [isSuperAdmin, isPlatformAdmin, myAdminClubs, clubFilter]);
+
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -101,6 +117,10 @@ export default function PlayerManagement() {
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
     return (players as PlayerData[]).filter((p) => {
+      if (accessibleClubIds !== null) {
+        const hasAccessibleProfile = p.playerProfiles.some(pr => accessibleClubIds.includes(pr.clubId));
+        if (!hasAccessibleProfile) return false;
+      }
       const profiles = p.playerProfiles || [];
       const searchLower = search.toLowerCase();
       const matchesSearch = !search ||
@@ -129,7 +149,7 @@ export default function PlayerManagement() {
 
       return matchesCategory && matchesGender && matchesRole && matchesStatus;
     });
-  }, [players, search, clubFilter, categoryFilter, genderFilter, roleFilter, statusFilter]);
+  }, [players, search, clubFilter, categoryFilter, genderFilter, roleFilter, statusFilter, accessibleClubIds]);
 
   const bulkActionMutation = useMutation({
     mutationFn: async ({ profileIds, action }: { profileIds: number[], action: string }) => {
@@ -247,7 +267,7 @@ export default function PlayerManagement() {
     setDeleteUserDialogOpen(true);
   };
 
-  if (user?.role !== "OWNER" && user?.role !== "ADMIN" && user?.role !== "ORGANISER" && user?.role !== "COACH") {
+  if (user?.role !== "OWNER" && user?.role !== "ADMIN" && (!myAdminClubs || myAdminClubs.length === 0)) {
     return (
       <div className="p-8 text-center">
         <h1 className="text-2xl font-bold text-destructive" data-testid="text-access-denied">Access Denied</h1>
@@ -269,7 +289,11 @@ export default function PlayerManagement() {
             <Users className="h-6 w-6 text-primary" />
             Members Management
           </h1>
-          <p className="text-muted-foreground">Manage all registered members across all clubs</p>
+          <p className="text-muted-foreground">
+            {isSuperAdmin || isPlatformAdmin 
+              ? "Manage all registered members across all clubs" 
+              : `Manage members in your club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}`}
+          </p>
         </div>
       </div>
 
@@ -298,8 +322,8 @@ export default function PlayerManagement() {
                   <SelectValue placeholder="All Clubs" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Clubs</SelectItem>
-                  {clubs.map(club => (
+                  {(isSuperAdmin || isPlatformAdmin) && <SelectItem value="all">All Clubs</SelectItem>}
+                  {(isSuperAdmin || isPlatformAdmin ? clubs : clubs.filter(c => accessibleClubIds?.includes(c.id))).map(club => (
                     <SelectItem key={club.id} value={club.id.toString()}>
                       {club.name}
                     </SelectItem>
@@ -513,13 +537,15 @@ export default function PlayerManagement() {
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => openAllocateDialog(player)}
-                                data-testid={`menu-allocate-${player.id}`}
-                              >
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Allocate to Clubs
-                              </DropdownMenuItem>
+                              {(isSuperAdmin || isPlatformAdmin) && (
+                                <DropdownMenuItem
+                                  onClick={() => openAllocateDialog(player)}
+                                  data-testid={`menu-allocate-${player.id}`}
+                                >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Allocate to Clubs
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               {player.playerProfiles.map(pr => (
                                 <DropdownMenuItem
@@ -564,7 +590,7 @@ export default function PlayerManagement() {
                                   </DropdownMenuItem>
                                 </>
                               )}
-                              {user?.role === "OWNER" && (
+                              {(isSuperAdmin || isPlatformAdmin) && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem

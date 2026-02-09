@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileTopNav } from "@/components/layout/Sidebar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
+import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { Loader2 } from "lucide-react";
 
 // Pages
@@ -95,9 +96,10 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
+  const { data: myAdminClubs, isLoading: clubsLoading } = useMyAdminClubs(!!user);
   const [, setLocation] = useLocation();
 
-  if (isLoading) {
+  if (isLoading || clubsLoading) {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
 
@@ -106,8 +108,11 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
     return null;
   }
 
-  const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER" || user.role === "COACH";
-  if (!isAdmin) {
+  const isSuperAdmin = user.role === "OWNER";
+  const isPlatformAdmin = user.role === "ADMIN";
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  
+  if (!isSuperAdmin && !isPlatformAdmin && !hasClubAdminAccess) {
     setLocation("/dashboard");
     return null;
   }
@@ -300,6 +305,9 @@ function Router() {
         <AdminRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/players">
+        <AdminRoute component={PlayerManagement} />
+      </Route>
+      <Route path="/admin/members">
         <AdminRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/players/:playerId">
