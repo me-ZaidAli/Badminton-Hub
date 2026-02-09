@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { format } from "date-fns";
+import { format, isToday, startOfDay } from "date-fns";
 import {
   DollarSign,
   Search,
@@ -22,6 +22,8 @@ import {
   Pencil,
   Users,
   Calendar,
+  Clock,
+  History,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -47,6 +49,7 @@ export default function Financials() {
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player">("session");
+  const [timeTab, setTimeTab] = useState<"upcoming" | "past">("upcoming");
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
   const [editingFee, setEditingFee] = useState<number | null>(null);
@@ -124,7 +127,7 @@ export default function Financials() {
     setFeeInputValue("");
   };
 
-  const filteredData = financialData.filter((entry) => {
+  const baseFilteredData = financialData.filter((entry) => {
     if (selectedClubId !== "all" && entry.clubId !== Number(selectedClubId)) return false;
     if (paymentFilter !== "all" && entry.paymentStatus !== paymentFilter.toUpperCase()) return false;
     if (searchQuery) {
@@ -133,6 +136,35 @@ export default function Financials() {
     }
     return true;
   });
+
+  const filteredData = useMemo(() => {
+    const today = startOfDay(new Date());
+    return baseFilteredData.filter((entry) => {
+      if (!entry.sessionDate) return timeTab === "upcoming";
+      const sessionDate = startOfDay(new Date(entry.sessionDate));
+      if (timeTab === "upcoming") {
+        return sessionDate >= today;
+      } else {
+        return sessionDate < today;
+      }
+    });
+  }, [baseFilteredData, timeTab]);
+
+  const upcomingCount = useMemo(() => {
+    const today = startOfDay(new Date());
+    return baseFilteredData.filter((e) => {
+      if (!e.sessionDate) return true;
+      return startOfDay(new Date(e.sessionDate)) >= today;
+    }).length;
+  }, [baseFilteredData]);
+
+  const pastCount = useMemo(() => {
+    const today = startOfDay(new Date());
+    return baseFilteredData.filter((e) => {
+      if (!e.sessionDate) return false;
+      return startOfDay(new Date(e.sessionDate)) < today;
+    }).length;
+  }, [baseFilteredData]);
 
   const uniqueClubs = Array.from(
     new Map(financialData.map((e) => [e.clubId, { id: e.clubId, name: e.clubName }])).values()
@@ -161,11 +193,30 @@ export default function Financials() {
     });
   };
 
-  const sessionGroups = filteredData.reduce<Record<number, FinancialEntry[]>>((acc, entry) => {
-    if (!acc[entry.sessionId]) acc[entry.sessionId] = [];
-    acc[entry.sessionId].push(entry);
-    return acc;
-  }, {});
+  const sessionGroups = useMemo(() => {
+    const groups = filteredData.reduce<Record<number, FinancialEntry[]>>((acc, entry) => {
+      if (!acc[entry.sessionId]) acc[entry.sessionId] = [];
+      acc[entry.sessionId].push(entry);
+      return acc;
+    }, {});
+
+    const sortedEntries = Object.entries(groups).sort(([, aEntries], [, bEntries]) => {
+      const aDate = aEntries[0]?.sessionDate ? new Date(aEntries[0].sessionDate) : new Date(0);
+      const bDate = bEntries[0]?.sessionDate ? new Date(bEntries[0].sessionDate) : new Date(0);
+      const aIsToday = isToday(aDate);
+      const bIsToday = isToday(bDate);
+
+      if (timeTab === "upcoming") {
+        if (aIsToday && !bIsToday) return -1;
+        if (!aIsToday && bIsToday) return 1;
+        return aDate.getTime() - bDate.getTime();
+      } else {
+        return bDate.getTime() - aDate.getTime();
+      }
+    });
+
+    return Object.fromEntries(sortedEntries);
+  }, [filteredData, timeTab]);
 
   const playerGroups = filteredData.reduce<Record<string, FinancialEntry[]>>((acc, entry) => {
     if (!acc[entry.playerEmail]) acc[entry.playerEmail] = [];
@@ -256,6 +307,35 @@ export default function Financials() {
         </Card>
       </div>
 
+      <div className="flex gap-2" data-testid="time-tab-buttons">
+        <Button
+          variant={timeTab === "upcoming" ? "default" : "outline"}
+          onClick={() => setTimeTab("upcoming")}
+          data-testid="button-tab-upcoming"
+        >
+          <Calendar className="h-4 w-4 mr-1" />
+          Upcoming
+          {upcomingCount > 0 && (
+            <Badge variant="secondary" className="ml-1.5 no-default-hover-elevate no-default-active-elevate">
+              {upcomingCount}
+            </Badge>
+          )}
+        </Button>
+        <Button
+          variant={timeTab === "past" ? "default" : "outline"}
+          onClick={() => setTimeTab("past")}
+          data-testid="button-tab-past"
+        >
+          <History className="h-4 w-4 mr-1" />
+          Past
+          {pastCount > 0 && (
+            <Badge variant="secondary" className="ml-1.5 no-default-hover-elevate no-default-active-elevate">
+              {pastCount}
+            </Badge>
+          )}
+        </Button>
+      </div>
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-3 flex-wrap">
@@ -322,7 +402,7 @@ export default function Financials() {
           {Object.keys(sessionGroups).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                No financial data found.
+                {timeTab === "upcoming" ? "No upcoming sessions with financial data." : "No past sessions with financial data."}
               </CardContent>
             </Card>
           ) : (
@@ -333,6 +413,7 @@ export default function Financials() {
               const sessionUnpaid = entries.filter((e) => e.paymentStatus === "UNPAID").reduce((s, e) => s + (e.fee || 0), 0);
               const sessionTotal = sessionPaid + sessionUnpaid;
               const isExpanded = expandedSessions.has(sessionId);
+              const sessionIsToday = first.sessionDate ? isToday(new Date(first.sessionDate)) : false;
 
               return (
                 <Card key={sessionId} data-testid={`card-session-${sessionId}`}>
@@ -349,9 +430,17 @@ export default function Financials() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         )}
                         <div>
-                          <CardTitle className="text-base" data-testid={`text-session-title-${sessionId}`}>
-                            {first.sessionTitle}
-                          </CardTitle>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <CardTitle className="text-base" data-testid={`text-session-title-${sessionId}`}>
+                              {first.sessionTitle}
+                            </CardTitle>
+                            {sessionIsToday && (
+                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-today-${sessionId}`}>
+                                <Clock className="h-3 w-3 mr-1" />
+                                Today
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground mt-0.5">
                             {first.sessionDate
                               ? format(new Date(first.sessionDate), "MMM d, yyyy")
@@ -488,7 +577,7 @@ export default function Financials() {
           {Object.keys(playerGroups).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                No financial data found.
+                {timeTab === "upcoming" ? "No upcoming sessions with financial data." : "No past sessions with financial data."}
               </CardContent>
             </Card>
           ) : (
