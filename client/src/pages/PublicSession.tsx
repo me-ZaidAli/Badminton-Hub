@@ -8,8 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
-import { Loader2, Users, Trophy, Calendar, Clock, ArrowLeft, Play, CheckCircle, Video } from "lucide-react";
+import { Loader2, Users, Trophy, Calendar, Clock, ArrowLeft, Play, CheckCircle, Video, Medal, TrendingUp } from "lucide-react";
 import courtImage from "@assets/image_1770246183034.png";
 
 interface PublicSessionData {
@@ -22,6 +23,7 @@ export default function PublicSession() {
   const params = useParams();
   const sessionId = Number(params.id);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
+  const [leaderboardStatsId, setLeaderboardStatsId] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery<PublicSessionData>({
     queryKey: ["/api/public/sessions", sessionId],
@@ -31,7 +33,18 @@ export default function PublicSession() {
       return res.json();
     },
     enabled: !!sessionId,
-    refetchInterval: 10000, // Poll every 10 seconds for live updates
+    refetchInterval: 10000,
+  });
+
+  const { data: leaderboard } = useQuery<any[]>({
+    queryKey: ["/api/sessions", sessionId, "leaderboard"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/leaderboard`);
+      if (!res.ok) throw new Error("Failed to fetch leaderboard");
+      return res.json();
+    },
+    enabled: !!sessionId,
+    refetchInterval: 10000,
   });
 
   if (isLoading) {
@@ -120,15 +133,81 @@ export default function PublicSession() {
             </Card>
           </div>
 
-          <Tabs defaultValue="players" className="w-full">
-            <TabsList className="w-full justify-start h-12 bg-muted/50 p-1">
-              <TabsTrigger value="players" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+          <Tabs defaultValue={completedMatches.length > 0 ? "leaderboard" : "players"} className="w-full">
+            <TabsList className="w-full justify-start h-12 bg-muted/50 p-1 flex-wrap gap-1">
+              <TabsTrigger value="leaderboard" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-public-leaderboard">
+                <Medal className="w-4 h-4 mr-2" /> Leaderboard
+              </TabsTrigger>
+              <TabsTrigger value="players" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-public-players">
                 <Users className="w-4 h-4 mr-2" /> Players ({signups.length})
               </TabsTrigger>
-              <TabsTrigger value="matches" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger value="matches" className="px-6 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-public-matches">
                 <Trophy className="w-4 h-4 mr-2" /> Courts & Matches
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="leaderboard" className="mt-6" data-testid="content-public-leaderboard">
+              {(!leaderboard || leaderboard.length === 0) ? (
+                <Card className="border-dashed">
+                  <CardContent className="p-8 text-center text-muted-foreground">
+                    <Medal className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="font-medium">No results yet</p>
+                    <p className="text-sm">The leaderboard will update as matches are completed</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {leaderboard.map((player: any, index: number) => {
+                    const winPct = player.winPercentage || 0;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`flex items-center gap-4 rounded-xl px-4 py-3 cursor-pointer hover-elevate ${
+                          index === 0 ? "bg-amber-500/10 border border-amber-500/30" :
+                          index === 1 ? "bg-gray-400/10 border border-gray-400/30" :
+                          index === 2 ? "bg-amber-700/10 border border-amber-700/30" :
+                          "bg-card border border-border/50"
+                        }`}
+                        onClick={() => setLeaderboardStatsId(player.id)}
+                        data-testid={`public-leaderboard-player-${player.id}`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+                          index === 0 ? "bg-amber-500 text-white" :
+                          index === 1 ? "bg-gray-400 text-white" :
+                          index === 2 ? "bg-amber-700 text-white" :
+                          "bg-muted text-muted-foreground"
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+                          <AvatarFallback>{player.fullName?.charAt(0) || "P"}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm truncate">{player.fullName}</div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                            <span className="text-green-600 dark:text-green-400 font-medium">{player.matchesWon}W</span>
+                            <span className="text-red-600 dark:text-red-400 font-medium">{player.matchesLost}L</span>
+                            <span>{player.matchesPlayed} played</span>
+                          </div>
+                          <Progress value={winPct} className="h-1.5 mt-1.5" />
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-lg font-bold">{winPct}%</div>
+                          <div className="text-xs text-muted-foreground">win rate</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <PlayerStatsPopup 
+                profileId={leaderboardStatsId} 
+                open={leaderboardStatsId !== null}
+                onOpenChange={(open) => !open && setLeaderboardStatsId(null)}
+              />
+            </TabsContent>
 
             <TabsContent value="players" className="mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
