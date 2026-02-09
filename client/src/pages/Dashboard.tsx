@@ -316,7 +316,7 @@ function DashboardContent({
                 </CardTitle>
                 <CardDescription>Players ranked by wins and win percentage</CardDescription>
               </div>
-              <Link href="/rankings">
+              <Link href="/all-rankings">
                 <Button variant="ghost" size="sm" data-testid="button-view-all-rankings">
                   View All <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>

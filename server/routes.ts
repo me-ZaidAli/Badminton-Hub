@@ -3748,7 +3748,7 @@ export async function registerRoutes(
     }
   });
 
-  // === ADMIN: Global rankings (OWNER, ADMIN, or club ORGANISER/ADMIN) ===
+  // === ADMIN: Global rankings (OWNER and ADMIN only) ===
   app.get("/api/admin/rankings", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -3756,23 +3756,12 @@ export async function registerRoutes(
     const isOwner = user.role === "OWNER";
     const isAdmin = user.role === "ADMIN";
 
-    let accessibleClubIds: number[] | null = null;
     if (!isOwner && !isAdmin) {
-      const profiles = await storage.getUserPlayerProfiles(user.id);
-      const adminProfiles = profiles.filter(
-        (p) =>
-          p.membershipStatus === "APPROVED" &&
-          ["ADMIN", "ORGANISER", "COACH"].includes(p.clubRole)
-      );
-      if (adminProfiles.length === 0) return res.sendStatus(403);
-      accessibleClubIds = adminProfiles.map((p) => p.clubId);
+      return res.sendStatus(403);
     }
 
     try {
       const conditions: any[] = [];
-      if (accessibleClubIds) {
-        conditions.push(inArray(playerProfiles.clubId, accessibleClubIds));
-      }
 
       const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
       if (qClubId) conditions.push(eq(playerProfiles.clubId, qClubId));
@@ -3794,10 +3783,19 @@ export async function registerRoutes(
             clubCity: clubs.city,
             clubCountry: clubs.country,
             fullName: users.fullName,
+            email: users.email,
+            phone: users.phone,
             gender: playerProfiles.gender,
             category: playerProfiles.category,
             playerStatus: playerProfiles.playerStatus,
             clubRole: playerProfiles.clubRole,
+            membershipStatus: playerProfiles.membershipStatus,
+            emailVerified: users.emailVerified,
+            isJunior: users.isJunior,
+            userCountry: users.country,
+            userCity: users.city,
+            userRegion: users.region,
+            createdAt: users.createdAt,
           })
           .from(playerProfiles)
           .innerJoin(users, eq(playerProfiles.userId, users.id))
@@ -3887,10 +3885,19 @@ export async function registerRoutes(
           clubCity: clubs.city,
           clubCountry: clubs.country,
           fullName: users.fullName,
+          email: users.email,
+          phone: users.phone,
           gender: playerProfiles.gender,
           category: playerProfiles.category,
           playerStatus: playerProfiles.playerStatus,
           clubRole: playerProfiles.clubRole,
+          membershipStatus: playerProfiles.membershipStatus,
+          emailVerified: users.emailVerified,
+          isJunior: users.isJunior,
+          userCountry: users.country,
+          userCity: users.city,
+          userRegion: users.region,
+          createdAt: users.createdAt,
         })
         .from(playerProfiles)
         .innerJoin(users, eq(playerProfiles.userId, users.id))

@@ -62,7 +62,6 @@ function useNavItems(): NavItem[] {
     { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/rankings", label: "All Rankings", icon: Activity },
   ];
 
   if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
@@ -77,6 +76,7 @@ function useNavItems(): NavItem[] {
 
 
   if (isAdmin || isSuperAdmin) {
+    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy });
     navItems.push({ href: "/admin/players", label: "Members", icon: Users });
   }
 

@@ -305,7 +305,7 @@ export default function SuperAdminDashboard() {
                   <GraduationCap className="w-4 h-4" /> Coaches
                 </Button>
               </Link>
-              <Link href="/admin/rankings">
+              <Link href="/all-rankings">
                 <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-rankings">
                   <Trophy className="w-4 h-4" /> Rankings
                 </Button>

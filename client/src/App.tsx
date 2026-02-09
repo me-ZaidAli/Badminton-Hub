@@ -17,7 +17,6 @@ import ResetPassword from "@/pages/auth/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
-import Rankings from "@/pages/Rankings";
 import PublicSession from "@/pages/PublicSession";
 import NotFound from "@/pages/not-found";
 import CreateClub from "@/pages/CreateClub";
@@ -56,7 +55,7 @@ import ClubManagement from "@/pages/admin/ClubManagement";
 import ClubApprovals from "@/pages/admin/ClubApprovals";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Analytics from "@/pages/admin/Analytics";
-import AdminRankings from "@/pages/admin/AdminRankings";
+import AllRankings from "@/pages/AllRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
 import CoachManagement from "@/pages/admin/CoachManagement";
@@ -109,6 +108,37 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 
   const isAdmin = user.role === "ADMIN" || user.role === "OWNER" || user.role === "ORGANISER" || user.role === "COACH";
   if (!isAdmin) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <Component />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function StrictAdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!user) {
+    setLocation("/login");
+    return null;
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "OWNER") {
     setLocation("/dashboard");
     return null;
   }
@@ -207,8 +237,8 @@ function Router() {
       <Route path="/sessions/:id">
         <PrivateRoute component={SessionDetail} />
       </Route>
-      <Route path="/rankings">
-        <PublicRoute component={Rankings} />
+      <Route path="/all-rankings">
+        <StrictAdminRoute component={AllRankings} />
       </Route>
       <Route path="/public/session/:id">
         <PublicRoute component={PublicSession} />
@@ -301,9 +331,6 @@ function Router() {
       </Route>
       <Route path="/admin/analytics">
         <OwnerRoute component={Analytics} />
-      </Route>
-      <Route path="/admin/rankings">
-        <AdminRoute component={AdminRankings} />
       </Route>
       <Route path="/admin/import-members">
         <OwnerRoute component={MemberImport} />
