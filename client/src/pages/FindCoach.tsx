@@ -59,6 +59,8 @@ interface Coach {
   latitude?: string;
   longitude?: string;
   googleMapsUrl?: string;
+  averageRating?: number | null;
+  reviewCount?: number;
 }
 
 interface Membership {
@@ -330,6 +332,7 @@ export default function FindCoach() {
   const [beCertOnly, setBeCertOnly] = useState(false);
   const [minYears, setMinYears] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const { data: membership, isLoading: membershipLoading } = useQuery<Membership | null>({
     queryKey: ["/api/coach-seeker/me"],
@@ -378,29 +381,6 @@ export default function FindCoach() {
     return (
       <div className="flex justify-center py-20" data-testid="loading-find-coach">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  if (!isActive) {
-    return (
-      <div className="max-w-2xl mx-auto py-16 text-center" data-testid="section-membership-required">
-        <Card>
-          <CardContent className="py-12">
-            <Shield className="w-16 h-16 text-primary mx-auto mb-6" />
-            <h1 className="text-2xl font-bold mb-3" data-testid="text-membership-title">
-              Coach Seeker Membership Required
-            </h1>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto" data-testid="text-membership-description">
-              To access the full coach directory with contact details, qualifications, and profiles, you need an active Coach Seeker membership at just £10/month.
-            </p>
-            <Link href="/join-coach-seeker">
-              <Button size="lg" data-testid="button-join-coach-seeker">
-                Join for £10/month
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -479,7 +459,7 @@ export default function FindCoach() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="grid-coaches">
           {filteredCoaches.map((coach) => (
-            <Card key={coach.id} className="hover-elevate cursor-pointer" onClick={() => setSelectedCoach(coach)} data-testid={`card-coach-${coach.id}`}>
+            <Card key={coach.id} className="hover-elevate cursor-pointer" onClick={() => { if (isActive) { setSelectedCoach(coach); } else { setShowPaywall(true); } }} data-testid={`card-coach-${coach.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
                   <Avatar className="h-12 w-12 border border-border flex-shrink-0">
@@ -499,6 +479,21 @@ export default function FindCoach() {
                         {[coach.city, coach.postcode].filter(Boolean).join(", ") || "Location not specified"}
                       </span>
                     </div>
+                    {coach.averageRating != null && coach.averageRating > 0 && (
+                      <div className="flex items-center gap-1 mt-1" data-testid={`rating-coach-${coach.id}`}>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3.5 h-3.5 ${s <= Math.round(coach.averageRating!) ? "text-amber-500 fill-amber-500" : "text-muted-foreground/30"}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {coach.averageRating.toFixed(1)} ({coach.reviewCount || 0})
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -531,22 +526,24 @@ export default function FindCoach() {
                   <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-coach-bio-${coach.id}`}>{coach.bio}</p>
                 )}
 
-                <div className="flex items-center gap-4 text-sm pt-1 flex-wrap">
-                  {coach.email && (
-                    <span className="flex items-center gap-1 text-muted-foreground" data-testid={`text-coach-email-${coach.id}`}>
-                      <Mail className="w-3 h-3" />
-                      <span className="truncate max-w-[150px]">{coach.email}</span>
-                    </span>
-                  )}
-                  {coach.phone && (
-                    <span className="flex items-center gap-1 text-muted-foreground" data-testid={`text-coach-phone-${coach.id}`}>
-                      <Phone className="w-3 h-3" />{coach.phone}
-                    </span>
-                  )}
-                </div>
+                {isActive && (
+                  <div className="flex items-center gap-4 text-sm pt-1 flex-wrap">
+                    {coach.email && (
+                      <span className="flex items-center gap-1 text-muted-foreground" data-testid={`text-coach-email-${coach.id}`}>
+                        <Mail className="w-3 h-3" />
+                        <span className="truncate max-w-[150px]">{coach.email}</span>
+                      </span>
+                    )}
+                    {coach.phone && (
+                      <span className="flex items-center gap-1 text-muted-foreground" data-testid={`text-coach-phone-${coach.id}`}>
+                        <Phone className="w-3 h-3" />{coach.phone}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <Button variant="outline" size="sm" className="w-full mt-2" data-testid={`button-view-profile-${coach.id}`}>
-                  View Full Profile
+                  {isActive ? "View Full Profile" : "Unlock Full Profile"}
                 </Button>
               </CardContent>
             </Card>
@@ -555,6 +552,30 @@ export default function FindCoach() {
       )}
 
       <CoachDetailDialog coach={selectedCoach} open={!!selectedCoach} onOpenChange={(v) => { if (!v) setSelectedCoach(null); }} />
+
+      <Dialog open={showPaywall} onOpenChange={setShowPaywall}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-paywall">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
+              Membership Required
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-4 space-y-4">
+            <p className="text-muted-foreground">
+              Pay £10/month to unlock full coach details, including contact information, qualifications, reviews, and interactive profiles.
+            </p>
+            <Link href="/join-coach-seeker">
+              <Button size="lg" className="w-full" data-testid="button-paywall-join">
+                Join for £10/month
+              </Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={() => setShowPaywall(false)} className="w-full" data-testid="button-paywall-dismiss">
+              Maybe Later
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

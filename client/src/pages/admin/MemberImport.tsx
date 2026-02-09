@@ -11,13 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useClubs } from "@/hooks/use-clubs";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, UserPlus, Trash2, CheckCircle2, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Upload, UserPlus, Trash2, CheckCircle2, AlertCircle, FileSpreadsheet, Download, ClipboardPaste } from "lucide-react";
 
 interface StagedMember {
   fullName: string;
   email: string;
   gender: string;
   category: string;
+  role: string;
+  phone?: string;
 }
 
 interface ImportError {
@@ -51,8 +54,11 @@ export default function MemberImport() {
   const [manualEmail, setManualEmail] = useState("");
   const [manualGender, setManualGender] = useState("MALE");
   const [manualCategory, setManualCategory] = useState("D");
+  const [manualRole, setManualRole] = useState("PLAYER");
+  const [manualPhone, setManualPhone] = useState("");
 
   const [isDragOver, setIsDragOver] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -103,6 +109,8 @@ export default function MemberImport() {
     const emailIdx = header.indexOf("email");
     const genderIdx = header.indexOf("gender");
     const categoryIdx = header.indexOf("category");
+    const roleIdx = header.indexOf("role");
+    const phoneIdx = header.indexOf("phone");
 
     if (nameIdx === -1 || emailIdx === -1) {
       toast({
@@ -122,8 +130,11 @@ export default function MemberImport() {
 
       const gender = genderIdx !== -1 && cols[genderIdx] ? cols[genderIdx].toUpperCase() : "MALE";
       const category = categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx].toUpperCase() : "D";
+      let role = roleIdx !== -1 && cols[roleIdx] ? cols[roleIdx].toUpperCase() : "PLAYER";
+      if (role !== "PLAYER" && role !== "COACH") role = "PLAYER";
+      const phone = phoneIdx !== -1 ? cols[phoneIdx] || "" : "";
 
-      parsed.push({ fullName, email, gender, category });
+      parsed.push({ fullName, email, gender, category, role, phone: phone || undefined });
     }
 
     if (parsed.length === 0) {
@@ -198,17 +209,37 @@ export default function MemberImport() {
         email: manualEmail.trim(),
         gender: manualGender,
         category: manualCategory,
+        role: manualRole,
+        phone: manualPhone.trim() || undefined,
       },
     ]);
     setManualName("");
     setManualEmail("");
     setManualGender("MALE");
     setManualCategory("D");
+    setManualRole("PLAYER");
+    setManualPhone("");
     setImportResult(null);
   };
 
   const removeStagedMember = (index: number) => {
     setStagedMembers((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const exportStagedCSV = () => {
+    if (stagedMembers.length === 0) return;
+    const header = "fullName,email,gender,category,role,phone";
+    const rows = stagedMembers.map((m) =>
+      [m.fullName, m.email, m.gender, m.category, m.role, m.phone || ""].join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "members-export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -252,7 +283,7 @@ export default function MemberImport() {
 
       {selectedClubId && (
         <>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-3 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -278,7 +309,7 @@ export default function MemberImport() {
                     Drag & drop a CSV file here, or click to browse
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Format: fullName, email, gender, category
+                    Format: fullName, email, gender, category, role, phone
                   </p>
                   <input
                     ref={fileInputRef}
@@ -295,13 +326,47 @@ export default function MemberImport() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
+                  <ClipboardPaste className="h-5 w-5" />
+                  Paste Import
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Textarea
+                    placeholder={"fullName,email,gender,category,role,phone\nJane Doe,jane@email.com,FEMALE,B,PLAYER,07123456789"}
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    rows={5}
+                    data-testid="textarea-paste-import"
+                  />
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      if (pasteText.trim()) {
+                        parseCSV(pasteText);
+                        setPasteText("");
+                      }
+                    }}
+                    disabled={!pasteText.trim()}
+                    data-testid="button-parse-paste"
+                  >
+                    <ClipboardPaste className="h-4 w-4 mr-2" />
+                    Parse Pasted Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <UserPlus className="h-5 w-5" />
                   Manual Entry
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                <div className="space-y-3">
+                  <div className="space-y-1">
                     <Label htmlFor="manual-name">Full Name</Label>
                     <Input
                       id="manual-name"
@@ -311,7 +376,7 @@ export default function MemberImport() {
                       data-testid="input-manual-name"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label htmlFor="manual-email">Email</Label>
                     <Input
                       id="manual-email"
@@ -322,8 +387,18 @@ export default function MemberImport() {
                       data-testid="input-manual-email"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="manual-phone">Phone (optional)</Label>
+                    <Input
+                      id="manual-phone"
+                      placeholder="07123456789"
+                      value={manualPhone}
+                      onChange={(e) => setManualPhone(e.target.value)}
+                      data-testid="input-manual-phone"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
                       <Label>Gender</Label>
                       <Select value={manualGender} onValueChange={setManualGender}>
                         <SelectTrigger data-testid="select-manual-gender">
@@ -335,7 +410,7 @@ export default function MemberImport() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <Label>Category</Label>
                       <Select value={manualCategory} onValueChange={setManualCategory}>
                         <SelectTrigger data-testid="select-manual-category">
@@ -346,6 +421,18 @@ export default function MemberImport() {
                           <SelectItem value="B">B</SelectItem>
                           <SelectItem value="C">C</SelectItem>
                           <SelectItem value="D">D</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Role</Label>
+                      <Select value={manualRole} onValueChange={setManualRole}>
+                        <SelectTrigger data-testid="select-manual-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PLAYER">Player</SelectItem>
+                          <SelectItem value="COACH">Coach</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -366,20 +453,30 @@ export default function MemberImport() {
                 <Badge variant="secondary">{stagedMembers.length} member(s)</Badge>
               </div>
               {stagedMembers.length > 0 && (
-                <Button
-                  onClick={() => importMutation.mutate()}
-                  disabled={importMutation.isPending}
-                  data-testid="button-import-members"
-                >
-                  {importMutation.isPending ? (
-                    "Importing..."
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import {stagedMembers.length} Member(s)
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    onClick={exportStagedCSV}
+                    data-testid="button-export-csv"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    onClick={() => importMutation.mutate()}
+                    disabled={importMutation.isPending}
+                    data-testid="button-import-members"
+                  >
+                    {importMutation.isPending ? (
+                      "Importing..."
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import {stagedMembers.length} Member(s)
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </CardHeader>
             <CardContent>
@@ -399,6 +496,7 @@ export default function MemberImport() {
                         <TableHead>Email</TableHead>
                         <TableHead>Gender</TableHead>
                         <TableHead>Category</TableHead>
+                        <TableHead>Role</TableHead>
                         <TableHead className="w-[80px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -412,6 +510,9 @@ export default function MemberImport() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary">{member.category}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" data-testid={`badge-member-role-${index}`}>{member.role}</Badge>
                           </TableCell>
                           <TableCell>
                             <Button

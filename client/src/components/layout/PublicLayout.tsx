@@ -11,8 +11,8 @@ const navItems = [
   { label: "Home", href: "/", icon: Home },
   { label: "Clubs", href: "/explore/clubs", icon: Search },
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
-  { label: "Rankings", href: "/explore/rankings", icon: Trophy },
-  { label: "Coaches", href: "/explore/coaches", icon: GraduationCap },
+  { label: "All Rankings", href: "/explore/rankings", icon: Trophy },
+  { label: "Find a Coach", href: "/find-coach", icon: GraduationCap },
   { label: "Contact", href: "/contact", icon: Mail },
 ];
 

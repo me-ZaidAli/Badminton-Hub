@@ -4014,12 +4014,25 @@ export async function registerRoutes(
       const allCoaches = await storage.getCoaches();
       const approved = allCoaches.filter(c => c.status === "APPROVED");
 
+      const ratingsMap = new Map<number, { avg: number; count: number }>();
+      for (const c of approved) {
+        try {
+          const rating = await storage.getAverageRating("COACH", c.id);
+          ratingsMap.set(c.id, { avg: rating.avg, count: rating.count });
+        } catch {}
+      }
+
       if (req.isAuthenticated()) {
         const membership = await storage.getCoachSeekerMembership(req.user!.id);
         const isSuperAdminUser = req.user!.role === "OWNER";
 
         if (isSuperAdminUser || (membership && membership.status === "ACTIVE")) {
-          res.json(approved);
+          const enriched = approved.map(c => ({
+            ...c,
+            averageRating: ratingsMap.get(c.id)?.avg ?? null,
+            reviewCount: ratingsMap.get(c.id)?.count ?? 0,
+          }));
+          res.json(enriched);
           return;
         }
       }
@@ -4027,6 +4040,7 @@ export async function registerRoutes(
       const limited = approved.map(c => ({
         id: c.id,
         fullName: c.fullName,
+        profilePhoto: c.profilePhoto,
         city: c.city,
         postcode: c.postcode,
         areaCoverage: c.areaCoverage,
@@ -4036,6 +4050,8 @@ export async function registerRoutes(
         experience: c.experience,
         latitude: c.latitude,
         longitude: c.longitude,
+        averageRating: ratingsMap.get(c.id)?.avg ?? null,
+        reviewCount: ratingsMap.get(c.id)?.count ?? 0,
       }));
       res.json(limited);
     } catch (err) {

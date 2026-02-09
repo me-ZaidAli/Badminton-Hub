@@ -62,7 +62,7 @@ function useNavItems(): NavItem[] {
     { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/rankings", label: "Rankings", icon: Activity },
+    { href: "/rankings", label: "All Rankings", icon: Activity },
   ];
 
   if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
@@ -73,12 +73,8 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
-  navItems.push({ href: "/explore/coaches", label: "Coaches", icon: GraduationCap });
   navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
 
-  if (isSuperAdmin || isAdmin || isOrganiser || user?.role === "COACH" || hasClubAdminAccess) {
-    navItems.push({ href: "/admin/rankings", label: "All Rankings", icon: Trophy });
-  }
 
   if (isAdmin || isSuperAdmin) {
     navItems.push({ href: "/admin/players", label: "Members", icon: Users });

@@ -152,6 +152,7 @@ export interface IStorage {
     matchesLost: number;
     winPercentage: number;
     isJunior: boolean;
+    clubRole: string;
     continent: string | null;
     country: string | null;
     region: string | null;
@@ -1059,6 +1060,7 @@ export class DatabaseStorage implements IStorage {
       clubId: number;
       clubName: string;
       isJunior: boolean;
+      clubRole: string;
     }>();
 
     for (const r of profileRows) {
@@ -1074,6 +1076,7 @@ export class DatabaseStorage implements IStorage {
         clubId: r.player_profiles.clubId,
         clubName: r.clubs.name,
         isJunior: r.users.isJunior,
+        clubRole: r.player_profiles.clubRole,
       });
     }
 
@@ -1116,6 +1119,7 @@ export class DatabaseStorage implements IStorage {
           ? Math.round((stats.matchesWon / stats.matchesPlayed) * 100)
           : 0,
         isJunior: player.isJunior,
+        clubRole: player.clubRole,
       });
     }
 

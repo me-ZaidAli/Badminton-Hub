@@ -457,8 +457,15 @@ export default function Clubs() {
                 {user && (
                   <div className="border-t pt-4 mt-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm font-medium">Your Membership:</span>
-                      <MembershipBadge membership={getMembershipStatus(memberships, selectedClub.id)} />
+                      <span className="text-sm font-medium">Your Status:</span>
+                      {selectedClub.ownerId === user.id ? (
+                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" data-testid="badge-owner">
+                          <Building2 className="w-3 h-3 mr-1" />
+                          Club Owner
+                        </Badge>
+                      ) : (
+                        <MembershipBadge membership={getMembershipStatus(memberships, selectedClub.id)} />
+                      )}
                     </div>
                   </div>
                 )}
@@ -466,6 +473,17 @@ export default function Clubs() {
 
               <DialogFooter className="flex-col sm:flex-col gap-3">
                 {user && (() => {
+                  const isOwner = selectedClub.ownerId === user.id;
+                  if (isOwner) {
+                    return (
+                      <Link href="/dashboard">
+                        <Button className="w-full sm:w-auto" data-testid="button-owner-dashboard">
+                          <Building2 className="w-4 h-4 mr-2" />
+                          Manage Club
+                        </Button>
+                      </Link>
+                    );
+                  }
                   const state = getJoinButtonState(selectedClub.id);
                   if (state === "member") {
                     return (

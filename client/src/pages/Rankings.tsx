@@ -8,12 +8,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Trophy, Search, Filter, ArrowUp, ArrowDown, Minus,
-  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, ChevronDown
+  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, ChevronDown, Pencil
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 function getQuarterDates(year: number, quarter: number): { dateFrom: string; dateTo: string } {
   const startMonth = (quarter - 1) * 3;
@@ -91,6 +96,137 @@ function getSeasonOptions() {
   return options;
 }
 
+function EditProfileDialog({
+  player,
+  open,
+  onOpenChange,
+}: {
+  player: LeaderboardPlayer | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [fullName, setFullName] = useState("");
+  const [editGender, setEditGender] = useState("MALE");
+  const [editCategory, setEditCategory] = useState("D");
+  const [editClubRole, setEditClubRole] = useState("PLAYER");
+
+  const resetForm = (p: LeaderboardPlayer | null) => {
+    if (p) {
+      setFullName(p.fullName || "");
+      setEditGender(p.gender || "MALE");
+      setEditCategory(p.category || "D");
+      setEditClubRole(p.clubRole || "PLAYER");
+    }
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen && player) {
+      resetForm(player);
+    }
+    onOpenChange(isOpen);
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { fullName: string; gender: string; category: string; clubRole: string }) => {
+      if (!player) throw new Error("No player selected");
+      await apiRequest("PATCH", `/api/clubs/${player.clubId}/members/${player.id}`, {
+        fullName: data.fullName,
+        gender: data.gender,
+        category: data.category,
+        clubRole: data.clubRole,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Profile updated", description: "Player profile has been updated successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/leaderboard"] });
+      onOpenChange(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    updateMutation.mutate({ fullName, gender: editGender, category: editCategory, clubRole: editClubRole });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Player Profile</DialogTitle>
+          <DialogDescription>Update player details for {player?.fullName}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="edit-fullName">Full Name</Label>
+            <Input
+              id="edit-fullName"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              data-testid="input-edit-fullName"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-gender">Gender</Label>
+            <Select value={editGender} onValueChange={setEditGender}>
+              <SelectTrigger data-testid="select-edit-gender">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MALE">Male</SelectItem>
+                <SelectItem value="FEMALE">Female</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-category">Category / Grade</Label>
+            <Select value={editCategory} onValueChange={setEditCategory}>
+              <SelectTrigger data-testid="select-edit-category">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">Grade A</SelectItem>
+                <SelectItem value="B">Grade B</SelectItem>
+                <SelectItem value="C">Grade C</SelectItem>
+                <SelectItem value="D">Grade D</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-clubRole">Club Role</Label>
+            <Select value={editClubRole} onValueChange={setEditClubRole}>
+              <SelectTrigger data-testid="select-edit-clubRole">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PLAYER">Player</SelectItem>
+                <SelectItem value="COACH">Coach</SelectItem>
+                <SelectItem value="ORGANISER">Organiser</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-edit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={updateMutation.isPending || !fullName.trim()}
+            data-testid="button-save-profile"
+          >
+            {updateMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+            Save Changes
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Rankings() {
   const { data: user } = useUser();
   const { data: clubs } = useClubs();
@@ -102,6 +238,10 @@ export default function Rankings() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [editPlayer, setEditPlayer] = useState<LeaderboardPlayer | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
 
   const timeDates = useMemo(() => getTimePeriodDates(timePeriod), [timePeriod]);
   const seasonOptions = useMemo(() => getSeasonOptions(), []);
@@ -158,8 +298,8 @@ export default function Rankings() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Leaderboard"
-        description="Player rankings calculated from match results. Filter by club, grade, gender, and time period."
+        title="All Rankings"
+        description="Complete player rankings across all clubs. Filter by club, grade, gender, match type, and time period."
       />
 
       <Card>
@@ -261,6 +401,9 @@ export default function Rankings() {
               <TableHead className="text-right w-[100px]">W / L</TableHead>
               <TableHead className="text-right w-[80px]">Win %</TableHead>
               <TableHead className="hidden lg:table-cell w-[140px]">Achievements</TableHead>
+              {isAdmin && (
+                <TableHead className="w-[60px] text-center">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -270,12 +413,12 @@ export default function Rankings() {
                   <TableCell className="h-14"><div className="w-8 h-4 bg-muted animate-pulse rounded mx-auto" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-muted animate-pulse rounded" /></TableCell>
                   {selectedClubId === "all" && <TableCell className="hidden md:table-cell" />}
-                  <TableCell colSpan={5} />
+                  <TableCell colSpan={isAdmin ? 6 : 5} />
                 </TableRow>
               ))
             ) : rankedLeaderboard.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={selectedClubId === "all" ? 8 : 7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={(selectedClubId === "all" ? 8 : 7) + (isAdmin ? 1 : 0)} className="text-center py-12 text-muted-foreground">
                   <Target className="w-10 h-10 mx-auto mb-3 opacity-50" />
                   <p className="font-medium">No players found</p>
                   <p className="text-sm mt-1">
@@ -369,6 +512,22 @@ export default function Rankings() {
                       ))}
                     </div>
                   </TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-center">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditPlayer(player);
+                          setEditOpen(true);
+                        }}
+                        data-testid={`button-edit-player-${player.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
@@ -396,6 +555,12 @@ export default function Rankings() {
         playerId={statsPlayerId}
         open={statsOpen}
         onOpenChange={setStatsOpen}
+      />
+
+      <EditProfileDialog
+        player={editPlayer}
+        open={editOpen}
+        onOpenChange={setEditOpen}
       />
     </div>
   );

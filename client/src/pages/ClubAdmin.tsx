@@ -47,6 +47,8 @@ export default function ClubAdmin() {
   const isSuperAdmin = user?.role === "OWNER";
   const ownedClubs = isSuperAdmin ? (clubs || []) : (clubs?.filter(club => club.ownerId === user?.id) || []);
   const clubId = selectedClubId ?? ownedClubs[0]?.id ?? null;
+  const currentClub = clubs?.find(c => c.id === clubId);
+  const isClubOwner = currentClub?.ownerId === user?.id;
 
   const { data: members, isLoading } = useQuery<MemberWithUser[]>({
     queryKey: ["/api/clubs", clubId, "members"],
@@ -506,8 +508,9 @@ export default function ClubAdmin() {
                           <Select 
                             value={member.clubRole || "PLAYER"} 
                             onValueChange={(role) => handleRoleChange(member.id, role)}
+                            disabled={!isSuperAdmin && !isClubOwner}
                           >
-                            <SelectTrigger className="w-[120px]" data-testid={`role-select-${member.id}`}>
+                            <SelectTrigger className="w-[130px]" data-testid={`role-select-${member.id}`}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -517,16 +520,22 @@ export default function ClubAdmin() {
                                   Player
                                 </div>
                               </SelectItem>
+                              <SelectItem value="COACH">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-3 h-3" />
+                                  Coach
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="ORGANISER">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-3 h-3" />
+                                  Organiser
+                                </div>
+                              </SelectItem>
                               <SelectItem value="ADMIN">
                                 <div className="flex items-center gap-2">
                                   <Shield className="w-3 h-3" />
                                   Admin
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="OWNER">
-                                <div className="flex items-center gap-2">
-                                  <Users className="w-3 h-3" />
-                                  Owner
                                 </div>
                               </SelectItem>
                             </SelectContent>
