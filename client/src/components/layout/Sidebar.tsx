@@ -11,11 +11,9 @@ import {
   LogOut, 
   LayoutDashboard,
   ShieldCheck,
-  Activity,
   Building2,
   MapPin,
   Home,
-  FolderKanban,
   Upload,
   BarChart3,
   Trophy,
@@ -75,26 +73,23 @@ function useNavItems(): NavItem[] {
   navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
 
 
-  if (isAdmin || isSuperAdmin) {
-    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy });
-    navItems.push({ href: "/admin/players", label: "Members", icon: Users });
-  }
-
   if (user?.role === "OWNER") {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
-    navItems.push({ href: "/admin/clubs-management", label: "Clubs Management", icon: FolderKanban });
-    navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2 });
-    navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap });
-    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound });
-    navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail });
-    navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3 });
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload });
-
     navItems.push({ href: "/super-admin", label: "Super Admin", icon: Shield, section: "super-admin" });
     navItems.push({ href: "/super-admin/users", label: "Users Control", icon: Users, section: "super-admin" });
     navItems.push({ href: "/super-admin/clubs", label: "Clubs Control", icon: Building2, section: "super-admin" });
     navItems.push({ href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, section: "super-admin" });
+    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "super-admin" });
+    navItems.push({ href: "/admin/players", label: "Members", icon: Users, section: "super-admin" });
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "super-admin" });
+    navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2, section: "super-admin" });
+    navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap, section: "super-admin" });
+    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "super-admin" });
+    navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail, section: "super-admin" });
+    navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3, section: "super-admin" });
+    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "super-admin" });
+    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
+  } else if (user?.role === "ADMIN") {
+    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy });
   }
 
   return navItems;
