@@ -1177,6 +1177,32 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sessions/:id/restart", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins and organisers can restart sessions" });
+      }
+
+      const matches = await storage.getSessionMatches(sessionId);
+      for (const match of matches) {
+        await storage.deleteMatch(match.id);
+      }
+
+      const updated = await storage.updateSession(sessionId, { status: "ACTIVE", autoGenerateActive: false });
+      res.json({ message: "Session restarted", matchesDeleted: matches.length, session: updated });
+    } catch (err: any) {
+      console.error("Error restarting session:", err);
+      res.status(500).json({ message: err.message || "Failed to restart session" });
+    }
+  });
+
   // Delete session
   app.delete("/api/sessions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

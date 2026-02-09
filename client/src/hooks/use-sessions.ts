@@ -88,6 +88,34 @@ export function useUpdateSession() {
   });
 }
 
+export function useRestartSession() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await fetch(`/api/sessions/${sessionId}/restart`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to restart session");
+      }
+      return res.json();
+    },
+    onSuccess: (data, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "matches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "leaderboard"] });
+      toast({ title: "Session Restarted", description: `${data.matchesDeleted} matches deleted. Session is ready for new matches.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message || "Failed to restart session.", variant: "destructive" });
+    }
+  });
+}
+
 export function useJoinSession() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

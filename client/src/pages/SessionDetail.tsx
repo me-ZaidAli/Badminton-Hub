@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
@@ -73,6 +73,10 @@ export default function SessionDetail() {
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
+  const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+  const [editingCapacity, setEditingCapacity] = useState(false);
+  const [capacityValue, setCapacityValue] = useState(0);
 
   const [guestName, setGuestName] = useState("");
   const [guestGender, setGuestGender] = useState("MALE");
@@ -411,6 +415,42 @@ export default function SessionDetail() {
               </Dialog>
             )}
           </div>
+
+          <Dialog open={restartDialogOpen} onOpenChange={setRestartDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-destructive">
+                  <RotateCcw className="w-5 h-5" />
+                  Restart Session
+                </DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to restart this session? This will permanently delete all completed, active, and queued matches along with their scores. Players will remain signed up and the session will be ready for fresh matches.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 text-sm text-destructive">
+                This action cannot be undone. All match history and scores will be lost.
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setRestartDialogOpen(false)} data-testid="button-cancel-restart">
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    restartSession(id, {
+                      onSuccess: () => setRestartDialogOpen(false)
+                    });
+                  }}
+                  disabled={isRestarting}
+                  data-testid="button-confirm-restart"
+                >
+                  {isRestarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                  Yes, Restart Session
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
           <p className="text-xl text-muted-foreground">
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
@@ -427,9 +467,66 @@ export default function SessionDetail() {
 
         <Card className="min-w-[300px] border-primary/20 bg-primary/5">
           <CardContent className="p-6">
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between items-center mb-4">
               <span className="text-muted-foreground">Capacity</span>
-              <span className="font-bold">{signups?.length} / {session.maxPlayers}</span>
+              {editingCapacity && isOrganiser ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-muted-foreground">{signups?.length} /</span>
+                  <Input
+                    type="number"
+                    min={2}
+                    max={100}
+                    value={capacityValue}
+                    onChange={(e) => setCapacityValue(Number(e.target.value))}
+                    className="w-16 h-8 text-center text-sm"
+                    data-testid="input-edit-capacity"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const val = Math.max(2, Math.min(100, capacityValue));
+                        updateSession({ sessionId: id, updates: { maxPlayers: val } });
+                        setEditingCapacity(false);
+                      } else if (e.key === "Escape") {
+                        setEditingCapacity(false);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      const val = Math.max(2, Math.min(100, capacityValue));
+                      updateSession({ sessionId: id, updates: { maxPlayers: val } });
+                      setEditingCapacity(false);
+                    }}
+                    data-testid="button-save-capacity"
+                  >
+                    <CheckCircle className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setEditingCapacity(false)}
+                    data-testid="button-cancel-capacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="font-bold">{signups?.length} / {session.maxPlayers}</span>
+                  {isOrganiser && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => { setCapacityValue(session.maxPlayers); setEditingCapacity(true); }}
+                      data-testid="button-edit-capacity"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
             {session.genderRestriction === "FEMALE_ONLY" && (
               <p className="text-sm text-pink-600 dark:text-pink-400 mb-2">This session is for female players only.</p>
@@ -492,20 +589,32 @@ export default function SessionDetail() {
               </Button>
             )}
             {isOrganiser && session.status !== "COMPLETED" && (
-              <Button 
-                variant="outline" 
-                className="w-full mt-3 gap-2" 
-                onClick={() => {
-                  if (confirm("Are you sure you want to finish this session? This will archive all matches.")) {
-                    updateSession({ sessionId: id, updates: { status: "COMPLETED" } });
-                  }
-                }}
-                disabled={isUpdating}
-                data-testid="button-finish-session"
-              >
-                <CheckCircle className="w-4 h-4" />
-                {isUpdating ? "Finishing..." : "Finish Session"}
-              </Button>
+              <div className="space-y-2 mt-3">
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2" 
+                  onClick={() => {
+                    if (confirm("Are you sure you want to finish this session? This will archive all matches.")) {
+                      updateSession({ sessionId: id, updates: { status: "COMPLETED" } });
+                    }
+                  }}
+                  disabled={isUpdating}
+                  data-testid="button-finish-session"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {isUpdating ? "Finishing..." : "Finish Session"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2 text-destructive"
+                  onClick={() => setRestartDialogOpen(true)}
+                  disabled={isRestarting}
+                  data-testid="button-restart-session"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {isRestarting ? "Restarting..." : "Restart Session"}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
