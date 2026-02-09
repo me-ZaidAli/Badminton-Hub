@@ -4780,7 +4780,8 @@ export async function registerRoutes(
 
     try {
       const userId = parseInt(req.params.id);
-      const { role, fullName, email, emailVerified, accountStatus, phone, city, country } = req.body;
+      const { role, fullName, email, emailVerified, accountStatus, phone, city, country,
+        dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, continent, region } = req.body;
       const updateData: Record<string, any> = {};
       if (role !== undefined) updateData.role = role;
       if (fullName !== undefined) updateData.fullName = fullName;
@@ -4790,6 +4791,12 @@ export async function registerRoutes(
       if (phone !== undefined) updateData.phone = phone;
       if (city !== undefined) updateData.city = city;
       if (country !== undefined) updateData.country = country;
+      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (isJunior !== undefined) updateData.isJunior = isJunior;
+      if (parentGuardianName !== undefined) updateData.parentGuardianName = parentGuardianName || null;
+      if (parentGuardianEmail !== undefined) updateData.parentGuardianEmail = parentGuardianEmail || null;
+      if (continent !== undefined) updateData.continent = continent || null;
+      if (region !== undefined) updateData.region = region || null;
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ message: "No fields to update" });
@@ -4845,6 +4852,59 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error transferring club:", err);
       res.status(500).json({ message: "Failed to transfer club" });
+    }
+  });
+
+  app.patch("/api/super-admin/clubs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const clubId = parseInt(req.params.id);
+      const { name, description, address, city, postcode, country, continent, region,
+        contactFullName, contactPhone, contactAddress, status,
+        isRegisteredWithBE, beRegistrationNumber, hasCompetitions, hasSocialGames,
+        socialGameTimings, providesTraining, trainingDetails,
+        sessionFee, hasMembership, membershipFee, shuttlecockType,
+        providesClubTShirts, ageGroups, playerLevels } = req.body;
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description || null;
+      if (address !== undefined) updateData.address = address || null;
+      if (city !== undefined) updateData.city = city || null;
+      if (postcode !== undefined) updateData.postcode = postcode || null;
+      if (country !== undefined) updateData.country = country || null;
+      if (continent !== undefined) updateData.continent = continent || null;
+      if (region !== undefined) updateData.region = region || null;
+      if (contactFullName !== undefined) updateData.contactFullName = contactFullName || null;
+      if (contactPhone !== undefined) updateData.contactPhone = contactPhone || null;
+      if (contactAddress !== undefined) updateData.contactAddress = contactAddress || null;
+      if (status !== undefined) updateData.status = status;
+      if (isRegisteredWithBE !== undefined) updateData.isRegisteredWithBE = isRegisteredWithBE;
+      if (beRegistrationNumber !== undefined) updateData.beRegistrationNumber = beRegistrationNumber || null;
+      if (hasCompetitions !== undefined) updateData.hasCompetitions = hasCompetitions;
+      if (hasSocialGames !== undefined) updateData.hasSocialGames = hasSocialGames;
+      if (socialGameTimings !== undefined) updateData.socialGameTimings = socialGameTimings || null;
+      if (providesTraining !== undefined) updateData.providesTraining = providesTraining;
+      if (trainingDetails !== undefined) updateData.trainingDetails = trainingDetails || null;
+      if (sessionFee !== undefined) updateData.sessionFee = sessionFee ? parseInt(sessionFee) : null;
+      if (hasMembership !== undefined) updateData.hasMembership = hasMembership;
+      if (membershipFee !== undefined) updateData.membershipFee = membershipFee ? parseInt(membershipFee) : null;
+      if (shuttlecockType !== undefined) updateData.shuttlecockType = shuttlecockType || null;
+      if (providesClubTShirts !== undefined) updateData.providesClubTShirts = providesClubTShirts;
+      if (ageGroups !== undefined) updateData.ageGroups = ageGroups;
+      if (playerLevels !== undefined) updateData.playerLevels = playerLevels;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db.update(clubs).set(updateData).where(eq(clubs.id, clubId)).returning();
+      if (!updated) return res.status(404).json({ message: "Club not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating club:", err);
+      res.status(500).json({ message: "Failed to update club" });
     }
   });
 

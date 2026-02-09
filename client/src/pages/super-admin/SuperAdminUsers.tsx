@@ -28,6 +28,12 @@ interface UserRecord {
   phone?: string;
   city?: string;
   country?: string;
+  dateOfBirth?: string;
+  isJunior?: boolean;
+  parentGuardianName?: string;
+  parentGuardianEmail?: string;
+  continent?: string;
+  region?: string;
   closedAt?: string;
   createdAt: string;
 }
@@ -131,6 +137,12 @@ export default function SuperAdminUsers() {
       phone: user.phone || "",
       city: user.city || "",
       country: user.country || "",
+      region: user.region || "",
+      continent: user.continent || "",
+      dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split("T")[0] : "",
+      isJunior: user.isJunior || false,
+      parentGuardianName: user.parentGuardianName || "",
+      parentGuardianEmail: user.parentGuardianEmail || "",
       emailVerified: user.emailVerified,
       accountStatus: user.accountStatus,
     });
@@ -138,7 +150,13 @@ export default function SuperAdminUsers() {
 
   const handleSaveEdit = () => {
     if (!editUser) return;
-    updateUserMutation.mutate({ id: editUser.id, updates: editForm });
+    const updates = { ...editForm };
+    if (updates.dateOfBirth) {
+      updates.dateOfBirth = new Date(updates.dateOfBirth).toISOString();
+    } else {
+      updates.dateOfBirth = undefined;
+    }
+    updateUserMutation.mutate({ id: editUser.id, updates });
   };
 
   const roleBadgeVariant = (role: string) => {
@@ -264,7 +282,14 @@ export default function SuperAdminUsers() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium text-sm">{user.fullName}</div>
+                          <button
+                            type="button"
+                            className="font-medium text-sm cursor-pointer hover:text-primary transition-colors text-left"
+                            onClick={() => openEdit(user)}
+                            data-testid={`link-user-name-${user.id}`}
+                          >
+                            {user.fullName}
+                          </button>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </div>
                       </div>
@@ -356,68 +381,127 @@ export default function SuperAdminUsers() {
               Edit User — Super Admin
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
-              You are performing a Super Admin action.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="max-h-[80vh] overflow-y-auto">
+            <div className="space-y-6 py-2 pr-1">
+              <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
+                You are performing a Super Admin action.
+              </p>
+
               <div>
-                <Label>Full Name</Label>
-                <Input value={editForm.fullName || ""} onChange={(e) => setEditForm(f => ({ ...f, fullName: e.target.value }))} data-testid="input-edit-name" />
+                <h3 className="text-sm font-semibold mb-3">Basic Info</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Full Name</Label>
+                    <Input value={editForm.fullName || ""} onChange={(e) => setEditForm(f => ({ ...f, fullName: e.target.value }))} data-testid="input-edit-name" />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input value={editForm.email || ""} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} data-testid="input-edit-email" />
+                  </div>
+                  <div>
+                    <Label>Phone</Label>
+                    <Input value={editForm.phone || ""} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} data-testid="input-edit-phone" />
+                  </div>
+                </div>
               </div>
+
               <div>
-                <Label>Email</Label>
-                <Input value={editForm.email || ""} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} data-testid="input-edit-email" />
+                <h3 className="text-sm font-semibold mb-3">Location</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>City</Label>
+                    <Input value={editForm.city || ""} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} data-testid="input-edit-city" />
+                  </div>
+                  <div>
+                    <Label>Region</Label>
+                    <Input value={editForm.region || ""} onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))} data-testid="input-edit-region" />
+                  </div>
+                  <div>
+                    <Label>Country</Label>
+                    <Input value={editForm.country || ""} onChange={(e) => setEditForm(f => ({ ...f, country: e.target.value }))} data-testid="input-edit-country" />
+                  </div>
+                  <div>
+                    <Label>Continent</Label>
+                    <Input value={editForm.continent || ""} onChange={(e) => setEditForm(f => ({ ...f, continent: e.target.value }))} data-testid="input-edit-continent" />
+                  </div>
+                </div>
               </div>
+
               <div>
-                <Label>Role</Label>
-                <Select value={editForm.role || ""} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
-                  <SelectTrigger data-testid="select-edit-role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="OWNER">Owner (Super Admin)</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="ORGANISER">Organiser</SelectItem>
-                    <SelectItem value="COACH">Coach</SelectItem>
-                    <SelectItem value="PLAYER">Player</SelectItem>
-                  </SelectContent>
-                </Select>
+                <h3 className="text-sm font-semibold mb-3">Personal</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Date of Birth</Label>
+                    <Input
+                      type="date"
+                      value={editForm.dateOfBirth || ""}
+                      onChange={(e) => setEditForm(f => ({ ...f, dateOfBirth: e.target.value }))}
+                      data-testid="input-edit-dob"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      type="checkbox"
+                      checked={!!editForm.isJunior}
+                      onChange={(e) => setEditForm(f => ({ ...f, isJunior: e.target.checked }))}
+                      id="isJunior"
+                      data-testid="checkbox-edit-junior"
+                    />
+                    <Label htmlFor="isJunior">Is Junior</Label>
+                  </div>
+                  <div>
+                    <Label>Parent/Guardian Name</Label>
+                    <Input value={editForm.parentGuardianName || ""} onChange={(e) => setEditForm(f => ({ ...f, parentGuardianName: e.target.value }))} data-testid="input-edit-parent-name" />
+                  </div>
+                  <div>
+                    <Label>Parent/Guardian Email</Label>
+                    <Input value={editForm.parentGuardianEmail || ""} onChange={(e) => setEditForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} data-testid="input-edit-parent-email" />
+                  </div>
+                </div>
               </div>
+
               <div>
-                <Label>Account Status</Label>
-                <Select value={editForm.accountStatus || ""} onValueChange={(v) => setEditForm(f => ({ ...f, accountStatus: v }))}>
-                  <SelectTrigger data-testid="select-edit-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="APPROVED">Approved</SelectItem>
-                    <SelectItem value="PENDING">Pending</SelectItem>
-                    <SelectItem value="REJECTED">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Phone</Label>
-                <Input value={editForm.phone || ""} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} data-testid="input-edit-phone" />
-              </div>
-              <div>
-                <Label>City</Label>
-                <Input value={editForm.city || ""} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} data-testid="input-edit-city" />
-              </div>
-              <div>
-                <Label>Country</Label>
-                <Input value={editForm.country || ""} onChange={(e) => setEditForm(f => ({ ...f, country: e.target.value }))} data-testid="input-edit-country" />
-              </div>
-              <div className="flex items-center gap-2 pt-6">
-                <input
-                  type="checkbox"
-                  checked={!!editForm.emailVerified}
-                  onChange={(e) => setEditForm(f => ({ ...f, emailVerified: e.target.checked }))}
-                  id="emailVerified"
-                  data-testid="checkbox-edit-verified"
-                />
-                <Label htmlFor="emailVerified">Email Verified</Label>
+                <h3 className="text-sm font-semibold mb-3">Account</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Role</Label>
+                    <Select value={editForm.role || ""} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
+                      <SelectTrigger data-testid="select-edit-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="OWNER">Owner (Super Admin)</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="ORGANISER">Organiser</SelectItem>
+                        <SelectItem value="COACH">Coach</SelectItem>
+                        <SelectItem value="PLAYER">Player</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Account Status</Label>
+                    <Select value={editForm.accountStatus || ""} onValueChange={(v) => setEditForm(f => ({ ...f, accountStatus: v }))}>
+                      <SelectTrigger data-testid="select-edit-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="APPROVED">Approved</SelectItem>
+                        <SelectItem value="PENDING">Pending</SelectItem>
+                        <SelectItem value="REJECTED">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      type="checkbox"
+                      checked={!!editForm.emailVerified}
+                      onChange={(e) => setEditForm(f => ({ ...f, emailVerified: e.target.checked }))}
+                      id="emailVerified"
+                      data-testid="checkbox-edit-verified"
+                    />
+                    <Label htmlFor="emailVerified">Email Verified</Label>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

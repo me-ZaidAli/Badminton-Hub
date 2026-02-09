@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -32,6 +34,54 @@ interface ClubRecord {
   createdAt: string;
   contactFullName?: string;
   contactPhone?: string;
+  contactAddress?: string;
+  continent?: string;
+  region?: string;
+  isRegisteredWithBE?: boolean;
+  beRegistrationNumber?: string;
+  hasCompetitions?: boolean;
+  hasSocialGames?: boolean;
+  socialGameTimings?: string;
+  providesTraining?: boolean;
+  trainingDetails?: string;
+  sessionFee?: number;
+  hasMembership?: boolean;
+  membershipFee?: number;
+  shuttlecockType?: string;
+  providesClubTShirts?: boolean;
+  ageGroups?: string[];
+  playerLevels?: string[];
+  latitude?: string;
+  longitude?: string;
+  googleMapsUrl?: string;
+  logoUrl?: string;
+}
+
+interface ClubEditForm {
+  name: string;
+  description: string;
+  status: string;
+  address: string;
+  city: string;
+  postcode: string;
+  region: string;
+  country: string;
+  continent: string;
+  contactFullName: string;
+  contactPhone: string;
+  contactAddress: string;
+  hasCompetitions: boolean;
+  hasSocialGames: boolean;
+  socialGameTimings: string;
+  providesTraining: boolean;
+  trainingDetails: string;
+  sessionFee: string;
+  hasMembership: boolean;
+  membershipFee: string;
+  shuttlecockType: string;
+  providesClubTShirts: boolean;
+  isRegisteredWithBE: boolean;
+  beRegistrationNumber: string;
 }
 
 interface UserRecord {
@@ -47,10 +97,67 @@ export default function SuperAdminClubs() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [page, setPage] = useState(1);
   const [editClub, setEditClub] = useState<ClubRecord | null>(null);
+  const [editClubForm, setEditClubForm] = useState<ClubEditForm>({
+    name: "",
+    description: "",
+    status: "PENDING",
+    address: "",
+    city: "",
+    postcode: "",
+    region: "",
+    country: "",
+    continent: "",
+    contactFullName: "",
+    contactPhone: "",
+    contactAddress: "",
+    hasCompetitions: false,
+    hasSocialGames: false,
+    socialGameTimings: "",
+    providesTraining: false,
+    trainingDetails: "",
+    sessionFee: "",
+    hasMembership: false,
+    membershipFee: "",
+    shuttlecockType: "",
+    providesClubTShirts: false,
+    isRegisteredWithBE: false,
+    beRegistrationNumber: "",
+  });
   const [deleteClub, setDeleteClub] = useState<ClubRecord | null>(null);
   const [transferClub, setTransferClub] = useState<ClubRecord | null>(null);
   const [newOwnerId, setNewOwnerId] = useState("");
   const pageSize = 25;
+
+  useEffect(() => {
+    if (editClub) {
+      setEditClubForm({
+        name: editClub.name || "",
+        description: editClub.description || "",
+        status: editClub.status || "PENDING",
+        address: editClub.address || "",
+        city: editClub.city || "",
+        postcode: editClub.postcode || "",
+        region: editClub.region || "",
+        country: editClub.country || "",
+        continent: editClub.continent || "",
+        contactFullName: editClub.contactFullName || "",
+        contactPhone: editClub.contactPhone || "",
+        contactAddress: editClub.contactAddress || "",
+        hasCompetitions: editClub.hasCompetitions || false,
+        hasSocialGames: editClub.hasSocialGames || false,
+        socialGameTimings: editClub.socialGameTimings || "",
+        providesTraining: editClub.providesTraining || false,
+        trainingDetails: editClub.trainingDetails || "",
+        sessionFee: editClub.sessionFee != null ? String(editClub.sessionFee) : "",
+        hasMembership: editClub.hasMembership || false,
+        membershipFee: editClub.membershipFee != null ? String(editClub.membershipFee) : "",
+        shuttlecockType: editClub.shuttlecockType || "",
+        providesClubTShirts: editClub.providesClubTShirts || false,
+        isRegisteredWithBE: editClub.isRegisteredWithBE || false,
+        beRegistrationNumber: editClub.beRegistrationNumber || "",
+      });
+    }
+  }, [editClub]);
 
   const { data: allClubs, isLoading } = useQuery<ClubRecord[]>({
     queryKey: ["/api/admin/clubs"],
@@ -100,6 +207,46 @@ export default function SuperAdminClubs() {
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to transfer ownership", variant: "destructive" });
+    },
+  });
+
+  const updateClubMutation = useMutation({
+    mutationFn: async (data: { id: number; form: ClubEditForm }) => {
+      const res = await apiRequest("PATCH", `/api/super-admin/clubs/${data.id}`, {
+        name: data.form.name,
+        description: data.form.description,
+        status: data.form.status,
+        address: data.form.address,
+        city: data.form.city,
+        postcode: data.form.postcode,
+        region: data.form.region,
+        country: data.form.country,
+        continent: data.form.continent,
+        contactFullName: data.form.contactFullName,
+        contactPhone: data.form.contactPhone,
+        contactAddress: data.form.contactAddress,
+        hasCompetitions: data.form.hasCompetitions,
+        hasSocialGames: data.form.hasSocialGames,
+        socialGameTimings: data.form.socialGameTimings,
+        providesTraining: data.form.providesTraining,
+        trainingDetails: data.form.trainingDetails,
+        sessionFee: data.form.sessionFee ? parseInt(data.form.sessionFee) : null,
+        hasMembership: data.form.hasMembership,
+        membershipFee: data.form.membershipFee ? parseInt(data.form.membershipFee) : null,
+        shuttlecockType: data.form.shuttlecockType,
+        providesClubTShirts: data.form.providesClubTShirts,
+        isRegisteredWithBE: data.form.isRegisteredWithBE,
+        beRegistrationNumber: data.form.beRegistrationNumber,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      setEditClub(null);
+      toast({ title: "Club Updated", description: "Club details have been saved." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update club", variant: "destructive" });
     },
   });
 
@@ -206,7 +353,13 @@ export default function SuperAdminClubs() {
                   <TableRow key={club.id} data-testid={`row-club-${club.id}`}>
                     <TableCell>
                       <div>
-                        <div className="font-medium text-sm">{club.name}</div>
+                        <button
+                          className="font-medium text-sm cursor-pointer hover:text-primary text-left"
+                          onClick={() => setEditClub(club)}
+                          data-testid={`button-edit-club-name-${club.id}`}
+                        >
+                          {club.name}
+                        </button>
                         <div className="text-xs text-muted-foreground">{club.slug}</div>
                       </div>
                     </TableCell>
@@ -284,6 +437,282 @@ export default function SuperAdminClubs() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!editClub} onOpenChange={(open) => { if (!open) setEditClub(null); }}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-edit-club">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Edit Club
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[80vh] overflow-y-auto space-y-6 py-2 pr-2">
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Basic Info</div>
+              <div className="space-y-3">
+                <div>
+                  <Label>Name</Label>
+                  <Input
+                    value={editClubForm.name}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, name: e.target.value }))}
+                    data-testid="input-edit-club-name"
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    value={editClubForm.description}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, description: e.target.value }))}
+                    rows={3}
+                    data-testid="input-edit-club-description"
+                  />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={editClubForm.status} onValueChange={(v) => setEditClubForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger data-testid="select-edit-club-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="REJECTED">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Location</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label>Address</Label>
+                  <Input
+                    value={editClubForm.address}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, address: e.target.value }))}
+                    data-testid="input-edit-club-address"
+                  />
+                </div>
+                <div>
+                  <Label>City</Label>
+                  <Input
+                    value={editClubForm.city}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, city: e.target.value }))}
+                    data-testid="input-edit-club-city"
+                  />
+                </div>
+                <div>
+                  <Label>Postcode</Label>
+                  <Input
+                    value={editClubForm.postcode}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, postcode: e.target.value }))}
+                    data-testid="input-edit-club-postcode"
+                  />
+                </div>
+                <div>
+                  <Label>Region</Label>
+                  <Input
+                    value={editClubForm.region}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, region: e.target.value }))}
+                    data-testid="input-edit-club-region"
+                  />
+                </div>
+                <div>
+                  <Label>Country</Label>
+                  <Input
+                    value={editClubForm.country}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, country: e.target.value }))}
+                    data-testid="input-edit-club-country"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label>Continent</Label>
+                  <Input
+                    value={editClubForm.continent}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, continent: e.target.value }))}
+                    data-testid="input-edit-club-continent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Contact</div>
+              <div className="space-y-3">
+                <div>
+                  <Label>Contact Full Name</Label>
+                  <Input
+                    value={editClubForm.contactFullName}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, contactFullName: e.target.value }))}
+                    data-testid="input-edit-club-contact-name"
+                  />
+                </div>
+                <div>
+                  <Label>Contact Phone</Label>
+                  <Input
+                    value={editClubForm.contactPhone}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, contactPhone: e.target.value }))}
+                    data-testid="input-edit-club-contact-phone"
+                  />
+                </div>
+                <div>
+                  <Label>Contact Address</Label>
+                  <Input
+                    value={editClubForm.contactAddress}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, contactAddress: e.target.value }))}
+                    data-testid="input-edit-club-contact-address"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Activities</div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-hasCompetitions"
+                    checked={editClubForm.hasCompetitions}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, hasCompetitions: !!v }))}
+                    data-testid="checkbox-edit-club-has-competitions"
+                  />
+                  <Label htmlFor="edit-hasCompetitions" className="cursor-pointer">Has Competitions</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-hasSocialGames"
+                    checked={editClubForm.hasSocialGames}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, hasSocialGames: !!v }))}
+                    data-testid="checkbox-edit-club-has-social-games"
+                  />
+                  <Label htmlFor="edit-hasSocialGames" className="cursor-pointer">Has Social Games</Label>
+                </div>
+                <div>
+                  <Label>Social Game Timings</Label>
+                  <Input
+                    value={editClubForm.socialGameTimings}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, socialGameTimings: e.target.value }))}
+                    data-testid="input-edit-club-social-game-timings"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-providesTraining"
+                    checked={editClubForm.providesTraining}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, providesTraining: !!v }))}
+                    data-testid="checkbox-edit-club-provides-training"
+                  />
+                  <Label htmlFor="edit-providesTraining" className="cursor-pointer">Provides Training</Label>
+                </div>
+                <div>
+                  <Label>Training Details</Label>
+                  <Input
+                    value={editClubForm.trainingDetails}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, trainingDetails: e.target.value }))}
+                    data-testid="input-edit-club-training-details"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Fees</div>
+              <div className="space-y-3">
+                <div>
+                  <Label>Session Fee (pence)</Label>
+                  <Input
+                    type="number"
+                    value={editClubForm.sessionFee}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, sessionFee: e.target.value }))}
+                    data-testid="input-edit-club-session-fee"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-hasMembership"
+                    checked={editClubForm.hasMembership}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, hasMembership: !!v }))}
+                    data-testid="checkbox-edit-club-has-membership"
+                  />
+                  <Label htmlFor="edit-hasMembership" className="cursor-pointer">Has Membership</Label>
+                </div>
+                <div>
+                  <Label>Membership Fee (pence)</Label>
+                  <Input
+                    type="number"
+                    value={editClubForm.membershipFee}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, membershipFee: e.target.value }))}
+                    data-testid="input-edit-club-membership-fee"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Equipment</div>
+              <div className="space-y-3">
+                <div>
+                  <Label>Shuttlecock Type</Label>
+                  <Select value={editClubForm.shuttlecockType} onValueChange={(v) => setEditClubForm(f => ({ ...f, shuttlecockType: v }))}>
+                    <SelectTrigger data-testid="select-edit-club-shuttlecock-type">
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="feather">Feather</SelectItem>
+                      <SelectItem value="plastic">Plastic</SelectItem>
+                      <SelectItem value="both">Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-providesClubTShirts"
+                    checked={editClubForm.providesClubTShirts}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, providesClubTShirts: !!v }))}
+                    data-testid="checkbox-edit-club-provides-tshirts"
+                  />
+                  <Label htmlFor="edit-providesClubTShirts" className="cursor-pointer">Provides Club T-Shirts</Label>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Registration</div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-isRegisteredWithBE"
+                    checked={editClubForm.isRegisteredWithBE}
+                    onCheckedChange={(v) => setEditClubForm(f => ({ ...f, isRegisteredWithBE: !!v }))}
+                    data-testid="checkbox-edit-club-registered-be"
+                  />
+                  <Label htmlFor="edit-isRegisteredWithBE" className="cursor-pointer">Registered with BE</Label>
+                </div>
+                <div>
+                  <Label>BE Registration Number</Label>
+                  <Input
+                    value={editClubForm.beRegistrationNumber}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, beRegistrationNumber: e.target.value }))}
+                    data-testid="input-edit-club-be-registration"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditClub(null)} data-testid="button-cancel-edit-club">Cancel</Button>
+            <Button
+              onClick={() => editClub && updateClubMutation.mutate({ id: editClub.id, form: editClubForm })}
+              disabled={updateClubMutation.isPending}
+              data-testid="button-save-edit-club"
+            >
+              {updateClubMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!transferClub} onOpenChange={(open) => { if (!open) { setTransferClub(null); setNewOwnerId(""); } }}>
         <DialogContent>
