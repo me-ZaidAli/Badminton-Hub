@@ -19,6 +19,14 @@ interface PublicSessionData {
   matches: any[];
 }
 
+function PlayerName({ name, blurred, className }: { name?: string; blurred?: boolean; className?: string }) {
+  if (!name) return <span className={className}>Unknown</span>;
+  if (blurred) {
+    return <span className={`blur-[4px] select-none ${className || ""}`}>{name}</span>;
+  }
+  return <span className={className}>{name}</span>;
+}
+
 export default function PublicSession() {
   const params = useParams();
   const sessionId = Number(params.id);
@@ -180,11 +188,13 @@ export default function PublicSession() {
                           {index + 1}
                         </div>
                         <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-                          <AvatarFallback>{player.fullName?.charAt(0) || "P"}</AvatarFallback>
+                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.nickname || player.fullName}`} />
+                          <AvatarFallback>{(player.nickname || player.fullName)?.charAt(0) || "P"}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate">{player.fullName}</div>
+                          <div className="font-semibold text-sm truncate">
+                            <PlayerName name={player.nickname || player.fullName} blurred={player.nameBlurred} />
+                          </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                             <span className="text-green-600 dark:text-green-400 font-medium">{player.matchesWon}W</span>
                             <span className="text-red-600 dark:text-red-400 font-medium">{player.matchesLost}L</span>
@@ -223,7 +233,9 @@ export default function PublicSession() {
                       <AvatarFallback>P</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-semibold">{signup.player.fullName}</p>
+                      <p className="font-semibold">
+                        <PlayerName name={signup.player.fullName} blurred={signup.player.nameBlurred} />
+                      </p>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs h-5">Level {signup.player.category}</Badge>
                       </div>
@@ -260,18 +272,26 @@ export default function PublicSession() {
                         >
                           <div className="relative z-10 flex items-center justify-around h-full">
                             <div className="text-center bg-background/90 rounded-lg px-3 py-2">
-                              <p className="text-sm font-semibold">{match.teamAPlayer1?.user?.fullName}</p>
+                              <p className="text-sm font-semibold">
+                                <PlayerName name={match.teamAPlayer1?.user?.fullName} blurred={match.teamAPlayer1?.nameBlurred} />
+                              </p>
                               {match.teamAPlayer2 && (
-                                <p className="text-xs text-muted-foreground">{match.teamAPlayer2?.user?.fullName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  <PlayerName name={match.teamAPlayer2?.user?.fullName} blurred={match.teamAPlayer2?.nameBlurred} />
+                                </p>
                               )}
                             </div>
                             <div className="bg-white/90 rounded-lg px-3 py-1">
                               <span className="font-bold text-muted-foreground">VS</span>
                             </div>
                             <div className="text-center bg-background/90 rounded-lg px-3 py-2">
-                              <p className="text-sm font-semibold">{match.teamBPlayer1?.user?.fullName}</p>
+                              <p className="text-sm font-semibold">
+                                <PlayerName name={match.teamBPlayer1?.user?.fullName} blurred={match.teamBPlayer1?.nameBlurred} />
+                              </p>
                               {match.teamBPlayer2 && (
-                                <p className="text-xs text-muted-foreground">{match.teamBPlayer2?.user?.fullName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  <PlayerName name={match.teamBPlayer2?.user?.fullName} blurred={match.teamBPlayer2?.nameBlurred} />
+                                </p>
                               )}
                             </div>
                           </div>
@@ -301,13 +321,13 @@ export default function PublicSession() {
                             </div>
                             <div className="flex-1">
                               <div className="text-sm">
-                                <span className="font-medium">{match.teamAPlayer1?.user?.fullName}</span>
-                                {match.teamAPlayer2 && <span className="text-muted-foreground"> & {match.teamAPlayer2?.user?.fullName}</span>}
+                                <span className="font-medium"><PlayerName name={match.teamAPlayer1?.user?.fullName} blurred={match.teamAPlayer1?.nameBlurred} /></span>
+                                {match.teamAPlayer2 && <span className="text-muted-foreground"> & <PlayerName name={match.teamAPlayer2?.user?.fullName} blurred={match.teamAPlayer2?.nameBlurred} /></span>}
                               </div>
                               <div className="text-xs text-muted-foreground">vs</div>
                               <div className="text-sm">
-                                <span className="font-medium">{match.teamBPlayer1?.user?.fullName}</span>
-                                {match.teamBPlayer2 && <span className="text-muted-foreground"> & {match.teamBPlayer2?.user?.fullName}</span>}
+                                <span className="font-medium"><PlayerName name={match.teamBPlayer1?.user?.fullName} blurred={match.teamBPlayer1?.nameBlurred} /></span>
+                                {match.teamBPlayer2 && <span className="text-muted-foreground"> & <PlayerName name={match.teamBPlayer2?.user?.fullName} blurred={match.teamBPlayer2?.nameBlurred} /></span>}
                               </div>
                             </div>
                           </div>
@@ -335,10 +355,16 @@ export default function PublicSession() {
                             className="flex items-center justify-between p-3 bg-muted/20 rounded-lg"
                             data-testid={`public-completed-${match.id}`}
                           >
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>{match.teamAPlayer1?.user?.fullName}{match.teamAPlayer2 && ` & ${match.teamAPlayer2?.user?.fullName}`}</span>
+                            <div className="flex items-center gap-2 text-sm flex-wrap">
+                              <span>
+                                <PlayerName name={match.teamAPlayer1?.user?.fullName} blurred={match.teamAPlayer1?.nameBlurred} />
+                                {match.teamAPlayer2 && <>{" & "}<PlayerName name={match.teamAPlayer2?.user?.fullName} blurred={match.teamAPlayer2?.nameBlurred} /></>}
+                              </span>
                               <span className="text-muted-foreground">vs</span>
-                              <span>{match.teamBPlayer1?.user?.fullName}{match.teamBPlayer2 && ` & ${match.teamBPlayer2?.user?.fullName}`}</span>
+                              <span>
+                                <PlayerName name={match.teamBPlayer1?.user?.fullName} blurred={match.teamBPlayer1?.nameBlurred} />
+                                {match.teamBPlayer2 && <>{" & "}<PlayerName name={match.teamBPlayer2?.user?.fullName} blurred={match.teamBPlayer2?.nameBlurred} /></>}
+                              </span>
                             </div>
                             <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
                               {match.scoreA} - {match.scoreB}

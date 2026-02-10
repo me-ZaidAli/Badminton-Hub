@@ -312,7 +312,7 @@ export default function ExploreRankings() {
                           </Avatar>
                           <div className="min-w-0">
                             <div className="font-semibold truncate flex items-center gap-1.5">
-                              {player.hasAccount ? (
+                              {(player.nameBlurred !== undefined ? !player.nameBlurred : player.showPublicName) ? (
                                 <span data-testid={`text-player-name-${player.id}`}>{player.nickname || player.fullName}</span>
                               ) : (
                                 <span className="blur-[4px] select-none" data-testid={`text-player-name-blurred-${player.id}`}>{player.fullName}</span>

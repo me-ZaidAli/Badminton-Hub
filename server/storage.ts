@@ -825,7 +825,7 @@ export class DatabaseStorage implements IStorage {
 
   private computeLeaderboardFromMatches(
     matchList: Match[],
-    players: Map<number, { fullName: string; gender: string | null; category: string | null }>
+    players: Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName?: boolean; nickname?: string | null }>
   ) {
     const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number; setsWon: number; pointsWon: number }>();
 
@@ -884,6 +884,9 @@ export class DatabaseStorage implements IStorage {
       winPercentage: number;
       setsWon: number;
       pointsWon: number;
+      showPublicName?: boolean;
+      nickname?: string | null;
+      nameBlurred?: boolean;
     }[] = [];
 
     for (const [pid, stats] of statsMap) {
@@ -902,6 +905,9 @@ export class DatabaseStorage implements IStorage {
           : 0,
         setsWon: stats.setsWon,
         pointsWon: stats.pointsWon,
+        showPublicName: player.showPublicName ?? false,
+        nickname: player.nickname ?? null,
+        nameBlurred: !(player.showPublicName ?? false),
       });
     }
 
@@ -948,12 +954,14 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(inArray(playerProfiles.id, [...playerIds]));
 
-    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null }>();
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName: boolean; nickname: string | null }>();
     for (const r of profileRows) {
       playerMap.set(r.player_profiles.id, {
         fullName: r.users.fullName,
         gender: r.player_profiles.gender,
         category: r.player_profiles.category,
+        showPublicName: r.users.showPublicName,
+        nickname: r.users.nickname,
       });
     }
 
@@ -986,12 +994,14 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(inArray(playerProfiles.id, [...playerIds]));
 
-    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null }>();
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName: boolean; nickname: string | null }>();
     for (const r of profileRows) {
       playerMap.set(r.player_profiles.id, {
         fullName: r.users.fullName,
         gender: r.player_profiles.gender,
         category: r.player_profiles.category,
+        showPublicName: r.users.showPublicName,
+        nickname: r.users.nickname,
       });
     }
 
@@ -1078,6 +1088,7 @@ export class DatabaseStorage implements IStorage {
       clubRole: string;
       hasAccount: boolean;
       nickname: string | null;
+      showPublicName: boolean;
     }>();
 
     for (const r of profileRows) {
@@ -1096,6 +1107,7 @@ export class DatabaseStorage implements IStorage {
         clubRole: r.player_profiles.clubRole,
         hasAccount: r.users.accountStatus === "ACTIVE" || r.users.emailVerified,
         nickname: r.users.nickname,
+        showPublicName: r.users.showPublicName,
       });
     }
 
@@ -1141,6 +1153,7 @@ export class DatabaseStorage implements IStorage {
         clubRole: player.clubRole,
         hasAccount: player.hasAccount,
         nickname: player.nickname,
+        showPublicName: player.showPublicName,
       });
     }
 

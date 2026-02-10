@@ -729,11 +729,19 @@ export async function registerRoutes(
           const queuedMatches = matches.filter((m: any) => m.status === "QUEUED");
           const completedMatches = matches.filter((m: any) => m.status === "COMPLETED");
 
-          const sanitizePlayer = (p: any) => p ? ({
-            id: p.id,
-            fullName: p.user?.fullName,
-            category: p.category,
-          }) : null;
+          const sanitizePlayer = (p: any) => {
+            if (!p) return null;
+            const showPublic = p.user?.showPublicName === true;
+            const displayName = showPublic
+              ? (p.user?.nickname || p.user?.fullName)
+              : p.user?.fullName;
+            return {
+              id: p.id,
+              fullName: displayName,
+              category: p.category,
+              nameBlurred: !showPublic,
+            };
+          };
 
           allSessions.push({
             id: session.id,
@@ -839,25 +847,41 @@ export async function registerRoutes(
       const signups = await storage.getSessionSignups(sessionId);
       const matches = await storage.getSessionMatches(sessionId);
 
-      // Return public-safe data - exclude sensitive user info like email/password
-      const publicSignups = signups.map(s => ({
-        id: s.id,
-        playerId: s.playerId,
-        player: {
-          id: s.player.id,
-          fullName: s.player.user.fullName,
-          category: s.player.category,
-          rankingPoints: s.player.rankingPoints
-        }
-      }));
+      // Sanitize player names based on public visibility consent
+      const getPublicDisplayName = (user: any) => {
+        const showPublic = user?.showPublicName === true;
+        return {
+          displayName: showPublic ? (user?.nickname || user?.fullName) : user?.fullName,
+          nameBlurred: !showPublic,
+        };
+      };
 
-      // Sanitize match data to exclude sensitive user info
-      const sanitizePlayer = (p: any) => p ? ({
-        id: p.id,
-        category: p.category,
-        rankingPoints: p.rankingPoints,
-        user: { fullName: p.user?.fullName }
-      }) : null;
+      const publicSignups = signups.map(s => {
+        const { displayName, nameBlurred } = getPublicDisplayName(s.player.user);
+        return {
+          id: s.id,
+          playerId: s.playerId,
+          player: {
+            id: s.player.id,
+            fullName: displayName,
+            category: s.player.category,
+            rankingPoints: s.player.rankingPoints,
+            nameBlurred,
+          }
+        };
+      });
+
+      const sanitizePlayer = (p: any) => {
+        if (!p) return null;
+        const { displayName, nameBlurred } = getPublicDisplayName(p.user);
+        return {
+          id: p.id,
+          category: p.category,
+          rankingPoints: p.rankingPoints,
+          user: { fullName: displayName },
+          nameBlurred,
+        };
+      };
 
       const publicMatches = matches.map(m => ({
         id: m.id,
@@ -914,7 +938,14 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Session not found" });
       }
       const leaderboard = await storage.getDynamicSessionLeaderboard(sessionId);
-      const publicLeaderboard = leaderboard.map(({ gender, ...rest }: any) => rest);
+      const publicLeaderboard = leaderboard.map(({ gender, showPublicName, ...rest }: any) => {
+        const displayName = showPublicName ? (rest.nickname || rest.fullName) : rest.fullName;
+        return {
+          ...rest,
+          fullName: displayName,
+          nameBlurred: !showPublicName,
+        };
+      });
       res.json(publicLeaderboard);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to fetch session leaderboard" });
@@ -933,7 +964,16 @@ export async function registerRoutes(
       if (req.query.dateTo) filters.dateTo = new Date(req.query.dateTo as string);
 
       const leaderboard = await storage.getFilteredLeaderboard(filters);
-      res.json(leaderboard);
+      const isAuthenticated = !!(req as any).user;
+      if (isAuthenticated) {
+        res.json(leaderboard);
+      } else {
+        const publicLeaderboard = leaderboard.map(({ gender, ...rest }: any) => ({
+          ...rest,
+          nameBlurred: !rest.showPublicName,
+        }));
+        res.json(publicLeaderboard);
+      }
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to fetch leaderboard" });
     }

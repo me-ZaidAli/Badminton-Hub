@@ -58,6 +58,7 @@ export const users = pgTable("users", {
   closedReason: text("closed_reason"),
   profilePictureUrl: text("profile_picture_url"),
   nickname: text("nickname"),
+  showPublicName: boolean("show_public_name").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
