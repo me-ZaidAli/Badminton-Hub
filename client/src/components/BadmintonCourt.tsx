@@ -125,12 +125,12 @@ function PlayerSlot({
       <div
         onClick={() => isOrganiser && setOpen(true)}
         className={cn(
-          "px-3 py-2 bg-background rounded-lg border border-border/50 text-center transition-all",
+          "px-2 sm:px-3 py-1.5 sm:py-2 bg-background rounded-lg border border-border/50 text-center transition-all min-w-0",
           isOrganiser && "cursor-pointer hover:border-primary hover:bg-primary/5"
         )}
         data-testid={`player-slot-${position}`}
       >
-        <div className="font-semibold text-sm truncate">{player.user.fullName}</div>
+        <div className="font-semibold text-xs sm:text-sm truncate">{player.user.fullName}</div>
         <Badge variant="outline" className="text-xs mt-1">{player.category || "?"}</Badge>
       </div>
 
@@ -405,11 +405,11 @@ export function BadmintonCourt({
           <>
             <div className="relative">
               <div 
-                className="p-4 min-h-[180px] bg-cover bg-center bg-no-repeat"
+                className="p-2 sm:p-4 min-h-[180px] bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: `url(${courtImage})` }}
               >
-                <div className="relative z-10 flex h-full">
-                  <div className="flex-1 flex flex-col justify-around items-center gap-2 px-2">
+                <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] gap-1 sm:gap-2 h-full items-center">
+                  <div className="flex flex-col justify-around items-stretch gap-2 min-w-0">
                     <PlayerSlot
                       player={match.teamAPlayer1}
                       position="teamAPlayer1"
@@ -428,13 +428,13 @@ export function BadmintonCourt({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-center px-4">
-                    <div className="bg-white/90 rounded-lg px-4 py-2 shadow-lg">
+                  <div className="flex items-center justify-center px-1 sm:px-3">
+                    <div className="bg-white/90 rounded-lg px-2 sm:px-4 py-1.5 sm:py-2 shadow-lg">
                       {match.status === "COMPLETED" ? (
                         <div className="text-center">
-                          <div className="text-2xl font-bold font-mono">
+                          <div className="text-xl sm:text-2xl font-bold font-mono">
                             <span className="text-primary">{match.scoreA}</span>
-                            <span className="text-muted-foreground mx-2">-</span>
+                            <span className="text-muted-foreground mx-1 sm:mx-2">-</span>
                             <span className="text-secondary">{match.scoreB}</span>
                           </div>
                           {isMultiSet && completedSets.length > 0 && (
@@ -460,7 +460,7 @@ export function BadmintonCourt({
                     </div>
                   </div>
 
-                  <div className="flex-1 flex flex-col justify-around items-center gap-2 px-2">
+                  <div className="flex flex-col justify-around items-stretch gap-2 min-w-0">
                     <PlayerSlot
                       player={match.teamBPlayer1}
                       position="teamBPlayer1"
