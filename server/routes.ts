@@ -496,7 +496,7 @@ export async function registerRoutes(
   app.patch("/api/user/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { fullName, phone, dateOfBirth, city, country, region, continent } = req.body;
+      const { fullName, phone, dateOfBirth, city, country, region, continent, nickname, showPublicName } = req.body;
       const updates: any = {};
       if (fullName && typeof fullName === 'string' && fullName.trim().length >= 2) {
         updates.fullName = fullName.trim();
@@ -507,6 +507,8 @@ export async function registerRoutes(
       if (country !== undefined) updates.country = country || null;
       if (region !== undefined) updates.region = region || null;
       if (continent !== undefined) updates.continent = continent || null;
+      if (nickname !== undefined) updates.nickname = nickname ? nickname.trim() : null;
+      if (showPublicName !== undefined) updates.showPublicName = !!showPublicName;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid fields to update" });

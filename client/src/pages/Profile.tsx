@@ -12,7 +12,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard, Eye, EyeOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import {
@@ -73,6 +74,41 @@ export default function Profile() {
   });
 
   const [showFullHistory, setShowFullHistory] = useState(false);
+  const [privacyNickname, setPrivacyNickname] = useState("");
+  const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
+  const [isEditingPrivacy, setIsEditingPrivacy] = useState(false);
+
+  const updatePrivacyMutation = useMutation({
+    mutationFn: async (data: { nickname?: string; showPublicName?: boolean }) => {
+      const res = await apiRequest("PATCH", "/api/user/profile", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update privacy settings");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Privacy settings updated", description: "Your display preferences have been saved and will apply immediately." });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setIsEditingPrivacy(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const startEditingPrivacy = () => {
+    setPrivacyNickname((user as any)?.nickname || "");
+    setPrivacyShowPublicName((user as any)?.showPublicName || false);
+    setIsEditingPrivacy(true);
+  };
+
+  const handleSavePrivacy = () => {
+    updatePrivacyMutation.mutate({
+      nickname: privacyNickname || undefined,
+      showPublicName: privacyShowPublicName,
+    });
+  };
 
   const { data: clubMemberships } = useQuery<any[]>({
     queryKey: ["/api/my-memberships"],
@@ -536,6 +572,113 @@ export default function Profile() {
               <Settings className="h-4 w-4 mr-2" />
               Edit Profile
             </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            Privacy &amp; Display Settings
+          </CardTitle>
+          <CardDescription>Control how your name appears on public leaderboards and sessions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isEditingPrivacy ? (
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="nickname">Nickname / Display Name</Label>
+                <Input
+                  id="nickname"
+                  value={privacyNickname}
+                  onChange={(e) => setPrivacyNickname(e.target.value)}
+                  placeholder="Enter a nickname (optional)"
+                  data-testid="input-nickname"
+                />
+                <p className="text-xs text-muted-foreground">
+                  If set, your nickname will be shown instead of your real name on public views.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+                <div className="space-y-1">
+                  <Label htmlFor="showPublicName" className="font-medium flex items-center gap-1.5">
+                    {privacyShowPublicName ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                    Show my name publicly
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, your {privacyNickname ? "nickname" : "name"} will be visible on public leaderboards and session pages.
+                    When disabled, your name will appear blurred to other visitors.
+                  </p>
+                </div>
+                <Switch
+                  id="showPublicName"
+                  checked={privacyShowPublicName}
+                  onCheckedChange={setPrivacyShowPublicName}
+                  data-testid="switch-show-public-name"
+                />
+              </div>
+
+              <div className="rounded-md bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">How it works:</span>{" "}
+                  {privacyShowPublicName
+                    ? privacyNickname
+                      ? `Your nickname "${privacyNickname}" will be shown on public rankings and sessions.`
+                      : "Your real name will be shown on public rankings and sessions."
+                    : "Your name will appear blurred on public rankings and sessions. Club admins can still see your real name internally."
+                  }
+                </p>
+              </div>
+
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={handleSavePrivacy}
+                  disabled={updatePrivacyMutation.isPending}
+                  data-testid="button-save-privacy"
+                >
+                  {updatePrivacyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save Privacy Settings
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditingPrivacy(false)}
+                  data-testid="button-cancel-privacy"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Nickname</Label>
+                  <p className="font-medium" data-testid="text-nickname">{(user as any)?.nickname || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Public Name Visibility</Label>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {(user as any)?.showPublicName ? (
+                      <Badge variant="default" data-testid="badge-public-name-visible">
+                        <Eye className="h-3 w-3 mr-1" />
+                        Visible
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" data-testid="badge-public-name-blurred">
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Blurred
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button onClick={startEditingPrivacy} variant="outline" data-testid="button-edit-privacy">
+                <Settings className="h-4 w-4 mr-2" />
+                Edit Display Settings
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

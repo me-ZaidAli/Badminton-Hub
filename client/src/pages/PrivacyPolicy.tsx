@@ -94,6 +94,55 @@ export default function PrivacyPolicy() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Public Display of Player Names (GDPR Compliance)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Public-facing areas of the platform &mdash; including dashboards, session listings, leaderboards, match results,
+            and event summaries &mdash; may display player names. By default, names are blurred on public views to protect
+            your privacy. Players may opt in to display their name publicly by enabling the{" "}
+            <span className="text-foreground font-medium">Show my name publicly</span> setting during registration or
+            at any time within their account settings.
+          </p>
+          <p>
+            This processing is carried out in accordance with UK GDPR and the Data Protection Act 2018, under the lawful
+            basis of <span className="text-foreground font-medium">explicit consent</span> (opt-in via the public name
+            visibility setting) and{" "}
+            <span className="text-foreground font-medium">legitimate interest</span> for operating a transparent, social,
+            and competitive sports platform.
+          </p>
+
+          <p className="text-foreground font-medium mt-4">User Control &amp; Privacy Options</p>
+          <p>
+            Players retain full control over how their name is displayed and may, at any time:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Use a nickname or preferred display name</li>
+            <li>Enable name blurring or anonymisation on public dashboards</li>
+            <li>Update or change their display preferences within their account settings</li>
+          </ul>
+          <p>
+            These choices do not affect internal administrative records, which may still retain real names for
+            safeguarding, operational, and legal purposes.
+          </p>
+
+          <p className="text-foreground font-medium mt-4">Right to Withdraw Consent</p>
+          <p>
+            Players may withdraw consent for public name display at any time by adjusting their privacy settings.
+            Changes will apply going forward and will not affect historical records required for compliance,
+            safeguarding, or dispute resolution.
+          </p>
+
+          <p className="text-foreground font-medium mt-4">Data Visibility Limitation</p>
+          <p>
+            Only the selected display name (or anonymised version) will be visible publicly. No additional personal
+            data (such as contact details) will be displayed publicly under any circumstances.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">How Long We Keep Your Data</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
