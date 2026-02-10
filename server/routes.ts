@@ -4354,16 +4354,19 @@ export async function registerRoutes(
       const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", clubId);
       if (!allowed) return res.sendStatus(403);
 
-      if (linkedSessionId && linkedSignupId) {
+      if (linkedSessionId && linkedSignupId && amount > 0) {
         const existing = await db
-          .select({ id: creditLedger.id })
+          .select({ id: creditLedger.id, amount: creditLedger.amount })
           .from(creditLedger)
           .where(and(
             eq(creditLedger.userId, userId),
             eq(creditLedger.linkedSessionId, linkedSessionId),
             eq(creditLedger.linkedSignupId, linkedSignupId),
           ));
-        if (existing.length > 0) {
+        const existingPositive = existing.filter(e => e.amount > 0);
+        const existingNegative = existing.filter(e => e.amount < 0);
+        const hasUnusedCredit = existingPositive.length > existingNegative.length;
+        if (hasUnusedCredit) {
           return res.status(400).json({ message: "Credit already exists for this session signup" });
         }
       }

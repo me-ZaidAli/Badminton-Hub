@@ -449,8 +449,14 @@ export default function Financials() {
                     onSuccess: () => {
                       toast({ title: "Credit Created", description: `Credit of £${formatPounds(entry.fee)} issued to ${entry.playerName}.` });
                     },
-                    onError: () => {
-                      toast({ title: "Error", description: "Failed to create credit.", variant: "destructive" });
+                    onError: (err: any) => {
+                      let msg = "Failed to create credit.";
+                      try {
+                        const errText = err?.message || "";
+                        const jsonPart = errText.includes("{") ? errText.substring(errText.indexOf("{")) : "";
+                        if (jsonPart) msg = JSON.parse(jsonPart).message || msg;
+                      } catch {}
+                      toast({ title: "Error", description: msg, variant: "destructive" });
                     },
                   }
                 );
