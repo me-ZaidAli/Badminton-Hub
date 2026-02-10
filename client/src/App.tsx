@@ -49,6 +49,7 @@ import SuperAdminSessions from "@/pages/super-admin/SuperAdminSessions";
 import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
 import MembershipBoard from "@/pages/admin/MembershipBoard";
+import AdminInventory from "@/pages/admin/Inventory";
 import Memberships from "@/pages/Memberships";
 import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
@@ -323,6 +324,9 @@ function Router() {
       </Route>
       <Route path="/admin/membership-board">
         <AdminRoute component={MembershipBoard} />
+      </Route>
+      <Route path="/admin/inventory">
+        <AdminRoute component={AdminInventory} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={Announcements} />

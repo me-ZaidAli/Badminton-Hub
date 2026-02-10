@@ -31,6 +31,7 @@ export const tournamentMatchStatusEnum = pgEnum("tournament_match_status", ["UPC
 export const clubMembershipStatusEnum = pgEnum("club_membership_status", ["PENDING", "ACTIVE", "EXPIRING", "EXPIRED", "CANCELLED"]);
 export const membershipRequestStatusEnum = pgEnum("membership_request_status", ["PENDING", "APPROVED", "REJECTED"]);
 export const merchOrderStatusEnum = pgEnum("merch_order_status", ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]);
+export const inventoryMovementTypeEnum = pgEnum("inventory_movement_type", ["RECEIPT", "USAGE", "SALE", "ADJUSTMENT"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -175,6 +176,48 @@ export const merchandiseOrders = pgTable("merchandise_orders", {
   totalPrice: integer("total_price").notNull(),
   status: merchOrderStatusEnum("status").default("PENDING").notNull(),
   membershipId: integer("membership_id").references(() => clubMemberships.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === INVENTORY ITEMS ===
+export const inventoryItems = pgTable("inventory_items", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  supplier: text("supplier"),
+  unitPrice: integer("unit_price").default(0).notNull(),
+  stockAvailable: integer("stock_available").default(0).notNull(),
+  isSessionLinked: boolean("is_session_linked").default(false).notNull(),
+  canBeSold: boolean("can_be_sold").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === INVENTORY MOVEMENTS (audit trail) ===
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  itemId: integer("item_id").references(() => inventoryItems.id).notNull(),
+  quantityDelta: integer("quantity_delta").notNull(),
+  unitPrice: integer("unit_price"),
+  totalAmount: integer("total_amount"),
+  movementType: inventoryMovementTypeEnum("movement_type").notNull(),
+  sessionId: integer("session_id").references(() => sessions.id),
+  buyerName: text("buyer_name"),
+  notes: text("notes"),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === GENERAL EXPENSES ===
+export const expenses = pgTable("expenses", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  amount: integer("amount").notNull(),
+  notes: text("notes"),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -663,6 +706,9 @@ export const insertClubMembershipSchema = createInsertSchema(clubMemberships).om
 export const insertMembershipRequestSchema = createInsertSchema(membershipRequests).omit({ id: true, createdAt: true });
 export const insertMerchandiseSchema = createInsertSchema(merchandise).omit({ id: true, createdAt: true });
 export const insertMerchandiseOrderSchema = createInsertSchema(merchandiseOrders).omit({ id: true, createdAt: true });
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({ id: true, createdAt: true });
+export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({ id: true, createdAt: true });
+export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type User = typeof users.$inferSelect;
@@ -702,6 +748,12 @@ export type Merchandise = typeof merchandise.$inferSelect;
 export type InsertMerchandise = z.infer<typeof insertMerchandiseSchema>;
 export type MerchandiseOrder = typeof merchandiseOrders.$inferSelect;
 export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema>;
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;

@@ -31,6 +31,9 @@ import {
   CreditCard,
   Percent,
   ArrowLeft,
+  TrendingUp,
+  TrendingDown,
+  Package,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -161,6 +164,29 @@ export default function Financials() {
   const { data: financialData = [], isLoading } = useQuery<FinancialEntry[]>({
     queryKey: [financialQueryUrl],
   });
+
+  const dashboardQueryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    if (dateFrom) params.append("dateFrom", dateFrom);
+    if (dateTo) params.append("dateTo", dateTo);
+    const qs = params.toString();
+    return `/api/admin/financial-dashboard${qs ? `?${qs}` : ""}`;
+  }, [selectedClubId, dateFrom, dateTo]);
+
+  const { data: dashboardData } = useQuery<{
+    sessionIncome: number;
+    sessionPaid: number;
+    sessionOutstanding: number;
+    inventorySales: number;
+    inventoryPurchases: number;
+    generalExpenses: number;
+    totalIncome: number;
+    totalExpenses: number;
+    netRevenue: number;
+    stockUsed: number;
+    collectionRate: string;
+  }>({ queryKey: [dashboardQueryUrl] });
 
   const filteredData = useMemo(() => {
     if (paymentFilter === "all") return financialData;
@@ -1018,6 +1044,69 @@ export default function Financials() {
           </CardContent>
         </Card>
       </div>
+
+      {dashboardData && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card data-testid="card-total-income">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Income</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600" data-testid="text-total-income">
+                {"\u00A3"}{formatPounds(dashboardData.totalIncome)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Sessions: {"\u00A3"}{formatPounds(dashboardData.sessionIncome)}
+                {dashboardData.inventorySales > 0 && <> + Sales: {"\u00A3"}{formatPounds(dashboardData.inventorySales)}</>}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-total-expenses">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600" data-testid="text-total-expenses-dash">
+                {"\u00A3"}{formatPounds(dashboardData.totalExpenses)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dashboardData.inventoryPurchases > 0 && <>Inventory: {"\u00A3"}{formatPounds(dashboardData.inventoryPurchases)} </>}
+                {dashboardData.generalExpenses > 0 && <>General: {"\u00A3"}{formatPounds(dashboardData.generalExpenses)}</>}
+                {dashboardData.totalExpenses === 0 && "No expenses"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-net-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Net Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${dashboardData.netRevenue >= 0 ? "text-green-600" : "text-red-600"}`} data-testid="text-net-revenue">
+                {dashboardData.netRevenue < 0 ? "-" : ""}{"\u00A3"}{formatPounds(Math.abs(dashboardData.netRevenue))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Income minus expenses</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-stock-usage">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Stock Used</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-stock-used">
+                {dashboardData.stockUsed}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Items used in sessions</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {viewMode === "session" ? (
         <div className="space-y-3">

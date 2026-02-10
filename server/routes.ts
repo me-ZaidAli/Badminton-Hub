@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -6550,6 +6550,606 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error resolving session fee:", err);
       res.status(500).json({ message: "Failed to resolve session fee" });
+    }
+  });
+
+  // === INVENTORY & EXPENSE ENDPOINTS ===
+
+  // GET /api/inventory/items?clubId=
+  app.get("/api/inventory/items", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const user = req.user!;
+      const isOwner = user.role === "OWNER";
+
+      let accessibleClubIds: number[] = [];
+      if (isOwner) {
+        if (clubId) {
+          accessibleClubIds = [clubId];
+        } else {
+          const allClubs = await db.select({ id: clubs.id }).from(clubs);
+          accessibleClubIds = allClubs.map(c => c.id);
+        }
+      } else {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        if (clubIdSet.size === 0) return res.sendStatus(403);
+        accessibleClubIds = clubId && clubIdSet.has(clubId) ? [clubId] : [...clubIdSet];
+      }
+
+      if (accessibleClubIds.length === 0) return res.json([]);
+
+      const items = await db.select().from(inventoryItems)
+        .where(inArray(inventoryItems.clubId, accessibleClubIds))
+        .orderBy(desc(inventoryItems.createdAt));
+      res.json(items);
+    } catch (err: any) {
+      console.error("Error fetching inventory items:", err);
+      res.status(500).json({ message: "Failed to fetch inventory items" });
+    }
+  });
+
+  // POST /api/inventory/items
+  app.post("/api/inventory/items", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        clubId: z.number().int(),
+        name: z.string().min(1),
+        supplier: z.string().optional(),
+        unitPrice: z.number().int().min(0).default(0),
+        stockAvailable: z.number().int().min(0).default(0),
+        isSessionLinked: z.boolean().default(false),
+        canBeSold: z.boolean().default(false),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", body.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [item] = await db.insert(inventoryItems).values({
+        clubId: body.clubId,
+        name: body.name,
+        supplier: body.supplier || null,
+        unitPrice: body.unitPrice,
+        stockAvailable: body.stockAvailable,
+        isSessionLinked: body.isSessionLinked,
+        canBeSold: body.canBeSold,
+        notes: body.notes || null,
+      }).returning();
+
+      if (body.stockAvailable > 0) {
+        await db.insert(inventoryMovements).values({
+          clubId: body.clubId,
+          itemId: item.id,
+          quantityDelta: body.stockAvailable,
+          unitPrice: body.unitPrice,
+          totalAmount: body.stockAvailable * body.unitPrice,
+          movementType: "RECEIPT",
+          notes: "Initial stock",
+          createdById: req.user!.id,
+        });
+      }
+
+      res.status(201).json(item);
+    } catch (err: any) {
+      console.error("Error creating inventory item:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create inventory item" });
+    }
+  });
+
+  // PATCH /api/inventory/items/:id
+  app.patch("/api/inventory/items/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1).optional(),
+        supplier: z.string().optional().nullable(),
+        unitPrice: z.number().int().min(0).optional(),
+        isSessionLinked: z.boolean().optional(),
+        canBeSold: z.boolean().optional(),
+        isActive: z.boolean().optional(),
+        notes: z.string().optional().nullable(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(inventoryItems).set(body).where(eq(inventoryItems.id, itemId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating inventory item:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update inventory item" });
+    }
+  });
+
+  // POST /api/inventory/items/:id/receive - Add stock
+  app.post("/api/inventory/items/:id/receive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        quantity: z.number().int().min(1),
+        unitPrice: z.number().int().min(0),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const totalAmount = body.quantity * body.unitPrice;
+
+      const [movement] = await db.insert(inventoryMovements).values({
+        clubId: item.clubId,
+        itemId: item.id,
+        quantityDelta: body.quantity,
+        unitPrice: body.unitPrice,
+        totalAmount,
+        movementType: "RECEIPT",
+        notes: body.notes || null,
+        createdById: req.user!.id,
+      }).returning();
+
+      const newStock = item.stockAvailable + body.quantity;
+      await db.update(inventoryItems).set({
+        stockAvailable: newStock,
+        unitPrice: body.unitPrice,
+      }).where(eq(inventoryItems.id, itemId));
+
+      res.status(201).json(movement);
+    } catch (err: any) {
+      console.error("Error receiving stock:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to receive stock" });
+    }
+  });
+
+  // POST /api/inventory/items/:id/adjust - Manual adjustment
+  app.post("/api/inventory/items/:id/adjust", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        quantityDelta: z.number().int(),
+        notes: z.string().min(1),
+      }).parse(req.body);
+
+      const newStock = item.stockAvailable + body.quantityDelta;
+      if (newStock < 0) return res.status(400).json({ message: "Insufficient stock for this adjustment" });
+
+      const [movement] = await db.insert(inventoryMovements).values({
+        clubId: item.clubId,
+        itemId: item.id,
+        quantityDelta: body.quantityDelta,
+        movementType: "ADJUSTMENT",
+        notes: body.notes,
+        createdById: req.user!.id,
+      }).returning();
+
+      await db.update(inventoryItems).set({ stockAvailable: newStock }).where(eq(inventoryItems.id, itemId));
+
+      res.status(201).json(movement);
+    } catch (err: any) {
+      console.error("Error adjusting stock:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to adjust stock" });
+    }
+  });
+
+  // POST /api/inventory/items/:id/sell - Sell item
+  app.post("/api/inventory/items/:id/sell", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        quantity: z.number().int().min(1),
+        unitPrice: z.number().int().min(0),
+        buyerName: z.string().min(1),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      if (item.stockAvailable < body.quantity) return res.status(400).json({ message: "Insufficient stock" });
+
+      const totalAmount = body.quantity * body.unitPrice;
+
+      const [movement] = await db.insert(inventoryMovements).values({
+        clubId: item.clubId,
+        itemId: item.id,
+        quantityDelta: -body.quantity,
+        unitPrice: body.unitPrice,
+        totalAmount,
+        movementType: "SALE",
+        buyerName: body.buyerName,
+        notes: body.notes || null,
+        createdById: req.user!.id,
+      }).returning();
+
+      await db.update(inventoryItems).set({
+        stockAvailable: item.stockAvailable - body.quantity,
+      }).where(eq(inventoryItems.id, itemId));
+
+      res.status(201).json(movement);
+    } catch (err: any) {
+      console.error("Error selling item:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to sell item" });
+    }
+  });
+
+  // POST /api/inventory/session-usage - Link usage to session
+  app.post("/api/inventory/session-usage", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        sessionId: z.number().int(),
+        itemId: z.number().int(),
+        quantity: z.number().int().min(1),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, body.sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", session.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, body.itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+      if (item.stockAvailable < body.quantity) return res.status(400).json({ message: "Insufficient stock" });
+
+      const totalAmount = body.quantity * item.unitPrice;
+
+      const [movement] = await db.insert(inventoryMovements).values({
+        clubId: session.clubId,
+        itemId: body.itemId,
+        quantityDelta: -body.quantity,
+        unitPrice: item.unitPrice,
+        totalAmount,
+        movementType: "USAGE",
+        sessionId: body.sessionId,
+        notes: body.notes || null,
+        createdById: req.user!.id,
+      }).returning();
+
+      await db.update(inventoryItems).set({
+        stockAvailable: item.stockAvailable - body.quantity,
+      }).where(eq(inventoryItems.id, body.itemId));
+
+      if (item.isSessionLinked) {
+        const currentUsed = session.shuttleTubesUsed || 0;
+        await db.update(sessions).set({
+          shuttleTubesUsed: currentUsed + body.quantity,
+        }).where(eq(sessions.id, body.sessionId));
+      }
+
+      res.status(201).json(movement);
+    } catch (err: any) {
+      console.error("Error recording session usage:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to record session usage" });
+    }
+  });
+
+  // GET /api/inventory/movements?clubId&itemId&dateFrom&dateTo&type
+  app.get("/api/inventory/movements", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const isOwner = user.role === "OWNER";
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+      let accessibleClubIds: number[] = [];
+      if (isOwner) {
+        if (qClubId) {
+          accessibleClubIds = [qClubId];
+        } else {
+          const allClubs = await db.select({ id: clubs.id }).from(clubs);
+          accessibleClubIds = allClubs.map(c => c.id);
+        }
+      } else {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        if (clubIdSet.size === 0) return res.sendStatus(403);
+        accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
+      }
+
+      const conditions: any[] = [inArray(inventoryMovements.clubId, accessibleClubIds)];
+
+      const qItemId = req.query.itemId ? Number(req.query.itemId) : null;
+      if (qItemId) conditions.push(eq(inventoryMovements.itemId, qItemId));
+
+      const qDateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+      const qDateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+      if (qDateFrom) conditions.push(gte(inventoryMovements.createdAt, qDateFrom));
+      if (qDateTo) {
+        const endOfDay = new Date(qDateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        conditions.push(lte(inventoryMovements.createdAt, endOfDay));
+      }
+
+      const qType = req.query.type as string | undefined;
+      if (qType && qType !== "all") conditions.push(eq(inventoryMovements.movementType, qType as any));
+
+      const movementsData = await db.select({
+        id: inventoryMovements.id,
+        clubId: inventoryMovements.clubId,
+        itemId: inventoryMovements.itemId,
+        quantityDelta: inventoryMovements.quantityDelta,
+        unitPrice: inventoryMovements.unitPrice,
+        totalAmount: inventoryMovements.totalAmount,
+        movementType: inventoryMovements.movementType,
+        sessionId: inventoryMovements.sessionId,
+        buyerName: inventoryMovements.buyerName,
+        notes: inventoryMovements.notes,
+        createdById: inventoryMovements.createdById,
+        createdAt: inventoryMovements.createdAt,
+        itemName: inventoryItems.name,
+        clubName: clubs.name,
+        createdByName: users.fullName,
+      }).from(inventoryMovements)
+        .innerJoin(inventoryItems, eq(inventoryMovements.itemId, inventoryItems.id))
+        .innerJoin(clubs, eq(inventoryMovements.clubId, clubs.id))
+        .innerJoin(users, eq(inventoryMovements.createdById, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(inventoryMovements.createdAt));
+
+      res.json(movementsData);
+    } catch (err: any) {
+      console.error("Error fetching inventory movements:", err);
+      res.status(500).json({ message: "Failed to fetch inventory movements" });
+    }
+  });
+
+  // === EXPENSES ENDPOINTS ===
+
+  // GET /api/expenses?clubId&dateFrom&dateTo
+  app.get("/api/expenses", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const isOwner = user.role === "OWNER";
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+      let accessibleClubIds: number[] = [];
+      if (isOwner) {
+        if (qClubId) {
+          accessibleClubIds = [qClubId];
+        } else {
+          const allClubs = await db.select({ id: clubs.id }).from(clubs);
+          accessibleClubIds = allClubs.map(c => c.id);
+        }
+      } else {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        if (clubIdSet.size === 0) return res.sendStatus(403);
+        accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
+      }
+
+      const conditions: any[] = [inArray(expenses.clubId, accessibleClubIds)];
+
+      const qDateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+      const qDateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+      if (qDateFrom) conditions.push(gte(expenses.createdAt, qDateFrom));
+      if (qDateTo) {
+        const endOfDay = new Date(qDateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        conditions.push(lte(expenses.createdAt, endOfDay));
+      }
+
+      const expensesData = await db.select({
+        id: expenses.id,
+        clubId: expenses.clubId,
+        name: expenses.name,
+        amount: expenses.amount,
+        notes: expenses.notes,
+        createdById: expenses.createdById,
+        createdAt: expenses.createdAt,
+        clubName: clubs.name,
+        createdByName: users.fullName,
+      }).from(expenses)
+        .innerJoin(clubs, eq(expenses.clubId, clubs.id))
+        .innerJoin(users, eq(expenses.createdById, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(expenses.createdAt));
+
+      res.json(expensesData);
+    } catch (err: any) {
+      console.error("Error fetching expenses:", err);
+      res.status(500).json({ message: "Failed to fetch expenses" });
+    }
+  });
+
+  // POST /api/expenses
+  app.post("/api/expenses", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        clubId: z.number().int(),
+        name: z.string().min(1),
+        amount: z.number().int().min(1),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", body.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [expense] = await db.insert(expenses).values({
+        clubId: body.clubId,
+        name: body.name,
+        amount: body.amount,
+        notes: body.notes || null,
+        createdById: req.user!.id,
+      }).returning();
+
+      res.status(201).json(expense);
+    } catch (err: any) {
+      console.error("Error creating expense:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create expense" });
+    }
+  });
+
+  // PATCH /api/expenses/:id
+  app.patch("/api/expenses/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const expenseId = Number(req.params.id);
+      const [expense] = await db.select().from(expenses).where(eq(expenses.id, expenseId));
+      if (!expense) return res.status(404).json({ message: "Expense not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", expense.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1).optional(),
+        amount: z.number().int().min(1).optional(),
+        notes: z.string().optional().nullable(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(expenses).set(body).where(eq(expenses.id, expenseId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating expense:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update expense" });
+    }
+  });
+
+  // DELETE /api/expenses/:id
+  app.delete("/api/expenses/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const expenseId = Number(req.params.id);
+      const [expense] = await db.select().from(expenses).where(eq(expenses.id, expenseId));
+      if (!expense) return res.status(404).json({ message: "Expense not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", expense.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      await db.delete(expenses).where(eq(expenses.id, expenseId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting expense:", err);
+      res.status(500).json({ message: "Failed to delete expense" });
+    }
+  });
+
+  // GET /api/admin/financial-dashboard - Aggregated financial data with inventory & expenses
+  app.get("/api/admin/financial-dashboard", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const isOwner = user.role === "OWNER";
+
+      let accessibleClubIds: number[] = [];
+      if (isOwner) {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        accessibleClubIds = allClubs.map(c => c.id);
+      } else {
+        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+        if (clubIdSet.size === 0) return res.sendStatus(403);
+        accessibleClubIds = [...clubIdSet];
+      }
+
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const filteredClubIds = qClubId ? accessibleClubIds.filter(id => id === qClubId) : accessibleClubIds;
+      if (filteredClubIds.length === 0) return res.sendStatus(403);
+
+      const qDateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+      const qDateTo = req.query.dateTo ? (() => { const d = new Date(req.query.dateTo as string); d.setHours(23, 59, 59, 999); return d; })() : null;
+
+      const sessionConditions: any[] = [inArray(sessions.clubId, filteredClubIds)];
+      if (qDateFrom) sessionConditions.push(gte(sessions.date, qDateFrom));
+      if (qDateTo) sessionConditions.push(lte(sessions.date, qDateTo));
+
+      const signupsData = await db.select({
+        fee: sessionSignups.fee,
+        paymentStatus: sessionSignups.paymentStatus,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(sessionConditions.length > 0 ? and(...sessionConditions) : undefined);
+
+      const sessionIncome = signupsData.reduce((sum, s) => sum + (s.fee || 0), 0);
+      const sessionPaid = signupsData.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+
+      const movementConditions: any[] = [inArray(inventoryMovements.clubId, filteredClubIds)];
+      if (qDateFrom) movementConditions.push(gte(inventoryMovements.createdAt, qDateFrom));
+      if (qDateTo) movementConditions.push(lte(inventoryMovements.createdAt, qDateTo));
+
+      const movementsAll = await db.select({
+        movementType: inventoryMovements.movementType,
+        totalAmount: inventoryMovements.totalAmount,
+        quantityDelta: inventoryMovements.quantityDelta,
+        itemName: inventoryItems.name,
+      }).from(inventoryMovements)
+        .innerJoin(inventoryItems, eq(inventoryMovements.itemId, inventoryItems.id))
+        .where(and(...movementConditions));
+
+      const inventoryPurchases = movementsAll.filter(m => m.movementType === "RECEIPT").reduce((sum, m) => sum + (m.totalAmount || 0), 0);
+      const inventorySales = movementsAll.filter(m => m.movementType === "SALE").reduce((sum, m) => sum + (m.totalAmount || 0), 0);
+      const stockUsed = movementsAll.filter(m => m.movementType === "USAGE").reduce((sum, m) => sum + Math.abs(m.quantityDelta), 0);
+
+      const expenseConditions: any[] = [inArray(expenses.clubId, filteredClubIds)];
+      if (qDateFrom) expenseConditions.push(gte(expenses.createdAt, qDateFrom));
+      if (qDateTo) expenseConditions.push(lte(expenses.createdAt, qDateTo));
+
+      const expensesAll = await db.select({
+        amount: expenses.amount,
+      }).from(expenses).where(and(...expenseConditions));
+
+      const generalExpenses = expensesAll.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+      const totalIncome = sessionIncome + inventorySales;
+      const totalExpenses = inventoryPurchases + generalExpenses;
+      const netRevenue = totalIncome - totalExpenses;
+
+      res.json({
+        sessionIncome,
+        sessionPaid,
+        sessionOutstanding: sessionIncome - sessionPaid,
+        inventorySales,
+        inventoryPurchases,
+        generalExpenses,
+        totalIncome,
+        totalExpenses,
+        netRevenue,
+        stockUsed,
+        collectionRate: sessionIncome > 0 ? ((sessionPaid / sessionIncome) * 100).toFixed(1) : "0.0",
+      });
+    } catch (err: any) {
+      console.error("Error fetching financial dashboard:", err);
+      res.status(500).json({ message: "Failed to fetch financial dashboard" });
     }
   });
 
