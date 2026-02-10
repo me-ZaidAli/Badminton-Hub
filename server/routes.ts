@@ -733,7 +733,6 @@ export async function registerRoutes(
             id: p.id,
             fullName: p.user?.fullName,
             category: p.category,
-            gender: p.gender,
           }) : null;
 
           allSessions.push({
@@ -848,7 +847,6 @@ export async function registerRoutes(
           id: s.player.id,
           fullName: s.player.user.fullName,
           category: s.player.category,
-          gender: s.player.gender,
           rankingPoints: s.player.rankingPoints
         }
       }));
@@ -857,7 +855,6 @@ export async function registerRoutes(
       const sanitizePlayer = (p: any) => p ? ({
         id: p.id,
         category: p.category,
-        gender: p.gender,
         rankingPoints: p.rankingPoints,
         user: { fullName: p.user?.fullName }
       }) : null;
@@ -917,7 +914,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Session not found" });
       }
       const leaderboard = await storage.getDynamicSessionLeaderboard(sessionId);
-      res.json(leaderboard);
+      const publicLeaderboard = leaderboard.map(({ gender, ...rest }: any) => rest);
+      res.json(publicLeaderboard);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to fetch session leaderboard" });
     }

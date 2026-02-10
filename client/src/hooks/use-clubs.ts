@@ -103,6 +103,8 @@ export type LeaderboardPlayer = {
   clubName?: string;
   isJunior?: boolean;
   clubRole?: string;
+  hasAccount?: boolean;
+  nickname?: string | null;
 };
 
 export function useLeaderboard(clubId: number | null) {

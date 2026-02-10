@@ -93,7 +93,6 @@ export default function ExploreRankings() {
   const { data: clubs } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
-  const [gender, setGender] = useState<string>("all");
   const [matchType, setMatchType] = useState<string>("all");
   const [timePeriod, setTimePeriod] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,23 +106,24 @@ export default function ExploreRankings() {
     const f: LeaderboardFilters = {};
     if (selectedClubId !== "all") f.clubId = Number(selectedClubId);
     if (category !== "all") f.category = category;
-    if (gender !== "all") f.gender = gender;
     if (matchType !== "all") f.matchType = matchType;
     if (timeDates.dateFrom) f.dateFrom = timeDates.dateFrom;
     if (timeDates.dateTo) f.dateTo = timeDates.dateTo;
     return f;
-  }, [selectedClubId, category, gender, matchType, timeDates]);
+  }, [selectedClubId, category, matchType, timeDates]);
 
   const { data: leaderboard, isLoading } = useFilteredLeaderboard(filters);
 
   const filteredLeaderboard = useMemo(() => {
     if (!leaderboard) return [];
-    if (!searchQuery.trim()) return leaderboard;
+    const ranked = leaderboard.filter(p => p.matchesPlayed > 0);
+    if (!searchQuery.trim()) return ranked;
     const q = searchQuery.toLowerCase();
-    return leaderboard.filter(p =>
-      p.fullName.toLowerCase().includes(q) ||
-      (p.clubName && p.clubName.toLowerCase().includes(q))
-    );
+    return ranked.filter(p => {
+      const displayName = p.nickname || p.fullName;
+      return displayName.toLowerCase().includes(q) ||
+        (p.clubName && p.clubName.toLowerCase().includes(q));
+    });
   }, [leaderboard, searchQuery]);
 
   const rankedLeaderboard = useMemo(() => {
@@ -139,12 +139,11 @@ export default function ExploreRankings() {
     });
   }, [filteredLeaderboard]);
 
-  const hasActiveFilters = selectedClubId !== "all" || category !== "all" || gender !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
+  const hasActiveFilters = selectedClubId !== "all" || category !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
 
   const resetFilters = () => {
     setSelectedClubId("all");
     setCategory("all");
-    setGender("all");
     setMatchType("all");
     setTimePeriod("all");
     setSearchQuery("");
@@ -160,7 +159,7 @@ export default function ExploreRankings() {
               Leaderboard
             </h1>
             <p className="text-muted-foreground text-lg">
-              Player rankings calculated from match results. Filter by club, grade, gender, and time period.
+              Player rankings calculated from match results. Filter by club, grade, and time period.
             </p>
           </div>
 
@@ -202,17 +201,7 @@ export default function ExploreRankings() {
                     <SelectItem value="D">Grade D</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={gender} onValueChange={setGender}>
-                  <SelectTrigger className="w-[130px]" data-testid="select-explore-gender-filter">
-                    <SelectValue placeholder="All Players" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Players</SelectItem>
-                    <SelectItem value="MALE">Male</SelectItem>
-                    <SelectItem value="FEMALE">Female</SelectItem>
-                    <SelectItem value="JUNIOR">Junior</SelectItem>
-                  </SelectContent>
-                </Select>
+                
                 <Select value={matchType} onValueChange={setMatchType}>
                   <SelectTrigger className="w-[130px]" data-testid="select-explore-match-type-filter">
                     <SelectValue placeholder="All Types" />
@@ -318,24 +307,22 @@ export default function ExploreRankings() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 border border-border">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-                            <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.nickname || player.fullName}`} />
+                            <AvatarFallback>{(player.nickname || player.fullName).substring(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
                             <div className="font-semibold truncate flex items-center gap-1.5">
-                              {player.fullName}
+                              {player.hasAccount ? (
+                                <span data-testid={`text-player-name-${player.id}`}>{player.nickname || player.fullName}</span>
+                              ) : (
+                                <span className="blur-[4px] select-none" data-testid={`text-player-name-blurred-${player.id}`}>{player.fullName}</span>
+                              )}
                               {isNewEntry && (
                                 <Badge variant="secondary" className="text-[10px] py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
                                   New
                                 </Badge>
                               )}
                             </div>
-                            {player.gender && (
-                              <span className="text-xs text-muted-foreground">
-                                {player.gender === "MALE" ? "M" : "F"}
-                                {player.isJunior && " / Junior"}
-                              </span>
-                            )}
                           </div>
                         </div>
                       </TableCell>

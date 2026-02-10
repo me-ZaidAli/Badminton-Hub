@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
+  nickname: z.string().optional(),
   username: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   dateOfBirth: z.string().optional(),
@@ -67,6 +68,7 @@ export default function Register() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: "",
+      nickname: "",
       username: "",
       password: "",
       dateOfBirth: "",
@@ -93,6 +95,7 @@ export default function Register() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fullName: values.fullName,
+        nickname: values.nickname || undefined,
         email: values.username,
         password: values.password,
         dateOfBirth: values.dateOfBirth || undefined,
@@ -181,6 +184,28 @@ export default function Register() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="nickname"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nickname (optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Display name for public rankings" {...field} data-testid="input-nickname" />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      If set, your nickname will be shown instead of your full name on public leaderboards.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground flex items-start gap-2" data-testid="text-privacy-notice">
+                <Shield className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Your name (or nickname if provided) will appear on public leaderboards when you participate in ranked sessions. Unregistered players have their names blurred on public views.
+                </span>
+              </div>
               <FormField
                 control={form.control}
                 name="username"

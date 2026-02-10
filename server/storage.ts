@@ -1076,6 +1076,8 @@ export class DatabaseStorage implements IStorage {
       clubName: string;
       isJunior: boolean;
       clubRole: string;
+      hasAccount: boolean;
+      nickname: string | null;
     }>();
 
     for (const r of profileRows) {
@@ -1092,6 +1094,8 @@ export class DatabaseStorage implements IStorage {
         clubName: r.clubs.name,
         isJunior: r.users.isJunior,
         clubRole: r.player_profiles.clubRole,
+        hasAccount: r.users.accountStatus === "ACTIVE" || r.users.emailVerified,
+        nickname: r.users.nickname,
       });
     }
 
@@ -1135,6 +1139,8 @@ export class DatabaseStorage implements IStorage {
           : 0,
         isJunior: player.isJunior,
         clubRole: player.clubRole,
+        hasAccount: player.hasAccount,
+        nickname: player.nickname,
       });
     }
 
