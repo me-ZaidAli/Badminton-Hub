@@ -2078,7 +2078,7 @@ export async function registerRoutes(
 
     try {
       const matchId = Number(req.params.id);
-      const { scoreA, scoreB } = req.body;
+      const { scoreA, scoreB, setScores } = req.body;
 
       if (scoreA === undefined || scoreB === undefined) {
         return res.status(400).json({ message: "Both scores are required" });
@@ -2095,12 +2095,27 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only admins and organisers can amend scores" });
       }
 
-      const updated = await storage.updateMatch(matchId, { 
+      const updateData: any = { 
         scoreA, 
         scoreB,
         scoreUpdatedByUserId: req.user!.id,
         scoreUpdatedAt: new Date(),
-      });
+      };
+
+      if (setScores && Array.isArray(setScores)) {
+        updateData.setScores = setScores;
+        let setsWonA = 0;
+        let setsWonB = 0;
+        for (const s of setScores) {
+          if (s.scoreA > s.scoreB) setsWonA++;
+          else if (s.scoreB > s.scoreA) setsWonB++;
+        }
+        updateData.setsWonA = setsWonA;
+        updateData.setsWonB = setsWonB;
+        updateData.currentSet = setScores.length;
+      }
+
+      const updated = await storage.updateMatch(matchId, updateData);
       res.json(updated);
     } catch (err: any) {
       console.error("Error editing match score:", err);

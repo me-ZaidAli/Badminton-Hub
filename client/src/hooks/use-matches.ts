@@ -306,11 +306,11 @@ export function useEditMatchScore() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: number; scoreA: number; scoreB: number }) => {
+    mutationFn: async ({ matchId, scoreA, scoreB, setScores }: { matchId: number; scoreA: number; scoreB: number; setScores?: { scoreA: number; scoreB: number }[] }) => {
       const res = await fetch(`/api/matches/${matchId}/edit-score`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scoreA, scoreB }),
+        body: JSON.stringify({ scoreA, scoreB, setScores }),
         credentials: "include",
       });
       if (!res.ok) {
