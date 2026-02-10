@@ -25,8 +25,8 @@ export function useLogin() {
         credentials: "include",
       });
       if (!res.ok) {
-        if (res.status === 401) throw new Error("Invalid credentials");
-        throw new Error("Login failed");
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || "Invalid email or password");
       }
       const userData = await res.json();
       queryClient.setQueryData(["/api/auth/me"], userData);

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Link, useLocation } from "wouter";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   username: z.string().min(1, "Email/Username is required"),
@@ -19,6 +20,8 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { mutate: login, isPending } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -26,8 +29,12 @@ export default function Login() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    setLoginError(null);
     login(values, {
       onSuccess: () => setLocation("/dashboard"),
+      onError: (error: any) => {
+        setLoginError(error.message || "Invalid email or password");
+      },
     });
   }
 
@@ -89,7 +96,13 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending}>
+              {loginError && (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-login-error">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending} data-testid="button-login-submit">
                 {isPending ? "Signing in..." : "Sign In"}
               </Button>
             </form>
