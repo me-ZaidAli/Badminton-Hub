@@ -828,12 +828,18 @@ export class DatabaseStorage implements IStorage {
     matchList: Match[],
     players: Map<number, { fullName: string; gender: string | null; category: string | null }>
   ) {
-    const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number }>();
+    const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number; setsWon: number; pointsWon: number }>();
 
     for (const match of matchList) {
       if (match.status !== "COMPLETED" || !match.isCompleted) continue;
 
-      const teamAWon = (match.scoreA ?? 0) > (match.scoreB ?? 0);
+      const hasMultiSets = (match.numberOfSets || 1) > 1 && (match.setsWonA || 0) + (match.setsWonB || 0) > 0;
+      const teamAWon = hasMultiSets
+        ? (match.setsWonA || 0) > (match.setsWonB || 0)
+        : (match.scoreA ?? 0) > (match.scoreB ?? 0);
+      
+      const setScoresArr = (match.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+
       const playerIds = [
         match.teamAPlayer1Id,
         match.teamAPlayer2Id,
@@ -843,13 +849,27 @@ export class DatabaseStorage implements IStorage {
 
       for (const pid of playerIds) {
         if (!statsMap.has(pid)) {
-          statsMap.set(pid, { matchesPlayed: 0, matchesWon: 0 });
+          statsMap.set(pid, { matchesPlayed: 0, matchesWon: 0, setsWon: 0, pointsWon: 0 });
         }
         const s = statsMap.get(pid)!;
         s.matchesPlayed++;
         const isTeamA = pid === match.teamAPlayer1Id || pid === match.teamAPlayer2Id;
         if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) {
           s.matchesWon++;
+        }
+        if (setScoresArr.length > 0) {
+          for (const setScore of setScoresArr) {
+            if (isTeamA) {
+              s.pointsWon += setScore.scoreA;
+              if (setScore.scoreA > setScore.scoreB) s.setsWon++;
+            } else {
+              s.pointsWon += setScore.scoreB;
+              if (setScore.scoreB > setScore.scoreA) s.setsWon++;
+            }
+          }
+        } else {
+          s.pointsWon += isTeamA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
+          if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) s.setsWon++;
         }
       }
     }
@@ -863,6 +883,8 @@ export class DatabaseStorage implements IStorage {
       matchesWon: number;
       matchesLost: number;
       winPercentage: number;
+      setsWon: number;
+      pointsWon: number;
     }[] = [];
 
     for (const [pid, stats] of statsMap) {
@@ -879,13 +901,16 @@ export class DatabaseStorage implements IStorage {
         winPercentage: stats.matchesPlayed > 0
           ? Math.round((stats.matchesWon / stats.matchesPlayed) * 100)
           : 0,
+        setsWon: stats.setsWon,
+        pointsWon: stats.pointsWon,
       });
     }
 
     results.sort((a, b) => {
       if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
       if (b.winPercentage !== a.winPercentage) return b.winPercentage - a.winPercentage;
-      return b.matchesPlayed - a.matchesPlayed;
+      if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+      return b.pointsWon - a.pointsWon;
     });
 
     return results;

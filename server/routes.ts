@@ -1580,6 +1580,11 @@ export async function registerRoutes(
         scoreB: 0,
         isCompleted: false,
         pointsToPlayTo: session.defaultPointsToPlayTo || 21,
+        numberOfSets: session.numberOfSets || 1,
+        currentSet: 1,
+        setsWonA: 0,
+        setsWonB: 0,
+        setScores: [],
       });
     }
 
@@ -1627,12 +1632,107 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/matches/:id/complete", async (req, res) => {
+  app.post("/api/matches/:id/end-set", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
       const matchId = Number(req.params.id);
       const { scoreA, scoreB } = req.body;
+
+      if (scoreA === undefined || scoreB === undefined) {
+        return res.status(400).json({ message: "Scores are required" });
+      }
+
+      const currentMatch = await storage.getMatch(matchId);
+      if (!currentMatch) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(currentMatch.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
+      if (!isAdmin && !isSignedUp) {
+        return res.status(403).json({ message: "Only session participants or admins can end a set" });
+      }
+
+      const target = currentMatch.pointsToPlayTo || session.defaultPointsToPlayTo || 21;
+      const sA = Number(scoreA);
+      const sB = Number(scoreB);
+
+      if (sA < target && sB < target) {
+        return res.status(400).json({ message: `At least one side must reach ${target} points.` });
+      }
+
+      const existingSetScores = (currentMatch.setScores as { scoreA: number; scoreB: number }[]) || [];
+      const newSetScores = [...existingSetScores, { scoreA: sA, scoreB: sB }];
+      
+      let newSetsWonA = (currentMatch.setsWonA || 0) + (sA > sB ? 1 : 0);
+      let newSetsWonB = (currentMatch.setsWonB || 0) + (sB > sA ? 1 : 0);
+      const totalSets = currentMatch.numberOfSets || 1;
+      const currentSetNum = currentMatch.currentSet || 1;
+
+      const setsToWin = totalSets === 3 ? 2 : (totalSets === 2 ? 2 : 1);
+      const matchOver = newSetsWonA >= setsToWin || newSetsWonB >= setsToWin || currentSetNum >= totalSets;
+
+      if (matchOver) {
+        const totalScoreA = newSetScores.reduce((sum, s) => sum + s.scoreA, 0);
+        const totalScoreB = newSetScores.reduce((sum, s) => sum + s.scoreB, 0);
+        const freedCourt = currentMatch.courtNumber;
+
+        const updated = await storage.updateMatch(matchId, {
+          status: "COMPLETED",
+          scoreA: totalScoreA,
+          scoreB: totalScoreB,
+          isCompleted: true,
+          completedAt: new Date(),
+          courtNumber: null,
+          scoreEnteredByUserId: req.user!.id,
+          scoreEnteredAt: new Date(),
+          setScores: newSetScores,
+          setsWonA: newSetsWonA,
+          setsWonB: newSetsWonB,
+          currentSet: currentSetNum,
+        });
+
+        if (freedCourt && currentMatch.sessionId) {
+          const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+          const queuedMatches = sessionMatches
+            .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
+            .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+          if (queuedMatches.length > 0) {
+            const nextMatch = queuedMatches[0];
+            await storage.updateMatch(nextMatch.id, {
+              status: "LIVE",
+              courtNumber: freedCourt,
+              startedAt: new Date(),
+              queuePosition: null
+            });
+          }
+        }
+
+        return res.json({ ...updated, matchCompleted: true });
+      } else {
+        const updated = await storage.updateMatch(matchId, {
+          setScores: newSetScores,
+          setsWonA: newSetsWonA,
+          setsWonB: newSetsWonB,
+          currentSet: currentSetNum + 1,
+        });
+        return res.json({ ...updated, matchCompleted: false });
+      }
+    } catch (err: any) {
+      console.error("Error ending set:", err);
+      res.status(500).json({ message: err.message || "Failed to end set" });
+    }
+  });
+
+  app.post("/api/matches/:id/complete", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const { scoreA, scoreB, setScores: providedSetScores } = req.body;
 
       if (scoreA === undefined || scoreB === undefined) {
         return res.status(400).json({ message: "Scores are required" });
@@ -1656,13 +1756,24 @@ export async function registerRoutes(
       const target = currentMatch.pointsToPlayTo || session.defaultPointsToPlayTo || 21;
       const sA = Number(scoreA);
       const sB = Number(scoreB);
+      const totalSets = currentMatch.numberOfSets || 1;
 
-      const aWins = sA >= target && sB < target;
-      const bWins = sB >= target && sA < target;
-      if (!aWins && !bWins) {
-        return res.status(400).json({ 
-          message: `Invalid score. One side must reach ${target} points and the other must be below ${target}. Valid examples: ${target}-0 to ${target}-${target - 1}.`
-        });
+      if (totalSets === 1) {
+        const aWins = sA >= target && sB < target;
+        const bWins = sB >= target && sA < target;
+        if (!aWins && !bWins) {
+          return res.status(400).json({ 
+            message: `Invalid score. One side must reach ${target} points and the other must be below ${target}.`
+          });
+        }
+      }
+
+      const finalSetScores = providedSetScores || currentMatch.setScores || [{ scoreA: sA, scoreB: sB }];
+      let finalSetsWonA = 0;
+      let finalSetsWonB = 0;
+      for (const s of finalSetScores) {
+        if (s.scoreA > s.scoreB) finalSetsWonA++;
+        else if (s.scoreB > s.scoreA) finalSetsWonB++;
       }
 
       const freedCourt = currentMatch.courtNumber;
@@ -1676,6 +1787,9 @@ export async function registerRoutes(
         courtNumber: null,
         scoreEnteredByUserId: req.user!.id,
         scoreEnteredAt: new Date(),
+        setScores: finalSetScores,
+        setsWonA: finalSetsWonA,
+        setsWonB: finalSetsWonB,
       });
 
       if (freedCourt && currentMatch.sessionId) {
@@ -1855,6 +1969,11 @@ export async function registerRoutes(
             scoreB: 0,
             isCompleted: false,
             pointsToPlayTo: session.defaultPointsToPlayTo || 21,
+            numberOfSets: session.numberOfSets || 1,
+            currentSet: 1,
+            setsWonA: 0,
+            setsWonB: 0,
+            setScores: [],
           });
         }
       }
@@ -2127,7 +2246,12 @@ export async function registerRoutes(
           teamBPlayer2Id: playersPerSide === 2 ? teamB[1] : null,
           scoreA: 0,
           scoreB: 0,
-          isCompleted: false
+          isCompleted: false,
+          numberOfSets: session.numberOfSets || 1,
+          currentSet: 1,
+          setsWonA: 0,
+          setsWonB: 0,
+          setScores: [],
         });
       }
 
@@ -2235,6 +2359,11 @@ export async function registerRoutes(
           scoreB: 0,
           isCompleted: false,
           pointsToPlayTo: defaultTarget,
+          numberOfSets: session.numberOfSets || 1,
+          currentSet: 1,
+          setsWonA: 0,
+          setsWonB: 0,
+          setScores: [],
         }))
       );
 
@@ -2419,6 +2548,11 @@ export async function registerRoutes(
           scoreB: 0,
           isCompleted: false,
           pointsToPlayTo: defaultTarget,
+          numberOfSets: session.numberOfSets || 1,
+          currentSet: 1,
+          setsWonA: 0,
+          setsWonB: 0,
+          setScores: [],
         }))
       );
 

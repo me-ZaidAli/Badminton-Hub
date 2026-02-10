@@ -282,6 +282,7 @@ export const sessions = pgTable("sessions", {
   courtNames: jsonb("court_names").$type<string[]>(),
   liveStreamUrl: text("live_stream_url"),
   defaultPointsToPlayTo: integer("default_points_to_play_to").default(21),
+  numberOfSets: integer("number_of_sets").default(1).notNull(),
   autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
 });
 
@@ -337,6 +338,11 @@ export const matches = pgTable("matches", {
   scoreUpdatedByUserId: integer("score_updated_by_user_id").references(() => users.id),
   scoreUpdatedAt: timestamp("score_updated_at"),
   pointsToPlayTo: integer("points_to_play_to").default(21),
+  numberOfSets: integer("number_of_sets").default(1).notNull(),
+  currentSet: integer("current_set").default(1).notNull(),
+  setsWonA: integer("sets_won_a").default(0).notNull(),
+  setsWonB: integer("sets_won_b").default(0).notNull(),
+  setScores: jsonb("set_scores").$type<{ scoreA: number; scoreB: number }[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -679,6 +685,7 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   sessionType: z.enum(["OPEN", "JUNIORS_ONLY"]).default("OPEN"),
   juniorAgeGroups: z.array(z.string()).optional().nullable(),
   matchGenderType: z.enum(["MIXED", "FEMALE", "MALE"]).default("MIXED"),
+  numberOfSets: z.number().min(1).max(3).default(1),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
