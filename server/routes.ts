@@ -6657,6 +6657,7 @@ export async function registerRoutes(
         name: z.string().min(1).optional(),
         supplier: z.string().optional().nullable(),
         unitPrice: z.number().int().min(0).optional(),
+        stockAvailable: z.number().int().min(0).optional(),
         isSessionLinked: z.boolean().optional(),
         canBeSold: z.boolean().optional(),
         isActive: z.boolean().optional(),

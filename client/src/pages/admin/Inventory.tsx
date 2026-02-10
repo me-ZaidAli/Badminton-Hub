@@ -92,6 +92,105 @@ function getMovementBadge(type: string) {
   }
 }
 
+interface SessionOption {
+  id: number;
+  title: string;
+  date: string | null;
+  status: string;
+}
+
+function UsageDialog({ item, onClose, recordUsage }: {
+  item: InventoryItem | null;
+  onClose: () => void;
+  recordUsage: any;
+}) {
+  const { toast } = useToast();
+  const [sessionId, setSessionId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [notes, setNotes] = useState("");
+
+  const { data: clubSessions = [], isLoading: loadingSessions } = useQuery<SessionOption[]>({
+    queryKey: ["/api/clubs", item?.clubId, "sessions"],
+    queryFn: async () => {
+      if (!item?.clubId) return [];
+      const res = await fetch(`/api/clubs/${item.clubId}/sessions`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!item?.clubId,
+  });
+
+  const sortedSessions = useMemo(() => {
+    return [...clubSessions].sort((a, b) => {
+      if (a.date && b.date) return new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return b.id - a.id;
+    });
+  }, [clubSessions]);
+
+  if (!item) return null;
+
+  return (
+    <Dialog open={!!item} onOpenChange={(o) => { if (!o) { onClose(); } }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Record Session Usage - {item.name}</DialogTitle>
+          <DialogDescription>Stock available: {item.stockAvailable}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Session</Label>
+            {loadingSessions ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading sessions...
+              </div>
+            ) : (
+              <Select value={sessionId} onValueChange={setSessionId}>
+                <SelectTrigger data-testid="select-usage-session">
+                  <SelectValue placeholder="Select a session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedSessions.map(s => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.title}{s.date ? ` - ${format(new Date(s.date), "MMM d, yyyy")}` : ""}{s.status === "CANCELLED" ? " (Cancelled)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div>
+            <Label>Quantity Used</Label>
+            <Input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} data-testid="input-usage-qty" />
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Input value={notes} onChange={e => setNotes(e.target.value)} data-testid="input-usage-notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={recordUsage.isPending}
+            data-testid="button-confirm-usage"
+            onClick={() => {
+              const sid = Number(sessionId);
+              const qty = Number(quantity);
+              if (!sid) { toast({ title: "Please select a session", variant: "destructive" }); return; }
+              if (!qty || qty < 1) { toast({ title: "Enter a valid quantity", variant: "destructive" }); return; }
+              recordUsage.mutate({ sessionId: sid, itemId: item.id, quantity: qty, notes: notes || undefined });
+            }}
+          >
+            {recordUsage.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Record Usage
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Inventory() {
   const { toast } = useToast();
   const { data: user } = useUser();
@@ -112,12 +211,11 @@ export default function Inventory() {
 
   const [itemForm, setItemForm] = useState({
     name: "", supplier: "", unitPrice: "", stockAvailable: "0",
-    isSessionLinked: false, canBeSold: false, notes: "",
+    isSessionLinked: false, canBeSold: false, isActive: true, notes: "",
   });
   const [receiveForm, setReceiveForm] = useState({ quantity: "", unitPrice: "", notes: "" });
   const [adjustForm, setAdjustForm] = useState({ quantityDelta: "", notes: "" });
   const [sellForm, setSellForm] = useState({ quantity: "", unitPrice: "", buyerName: "", notes: "" });
-  const [usageForm, setUsageForm] = useState({ sessionId: "", quantity: "", notes: "" });
   const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", notes: "" });
 
   const itemsQueryUrl = useMemo(() => {
@@ -209,7 +307,6 @@ export default function Inventory() {
       queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/inventory") });
       toast({ title: "Usage Recorded", description: "Session usage has been logged." });
       setUsageDialog(null);
-      setUsageForm({ sessionId: "", quantity: "", notes: "" });
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to record usage", variant: "destructive" }); },
   });
@@ -246,7 +343,7 @@ export default function Inventory() {
   });
 
   function resetItemForm() {
-    setItemForm({ name: "", supplier: "", unitPrice: "", stockAvailable: "0", isSessionLinked: false, canBeSold: false, notes: "" });
+    setItemForm({ name: "", supplier: "", unitPrice: "", stockAvailable: "0", isSessionLinked: false, canBeSold: false, isActive: true, notes: "" });
   }
 
   function openEditItem(item: InventoryItem) {
@@ -258,6 +355,7 @@ export default function Inventory() {
       stockAvailable: String(item.stockAvailable),
       isSessionLinked: item.isSessionLinked,
       canBeSold: item.canBeSold,
+      isActive: item.isActive,
       notes: item.notes || "",
     });
   }
@@ -405,7 +503,7 @@ export default function Inventory() {
                             </Button>
                           )}
                           {item.isSessionLinked && (
-                            <Button size="sm" variant="outline" onClick={() => { setUsageForm({ sessionId: "", quantity: "1", notes: "" }); setUsageDialog(item); }} data-testid={`button-usage-${item.id}`}>
+                            <Button size="sm" variant="outline" onClick={() => { setUsageDialog(item); }} data-testid={`button-usage-${item.id}`}>
                               <Wrench className="w-3 h-3 mr-1" /> Use
                             </Button>
                           )}
@@ -555,12 +653,10 @@ export default function Inventory() {
                 <Label>Unit Price (pence)</Label>
                 <Input type="number" value={itemForm.unitPrice} onChange={e => setItemForm(f => ({ ...f, unitPrice: e.target.value }))} placeholder="0" data-testid="input-item-price" />
               </div>
-              {!editingItem && (
-                <div>
-                  <Label>Initial Stock</Label>
-                  <Input type="number" value={itemForm.stockAvailable} onChange={e => setItemForm(f => ({ ...f, stockAvailable: e.target.value }))} placeholder="0" data-testid="input-item-stock" />
-                </div>
-              )}
+              <div>
+                <Label>{editingItem ? "Stock Available" : "Initial Stock"}</Label>
+                <Input type="number" value={itemForm.stockAvailable} onChange={e => setItemForm(f => ({ ...f, stockAvailable: e.target.value }))} placeholder="0" data-testid="input-item-stock" />
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-2">
@@ -570,6 +666,10 @@ export default function Inventory() {
               <div className="flex items-center gap-2">
                 <Switch checked={itemForm.canBeSold} onCheckedChange={v => setItemForm(f => ({ ...f, canBeSold: v }))} data-testid="switch-can-sell" />
                 <Label>Can Be Sold</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={itemForm.isActive} onCheckedChange={v => setItemForm(f => ({ ...f, isActive: v }))} data-testid="switch-is-active" />
+                <Label>Active</Label>
               </div>
             </div>
             <div>
@@ -592,8 +692,10 @@ export default function Inventory() {
                     name: itemForm.name,
                     supplier: itemForm.supplier || null,
                     unitPrice: Number(itemForm.unitPrice) || 0,
+                    stockAvailable: Number(itemForm.stockAvailable) || 0,
                     isSessionLinked: itemForm.isSessionLinked,
                     canBeSold: itemForm.canBeSold,
+                    isActive: itemForm.isActive,
                     notes: itemForm.notes || null,
                   });
                 } else {
@@ -738,44 +840,11 @@ export default function Inventory() {
       </Dialog>
 
       {/* Session Usage Dialog */}
-      <Dialog open={!!usageDialog} onOpenChange={(o) => { if (!o) setUsageDialog(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Session Usage - {usageDialog?.name}</DialogTitle>
-            <DialogDescription>Stock available: {usageDialog?.stockAvailable}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Session ID</Label>
-              <Input type="number" value={usageForm.sessionId} onChange={e => setUsageForm(f => ({ ...f, sessionId: e.target.value }))} placeholder="Session ID" data-testid="input-usage-session" />
-            </div>
-            <div>
-              <Label>Quantity Used</Label>
-              <Input type="number" value={usageForm.quantity} onChange={e => setUsageForm(f => ({ ...f, quantity: e.target.value }))} data-testid="input-usage-qty" />
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Input value={usageForm.notes} onChange={e => setUsageForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-usage-notes" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUsageDialog(null)}>Cancel</Button>
-            <Button
-              disabled={recordUsage.isPending}
-              data-testid="button-confirm-usage"
-              onClick={() => {
-                const sessionId = Number(usageForm.sessionId);
-                const qty = Number(usageForm.quantity);
-                if (!sessionId || !qty || qty < 1) { toast({ title: "Session ID and quantity required", variant: "destructive" }); return; }
-                recordUsage.mutate({ sessionId, itemId: usageDialog!.id, quantity: qty, notes: usageForm.notes || undefined });
-              }}
-            >
-              {recordUsage.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Record Usage
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UsageDialog
+        item={usageDialog}
+        onClose={() => setUsageDialog(null)}
+        recordUsage={recordUsage}
+      />
 
       {/* Add / Edit Expense Dialog */}
       <Dialog open={showAddExpense || !!editingExpense} onOpenChange={(o) => { if (!o) { setShowAddExpense(false); setEditingExpense(null); setExpenseForm({ name: "", amount: "", notes: "" }); } }}>
