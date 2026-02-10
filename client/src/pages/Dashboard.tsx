@@ -11,7 +11,7 @@ import { Link, Redirect } from "wouter";
 import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
-  Users, Target, Clock, Loader2, ChevronRight, Activity
+  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter
 } from "lucide-react";
 
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
@@ -77,10 +77,14 @@ export default function Dashboard() {
   const [selectedClubId, setSelectedClubId] = useState<string>("");
 
   useEffect(() => {
-    if (!selectedClubId && user?.playerProfile?.clubId) {
-      setSelectedClubId(user.playerProfile.clubId.toString());
+    if (!selectedClubId) {
+      if (user?.playerProfile?.clubId) {
+        setSelectedClubId(user.playerProfile.clubId.toString());
+      } else if (clubs && clubs.length > 0) {
+        setSelectedClubId(clubs[0].id.toString());
+      }
     }
-  }, [user?.playerProfile?.clubId, selectedClubId]);
+  }, [user?.playerProfile?.clubId, selectedClubId, clubs]);
 
   if (userLoading) {
     return (
@@ -153,6 +157,29 @@ function DashboardContent({
   onClubChange: (v: string) => void;
 }) {
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(effectiveClubId);
+  const [genderFilter, setGenderFilter] = useState<string>("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+
+  const filteredLeaderboard = useMemo(() => {
+    if (!leaderboard) return [];
+    return leaderboard.filter(p => {
+      if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
+      if (categoryFilter !== "ALL" && p.category !== categoryFilter) return false;
+      return true;
+    });
+  }, [leaderboard, genderFilter, categoryFilter]);
+
+  const availableGenders = useMemo(() => {
+    if (!leaderboard) return [];
+    const set = new Set(leaderboard.map(p => p.gender).filter(Boolean));
+    return [...set].sort();
+  }, [leaderboard]);
+
+  const availableCategories = useMemo(() => {
+    if (!leaderboard) return [];
+    const set = new Set(leaderboard.map(p => p.category).filter(Boolean));
+    return [...set].sort();
+  }, [leaderboard]);
 
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
@@ -190,7 +217,12 @@ function DashboardContent({
 
   const totalClubMatches = leaderboard?.reduce((sum, p) => sum + p.matchesPlayed, 0) || 0;
   const totalPlayers = leaderboard?.length || 0;
-  const topPlayers = leaderboard?.slice(0, 10) || [];
+  const topPlayers = filteredLeaderboard.slice(0, 10);
+
+  const avgWinRate = filteredLeaderboard.length > 0
+    ? Math.round(filteredLeaderboard.reduce((sum, p) => sum + p.winPercentage, 0) / filteredLeaderboard.length)
+    : 0;
+  const totalFilteredMatches = filteredLeaderboard.reduce((sum, p) => sum + p.matchesPlayed, 0);
 
   const clubName = effectiveClubId
     ? clubs.find(c => c.id === effectiveClubId)?.name || "Club"
@@ -322,6 +354,48 @@ function DashboardContent({
                 </Button>
               </Link>
             </div>
+            {leaderboard && leaderboard.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                {availableGenders.length > 1 && (
+                  <Select value={genderFilter} onValueChange={setGenderFilter}>
+                    <SelectTrigger className="h-7 w-[100px] text-xs" data-testid="select-leaderboard-gender">
+                      <SelectValue placeholder="Gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Genders</SelectItem>
+                      {availableGenders.map(g => (
+                        <SelectItem key={g} value={g!}>{g}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {availableCategories.length > 1 && (
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="h-7 w-[110px] text-xs" data-testid="select-leaderboard-category">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Categories</SelectItem>
+                      {availableCategories.map(c => (
+                        <SelectItem key={c} value={c!}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {(genderFilter !== "ALL" || categoryFilter !== "ALL") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() => { setGenderFilter("ALL"); setCategoryFilter("ALL"); }}
+                    data-testid="button-clear-leaderboard-filters"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {leaderboardLoading ? (
@@ -329,47 +403,83 @@ function DashboardContent({
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : topPlayers.length > 0 ? (
-              <div className="space-y-2">
-                {topPlayers.map((player, index) => (
-                  <div
-                    key={player.id}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${
-                      player.id === playerProfile?.id ? "bg-primary/10 border border-primary/20" : "bg-muted/30"
-                    }`}
-                    data-testid={`leaderboard-player-${player.id}`}
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                      index === 0 ? "bg-amber-500 text-white" :
-                      index === 1 ? "bg-gray-400 text-white" :
-                      index === 2 ? "bg-amber-700 text-white" :
-                      "bg-muted text-muted-foreground"
-                    }`}>
-                      {index + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate">
-                        {player.fullName}
-                        {player.id === playerProfile?.id && (
-                          <Badge variant="outline" className="ml-2 text-[10px] py-0">You</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="text-[10px] py-0">{player.category || "?"}</Badge>
-                        <span>{player.matchesPlayed} played</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">
-                        <span className="text-green-600">{player.matchesWon}W</span>
-                        <span className="text-muted-foreground mx-0.5">/</span>
-                        <span className="text-red-500">{player.matchesLost}L</span>
-                      </div>
-                      <div className={`text-xs font-bold ${player.winPercentage >= 50 ? "text-green-600" : "text-muted-foreground"}`}>
-                        {player.winPercentage}%
-                      </div>
-                    </div>
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-4 p-3 rounded-lg bg-muted/30">
+                  <div className="text-center">
+                    <div className="text-lg font-bold" data-testid="text-filtered-players">{filteredLeaderboard.length}</div>
+                    <div className="text-[10px] text-muted-foreground">Players</div>
                   </div>
-                ))}
+                  <div className="text-center">
+                    <div className="text-lg font-bold" data-testid="text-filtered-matches">{totalFilteredMatches}</div>
+                    <div className="text-[10px] text-muted-foreground">Matches</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold" data-testid="text-avg-win-rate">{avgWinRate}%</div>
+                    <div className="text-[10px] text-muted-foreground">Avg Win Rate</div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {topPlayers.map((player, index) => (
+                    <Link key={player.id} href={`/all-rankings?playerId=${player.id}`}>
+                      <div
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer hover-elevate ${
+                          player.id === playerProfile?.id ? "bg-primary/10 border border-primary/20" : "bg-muted/30"
+                        }`}
+                        data-testid={`leaderboard-player-${player.id}`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+                          index === 0 ? "bg-amber-500 text-white" :
+                          index === 1 ? "bg-gray-400 text-white" :
+                          index === 2 ? "bg-amber-700 text-white" :
+                          "bg-muted text-muted-foreground"
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm truncate">
+                            {player.fullName}
+                            {player.id === playerProfile?.id && (
+                              <Badge variant="outline" className="ml-2 text-[10px] py-0">You</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                            {player.gender && <Badge variant="secondary" className="text-[10px] py-0">{player.gender}</Badge>}
+                            <Badge variant="outline" className="text-[10px] py-0">{player.category || "?"}</Badge>
+                            <span>{player.matchesPlayed} played</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-medium">
+                            <span className="text-green-600">{player.matchesWon}W</span>
+                            <span className="text-muted-foreground mx-0.5">/</span>
+                            <span className="text-red-500">{player.matchesLost}L</span>
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="text-[10px] text-muted-foreground">{player.setsWon}s {player.pointsWon}pts</span>
+                            <span className={`text-xs font-bold ${player.winPercentage >= 50 ? "text-green-600" : "text-muted-foreground"}`}>
+                              {player.winPercentage}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                {filteredLeaderboard.length > 10 && (
+                  <div className="text-center mt-3">
+                    <Link href="/all-rankings">
+                      <Button variant="ghost" size="sm" className="text-xs" data-testid="button-show-more-players">
+                        +{filteredLeaderboard.length - 10} more players <ChevronRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </>
+            ) : leaderboard && leaderboard.length > 0 ? (
+              <div className="text-center py-12">
+                <Filter className="w-10 h-10 mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-muted-foreground font-medium">No players match filters</p>
+                <p className="text-sm text-muted-foreground mt-1">Try adjusting the gender or category filters</p>
               </div>
             ) : (
               <div className="text-center py-12">

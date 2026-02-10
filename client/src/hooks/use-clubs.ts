@@ -97,6 +97,8 @@ export type LeaderboardPlayer = {
   matchesWon: number;
   matchesLost: number;
   winPercentage: number;
+  setsWon: number;
+  pointsWon: number;
   clubId?: number;
   clubName?: string;
   isJunior?: boolean;
