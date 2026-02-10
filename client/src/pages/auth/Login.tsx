@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   username: z.string().min(1, "Email/Username is required"),
@@ -21,7 +20,6 @@ export default function Login() {
   const { mutate: login, isPending } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
