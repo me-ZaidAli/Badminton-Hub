@@ -10,7 +10,11 @@ export const membershipStatusEnum = pgEnum("membership_status", ["PENDING", "APP
 export const genderEnum = pgEnum("gender", ["MALE", "FEMALE"]);
 export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
-export const attendanceStatusEnum = pgEnum("attendance_status", ["ATTENDED", "NOT_ATTENDED"]);
+export const attendanceStatusEnum = pgEnum("attendance_status", [
+  "ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL",
+  "NO_SHOW", "JUSTIFIED_CANCELLATION", "SICKNESS", "EMERGENCY",
+  "SESSION_ABANDONED", "OTHER"
+]);
 export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL", "TRAINING"]);
 export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED"]);
 export const matchGenderTypeEnum = pgEnum("match_gender_type", ["MIXED", "FEMALE", "MALE"]);
@@ -180,6 +184,23 @@ export const sessionSignups = pgTable("session_signups", {
   genderOverride: text("gender_override"),
   isPaused: boolean("is_paused").default(false).notNull(),
   pairGroupId: integer("pair_group_id"),
+  attendanceNote: text("attendance_note"),
+  partialPercentage: integer("partial_percentage"),
+  policyMet: boolean("policy_met"),
+});
+
+// === CREDIT LEDGER ===
+export const creditLedger = pgTable("credit_ledger", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  linkedSessionId: integer("linked_session_id").references(() => sessions.id),
+  linkedSignupId: integer("linked_signup_id").references(() => sessionSignups.id),
+  attendanceStatus: text("attendance_status"),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // === MATCHES ===
@@ -528,6 +549,7 @@ export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).om
 export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
 
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
+export const insertCreditLedgerSchema = createInsertSchema(creditLedger).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type User = typeof users.$inferSelect;
@@ -555,6 +577,8 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
+export type CreditLedgerEntry = typeof creditLedger.$inferSelect;
+export type InsertCreditLedgerEntry = z.infer<typeof insertCreditLedgerSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;

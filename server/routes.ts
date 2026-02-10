@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications } from "@shared/schema";
-import { eq, and, sql, desc, inArray, or, isNotNull, gt } from "drizzle-orm";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger } from "@shared/schema";
+import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -4164,9 +4164,46 @@ export async function registerRoutes(
     }
 
     try {
-      const queryConditions = accessibleClubIds && accessibleClubIds.length > 0
-        ? [inArray(sessions.clubId, accessibleClubIds)]
-        : [];
+      const queryConditions: any[] = [];
+
+      if (accessibleClubIds && accessibleClubIds.length > 0) {
+        queryConditions.push(inArray(sessions.clubId, accessibleClubIds));
+      }
+
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+      if (qClubId) queryConditions.push(eq(sessions.clubId, qClubId));
+
+      const qDateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+      const qDateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+      if (qDateFrom) queryConditions.push(gte(sessions.date, qDateFrom));
+      if (qDateTo) {
+        const endOfDay = new Date(qDateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        queryConditions.push(lte(sessions.date, endOfDay));
+      }
+
+      const qSessionType = req.query.sessionType as string | undefined;
+      if (qSessionType && qSessionType !== "all") {
+        queryConditions.push(eq(sessions.sessionType, qSessionType as any));
+      }
+
+      const qMatchMode = req.query.matchMode as string | undefined;
+      if (qMatchMode && qMatchMode !== "all") {
+        queryConditions.push(eq(sessions.matchMode, qMatchMode as any));
+      }
+
+      const qSearch = req.query.search as string | undefined;
+      if (qSearch && qSearch.trim()) {
+        const searchTerm = `%${qSearch.trim()}%`;
+        queryConditions.push(
+          or(
+            ilike(sessions.title, searchTerm),
+            ilike(users.fullName, searchTerm),
+            ilike(clubs.name, searchTerm),
+            sql`CAST(${sessions.id} AS TEXT) LIKE ${searchTerm}`
+          )
+        );
+      }
 
       const signupsData = await db
         .select({
@@ -4175,13 +4212,21 @@ export async function registerRoutes(
           playerId: sessionSignups.playerId,
           fee: sessionSignups.fee,
           paymentStatus: sessionSignups.paymentStatus,
+          attendanceStatus: sessionSignups.attendanceStatus,
+          attendanceNote: sessionSignups.attendanceNote,
+          partialPercentage: sessionSignups.partialPercentage,
+          policyMet: sessionSignups.policyMet,
           signupTime: sessionSignups.signupTime,
           sessionTitle: sessions.title,
           sessionDate: sessions.date,
+          sessionType: sessions.sessionType,
+          matchMode: sessions.matchMode,
+          sessionFee: sessions.sessionFee,
           clubId: sessions.clubId,
           clubName: clubs.name,
           playerName: users.fullName,
           playerEmail: users.email,
+          playerUserId: users.id,
         })
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
@@ -4195,6 +4240,347 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching financial summary:", err);
       res.status(500).json({ message: "Failed to fetch financial summary" });
+    }
+  });
+
+  // === CREDIT LEDGER ENDPOINTS ===
+
+  // Get credit balance for a user in a club
+  app.get("/api/credits/balance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const userId = req.query.userId ? Number(req.query.userId) : user.id;
+    const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+    try {
+      const conditions: any[] = [eq(creditLedger.userId, userId)];
+      if (clubId) conditions.push(eq(creditLedger.clubId, clubId));
+
+      if (userId !== user.id) {
+        const isOwner = user.role === "OWNER";
+        if (!isOwner && clubId) {
+          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else if (!isOwner) {
+          return res.sendStatus(403);
+        }
+      }
+
+      const result = await db
+        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+        .from(creditLedger)
+        .where(and(...conditions));
+
+      res.json({ balance: Number(result[0]?.total || 0) });
+    } catch (err: any) {
+      console.error("Error fetching credit balance:", err);
+      res.status(500).json({ message: "Failed to fetch credit balance" });
+    }
+  });
+
+  // Get credit ledger entries for a user
+  app.get("/api/credits/history", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const userId = req.query.userId ? Number(req.query.userId) : user.id;
+    const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+    try {
+      if (userId !== user.id) {
+        const isOwner = user.role === "OWNER";
+        if (!isOwner && clubId) {
+          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else if (!isOwner) {
+          return res.sendStatus(403);
+        }
+      }
+
+      const conditions: any[] = [eq(creditLedger.userId, userId)];
+      if (clubId) conditions.push(eq(creditLedger.clubId, clubId));
+
+      const entries = await db
+        .select({
+          id: creditLedger.id,
+          userId: creditLedger.userId,
+          clubId: creditLedger.clubId,
+          amount: creditLedger.amount,
+          reason: creditLedger.reason,
+          linkedSessionId: creditLedger.linkedSessionId,
+          linkedSignupId: creditLedger.linkedSignupId,
+          attendanceStatus: creditLedger.attendanceStatus,
+          createdById: creditLedger.createdById,
+          createdAt: creditLedger.createdAt,
+          clubName: clubs.name,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          createdByName: users.fullName,
+        })
+        .from(creditLedger)
+        .innerJoin(clubs, eq(creditLedger.clubId, clubs.id))
+        .leftJoin(sessions, eq(creditLedger.linkedSessionId, sessions.id))
+        .innerJoin(users, eq(creditLedger.createdById, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(creditLedger.createdAt));
+
+      res.json(entries);
+    } catch (err: any) {
+      console.error("Error fetching credit history:", err);
+      res.status(500).json({ message: "Failed to fetch credit history" });
+    }
+  });
+
+  // Create a credit ledger entry (admin action)
+  app.post("/api/credits", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+
+    const schema = z.object({
+      userId: z.number(),
+      clubId: z.number(),
+      amount: z.number(),
+      reason: z.string().min(1, "Reason is required"),
+      linkedSessionId: z.number().optional().nullable(),
+      linkedSignupId: z.number().optional().nullable(),
+      attendanceStatus: z.string().optional().nullable(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const { userId, clubId, amount, reason, linkedSessionId, linkedSignupId, attendanceStatus } = parsed.data;
+
+    try {
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      if (linkedSessionId && linkedSignupId) {
+        const existing = await db
+          .select({ id: creditLedger.id })
+          .from(creditLedger)
+          .where(and(
+            eq(creditLedger.userId, userId),
+            eq(creditLedger.linkedSessionId, linkedSessionId),
+            eq(creditLedger.linkedSignupId, linkedSignupId),
+          ));
+        if (existing.length > 0) {
+          return res.status(400).json({ message: "Credit already exists for this session signup" });
+        }
+      }
+
+      if (linkedSignupId && amount > 0) {
+        const signup = await db
+          .select({ fee: sessionSignups.fee })
+          .from(sessionSignups)
+          .where(eq(sessionSignups.id, linkedSignupId));
+        if (signup.length > 0 && amount > signup[0].fee) {
+          return res.status(400).json({ message: "Credit amount cannot exceed session fee" });
+        }
+      }
+
+      const [entry] = await db
+        .insert(creditLedger)
+        .values({
+          userId,
+          clubId,
+          amount,
+          reason,
+          linkedSessionId: linkedSessionId || null,
+          linkedSignupId: linkedSignupId || null,
+          attendanceStatus: attendanceStatus || null,
+          createdById: admin.id,
+        })
+        .returning();
+
+      res.json(entry);
+    } catch (err: any) {
+      console.error("Error creating credit entry:", err);
+      res.status(500).json({ message: "Failed to create credit entry" });
+    }
+  });
+
+  // Get credit balances for all users in a club (admin view)
+  app.get("/api/credits/club/:clubId/balances", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const clubId = Number(req.params.clubId);
+
+    try {
+      const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const balances = await db
+        .select({
+          userId: creditLedger.userId,
+          balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)`,
+        })
+        .from(creditLedger)
+        .where(eq(creditLedger.clubId, clubId))
+        .groupBy(creditLedger.userId);
+
+      res.json(balances);
+    } catch (err: any) {
+      console.error("Error fetching club credit balances:", err);
+      res.status(500).json({ message: "Failed to fetch credit balances" });
+    }
+  });
+
+  // Update attendance status for a signup (with policy validation fields)
+  app.patch("/api/sessions/:sessionId/signups/:signupId/attendance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+    const sessionId = Number(req.params.sessionId);
+    const signupId = Number(req.params.signupId);
+
+    const schema = z.object({
+      attendanceStatus: z.enum([
+        "ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL",
+        "NO_SHOW", "JUSTIFIED_CANCELLATION", "SICKNESS", "EMERGENCY",
+        "SESSION_ABANDONED", "OTHER"
+      ]),
+      attendanceNote: z.string().optional().nullable(),
+      partialPercentage: z.number().min(0).max(100).optional().nullable(),
+      policyMet: z.boolean().optional().nullable(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    try {
+      const session = await db.select().from(sessions).where(eq(sessions.id, sessionId)).then(r => r[0]);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_SESSIONS", session.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [updated] = await db
+        .update(sessionSignups)
+        .set({
+          attendanceStatus: parsed.data.attendanceStatus,
+          attendanceNote: parsed.data.attendanceNote || null,
+          partialPercentage: parsed.data.partialPercentage ?? null,
+          policyMet: parsed.data.policyMet ?? null,
+        })
+        .where(and(eq(sessionSignups.id, signupId), eq(sessionSignups.sessionId, sessionId)))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "Signup not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating attendance:", err);
+      res.status(500).json({ message: "Failed to update attendance" });
+    }
+  });
+
+  // Apply credit from session (deduct credit when player signs up / uses credit)
+  app.post("/api/credits/use", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+
+    const schema = z.object({
+      userId: z.number(),
+      clubId: z.number(),
+      sessionId: z.number(),
+      signupId: z.number(),
+      amount: z.number().min(1),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const { userId, clubId, sessionId, signupId, amount } = parsed.data;
+
+    try {
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const balanceResult = await db
+        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+        .from(creditLedger)
+        .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, clubId)));
+
+      const currentBalance = Number(balanceResult[0]?.total || 0);
+      if (currentBalance < amount) {
+        return res.status(400).json({ message: "Insufficient credit balance" });
+      }
+
+      const [entry] = await db
+        .insert(creditLedger)
+        .values({
+          userId,
+          clubId,
+          amount: -amount,
+          reason: `Credit used for session`,
+          linkedSessionId: sessionId,
+          linkedSignupId: signupId,
+          createdById: admin.id,
+        })
+        .returning();
+
+      res.json(entry);
+    } catch (err: any) {
+      console.error("Error using credit:", err);
+      res.status(500).json({ message: "Failed to use credit" });
+    }
+  });
+
+  // Get all credit balances the current user has across clubs (for profile view)
+  app.get("/api/my-credits", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const balances = await db
+        .select({
+          clubId: creditLedger.clubId,
+          clubName: clubs.name,
+          balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)`,
+        })
+        .from(creditLedger)
+        .innerJoin(clubs, eq(creditLedger.clubId, clubs.id))
+        .where(eq(creditLedger.userId, user.id))
+        .groupBy(creditLedger.clubId, clubs.name);
+
+      res.json(balances);
+    } catch (err: any) {
+      console.error("Error fetching user credits:", err);
+      res.status(500).json({ message: "Failed to fetch credits" });
+    }
+  });
+
+  // Get credit history for current user (for profile view)
+  app.get("/api/my-credits/history", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+    try {
+      const conditions: any[] = [eq(creditLedger.userId, user.id)];
+      if (clubId) conditions.push(eq(creditLedger.clubId, clubId));
+
+      const entries = await db
+        .select({
+          id: creditLedger.id,
+          clubId: creditLedger.clubId,
+          amount: creditLedger.amount,
+          reason: creditLedger.reason,
+          linkedSessionId: creditLedger.linkedSessionId,
+          attendanceStatus: creditLedger.attendanceStatus,
+          createdAt: creditLedger.createdAt,
+          clubName: clubs.name,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+        })
+        .from(creditLedger)
+        .innerJoin(clubs, eq(creditLedger.clubId, clubs.id))
+        .leftJoin(sessions, eq(creditLedger.linkedSessionId, sessions.id))
+        .where(and(...conditions))
+        .orderBy(desc(creditLedger.createdAt));
+
+      res.json(entries);
+    } catch (err: any) {
+      console.error("Error fetching credit history:", err);
+      res.status(500).json({ message: "Failed to fetch credit history" });
     }
   });
 

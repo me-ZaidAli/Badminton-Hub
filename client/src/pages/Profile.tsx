@@ -12,7 +12,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +51,28 @@ export default function Profile() {
     city: "",
     country: "",
   });
+
+  const { data: creditBalances, isLoading: creditsLoading } = useQuery<{ clubId: number; clubName: string; balance: number }[]>({
+    queryKey: ["/api/my-credits"],
+    enabled: !!user,
+  });
+  const { data: creditHistory, isLoading: historyLoading } = useQuery<{
+    id: number;
+    clubId: number;
+    amount: number;
+    reason: string;
+    linkedSessionId: number | null;
+    attendanceStatus: string | null;
+    createdAt: string;
+    clubName: string;
+    sessionTitle: string | null;
+    sessionDate: string | null;
+  }[]>({
+    queryKey: ["/api/my-credits/history"],
+    enabled: !!user,
+  });
+
+  const [showFullHistory, setShowFullHistory] = useState(false);
 
   const profile = profiles?.[0];
 
@@ -286,6 +310,95 @@ export default function Profile() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(creditsLoading || (creditBalances && creditBalances.length > 0)) && (
+        <Card data-testid="card-credit-balance">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Credit Balance
+            </CardTitle>
+            <CardDescription>Your available credit across clubs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {creditsLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+            <div className="space-y-3">
+              {creditBalances!.map((cb) => (
+                <div key={cb.clubId} className="flex items-center justify-between py-2" data-testid={`credit-balance-${cb.clubId}`}>
+                  <span className="font-medium">{cb.clubName}</span>
+                  <span className={`text-lg font-bold ${Number(cb.balance) >= 0 ? "text-green-600" : "text-red-600"}`} data-testid={`text-credit-amount-${cb.clubId}`}>
+                    {Number(cb.balance) >= 0 ? "+" : ""}£{(Math.abs(Number(cb.balance)) / 100).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {creditHistory && creditHistory.length > 0 && (
+        <Card data-testid="card-credit-history">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Credit History
+            </CardTitle>
+            <CardDescription>Your credit transaction log (read-only)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Club</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Session</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(showFullHistory ? creditHistory : creditHistory.slice(0, 5)).map((entry) => (
+                    <TableRow key={entry.id} data-testid={`row-credit-${entry.id}`}>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {format(new Date(entry.createdAt), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell className="text-sm">{entry.clubName}</TableCell>
+                      <TableCell>
+                        <span className={`font-medium flex items-center gap-1 ${entry.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {entry.amount >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {entry.amount >= 0 ? "+" : ""}£{(Math.abs(entry.amount) / 100).toFixed(2)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm">{entry.reason}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {entry.sessionTitle || "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {creditHistory.length > 5 && (
+              <div className="mt-3 text-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFullHistory(!showFullHistory)}
+                  data-testid="button-toggle-credit-history"
+                >
+                  {showFullHistory ? "Show Less" : `Show All (${creditHistory.length})`}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
