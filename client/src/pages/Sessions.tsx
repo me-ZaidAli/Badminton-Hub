@@ -1,4 +1,4 @@
-import { useSessions, useCreateSession } from "@/hooks/use-sessions";
+import { useSessions, useCreateSession, useUpdateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs, useMySessionClubs } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,7 +16,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Settings2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -368,6 +370,9 @@ export default function Sessions() {
                         ) : (
                           <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
                         )
+                      )}
+                      {managedClubIds.has(session.clubId) && (
+                        <EditSessionDialog session={session} venues={[]} />
                       )}
                       <Button size="sm" variant="outline">
                         Details
@@ -930,6 +935,405 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
             </Button>
           </form>
         </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditSessionDialog({ session, venues: propVenues }: { session: any; venues: any[] }) {
+  const [open, setOpen] = useState(false);
+  const { mutate: updateSession, isPending } = useUpdateSession();
+  const { data: venues } = useVenues(session.clubId || null);
+
+  const [editTitle, setEditTitle] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editDuration, setEditDuration] = useState(120);
+  const [editCourts, setEditCourts] = useState(0);
+  const [editMaxPlayers, setEditMaxPlayers] = useState(0);
+  const [editMatchMode, setEditMatchMode] = useState("SOCIAL");
+  const [editPlayersPerSide, setEditPlayersPerSide] = useState(2);
+  const [editMatchGenderType, setEditMatchGenderType] = useState("MIXED");
+  const [editGenderRestriction, setEditGenderRestriction] = useState("ALL");
+  const [editIsPrivate, setEditIsPrivate] = useState(false);
+  const [editSessionType, setEditSessionType] = useState("OPEN");
+  const [editJuniorAgeGroups, setEditJuniorAgeGroups] = useState<string[]>([]);
+  const [editCategories, setEditCategories] = useState<string[]>([]);
+  const [editSessionFee, setEditSessionFee] = useState("");
+  const [editShuttlecockType, setEditShuttlecockType] = useState("");
+  const [editDefaultPoints, setEditDefaultPoints] = useState(21);
+  const [editVenueId, setEditVenueId] = useState<number | null>(null);
+  const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
+  const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+
+  const initializeForm = () => {
+    setEditTitle(session.title || "");
+    setEditDate(session.date ? format(new Date(session.date), "yyyy-MM-dd") : "");
+    setEditStartTime(session.startTime || "18:00");
+    setEditDuration(session.durationMinutes || 120);
+    setEditCourts(session.courtsAvailable || 4);
+    setEditMaxPlayers(session.maxPlayers || 24);
+    setEditMatchMode(session.matchMode || "SOCIAL");
+    setEditPlayersPerSide(session.playersPerSide || 2);
+    setEditMatchGenderType(session.matchGenderType || "MIXED");
+    setEditGenderRestriction(session.genderRestriction || "ALL");
+    setEditIsPrivate(session.isPrivate || false);
+    setEditSessionType(session.sessionType || "OPEN");
+    setEditJuniorAgeGroups(session.juniorAgeGroups || []);
+    setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
+    setEditSessionFee(session.sessionFee != null ? (session.sessionFee / 100).toFixed(2) : "");
+    setEditShuttlecockType(session.shuttlecockType || "");
+    setEditDefaultPoints(session.defaultPointsToPlayTo || 21);
+    setEditVenueId(session.venueId || null);
+    setEditLiveStreamUrl(session.liveStreamUrl || "");
+    setEditShuttleTubes(session.shuttleTubesUsed || 0);
+  };
+
+  const handleSave = () => {
+    updateSession({
+      sessionId: session.id,
+      updates: {
+        title: editTitle,
+        date: editDate,
+        startTime: editStartTime,
+        durationMinutes: editDuration,
+        courtsAvailable: editCourts,
+        maxPlayers: editMaxPlayers,
+        matchMode: editMatchMode,
+        playersPerSide: editPlayersPerSide,
+        matchGenderType: editMatchGenderType,
+        genderRestriction: editGenderRestriction,
+        isPrivate: editIsPrivate,
+        sessionType: editSessionType,
+        juniorAgeGroups: editJuniorAgeGroups,
+        allowedCategories: editCategories,
+        sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
+        shuttlecockType: editShuttlecockType || null,
+        defaultPointsToPlayTo: editDefaultPoints,
+        venueId: editVenueId,
+        liveStreamUrl: editLiveStreamUrl || "",
+        shuttleTubesUsed: editShuttleTubes,
+      }
+    }, {
+      onSuccess: () => setOpen(false)
+    });
+  };
+
+  const venueList = venues || propVenues || [];
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (isOpen) initializeForm();
+    }}>
+      <DialogTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          data-testid={`button-edit-session-${session.id}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>Edit Session</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-4">
+          <div>
+            <Label>Session Title</Label>
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Friday Night Social"
+              className="mt-2"
+              data-testid="input-edit-title"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="mt-2"
+                data-testid="input-edit-date"
+              />
+            </div>
+            <div>
+              <Label>Start Time</Label>
+              <Input
+                type="time"
+                value={editStartTime}
+                onChange={(e) => setEditStartTime(e.target.value)}
+                className="mt-2"
+                data-testid="input-edit-start-time"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Duration (min)</Label>
+              <Input
+                type="number"
+                min={15}
+                value={editDuration}
+                onChange={(e) => setEditDuration(Math.max(15, Number(e.target.value)))}
+                className="mt-2"
+                data-testid="input-edit-duration"
+              />
+            </div>
+            <div>
+              <Label>Courts (1-10)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={editCourts}
+                onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
+                className="mt-2"
+                data-testid="input-edit-courts"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Max Players</Label>
+              <Input
+                type="number"
+                min={2}
+                max={100}
+                value={editMaxPlayers}
+                onChange={(e) => setEditMaxPlayers(Math.min(100, Math.max(2, Number(e.target.value))))}
+                className="mt-2"
+                data-testid="input-edit-max-players"
+              />
+            </div>
+            <div>
+              <Label>Shuttle Tubes Used</Label>
+              <Input
+                type="number"
+                min={0}
+                value={editShuttleTubes}
+                onChange={(e) => setEditShuttleTubes(Math.max(0, Number(e.target.value)))}
+                className="mt-2"
+                data-testid="input-edit-shuttle-tubes"
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Match Mode</Label>
+            <Select value={editMatchMode} onValueChange={setEditMatchMode}>
+              <SelectTrigger className="mt-2" data-testid="select-edit-match-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SOCIAL">Social (Mixed)</SelectItem>
+                <SelectItem value="COMPETITIVE">Competitive (Ranked)</SelectItem>
+                <SelectItem value="TRAINING">Training</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Players Per Side</Label>
+              <Select value={editPlayersPerSide.toString()} onValueChange={(v) => setEditPlayersPerSide(Number(v))}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-players-per-side">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 (Singles)</SelectItem>
+                  <SelectItem value="2">2 (Doubles)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Match Gender Type</Label>
+              <Select value={editMatchGenderType} onValueChange={setEditMatchGenderType}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-match-gender-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MIXED">Mixed</SelectItem>
+                  <SelectItem value="FEMALE">Female Only</SelectItem>
+                  <SelectItem value="MALE">Male Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Gender Restriction</Label>
+              <Select value={editGenderRestriction} onValueChange={setEditGenderRestriction}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-gender-restriction">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Open to All</SelectItem>
+                  <SelectItem value="FEMALE_ONLY">Females Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Session Access</Label>
+              <Select value={editIsPrivate ? "true" : "false"} onValueChange={(v) => setEditIsPrivate(v === "true")}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-is-private">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Public</SelectItem>
+                  <SelectItem value="true">Private (Invite Only)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Session Type</Label>
+            <Select value={editSessionType} onValueChange={setEditSessionType}>
+              <SelectTrigger className="mt-2" data-testid="select-edit-session-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="OPEN">Open (All Ages)</SelectItem>
+                <SelectItem value="JUNIORS_ONLY">Juniors Only (Under 18)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {editSessionType === "JUNIORS_ONLY" && (
+            <div>
+              <Label>Junior Age Groups</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                {JUNIOR_AGE_GROUPS.map((group) => (
+                  <div key={group.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-age-${group.value}`}
+                      checked={editJuniorAgeGroups.includes(group.value)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setEditJuniorAgeGroups([...editJuniorAgeGroups, group.value]);
+                        } else {
+                          setEditJuniorAgeGroups(editJuniorAgeGroups.filter(v => v !== group.value));
+                        }
+                      }}
+                      data-testid={`checkbox-edit-age-group-${group.value}`}
+                    />
+                    <label htmlFor={`edit-age-${group.value}`} className="text-sm cursor-pointer">
+                      {group.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <Label>Allowed Categories</Label>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              {CATEGORIES.map((cat) => (
+                <div key={cat.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`edit-cat-${cat.value}`}
+                    checked={editCategories.includes(cat.value)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setEditCategories([...editCategories, cat.value]);
+                      } else {
+                        setEditCategories(editCategories.filter(c => c !== cat.value));
+                      }
+                    }}
+                    data-testid={`checkbox-edit-category-${cat.value}`}
+                  />
+                  <label htmlFor={`edit-cat-${cat.value}`} className="text-sm cursor-pointer">
+                    {cat.label}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Session Fee (£)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="e.g. 5.00"
+                value={editSessionFee}
+                onChange={(e) => setEditSessionFee(e.target.value)}
+                className="mt-2"
+                data-testid="input-edit-session-fee"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Leave empty for club default</p>
+            </div>
+            <div>
+              <Label>Shuttlecock Type</Label>
+              <Select value={editShuttlecockType || "none"} onValueChange={(v) => setEditShuttlecockType(v === "none" ? "" : v)}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-shuttlecock-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  <SelectItem value="feather">Feather</SelectItem>
+                  <SelectItem value="plastic">Plastic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Default Points to Play To</Label>
+            <Select value={String(editDefaultPoints)} onValueChange={(v) => setEditDefaultPoints(Number(v))}>
+              <SelectTrigger className="mt-2" data-testid="select-edit-default-points">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 Points</SelectItem>
+                <SelectItem value="11">11 Points</SelectItem>
+                <SelectItem value="15">15 Points</SelectItem>
+                <SelectItem value="21">21 Points</SelectItem>
+                <SelectItem value="25">25 Points</SelectItem>
+                <SelectItem value="30">30 Points</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {venueList.length > 0 && (
+            <div>
+              <Label>Venue</Label>
+              <Select value={editVenueId?.toString() || "none"} onValueChange={(v) => setEditVenueId(v === "none" ? null : Number(v))}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-venue">
+                  <SelectValue placeholder="Select venue" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No venue selected</SelectItem>
+                  {venueList.map((venue: any) => (
+                    <SelectItem key={venue.id} value={venue.id.toString()}>
+                      {venue.name}{venue.city ? ` - ${venue.city}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label>Live Stream Link</Label>
+            <Input
+              placeholder="https://youtube.com/live/... or any streaming URL"
+              value={editLiveStreamUrl}
+              onChange={(e) => setEditLiveStreamUrl(e.target.value)}
+              className="mt-2"
+              data-testid="input-edit-live-stream-url"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Optional link to any live streaming platform</p>
+          </div>
+          <Button
+            className="w-full"
+            onClick={handleSave}
+            disabled={isPending || editCategories.length === 0 || !editTitle.trim()}
+            data-testid="button-save-edit-session"
+          >
+            {isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

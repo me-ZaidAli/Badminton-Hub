@@ -67,7 +67,31 @@ export function useUpdateSession() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, updates }: { sessionId: number; updates: { courtsAvailable?: number; maxPlayers?: number; matchMode?: string; status?: string; shuttleTubesUsed?: number; allowedCategories?: string[]; courtNames?: string[]; liveStreamUrl?: string; autoGenerateActive?: boolean } }) => {
+    mutationFn: async ({ sessionId, updates }: { sessionId: number; updates: {
+      title?: string;
+      date?: string;
+      startTime?: string;
+      durationMinutes?: number;
+      courtsAvailable?: number;
+      maxPlayers?: number;
+      matchMode?: string;
+      status?: string;
+      playersPerSide?: number;
+      matchGenderType?: string;
+      genderRestriction?: string;
+      isPrivate?: boolean;
+      sessionType?: string;
+      juniorAgeGroups?: string[];
+      allowedCategories?: string[];
+      sessionFee?: number | null;
+      shuttlecockType?: string | null;
+      defaultPointsToPlayTo?: number;
+      venueId?: number | null;
+      shuttleTubesUsed?: number;
+      courtNames?: string[];
+      liveStreamUrl?: string;
+      autoGenerateActive?: boolean;
+    } }) => {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

@@ -1223,7 +1223,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -1240,6 +1240,19 @@ export async function registerRoutes(
       if (matchMode !== undefined) updates.matchMode = matchMode;
       if (status !== undefined) updates.status = status;
       if (liveStreamUrl !== undefined) updates.liveStreamUrl = liveStreamUrl || null;
+      if (title !== undefined) updates.title = title.trim();
+      if (date !== undefined) updates.date = date;
+      if (startTime !== undefined) updates.startTime = startTime;
+      if (durationMinutes !== undefined) updates.durationMinutes = Number(durationMinutes);
+      if (genderRestriction !== undefined) updates.genderRestriction = genderRestriction;
+      if (sessionType !== undefined) updates.sessionType = sessionType;
+      if (juniorAgeGroups !== undefined) updates.juniorAgeGroups = juniorAgeGroups;
+      if (playersPerSide !== undefined) updates.playersPerSide = Number(playersPerSide);
+      if (matchGenderType !== undefined) updates.matchGenderType = matchGenderType;
+      if (sessionFee !== undefined) updates.sessionFee = sessionFee !== null ? Number(sessionFee) : null;
+      if (shuttlecockType !== undefined) updates.shuttlecockType = shuttlecockType || null;
+      if (defaultPointsToPlayTo !== undefined) updates.defaultPointsToPlayTo = Number(defaultPointsToPlayTo);
+      if (venueId !== undefined) updates.venueId = venueId !== null ? Number(venueId) : null;
       if (courtNames !== undefined) {
         if (!Array.isArray(courtNames) || !courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
           return res.status(400).json({ message: "Court names must be an array of non-empty strings" });
@@ -1247,7 +1260,6 @@ export async function registerRoutes(
         updates.courtNames = courtNames.map((n: string) => n.trim());
       }
       if (allowedCategories !== undefined) {
-        // Validate categories
         const validCategories = ["A", "B", "C", "D"];
         if (!Array.isArray(allowedCategories) || !allowedCategories.every(c => validCategories.includes(c))) {
           return res.status(400).json({ message: "Invalid categories" });
