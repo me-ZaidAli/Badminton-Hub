@@ -3089,6 +3089,40 @@ export async function registerRoutes(
     }
   });
 
+  // Pause or resume a club
+  app.patch("/api/admin/clubs/:id/pause", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.id);
+      const { paused } = req.body;
+      
+      const club = await storage.getClub(clubId);
+      if (!club) {
+        return res.status(404).json({ message: "Club not found" });
+      }
+      if (!club.isActive) {
+        return res.status(400).json({ message: "Cannot pause/resume an archived club" });
+      }
+      if (paused && club.status !== "APPROVED") {
+        return res.status(400).json({ message: "Only approved clubs can be paused" });
+      }
+      if (!paused && club.status !== "PAUSED") {
+        return res.status(400).json({ message: "Only paused clubs can be resumed" });
+      }
+      
+      const newStatus = paused ? "PAUSED" : "APPROVED";
+      const updated = await storage.updateClubStatus(clubId, newStatus);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error pausing/resuming club:", err);
+      res.status(500).json({ message: err.message || "Failed to update club pause status" });
+    }
+  });
+
   // Delete a club (soft delete)
   app.delete("/api/admin/clubs/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -5621,6 +5655,7 @@ export async function registerRoutes(
         APPROVED: allClubs.filter(c => c.status === "APPROVED").length,
         PENDING: allClubs.filter(c => c.status === "PENDING").length,
         REJECTED: allClubs.filter(c => c.status === "REJECTED").length,
+        PAUSED: allClubs.filter(c => c.status === "PAUSED").length,
       };
 
       const activeSessions = allSessions.filter(s => s.status === "ACTIVE" || s.status === "LIVE").length;

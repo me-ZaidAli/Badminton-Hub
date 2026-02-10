@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive } from "lucide-react";
+import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive, Pause, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
@@ -172,6 +172,25 @@ export default function ClubManagement() {
     },
   });
 
+  const pauseClubMutation = useMutation({
+    mutationFn: async (data: { clubId: number; paused: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/clubs/${data.clubId}/pause`, { paused: data.paused });
+      return res.json();
+    },
+    onSuccess: (_data: any, variables: { clubId: number; paused: boolean }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      toast({ 
+        title: variables.paused ? "Club Paused" : "Club Resumed", 
+        description: variables.paused 
+          ? "Club operations have been paused. It won't appear in public listings." 
+          : "Club has been resumed and is now fully operational."
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const updateUserRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
       const res = await apiRequest("PATCH", `/api/admin/users/${userId}/role`, { role });
@@ -250,6 +269,10 @@ export default function ClubManagement() {
         return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
       case "REJECTED":
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case "PAUSED":
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200"><Pause className="w-3 h-3 mr-1" />Paused</Badge>;
+      case "ARCHIVED":
+        return <Badge variant="outline" className="text-muted-foreground"><Archive className="w-3 h-3 mr-1" />Archived</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -269,6 +292,7 @@ export default function ClubManagement() {
     if (activeTab === "pending") return club.status === "PENDING" && club.isActive;
     if (activeTab === "approved") return club.status === "APPROVED" && club.isActive;
     if (activeTab === "rejected") return club.status === "REJECTED" && club.isActive;
+    if (activeTab === "paused") return club.status === "PAUSED" && club.isActive;
     if (activeTab === "archived") return !club.isActive;
     return true;
   }) || [];
@@ -349,6 +373,7 @@ export default function ClubManagement() {
           </TabsTrigger>
           <TabsTrigger value="approved" data-testid="tab-approved-clubs">Approved</TabsTrigger>
           <TabsTrigger value="rejected" data-testid="tab-rejected-clubs">Rejected</TabsTrigger>
+          <TabsTrigger value="paused" data-testid="tab-paused-clubs">Paused</TabsTrigger>
           <TabsTrigger value="archived" data-testid="tab-archived-clubs">Archived</TabsTrigger>
         </TabsList>
 
@@ -425,6 +450,19 @@ export default function ClubManagement() {
                           <Settings className="w-4 h-4 mr-1" />
                           Manage
                         </Button>
+                        {(club.status === "APPROVED" || club.status === "PAUSED") && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => pauseClubMutation.mutate({ clubId: club.id, paused: club.status !== "PAUSED" })}
+                            disabled={pauseClubMutation.isPending}
+                            data-testid={`pause-club-${club.id}`}
+                          >
+                            {club.status === "PAUSED" 
+                              ? <Play className="w-4 h-4 text-green-500" /> 
+                              : <Pause className="w-4 h-4 text-orange-500" />}
+                          </Button>
+                        )}
                         <Button 
                           variant="ghost" 
                           size="sm"

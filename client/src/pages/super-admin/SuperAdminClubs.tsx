@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import {
   Building2, Search, Loader2, Pencil, Trash2, CheckCircle, XCircle,
-  Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users, Archive
+  Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users, Archive, Pause, Play
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -194,6 +194,26 @@ export default function SuperAdminClubs() {
     },
   });
 
+  const pauseClubMutation = useMutation({
+    mutationFn: async (data: { clubId: number; paused: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/clubs/${data.clubId}/pause`, { paused: data.paused });
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/stats"] });
+      toast({ 
+        title: variables.paused ? "Club Paused" : "Club Resumed", 
+        description: variables.paused 
+          ? "Club operations have been paused. It won't appear in public listings." 
+          : "Club has been resumed and is now fully operational."
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update club", variant: "destructive" });
+    },
+  });
+
   const transferOwnershipMutation = useMutation({
     mutationFn: async (data: { clubId: number; newOwnerId: number }) => {
       const res = await apiRequest("PATCH", `/api/super-admin/clubs/${data.clubId}/transfer`, { newOwnerId: data.newOwnerId });
@@ -276,6 +296,7 @@ export default function SuperAdminClubs() {
       case "APPROVED": return <Badge variant="outline" className="text-xs text-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Approved</Badge>;
       case "PENDING": return <Badge variant="outline" className="text-xs text-amber-600"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
       case "REJECTED": return <Badge variant="outline" className="text-xs text-red-600"><XCircle className="w-3 h-3 mr-1" /> Rejected</Badge>;
+      case "PAUSED": return <Badge variant="outline" className="text-xs text-orange-600"><Pause className="w-3 h-3 mr-1" /> Paused</Badge>;
       default: return <Badge variant="outline" className="text-xs">{status}</Badge>;
     }
   };
@@ -397,6 +418,19 @@ export default function SuperAdminClubs() {
                               <XCircle className="w-4 h-4 text-red-500" />
                             </Button>
                           </>
+                        )}
+                        {(club.status === "APPROVED" || club.status === "PAUSED") && club.isActive && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => pauseClubMutation.mutate({ clubId: club.id, paused: club.status !== "PAUSED" })}
+                            disabled={pauseClubMutation.isPending}
+                            data-testid={`button-pause-club-${club.id}`}
+                          >
+                            {club.status === "PAUSED" 
+                              ? <Play className="w-4 h-4 text-green-500" /> 
+                              : <Pause className="w-4 h-4 text-orange-500" />}
+                          </Button>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => setTransferClub(club)} data-testid={`button-transfer-club-${club.id}`}>
                           <ArrowRightLeft className="w-4 h-4" />

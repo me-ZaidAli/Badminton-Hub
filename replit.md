@@ -13,7 +13,7 @@ The frontend is built with React 18, TypeScript, Wouter for routing, and TanStac
 
 ### Key Features and Design Patterns
 -   **Role-Based Access Control (RBAC)**: Supports platform-level (OWNER) and club-level roles (ADMIN, ORGANISER, COACH, PLAYER) with granular permissions and club-scoped data access.
--   **Multi-Club Support**: Manages multiple badminton clubs, each with specific player profiles and administration.
+-   **Multi-Club Support**: Manages multiple badminton clubs, each with specific player profiles and administration. Clubs support lifecycle states: PENDING, APPROVED, PAUSED, REJECTED, and ARCHIVED. Pausing a club temporarily hides it from public listings while preserving all data. Archiving soft-deletes a club permanently.
 -   **Match Management**: Includes a visual court component, match lifecycle management, a queuing system, and a **Smart Match Engine** for generating matches based on social or competitive modes.
 -   **Membership System**: Comprehensive club-based membership management with plans, requests, approvals, proration, and merchandise integration.
 -   **Dynamic Leaderboard System**: Computes player rankings (wins, losses, win percentage) dynamically from completed matches, supporting club, session, and personal views. An admin-only "All Rankings" page offers advanced filtering and in-place editing.
