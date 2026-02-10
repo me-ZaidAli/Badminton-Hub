@@ -1913,74 +1913,76 @@ export async function registerRoutes(
 
       await storage.deleteMatch(matchId);
 
-      const mode = req.query.mode as string || req.body?.mode;
-      const genderType = req.query.genderType as string || req.body?.genderType;
-      const matchMode = mode || session.matchMode || "SOCIAL";
-      const playersPerSide = session.playersPerSide || 2;
-      const playersPerMatch = playersPerSide * 2;
-      const gType = genderType || session.matchGenderType || "MIXED";
-
-      const signups = await storage.getSessionSignups(match.sessionId);
-      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
-      const players = eligibleSignups
-        .filter(s => !s.isPaused)
-        .map(s => ({
-          id: s.player.id,
-          gender: s.player.gender,
-          category: s.player.category,
-          isPaused: s.isPaused,
-          genderOverride: s.genderOverride,
-        }));
-
       let replacement = null;
-      if (players.length >= playersPerMatch) {
-        const existingMatches = await storage.getSessionMatches(match.sessionId);
-        const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
-          existingMatches.map(m => ({
-            teamAPlayer1Id: m.teamAPlayer1Id,
-            teamAPlayer2Id: m.teamAPlayer2Id,
-            teamBPlayer1Id: m.teamBPlayer1Id,
-            teamBPlayer2Id: m.teamBPlayer2Id,
-            status: m.status,
-          }))
-        );
+      if (session.autoGenerateActive) {
+        const mode = req.query.mode as string || req.body?.mode;
+        const genderType = req.query.genderType as string || req.body?.genderType;
+        const matchMode = mode || session.matchMode || "SOCIAL";
+        const playersPerSide = session.playersPerSide || 2;
+        const playersPerMatch = playersPerSide * 2;
+        const gType = genderType || session.matchGenderType || "MIXED";
 
-        const generated = generateSmartMatches({
-          mode: matchMode as "SOCIAL" | "COMPETITIVE",
-          players,
-          playersPerSide: playersPerSide as 1 | 2,
-          genderType: gType,
-          queueTarget: 1,
-          recentPairings,
-          recentOpponents,
-          playerMatchCounts,
-        });
+        const signups = await storage.getSessionSignups(match.sessionId);
+        const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
+        const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+        const players = eligibleSignups
+          .filter(s => !s.isPaused)
+          .map(s => ({
+            id: s.player.id,
+            gender: s.player.gender,
+            category: s.player.category,
+            isPaused: s.isPaused,
+            genderOverride: s.genderOverride,
+          }));
 
-        if (generated.length > 0) {
-          const maxQueuePos = Math.max(0, ...existingMatches
-            .filter(m => m.queuePosition !== null)
-            .map(m => m.queuePosition || 0));
+        if (players.length >= playersPerMatch) {
+          const existingMatches = await storage.getSessionMatches(match.sessionId);
+          const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+            existingMatches.map(m => ({
+              teamAPlayer1Id: m.teamAPlayer1Id,
+              teamAPlayer2Id: m.teamAPlayer2Id,
+              teamBPlayer1Id: m.teamBPlayer1Id,
+              teamBPlayer2Id: m.teamBPlayer2Id,
+              status: m.status,
+            }))
+          );
 
-          replacement = await storage.createMatch({
-            sessionId: match.sessionId,
-            courtNumber: null,
-            queuePosition: maxQueuePos + 1,
-            status: "QUEUED" as const,
-            teamAPlayer1Id: generated[0].teamAPlayer1Id,
-            teamAPlayer2Id: generated[0].teamAPlayer2Id,
-            teamBPlayer1Id: generated[0].teamBPlayer1Id,
-            teamBPlayer2Id: generated[0].teamBPlayer2Id,
-            scoreA: 0,
-            scoreB: 0,
-            isCompleted: false,
-            pointsToPlayTo: session.defaultPointsToPlayTo || 21,
-            numberOfSets: session.numberOfSets || 1,
-            currentSet: 1,
-            setsWonA: 0,
-            setsWonB: 0,
-            setScores: [],
+          const generated = generateSmartMatches({
+            mode: matchMode as "SOCIAL" | "COMPETITIVE",
+            players,
+            playersPerSide: playersPerSide as 1 | 2,
+            genderType: gType,
+            queueTarget: 1,
+            recentPairings,
+            recentOpponents,
+            playerMatchCounts,
           });
+
+          if (generated.length > 0) {
+            const maxQueuePos = Math.max(0, ...existingMatches
+              .filter(m => m.queuePosition !== null)
+              .map(m => m.queuePosition || 0));
+
+            replacement = await storage.createMatch({
+              sessionId: match.sessionId,
+              courtNumber: null,
+              queuePosition: maxQueuePos + 1,
+              status: "QUEUED" as const,
+              teamAPlayer1Id: generated[0].teamAPlayer1Id,
+              teamAPlayer2Id: generated[0].teamAPlayer2Id,
+              teamBPlayer1Id: generated[0].teamBPlayer1Id,
+              teamBPlayer2Id: generated[0].teamBPlayer2Id,
+              scoreA: 0,
+              scoreB: 0,
+              isCompleted: false,
+              pointsToPlayTo: session.defaultPointsToPlayTo || 21,
+              numberOfSets: session.numberOfSets || 1,
+              currentSet: 1,
+              setsWonA: 0,
+              setsWonB: 0,
+              setScores: [],
+            });
+          }
         }
       }
 
@@ -2167,6 +2169,34 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error entering player score:", err);
       res.status(500).json({ message: err.message || "Failed to enter score" });
+    }
+  });
+
+  app.post("/api/matches/:id/cancel-live", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      if (match.status !== "LIVE") {
+        return res.status(400).json({ message: "Only live matches can be cancelled" });
+      }
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins can cancel live matches" });
+      }
+
+      await storage.deleteMatch(matchId);
+      res.json({ message: "Live match cancelled", courtNumber: match.courtNumber });
+    } catch (err: any) {
+      console.error("Error cancelling live match:", err);
+      res.status(500).json({ message: err.message || "Failed to cancel live match" });
     }
   });
 
@@ -2395,6 +2425,8 @@ export async function registerRoutes(
         return res.json({ status: "full", message: "Queue is already full", matches: [] });
       }
 
+      const effectiveTarget = isAutoGenerate ? Math.min(1, matchesNeeded) : matchesNeeded;
+
       const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
         existingMatches.map(m => ({
           teamAPlayer1Id: m.teamAPlayer1Id,
@@ -2418,7 +2450,7 @@ export async function registerRoutes(
         players,
         playersPerSide: playersPerSide as 1 | 2,
         genderType: gType,
-        queueTarget: matchesNeeded,
+        queueTarget: effectiveTarget,
         recentPairings,
         recentOpponents,
         playerMatchCounts,
@@ -2565,7 +2597,7 @@ export async function registerRoutes(
         await storage.deleteMatch(qm.id);
       }
 
-      const queueTarget = Math.max(queuedMatches.length, 3);
+      const queueTarget = session.autoGenerateActive ? 1 : Math.max(queuedMatches.length, 3);
       const matchMode = (mode || session.matchMode || "SOCIAL") as "SOCIAL" | "COMPETITIVE";
       const playersPerSide = session.playersPerSide || 2;
       const playersPerMatch = playersPerSide * 2;

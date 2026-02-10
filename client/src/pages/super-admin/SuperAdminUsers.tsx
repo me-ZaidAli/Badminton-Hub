@@ -202,7 +202,7 @@ export default function SuperAdminUsers() {
           <p className="text-muted-foreground text-sm ml-10">Global user management with unrestricted access.</p>
         </div>
         <Badge variant="destructive" className="text-xs py-1 px-3">
-          <Zap className="h-3 w-3 mr-1" /> Super Admin
+          <Zap className="h-3 w-3 mr-1" /> God's Mode
         </Badge>
       </div>
 
@@ -378,13 +378,13 @@ export default function SuperAdminUsers() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-primary" />
-              Edit User — Super Admin
+              Edit User — God's Mode
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[80vh] overflow-y-auto">
             <div className="space-y-6 py-2 pr-1">
               <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
-                You are performing a Super Admin action.
+                You are performing a God's Mode action.
               </p>
 
               <div>
@@ -470,7 +470,7 @@ export default function SuperAdminUsers() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner (Super Admin)</SelectItem>
+                        <SelectItem value="OWNER">Owner (God's Mode)</SelectItem>
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="ORGANISER">Organiser</SelectItem>
                         <SelectItem value="COACH">Coach</SelectItem>

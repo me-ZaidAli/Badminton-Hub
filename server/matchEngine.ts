@@ -52,13 +52,24 @@ function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
+function isStrongPlayer(cat: string | null): boolean {
+  const rank = getCategoryRank(cat);
+  return rank >= 3;
+}
+
+function isWeakPlayer(cat: string | null): boolean {
+  const rank = getCategoryRank(cat);
+  return rank <= 1;
+}
+
 function scorePairing(
   team: number[],
   opponents: number[],
   recentPairings: Map<string, number>,
   recentOpponents: Map<string, number>,
   playerMatchCounts: Map<number, number>,
-  priorityPlayerIds?: number[]
+  priorityPlayerIds?: number[],
+  playerPool?: Player[]
 ): number {
   let score = 0;
   
@@ -111,6 +122,62 @@ function scorePairing(
     }
   }
   
+  if (playerPool && playerPool.length > 0) {
+    const getPlayer = (id: number) => playerPool.find(p => p.id === id);
+    
+    for (let i = 0; i < team.length; i++) {
+      for (let j = i + 1; j < team.length; j++) {
+        const p1 = getPlayer(team[i]);
+        const p2 = getPlayer(team[j]);
+        if (p1 && p2) {
+          const p1Female = getEffectiveGender(p1) === "FEMALE";
+          const p2Female = getEffectiveGender(p2) === "FEMALE";
+          if (p1Female !== p2Female) {
+            const female = p1Female ? p1 : p2;
+            const male = p1Female ? p2 : p1;
+            if (isStrongPlayer(male.category)) {
+              score += 12;
+            }
+            if (isWeakPlayer(male.category) && !isWeakPlayer(female.category)) {
+              score -= 8;
+            }
+          }
+        }
+      }
+    }
+    
+    for (let i = 0; i < opponents.length; i++) {
+      for (let j = i + 1; j < opponents.length; j++) {
+        const p1 = getPlayer(opponents[i]);
+        const p2 = getPlayer(opponents[j]);
+        if (p1 && p2) {
+          const p1Female = getEffectiveGender(p1) === "FEMALE";
+          const p2Female = getEffectiveGender(p2) === "FEMALE";
+          if (p1Female !== p2Female) {
+            const female = p1Female ? p1 : p2;
+            const male = p1Female ? p2 : p1;
+            if (isStrongPlayer(male.category)) {
+              score += 12;
+            }
+            if (isWeakPlayer(male.category) && !isWeakPlayer(female.category)) {
+              score -= 8;
+            }
+          }
+        }
+      }
+    }
+    
+    const teamPlayers = team.map(id => getPlayer(id)).filter(Boolean) as Player[];
+    const oppPlayers = opponents.map(id => getPlayer(id)).filter(Boolean) as Player[];
+    const teamFemales = teamPlayers.filter(p => getEffectiveGender(p) === "FEMALE").length;
+    const oppFemales = oppPlayers.filter(p => getEffectiveGender(p) === "FEMALE").length;
+    if (teamFemales >= 2 && oppFemales >= 2) {
+      score += 15;
+    } else if (teamFemales >= 1 && oppFemales >= 1) {
+      score += 5;
+    }
+  }
+  
   return score;
 }
 
@@ -138,14 +205,15 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     
     const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
     const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
-    const useFemaleMatch = females.length >= 2 && Math.random() < 0.5;
+    const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
+    const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
     
     const candidates = generateCandidateDoubles(eligible, females, males, useFemaleMatch);
     
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds);
+      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible);
       if (s > bestScore) {
         bestScore = s;
         bestMatch = candidate;
@@ -247,7 +315,8 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     
-    const useFemaleMatch = females.length >= 2 && Math.random() < 0.5;
+    const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
+    const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
     const useExtremePairing = Math.random() < 0.15;
     
     const candidates = useExtremePairing
@@ -257,7 +326,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds);
+      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible);
       
       const catA1 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer1Id)?.category || null);
       const catA2 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer2Id)?.category || null);
@@ -365,7 +434,7 @@ function generateCandidateDoubles(
 ): MatchResult[] {
   const candidates: MatchResult[] = [];
   const shuffled = shuffleArray(eligible);
-  const maxCandidates = 40;
+  const maxCandidates = 50;
   
   if (useFemaleMatch && females.length >= 4) {
     const fShuffled = shuffleArray(females);
@@ -377,15 +446,20 @@ function generateCandidateDoubles(
         teamBPlayer2Id: fShuffled[i + 3].id,
       });
     }
-  } else if (useFemaleMatch && females.length >= 2 && males.length >= 2) {
+  }
+  
+  if (females.length >= 2 && males.length >= 2) {
     const fShuffled = shuffleArray(females);
     const strongMales = [...males].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
-    const mShuffled = shuffleArray(strongMales.slice(0, Math.max(4, strongMales.length)));
+    const topMales = strongMales.slice(0, Math.max(4, Math.ceil(strongMales.length * 0.6)));
+    const mShuffled = shuffleArray(topMales);
     
-    for (let i = 0; i < Math.min(fShuffled.length, 3); i++) {
-      for (let j = 0; j < Math.min(mShuffled.length, 4); j++) {
-        const f2 = fShuffled[(i + 1) % fShuffled.length];
-        const m2 = mShuffled[(j + 1) % mShuffled.length];
+    for (let i = 0; i < Math.min(fShuffled.length, 4); i++) {
+      for (let j = 0; j < Math.min(mShuffled.length, 5); j++) {
+        const f2Idx = (i + 1) % fShuffled.length;
+        const m2Idx = (j + 1) % mShuffled.length;
+        const f2 = fShuffled[f2Idx];
+        const m2 = mShuffled[m2Idx];
         if (new Set([fShuffled[i].id, mShuffled[j].id, f2.id, m2.id]).size === 4) {
           candidates.push({
             teamAPlayer1Id: fShuffled[i].id,
@@ -581,9 +655,51 @@ export function buildPairingHistory(
 export function generateSmartMatches(opts: GenerateOptions): MatchResult[] {
   const { mode, playersPerSide } = opts;
   
+  let results: MatchResult[];
   if (mode === "SOCIAL") {
-    return playersPerSide === 1 ? generateSocialSingles(opts) : generateSocialDoubles(opts);
+    results = playersPerSide === 1 ? generateSocialSingles(opts) : generateSocialDoubles(opts);
   } else {
-    return playersPerSide === 1 ? generateCompetitiveSingles(opts) : generateCompetitiveDoubles(opts);
+    results = playersPerSide === 1 ? generateCompetitiveSingles(opts) : generateCompetitiveDoubles(opts);
   }
+  
+  if (results.length === 0 && opts.players.length >= (playersPerSide * 2)) {
+    console.log(`[MatchEngine] No matches generated with strict constraints. Relaxing constraints for ${opts.players.length} players, mode=${mode}, perSide=${playersPerSide}`);
+    const relaxedOpts = {
+      ...opts,
+      recentPairings: new Map<string, number>(),
+      recentOpponents: new Map<string, number>(),
+    };
+    if (mode === "SOCIAL") {
+      results = playersPerSide === 1 ? generateSocialSingles(relaxedOpts) : generateSocialDoubles(relaxedOpts);
+    } else {
+      results = playersPerSide === 1 ? generateCompetitiveSingles(relaxedOpts) : generateCompetitiveDoubles(relaxedOpts);
+    }
+    if (results.length > 0) {
+      console.log(`[MatchEngine] Relaxed constraints produced ${results.length} match(es)`);
+    } else {
+      console.log(`[MatchEngine] Still no matches after relaxation. Players: ${opts.players.map(p => `${p.id}(${p.category}/${getEffectiveGender(p)})`).join(", ")}`);
+    }
+  }
+  
+  return results;
+}
+
+export function getGenderMixInfo(
+  match: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null },
+  playerGenders: Map<number, string>,
+  playerCategories: Map<number, string | null>
+): { isMixedGender: boolean; maleWithFemale: boolean; femaleIsStrong: boolean } {
+  const allIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
+  const genders = allIds.map(id => playerGenders.get(id) || "MALE");
+  const hasFemale = genders.some(g => g === "FEMALE");
+  const hasMale = genders.some(g => g !== "FEMALE");
+  const isMixedGender = hasFemale && hasMale;
+  
+  let femaleIsStrong = false;
+  if (isMixedGender) {
+    const femaleIds = allIds.filter(id => (playerGenders.get(id) || "MALE") === "FEMALE");
+    femaleIsStrong = femaleIds.some(id => isStrongPlayer(playerCategories.get(id) || null));
+  }
+  
+  return { isMixedGender, maleWithFemale: isMixedGender, femaleIsStrong };
 }

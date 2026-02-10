@@ -327,7 +327,7 @@ export default function SuperAdminClubs() {
           <p className="text-muted-foreground text-sm ml-10">Global club management with full override capabilities.</p>
         </div>
         <Badge variant="destructive" className="text-xs py-1 px-3">
-          <Zap className="h-3 w-3 mr-1" /> Super Admin
+          <Zap className="h-3 w-3 mr-1" /> God's Mode
         </Badge>
       </div>
 
@@ -761,7 +761,7 @@ export default function SuperAdminClubs() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
-              You are performing a Super Admin action.
+              You are performing a God's Mode action.
             </p>
             <p className="text-sm">
               Transfer <strong>{transferClub?.name}</strong> to a new owner.

@@ -132,7 +132,7 @@ export default function SuperAdminSessions() {
           <p className="text-muted-foreground text-sm ml-10">Global session management with score override capabilities.</p>
         </div>
         <Badge variant="destructive" className="text-xs py-1 px-3">
-          <Zap className="h-3 w-3 mr-1" /> Super Admin
+          <Zap className="h-3 w-3 mr-1" /> God's Mode
         </Badge>
       </div>
 
@@ -270,12 +270,12 @@ export default function SuperAdminSessions() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-primary" />
-              Edit Session — Super Admin
+              Edit Session — God's Mode
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md px-3 py-2">
-              You are performing a Super Admin action.
+              You are performing a God's Mode action.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">

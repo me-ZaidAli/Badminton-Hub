@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore, useCancelLiveMatch } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -1394,6 +1394,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
   const { mutate: updateSession } = useUpdateSession();
   const { mutate: stopAllMatches, isPending: isStoppingAll } = useStopAllMatches();
+  const { mutate: cancelLiveMatch } = useCancelLiveMatch();
   const queryClient = useQueryClient();
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
 
@@ -1507,12 +1508,17 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const handleStopAutoGenerate = () => {
-    updateSession({ sessionId, updates: { autoGenerateActive: false } });
+    stopAllMatches({ sessionId }, {
+      onSuccess: () => {
+        setAutoGenWaiting(false);
+      }
+    });
   };
 
   const handleStopAllMatches = () => {
     stopAllMatches({ sessionId }, {
       onSuccess: (data: any) => {
+        setAutoGenWaiting(false);
         if (data.frozenLive > 0 && data.frozenMatches?.length > 0) {
           const mapped: CourtMatch[] = data.frozenMatches.map((m: any) => ({
             id: m.id,
@@ -1810,6 +1816,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
                     onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
                     onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                    onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
                     onCourtNameChange={handleCourtNameChange}
                     onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
                     defaultPointsToPlayTo={defaultPointsToPlayTo}

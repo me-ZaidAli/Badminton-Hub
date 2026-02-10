@@ -303,7 +303,7 @@ export default function ClubManagement() {
     <div className="space-y-8">
       <div className="flex justify-between items-center gap-4 flex-wrap">
         <PageHeader 
-          title="Super Admin: Club Management" 
+          title="God's Mode: Club Management" 
           description="Manage all clubs, approve requests, and assign platform admin rights."
         />
         <div className="flex gap-2">

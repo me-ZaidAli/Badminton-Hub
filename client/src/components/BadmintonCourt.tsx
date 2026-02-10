@@ -65,6 +65,7 @@ type BadmintonCourtProps = {
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
+  onCancelMatch?: (matchId: number) => void;
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   defaultPointsToPlayTo?: number;
@@ -178,6 +179,7 @@ export function BadmintonCourt({
   onCompleteMatch,
   onEndSet,
   onSwapPlayer,
+  onCancelMatch,
   onCourtNameChange,
   onUpdatePointsTarget,
   defaultPointsToPlayTo = 21,
@@ -494,14 +496,27 @@ export function BadmintonCourt({
                   </Button>
                 )}
                 {match.status === "LIVE" && (
-                  <Button 
-                    variant="destructive" 
-                    onClick={openFinishDialog}
-                    className="gap-2"
-                    data-testid={`button-complete-match-${match.id}`}
-                  >
-                    <Square className="w-4 h-4" /> {isMultiSet ? `End Set ${currentSetNum}` : "End Match"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="destructive" 
+                      onClick={openFinishDialog}
+                      className="gap-2"
+                      data-testid={`button-complete-match-${match.id}`}
+                    >
+                      <Square className="w-4 h-4" /> {isMultiSet ? `End Set ${currentSetNum}` : "End Match"}
+                    </Button>
+                    {isOrganiser && onCancelMatch && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onCancelMatch(match.id)}
+                        className="text-destructive border-destructive/50"
+                        data-testid={`button-cancel-match-${match.id}`}
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 )}
                 {match.status === "COMPLETED" && (
                   <Badge variant="secondary">Completed</Badge>

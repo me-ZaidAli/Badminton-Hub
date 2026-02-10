@@ -412,6 +412,32 @@ export function useEndSet() {
   });
 }
 
+export function useCancelLiveMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId }: { matchId: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/cancel-live`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to cancel live match");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Match Cancelled", description: "The live match has been cancelled and the court is now free." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cancel Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useStopAllMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

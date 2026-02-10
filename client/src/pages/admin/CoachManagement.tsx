@@ -1019,7 +1019,7 @@ export default function CoachManagement() {
     return (
       <div className="p-8 text-center">
         <h1 className="text-2xl font-bold text-destructive" data-testid="text-access-denied">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">You must be a Super Admin to access this page.</p>
+        <p className="text-muted-foreground mt-2">You must have God's Mode access to view this page.</p>
       </div>
     );
   }
