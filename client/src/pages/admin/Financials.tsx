@@ -199,6 +199,36 @@ export default function Financials() {
     );
   }, [financialData]);
 
+  const uniqueClubIds = useMemo(() => uniqueClubs.map(c => c.id), [uniqueClubs]);
+
+  const { data: allCreditBalances = {} } = useQuery<Record<string, number>>({
+    queryKey: ["/api/credits/all-club-balances", ...uniqueClubIds],
+    queryFn: async () => {
+      if (uniqueClubIds.length === 0) return {};
+      const balanceMap: Record<string, number> = {};
+      await Promise.all(
+        uniqueClubIds.map(async (cId) => {
+          try {
+            const res = await fetch(`/api/credits/club/${cId}/balances`, { credentials: "include" });
+            if (res.ok) {
+              const data: { userId: number; balance: number }[] = await res.json();
+              data.forEach(({ userId, balance }) => {
+                const key = `${userId}-${cId}`;
+                balanceMap[key] = (balanceMap[key] || 0) + balance;
+              });
+            }
+          } catch {}
+        })
+      );
+      return balanceMap;
+    },
+    enabled: uniqueClubIds.length > 0,
+  });
+
+  const getCreditBalance = (userId: number, clubId: number): number => {
+    return allCreditBalances[`${userId}-${clubId}`] || 0;
+  };
+
   const totalRevenue = useMemo(() => filteredData.reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const paidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const unpaidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
@@ -773,6 +803,18 @@ export default function Financials() {
         )}
       </TableCell>
       <TableCell>
+        {(() => {
+          const bal = getCreditBalance(entry.playerUserId, entry.clubId);
+          return bal > 0 ? (
+            <span className="font-semibold text-green-400" data-testid={`text-credit-balance-${entry.signupId}`}>
+              {"\u00A3"}{formatPounds(bal)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-sm" data-testid={`text-credit-balance-${entry.signupId}`}>-</span>
+          );
+        })()}
+      </TableCell>
+      <TableCell>
         {entry.paymentStatus === "PAID" ? (
           <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-${entry.signupId}`}>
             <CheckCircle className="h-3 w-3 mr-1" />
@@ -1208,6 +1250,7 @@ export default function Financials() {
                             <TableRow>
                               <TableHead>Player</TableHead>
                               <TableHead>Fee</TableHead>
+                              <TableHead>Credit Bal.</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead>Action</TableHead>
                               <TableHead>Attendance</TableHead>
@@ -1290,6 +1333,7 @@ export default function Financials() {
                               <TableHead>Date</TableHead>
                               <TableHead>Club</TableHead>
                               <TableHead>Fee</TableHead>
+                              <TableHead>Credit Bal.</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead>Action</TableHead>
                             </TableRow>
@@ -1310,6 +1354,18 @@ export default function Financials() {
                                   <span className="font-medium" data-testid={`text-fee-player-${entry.signupId}`}>
                                     £{formatPounds(entry.fee || 0)}
                                   </span>
+                                </TableCell>
+                                <TableCell>
+                                  {(() => {
+                                    const bal = getCreditBalance(entry.playerUserId, entry.clubId);
+                                    return bal > 0 ? (
+                                      <span className="font-semibold text-green-400" data-testid={`text-credit-bal-player-${entry.signupId}`}>
+                                        {"\u00A3"}{formatPounds(bal)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground text-sm" data-testid={`text-credit-bal-player-${entry.signupId}`}>-</span>
+                                    );
+                                  })()}
                                 </TableCell>
                                 <TableCell>
                                   {entry.paymentStatus === "PAID" ? (
