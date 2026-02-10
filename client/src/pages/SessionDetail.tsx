@@ -3,7 +3,7 @@ import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useMySessionClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
+import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
 import { useVenues } from "@/hooks/use-venues";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,7 @@ export default function SessionDetail() {
   ];
 
   const { data: sessionClubs } = useMySessionClubs(!!user);
+  const { data: adminClubs } = useMyAdminClubs(!!user);
   const { data: allClubs } = useClubs();
   const { data: venues } = useVenues(session?.clubId || null);
   
@@ -137,6 +138,8 @@ export default function SessionDetail() {
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
+  const editableClubIds = new Set(user?.role === "OWNER" ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
+  const canEditSession = session ? editableClubIds.has(session.clubId) : false;
   
   const isApprovedMember = (() => {
     if (!user || !session) return false;
@@ -251,7 +254,7 @@ export default function SessionDetail() {
             {session.isPrivate && (
               <Badge variant="outline">Private</Badge>
             )}
-            {isOrganiser && (
+            {canEditSession && (
               <Dialog open={settingsOpen} onOpenChange={(open) => {
                 setSettingsOpen(open);
                 if (open) {
@@ -280,7 +283,7 @@ export default function SessionDetail() {
               }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1" data-testid="button-session-settings">
-                    <Settings2 className="w-4 h-4" /> Settings
+                    <Settings2 className="w-4 h-4" /> Edit Details
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">

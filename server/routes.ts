@@ -1217,9 +1217,9 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
-      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
-      if (!canAccess) {
+      // Check session edit access (Super Admin, Club Owner, Club Admin only)
+      const canEdit = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", session.clubId);
+      if (!canEdit) {
         return res.sendStatus(403);
       }
 

@@ -4,6 +4,7 @@ export type RBACAction =
   | "VIEW_CLUB"
   | "MANAGE_CLUB"
   | "MANAGE_SESSIONS"
+  | "EDIT_SESSIONS"
   | "VIEW_MEMBERS"
   | "MANAGE_MEMBERS"
   | "MANAGE_TOURNAMENTS"
@@ -51,6 +52,9 @@ export async function canPerform(user: RBACUser, action: RBACAction, clubId?: nu
 
     case "MANAGE_SESSIONS":
       return ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubRole);
+
+    case "EDIT_SESSIONS":
+      return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "MANAGE_TOURNAMENTS":
       return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);

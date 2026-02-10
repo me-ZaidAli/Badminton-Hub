@@ -1,6 +1,6 @@
 import { useSessions, useCreateSession, useUpdateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs, useMySessionClubs } from "@/hooks/use-clubs";
+import { useClubs, useMySessionClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,9 +57,11 @@ export default function Sessions() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+  const editableClubIds = new Set(isSuperUser ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
 
   const { data: memberships } = useQuery<{ clubId: number; membershipStatus: string }[]>({
     queryKey: ["/api/user/memberships"],
@@ -294,96 +296,94 @@ export default function Sessions() {
                 />
               </div>
             )}
-            {managedClubIds.has(session.clubId) && (
-              <div className="absolute top-4 right-4 z-10">
-                <EditSessionDialog session={session} venues={[]} />
-              </div>
-            )}
-            <Link href={`/sessions/${session.id}`}>
-              <Card className={`h-full cursor-pointer border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
-                <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
-                <CardContent className="p-6">
-                  <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8 pr-8" : ""}`}>
-                    <div className="flex gap-1 flex-wrap">
-                      <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
-                        {session.matchMode}
+            <Card className={`h-full border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
+              <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
+              <CardContent className="p-6">
+                <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
+                  <div className="flex gap-1 flex-wrap">
+                    <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
+                      {session.matchMode}
+                    </Badge>
+                    {clubs?.find(c => c.id === session.clubId)?.name && (
+                      <Badge variant="outline" className="text-xs">
+                        {clubs.find(c => c.id === session.clubId)!.name}
                       </Badge>
-                      {clubs?.find(c => c.id === session.clubId)?.name && (
-                        <Badge variant="outline" className="text-xs">
-                          {clubs.find(c => c.id === session.clubId)!.name}
-                        </Badge>
-                      )}
-                      {session.playersPerSide === 1 && (
-                        <Badge variant="outline">Singles</Badge>
-                      )}
-                      {session.genderRestriction === "FEMALE_ONLY" && (
-                        <Badge variant="secondary" className="bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">Females Only</Badge>
-                      )}
-                      {session.sessionType === "JUNIORS_ONLY" && (
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Juniors</Badge>
-                      )}
-                      {session.isPrivate && (
-                        <Badge variant="outline">Private</Badge>
-                      )}
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
-                      {session.startTime}
-                    </span>
-                  </div>
-                  
-                  <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
-                    {session.title}
-                  </h3>
-                  
-                  <div className="space-y-2 text-sm text-muted-foreground mb-6">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{session.courtsAvailable} Courts Available</span>
-                    </div>
-                    {(session as any).venue && (
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ''}</span>
-                      </div>
                     )}
-                    {session.sessionFee != null && (
-                      <div className="flex items-center gap-2">
-                        <PoundSterling className="h-4 w-4" />
-                        <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
-                      </div>
+                    {session.playersPerSide === 1 && (
+                      <Badge variant="outline">Singles</Badge>
                     )}
-                    {session.shuttlecockType && (
-                      <div className="flex items-center gap-2">
-                        <CircleDot className="h-4 w-4" />
-                        <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
-                      </div>
+                    {session.genderRestriction === "FEMALE_ONLY" && (
+                      <Badge variant="secondary" className="bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">Females Only</Badge>
+                    )}
+                    {session.sessionType === "JUNIORS_ONLY" && (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Juniors</Badge>
+                    )}
+                    {session.isPrivate && (
+                      <Badge variant="outline">Private</Badge>
                     )}
                   </div>
+                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
+                    {session.startTime}
+                  </span>
+                </div>
+                
+                <h3 className="text-xl font-bold mb-2">
+                  {session.title}
+                </h3>
+                
+                <div className="space-y-2 text-sm text-muted-foreground mb-6">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    <span>{session.courtsAvailable} Courts Available</span>
+                  </div>
+                  {(session as any).venue && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ''}</span>
+                    </div>
+                  )}
+                  {session.sessionFee != null && (
+                    <div className="flex items-center gap-2">
+                      <PoundSterling className="h-4 w-4" />
+                      <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
+                    </div>
+                  )}
+                  {session.shuttlecockType && (
+                    <div className="flex items-center gap-2">
+                      <CircleDot className="h-4 w-4" />
+                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50 gap-2">
-                    <span className="font-bold text-lg">
-                      {format(new Date(session.date), "EEE, MMM d")}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {user && !isSuperUser && (
-                        getSessionAccess(session.clubId) === "allowed" ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" data-testid={`icon-session-allowed-${session.id}`} />
-                        ) : (
-                          <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
-                        )
-                      )}
-                      <Button size="sm" variant="outline">
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50 gap-2">
+                  <span className="font-bold text-lg">
+                    {format(new Date(session.date), "EEE, MMM d")}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {user && !isSuperUser && (
+                      getSessionAccess(session.clubId) === "allowed" ? (
+                        <CheckCircle className="h-5 w-5 text-green-500" data-testid={`icon-session-allowed-${session.id}`} />
+                      ) : (
+                        <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
+                      )
+                    )}
+                    {editableClubIds.has(session.clubId) && (
+                      <EditSessionDialog session={session} venues={[]} />
+                    )}
+                    <Link href={`/sessions/${session.id}`}>
+                      <Button size="sm" variant="outline" data-testid={`button-details-session-${session.id}`}>
                         Details
                       </Button>
-                    </div>
+                    </Link>
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ))}
       </div>
@@ -1030,15 +1030,15 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     }}>
       <DialogTrigger asChild>
         <Button
-          size="icon"
-          variant="ghost"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          size="sm"
+          variant="outline"
           data-testid={`button-edit-session-${session.id}`}
         >
-          <Pencil className="h-4 w-4" />
+          <Settings2 className="h-4 w-4 mr-1" />
+          Edit Details
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Session</DialogTitle>
         </DialogHeader>
