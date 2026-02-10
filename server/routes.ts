@@ -1241,7 +1241,7 @@ export async function registerRoutes(
       if (status !== undefined) updates.status = status;
       if (liveStreamUrl !== undefined) updates.liveStreamUrl = liveStreamUrl || null;
       if (title !== undefined) updates.title = title.trim();
-      if (date !== undefined) updates.date = date;
+      if (date !== undefined) updates.date = new Date(date);
       if (startTime !== undefined) updates.startTime = startTime;
       if (durationMinutes !== undefined) updates.durationMinutes = Number(durationMinutes);
       if (genderRestriction !== undefined) updates.genderRestriction = genderRestriction;

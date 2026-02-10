@@ -294,11 +294,16 @@ export default function Sessions() {
                 />
               </div>
             )}
+            {managedClubIds.has(session.clubId) && (
+              <div className="absolute top-4 right-4 z-10">
+                <EditSessionDialog session={session} venues={[]} />
+              </div>
+            )}
             <Link href={`/sessions/${session.id}`}>
               <Card className={`h-full cursor-pointer border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
                 <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
                 <CardContent className="p-6">
-                  <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
+                  <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8 pr-8" : ""}`}>
                     <div className="flex gap-1 flex-wrap">
                       <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
                         {session.matchMode}
@@ -370,9 +375,6 @@ export default function Sessions() {
                         ) : (
                           <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
                         )
-                      )}
-                      {managedClubIds.has(session.clubId) && (
-                        <EditSessionDialog session={session} venues={[]} />
                       )}
                       <Button size="sm" variant="outline">
                         Details
