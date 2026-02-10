@@ -26,7 +26,8 @@ import {
   X,
   User,
   Zap,
-  Shield
+  Shield,
+  CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,6 +73,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
   }
 
+  navItems.push({ href: "/memberships", label: "Memberships", icon: CreditCard });
   navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
 
 
@@ -89,6 +91,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail, section: "super-admin" });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3, section: "super-admin" });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "super-admin" });
+    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "super-admin" });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "admin" });
@@ -96,6 +99,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "admin" });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "admin" });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "admin" });
+    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "admin" });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "admin" });
   }
 
@@ -104,6 +108,7 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "club-admin" });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "club-admin" });
     navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "club-admin" });
+    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "club-admin" });
     navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "club-admin" });
   }
 

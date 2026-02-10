@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -5744,6 +5744,812 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating club:", err);
       res.status(500).json({ message: "Failed to update club" });
+    }
+  });
+
+  // === MEMBERSHIP & MERCHANDISE ENDPOINTS ===
+
+  function calculateProration(startDate: Date, membershipYearEnd?: Date): { factor: string; months: number } {
+    const yearEnd = membershipYearEnd || new Date(startDate.getMonth() >= 8 ? startDate.getFullYear() + 1 : startDate.getFullYear(), 7, 31);
+    let months = 0;
+    const d = new Date(startDate);
+    while (d < yearEnd) {
+      d.setMonth(d.getMonth() + 1);
+      if (d <= yearEnd) months++;
+    }
+    if (months === 0 && startDate < yearEnd) months = 1;
+    const factor = Math.min(1, months / 12);
+    return { factor: factor.toFixed(4), months };
+  }
+
+  // 1. GET /api/clubs/:clubId/membership-plans
+  app.get("/api/clubs/:clubId/membership-plans", async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      const plans = await db.select().from(membershipPlans).where(and(eq(membershipPlans.clubId, clubId), eq(membershipPlans.isActive, true)));
+      res.json(plans);
+    } catch (err: any) {
+      console.error("Error fetching membership plans:", err);
+      res.status(500).json({ message: "Failed to fetch membership plans" });
+    }
+  });
+
+  // 2. POST /api/clubs/:clubId/membership-plans
+  app.post("/api/clubs/:clubId/membership-plans", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1),
+        annualPrice: z.number().int().min(0),
+        defaultSessionFee: z.number().int().min(0),
+        isDefault: z.boolean().optional().default(false),
+      }).parse(req.body);
+
+      if (body.isDefault) {
+        await db.update(membershipPlans).set({ isDefault: false }).where(and(eq(membershipPlans.clubId, clubId), eq(membershipPlans.isDefault, true)));
+      }
+
+      const [plan] = await db.insert(membershipPlans).values({
+        clubId,
+        name: body.name,
+        annualPrice: body.annualPrice,
+        defaultSessionFee: body.defaultSessionFee,
+        isDefault: body.isDefault,
+      }).returning();
+      res.status(201).json(plan);
+    } catch (err: any) {
+      console.error("Error creating membership plan:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create membership plan" });
+    }
+  });
+
+  // 3. PATCH /api/membership-plans/:id
+  app.patch("/api/membership-plans/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const planId = Number(req.params.id);
+      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, planId));
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", plan.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1).optional(),
+        annualPrice: z.number().int().min(0).optional(),
+        defaultSessionFee: z.number().int().min(0).optional(),
+        isDefault: z.boolean().optional(),
+      }).parse(req.body);
+
+      if (body.isDefault) {
+        await db.update(membershipPlans).set({ isDefault: false }).where(and(eq(membershipPlans.clubId, plan.clubId), eq(membershipPlans.isDefault, true)));
+      }
+
+      const [updated] = await db.update(membershipPlans).set(body).where(eq(membershipPlans.id, planId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating membership plan:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update membership plan" });
+    }
+  });
+
+  // 4. DELETE /api/membership-plans/:id
+  app.delete("/api/membership-plans/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const planId = Number(req.params.id);
+      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, planId));
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", plan.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [updated] = await db.update(membershipPlans).set({ isActive: false }).where(eq(membershipPlans.id, planId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error deleting membership plan:", err);
+      res.status(500).json({ message: "Failed to delete membership plan" });
+    }
+  });
+
+  // 5. POST /api/membership-requests
+  app.post("/api/membership-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        clubId: z.number().int(),
+        planId: z.number().int(),
+      }).parse(req.body);
+
+      const existingActive = await db.select().from(clubMemberships).where(and(
+        eq(clubMemberships.userId, req.user!.id),
+        eq(clubMemberships.clubId, body.clubId),
+        eq(clubMemberships.status, "ACTIVE")
+      ));
+      if (existingActive.length > 0) return res.status(400).json({ message: "You already have an active membership for this club" });
+
+      const existingPending = await db.select().from(membershipRequests).where(and(
+        eq(membershipRequests.userId, req.user!.id),
+        eq(membershipRequests.clubId, body.clubId),
+        eq(membershipRequests.status, "PENDING")
+      ));
+      if (existingPending.length > 0) return res.status(400).json({ message: "You already have a pending membership request for this club" });
+
+      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, body.planId));
+      if (!plan) return res.status(404).json({ message: "Membership plan not found" });
+
+      const proration = calculateProration(new Date());
+      const proratedPrice = Math.round(plan.annualPrice * parseFloat(proration.factor));
+
+      const [request] = await db.insert(membershipRequests).values({
+        userId: req.user!.id,
+        clubId: body.clubId,
+        planId: body.planId,
+        status: "PENDING",
+        proratedPrice,
+        prorationFactor: proration.factor,
+      }).returning();
+
+      const admins = await db.select().from(playerProfiles).where(and(
+        eq(playerProfiles.clubId, body.clubId),
+        eq(playerProfiles.membershipStatus, "APPROVED"),
+        or(eq(playerProfiles.clubRole, "OWNER"), eq(playerProfiles.clubRole, "ADMIN"))
+      ));
+      for (const admin of admins) {
+        await db.insert(notifications).values({
+          userId: admin.userId,
+          type: "MEMBERSHIP_REQUEST",
+          title: "New Membership Request",
+          message: `${req.user!.fullName} has requested membership.`,
+          linkUrl: `/admin/memberships`,
+        });
+      }
+
+      res.status(201).json(request);
+    } catch (err: any) {
+      console.error("Error creating membership request:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create membership request" });
+    }
+  });
+
+  // 6. GET /api/my-membership-requests
+  app.get("/api/my-membership-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requests = await db.select().from(membershipRequests).where(eq(membershipRequests.userId, req.user!.id)).orderBy(desc(membershipRequests.createdAt));
+      res.json(requests);
+    } catch (err: any) {
+      console.error("Error fetching membership requests:", err);
+      res.status(500).json({ message: "Failed to fetch membership requests" });
+    }
+  });
+
+  // 7. GET /api/clubs/:clubId/membership-requests
+  app.get("/api/clubs/:clubId/membership-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const requests = await db.select({
+        id: membershipRequests.id,
+        userId: membershipRequests.userId,
+        clubId: membershipRequests.clubId,
+        planId: membershipRequests.planId,
+        status: membershipRequests.status,
+        rejectionReason: membershipRequests.rejectionReason,
+        approvedById: membershipRequests.approvedById,
+        approvedAt: membershipRequests.approvedAt,
+        requestedStartDate: membershipRequests.requestedStartDate,
+        requestedEndDate: membershipRequests.requestedEndDate,
+        proratedPrice: membershipRequests.proratedPrice,
+        prorationFactor: membershipRequests.prorationFactor,
+        createdAt: membershipRequests.createdAt,
+        fullName: users.fullName,
+        email: users.email,
+      }).from(membershipRequests)
+        .leftJoin(users, eq(membershipRequests.userId, users.id))
+        .where(eq(membershipRequests.clubId, clubId))
+        .orderBy(desc(membershipRequests.createdAt));
+
+      res.json(requests);
+    } catch (err: any) {
+      console.error("Error fetching club membership requests:", err);
+      res.status(500).json({ message: "Failed to fetch membership requests" });
+    }
+  });
+
+  // 8. PATCH /api/membership-requests/:id/approve
+  app.patch("/api/membership-requests/:id/approve", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const [request] = await db.select().from(membershipRequests).where(eq(membershipRequests.id, requestId));
+      if (!request) return res.status(404).json({ message: "Request not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", request.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const existingActive = await db.select().from(clubMemberships).where(and(
+        eq(clubMemberships.userId, request.userId),
+        eq(clubMemberships.clubId, request.clubId),
+        eq(clubMemberships.status, "ACTIVE"),
+      ));
+      if (existingActive.length > 0) {
+        return res.status(400).json({ message: "User already has an active membership for this club" });
+      }
+
+      const body = z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+      }).parse(req.body);
+
+      const start = new Date(body.startDate);
+      const end = new Date(body.endDate);
+      const totalDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+      const proration = calculateProration(start, end);
+
+      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, request.planId));
+      const proratedPrice = plan ? Math.round(plan.annualPrice * parseFloat(proration.factor)) : request.proratedPrice || 0;
+
+      const [membership] = await db.insert(clubMemberships).values({
+        userId: request.userId,
+        clubId: request.clubId,
+        planId: request.planId,
+        startDate: start,
+        endDate: end,
+        totalDays,
+        status: "PENDING",
+        proratedPrice,
+        prorationFactor: proration.factor,
+      }).returning();
+
+      await db.update(membershipRequests).set({
+        status: "APPROVED",
+        approvedById: req.user!.id,
+        approvedAt: new Date(),
+        requestedStartDate: start,
+        requestedEndDate: end,
+        proratedPrice,
+        prorationFactor: proration.factor,
+      }).where(eq(membershipRequests.id, requestId));
+
+      await db.insert(notifications).values({
+        userId: request.userId,
+        type: "MEMBERSHIP_APPROVED",
+        title: "Membership Request Approved",
+        message: `Your membership request has been approved. Please complete payment to activate.`,
+        linkUrl: `/my-memberships`,
+      });
+
+      res.json(membership);
+    } catch (err: any) {
+      console.error("Error approving membership request:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to approve membership request" });
+    }
+  });
+
+  // 9. PATCH /api/membership-requests/:id/reject
+  app.patch("/api/membership-requests/:id/reject", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const [request] = await db.select().from(membershipRequests).where(eq(membershipRequests.id, requestId));
+      if (!request) return res.status(404).json({ message: "Request not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", request.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        reason: z.string().optional(),
+      }).parse(req.body);
+
+      await db.update(membershipRequests).set({
+        status: "REJECTED",
+        rejectionReason: body.reason || null,
+      }).where(eq(membershipRequests.id, requestId));
+
+      await db.insert(notifications).values({
+        userId: request.userId,
+        type: "MEMBERSHIP_REJECTED",
+        title: "Membership Request Rejected",
+        message: body.reason ? `Your membership request was rejected: ${body.reason}` : "Your membership request was rejected.",
+        linkUrl: `/my-memberships`,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error rejecting membership request:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to reject membership request" });
+    }
+  });
+
+  // 10. GET /api/my-memberships
+  app.get("/api/my-memberships", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const memberships = await db.select({
+        id: clubMemberships.id,
+        userId: clubMemberships.userId,
+        clubId: clubMemberships.clubId,
+        planId: clubMemberships.planId,
+        startDate: clubMemberships.startDate,
+        endDate: clubMemberships.endDate,
+        totalDays: clubMemberships.totalDays,
+        status: clubMemberships.status,
+        proratedPrice: clubMemberships.proratedPrice,
+        prorationFactor: clubMemberships.prorationFactor,
+        paymentConfirmed: clubMemberships.paymentConfirmed,
+        cancelledAt: clubMemberships.cancelledAt,
+        cancelReason: clubMemberships.cancelReason,
+        createdAt: clubMemberships.createdAt,
+        planName: membershipPlans.name,
+        planAnnualPrice: membershipPlans.annualPrice,
+        planDefaultSessionFee: membershipPlans.defaultSessionFee,
+        clubName: clubs.name,
+      }).from(clubMemberships)
+        .leftJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .leftJoin(clubs, eq(clubMemberships.clubId, clubs.id))
+        .where(eq(clubMemberships.userId, req.user!.id))
+        .orderBy(desc(clubMemberships.createdAt));
+
+      res.json(memberships);
+    } catch (err: any) {
+      console.error("Error fetching user memberships:", err);
+      res.status(500).json({ message: "Failed to fetch memberships" });
+    }
+  });
+
+  // 11. GET /api/clubs/:clubId/memberships
+  app.get("/api/clubs/:clubId/memberships", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const statusFilter = req.query.status as string | undefined;
+      const searchFilter = req.query.search as string | undefined;
+
+      let query = db.select({
+        id: clubMemberships.id,
+        userId: clubMemberships.userId,
+        clubId: clubMemberships.clubId,
+        planId: clubMemberships.planId,
+        startDate: clubMemberships.startDate,
+        endDate: clubMemberships.endDate,
+        totalDays: clubMemberships.totalDays,
+        status: clubMemberships.status,
+        proratedPrice: clubMemberships.proratedPrice,
+        prorationFactor: clubMemberships.prorationFactor,
+        paymentConfirmed: clubMemberships.paymentConfirmed,
+        cancelledAt: clubMemberships.cancelledAt,
+        cancelReason: clubMemberships.cancelReason,
+        createdAt: clubMemberships.createdAt,
+        fullName: users.fullName,
+        email: users.email,
+        planName: membershipPlans.name,
+        planAnnualPrice: membershipPlans.annualPrice,
+      }).from(clubMemberships)
+        .leftJoin(users, eq(clubMemberships.userId, users.id))
+        .leftJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .$dynamic();
+
+      const conditions: any[] = [eq(clubMemberships.clubId, clubId)];
+      if (statusFilter) conditions.push(eq(clubMemberships.status, statusFilter as any));
+      if (searchFilter) conditions.push(ilike(users.fullName, `%${searchFilter}%`));
+
+      query = query.where(and(...conditions)).orderBy(desc(clubMemberships.createdAt));
+
+      const results = await query;
+      res.json(results);
+    } catch (err: any) {
+      console.error("Error fetching club memberships:", err);
+      res.status(500).json({ message: "Failed to fetch memberships" });
+    }
+  });
+
+  // 12. PATCH /api/club-memberships/:id/activate
+  app.patch("/api/club-memberships/:id/activate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membershipId = Number(req.params.id);
+      const [membership] = await db.select().from(clubMemberships).where(eq(clubMemberships.id, membershipId));
+      if (!membership) return res.status(404).json({ message: "Membership not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", membership.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const existingActive = await db.select().from(clubMemberships).where(and(
+        eq(clubMemberships.userId, membership.userId),
+        eq(clubMemberships.clubId, membership.clubId),
+        eq(clubMemberships.status, "ACTIVE"),
+      ));
+      const otherActive = existingActive.filter(m => m.id !== membershipId);
+      if (otherActive.length > 0) {
+        return res.status(400).json({ message: "User already has an active membership for this club. Cancel the existing one first." });
+      }
+
+      const [updated] = await db.update(clubMemberships).set({
+        status: "ACTIVE",
+        paymentConfirmed: true,
+      }).where(eq(clubMemberships.id, membershipId)).returning();
+
+      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, membership.planId));
+      const amount = membership.proratedPrice || (plan ? plan.annualPrice : 0);
+
+      await db.insert(creditLedger).values({
+        userId: membership.userId,
+        clubId: membership.clubId,
+        amount: -amount,
+        reason: "Membership payment - " + (plan?.name || "membership"),
+        createdById: req.user!.id,
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error activating membership:", err);
+      res.status(500).json({ message: "Failed to activate membership" });
+    }
+  });
+
+  // 13. PATCH /api/club-memberships/:id/cancel
+  app.patch("/api/club-memberships/:id/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membershipId = Number(req.params.id);
+      const [membership] = await db.select().from(clubMemberships).where(eq(clubMemberships.id, membershipId));
+      if (!membership) return res.status(404).json({ message: "Membership not found" });
+
+      const isOwn = membership.userId === req.user!.id;
+      const allowed = isOwn || await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", membership.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        reason: z.string().optional(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(clubMemberships).set({
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        cancelReason: body.reason || null,
+      }).where(eq(clubMemberships.id, membershipId)).returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error cancelling membership:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to cancel membership" });
+    }
+  });
+
+  // 14. PATCH /api/club-memberships/:id/dates
+  app.patch("/api/club-memberships/:id/dates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membershipId = Number(req.params.id);
+      const [membership] = await db.select().from(clubMemberships).where(eq(clubMemberships.id, membershipId));
+      if (!membership) return res.status(404).json({ message: "Membership not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", membership.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+      }).parse(req.body);
+
+      const start = new Date(body.startDate);
+      const end = new Date(body.endDate);
+      const totalDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+
+      const [updated] = await db.update(clubMemberships).set({
+        startDate: start,
+        endDate: end,
+        totalDays,
+      }).where(eq(clubMemberships.id, membershipId)).returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating membership dates:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update membership dates" });
+    }
+  });
+
+  // 15. POST /api/clubs/:clubId/memberships/bulk-action
+  app.post("/api/clubs/:clubId/memberships/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        membershipIds: z.array(z.number().int()),
+        action: z.enum(["cancel", "delete"]),
+      }).parse(req.body);
+
+      if (body.action === "cancel") {
+        await db.update(clubMemberships).set({
+          status: "CANCELLED",
+          cancelledAt: new Date(),
+        }).where(and(
+          inArray(clubMemberships.id, body.membershipIds),
+          eq(clubMemberships.clubId, clubId)
+        ));
+        res.json({ success: true, action: "cancel", count: body.membershipIds.length });
+      } else if (body.action === "delete") {
+        if (!isSuperAdmin(req.user!)) return res.status(403).json({ message: "Only OWNER can delete memberships" });
+        await db.delete(clubMemberships).where(and(
+          inArray(clubMemberships.id, body.membershipIds),
+          eq(clubMemberships.clubId, clubId)
+        ));
+        res.json({ success: true, action: "delete", count: body.membershipIds.length });
+      } else {
+        res.status(400).json({ message: "Invalid action" });
+      }
+    } catch (err: any) {
+      console.error("Error bulk action memberships:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to perform bulk action" });
+    }
+  });
+
+  // 16. GET /api/clubs/:clubId/merchandise
+  app.get("/api/clubs/:clubId/merchandise", async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      const items = await db.select().from(merchandise).where(and(eq(merchandise.clubId, clubId), eq(merchandise.isActive, true)));
+      res.json(items);
+    } catch (err: any) {
+      console.error("Error fetching merchandise:", err);
+      res.status(500).json({ message: "Failed to fetch merchandise" });
+    }
+  });
+
+  // 17. POST /api/clubs/:clubId/merchandise
+  app.post("/api/clubs/:clubId/merchandise", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1),
+        price: z.number().int().min(0),
+        includedInMembership: z.boolean().optional().default(false),
+        sizes: z.array(z.string()).optional(),
+      }).parse(req.body);
+
+      const [item] = await db.insert(merchandise).values({
+        clubId,
+        name: body.name,
+        price: body.price,
+        includedInMembership: body.includedInMembership,
+        sizes: body.sizes || null,
+      }).returning();
+      res.status(201).json(item);
+    } catch (err: any) {
+      console.error("Error creating merchandise:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create merchandise" });
+    }
+  });
+
+  // 18. PATCH /api/merchandise/:id
+  app.patch("/api/merchandise/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(merchandise).where(eq(merchandise.id, itemId));
+      if (!item) return res.status(404).json({ message: "Merchandise not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        name: z.string().min(1).optional(),
+        price: z.number().int().min(0).optional(),
+        includedInMembership: z.boolean().optional(),
+        sizes: z.array(z.string()).optional(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(merchandise).set(body).where(eq(merchandise.id, itemId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating merchandise:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update merchandise" });
+    }
+  });
+
+  // 19. DELETE /api/merchandise/:id
+  app.delete("/api/merchandise/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(merchandise).where(eq(merchandise.id, itemId));
+      if (!item) return res.status(404).json({ message: "Merchandise not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [updated] = await db.update(merchandise).set({ isActive: false }).where(eq(merchandise.id, itemId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error deleting merchandise:", err);
+      res.status(500).json({ message: "Failed to delete merchandise" });
+    }
+  });
+
+  // 20. POST /api/merchandise-orders
+  app.post("/api/merchandise-orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        merchandiseId: z.number().int(),
+        size: z.string().optional(),
+        quantity: z.number().int().min(1).default(1),
+        clubId: z.number().int(),
+      }).parse(req.body);
+
+      const [item] = await db.select().from(merchandise).where(eq(merchandise.id, body.merchandiseId));
+      if (!item) return res.status(404).json({ message: "Merchandise not found" });
+
+      let totalPrice = item.price * body.quantity;
+      let membershipId: number | null = null;
+
+      if (item.includedInMembership) {
+        const activeMembership = await db.select().from(clubMemberships).where(and(
+          eq(clubMemberships.userId, req.user!.id),
+          eq(clubMemberships.clubId, body.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ));
+        if (activeMembership.length > 0) {
+          totalPrice = 0;
+          membershipId = activeMembership[0].id;
+        }
+      }
+
+      const [order] = await db.insert(merchandiseOrders).values({
+        userId: req.user!.id,
+        clubId: body.clubId,
+        merchandiseId: body.merchandiseId,
+        size: body.size || null,
+        quantity: body.quantity,
+        totalPrice,
+        membershipId,
+      }).returning();
+      res.status(201).json(order);
+    } catch (err: any) {
+      console.error("Error creating merchandise order:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to create merchandise order" });
+    }
+  });
+
+  // 21. GET /api/my-merchandise-orders
+  app.get("/api/my-merchandise-orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const orders = await db.select({
+        id: merchandiseOrders.id,
+        userId: merchandiseOrders.userId,
+        clubId: merchandiseOrders.clubId,
+        merchandiseId: merchandiseOrders.merchandiseId,
+        size: merchandiseOrders.size,
+        quantity: merchandiseOrders.quantity,
+        totalPrice: merchandiseOrders.totalPrice,
+        status: merchandiseOrders.status,
+        membershipId: merchandiseOrders.membershipId,
+        createdAt: merchandiseOrders.createdAt,
+        itemName: merchandise.name,
+      }).from(merchandiseOrders)
+        .leftJoin(merchandise, eq(merchandiseOrders.merchandiseId, merchandise.id))
+        .where(eq(merchandiseOrders.userId, req.user!.id))
+        .orderBy(desc(merchandiseOrders.createdAt));
+
+      res.json(orders);
+    } catch (err: any) {
+      console.error("Error fetching merchandise orders:", err);
+      res.status(500).json({ message: "Failed to fetch merchandise orders" });
+    }
+  });
+
+  // 22. GET /api/clubs/:clubId/merchandise-orders
+  app.get("/api/clubs/:clubId/merchandise-orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const orders = await db.select({
+        id: merchandiseOrders.id,
+        userId: merchandiseOrders.userId,
+        clubId: merchandiseOrders.clubId,
+        merchandiseId: merchandiseOrders.merchandiseId,
+        size: merchandiseOrders.size,
+        quantity: merchandiseOrders.quantity,
+        totalPrice: merchandiseOrders.totalPrice,
+        status: merchandiseOrders.status,
+        membershipId: merchandiseOrders.membershipId,
+        createdAt: merchandiseOrders.createdAt,
+        itemName: merchandise.name,
+        fullName: users.fullName,
+        email: users.email,
+      }).from(merchandiseOrders)
+        .leftJoin(merchandise, eq(merchandiseOrders.merchandiseId, merchandise.id))
+        .leftJoin(users, eq(merchandiseOrders.userId, users.id))
+        .where(eq(merchandiseOrders.clubId, clubId))
+        .orderBy(desc(merchandiseOrders.createdAt));
+
+      res.json(orders);
+    } catch (err: any) {
+      console.error("Error fetching club merchandise orders:", err);
+      res.status(500).json({ message: "Failed to fetch merchandise orders" });
+    }
+  });
+
+  // 23. GET /api/session-fee/:sessionId/:userId
+  app.get("/api/session-fee/:sessionId/:userId", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const userId = Number(req.params.userId);
+
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, session.clubId));
+
+      let fee: number = 0;
+      let source: "membership" | "session" | "club" = "club";
+
+      const activeMembership = await db.select({
+        id: clubMemberships.id,
+        defaultSessionFee: membershipPlans.defaultSessionFee,
+      }).from(clubMemberships)
+        .leftJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .where(and(
+          eq(clubMemberships.userId, userId),
+          eq(clubMemberships.clubId, session.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ));
+
+      if (activeMembership.length > 0 && activeMembership[0].defaultSessionFee !== null) {
+        fee = activeMembership[0].defaultSessionFee;
+        source = "membership";
+      } else if (session.sessionFee !== null && session.sessionFee !== undefined) {
+        fee = session.sessionFee;
+        source = "session";
+      } else if (club && club.sessionFee !== null) {
+        fee = club.sessionFee;
+        source = "club";
+      }
+
+      const creditResult = await db.select({ total: sum(creditLedger.amount) }).from(creditLedger).where(and(
+        eq(creditLedger.userId, userId),
+        eq(creditLedger.clubId, session.clubId)
+      ));
+      const creditBalance = Number(creditResult[0]?.total || 0);
+      const netPayable = Math.max(0, fee - creditBalance);
+
+      res.json({ fee, source, creditBalance, netPayable });
+    } catch (err: any) {
+      console.error("Error resolving session fee:", err);
+      res.status(500).json({ message: "Failed to resolve session fee" });
     }
   });
 

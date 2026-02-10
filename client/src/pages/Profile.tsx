@@ -12,7 +12,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import {
@@ -73,6 +73,11 @@ export default function Profile() {
   });
 
   const [showFullHistory, setShowFullHistory] = useState(false);
+
+  const { data: clubMemberships } = useQuery<any[]>({
+    queryKey: ["/api/my-memberships"],
+    enabled: !!user,
+  });
 
   const profile = profiles?.[0];
 
@@ -309,6 +314,48 @@ export default function Profile() {
                   </Badge>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {clubMemberships && clubMemberships.filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").length > 0 && (
+        <Card data-testid="card-membership-expiry">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Active Memberships
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {clubMemberships!
+                .filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING")
+                .map((m: any) => {
+                  const daysRemaining = Math.ceil((new Date(m.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const colorClass = daysRemaining <= 0 ? "text-muted-foreground" : daysRemaining < 30 ? "text-red-600" : daysRemaining <= 60 ? "text-amber-500" : "text-green-600";
+                  return (
+                    <div key={m.id} className="flex items-center justify-between gap-4 py-2" data-testid={`membership-expiry-${m.id}`}>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{m.clubName}</span>
+                        <span className="text-sm text-muted-foreground">{m.planName}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${colorClass}`} data-testid={`text-days-remaining-${m.id}`}>
+                          {daysRemaining <= 0 ? "EXPIRED" : `${daysRemaining} days`}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          expires {format(new Date(m.endDate), "MMM d, yyyy")}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            <div className="mt-3">
+              <Link href="/memberships">
+                <Button variant="outline" size="sm" data-testid="button-view-memberships">View All Memberships</Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

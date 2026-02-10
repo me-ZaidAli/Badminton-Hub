@@ -48,6 +48,8 @@ import SuperAdminSessions from "@/pages/super-admin/SuperAdminSessions";
 
 import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
+import MembershipBoard from "@/pages/admin/MembershipBoard";
+import Memberships from "@/pages/Memberships";
 import Announcements from "@/pages/admin/Announcements";
 import CalendarImport from "@/pages/admin/CalendarImport";
 import MemberImport from "@/pages/admin/MemberImport";
@@ -299,6 +301,9 @@ function Router() {
       <Route path="/profile">
         <PrivateRoute component={Profile} />
       </Route>
+      <Route path="/memberships">
+        <PrivateRoute component={Memberships} />
+      </Route>
 
       {/* Admin Routes */}
       <Route path="/admin">
@@ -315,6 +320,9 @@ function Router() {
       </Route>
       <Route path="/admin/financials">
         <AdminRoute component={Financials} />
+      </Route>
+      <Route path="/admin/membership-board">
+        <AdminRoute component={MembershipBoard} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={Announcements} />

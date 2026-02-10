@@ -28,6 +28,9 @@ export const tournamentStatusEnum = pgEnum("tournament_status", ["DRAFT", "PUBLI
 export const tournamentTypeEnum = pgEnum("tournament_type", ["CLUB", "OPEN", "LEAGUE", "FRIENDLY"]);
 export const tournamentFormatEnum = pgEnum("tournament_format", ["ROUND_ROBIN", "KNOCKOUT", "GROUP_KNOCKOUT"]);
 export const tournamentMatchStatusEnum = pgEnum("tournament_match_status", ["UPCOMING", "LIVE", "FINISHED"]);
+export const clubMembershipStatusEnum = pgEnum("club_membership_status", ["PENDING", "ACTIVE", "EXPIRING", "EXPIRED", "CANCELLED"]);
+export const membershipRequestStatusEnum = pgEnum("membership_request_status", ["PENDING", "APPROVED", "REJECTED"]);
+export const merchOrderStatusEnum = pgEnum("merch_order_status", ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -102,14 +105,81 @@ export const clubs = pgTable("clubs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// === MEMBERSHIPS ===
-export const memberships = pgTable("memberships", {
+// === MEMBERSHIP PLANS (replaces old memberships table) ===
+export const membershipPlans = pgTable("membership_plans", {
   id: serial("id").primaryKey(),
-  clubId: integer("club_id").references(() => clubs.id), // Optional: link to club
-  name: text("name").notNull(), // e.g., "Annual", "Drop-in", "Monthly"
-  sessionRate: integer("session_rate").notNull(), // in cents
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  annualPrice: integer("annual_price").notNull(),
+  defaultSessionFee: integer("default_session_fee").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// === CLUB MEMBERSHIPS (per-user-per-club active membership) ===
+export const clubMemberships = pgTable("club_memberships", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  planId: integer("plan_id").references(() => membershipPlans.id).notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  totalDays: integer("total_days").notNull(),
+  status: clubMembershipStatusEnum("status").default("PENDING").notNull(),
+  proratedPrice: integer("prorated_price"),
+  prorationFactor: text("proration_factor"),
+  paymentConfirmed: boolean("payment_confirmed").default(false).notNull(),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelReason: text("cancel_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === MEMBERSHIP REQUESTS ===
+export const membershipRequests = pgTable("membership_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  planId: integer("plan_id").references(() => membershipPlans.id).notNull(),
+  status: membershipRequestStatusEnum("status").default("PENDING").notNull(),
+  rejectionReason: text("rejection_reason"),
+  approvedById: integer("approved_by_id").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  requestedStartDate: timestamp("requested_start_date"),
+  requestedEndDate: timestamp("requested_end_date"),
+  proratedPrice: integer("prorated_price"),
+  prorationFactor: text("proration_factor"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === MERCHANDISE ===
+export const merchandise = pgTable("merchandise", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  price: integer("price").notNull(),
+  includedInMembership: boolean("included_in_membership").default(false).notNull(),
+  sizes: jsonb("sizes").$type<string[]>(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === MERCHANDISE ORDERS ===
+export const merchandiseOrders = pgTable("merchandise_orders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  merchandiseId: integer("merchandise_id").references(() => merchandise.id).notNull(),
+  size: text("size"),
+  quantity: integer("quantity").default(1).notNull(),
+  totalPrice: integer("total_price").notNull(),
+  status: merchOrderStatusEnum("status").default("PENDING").notNull(),
+  membershipId: integer("membership_id").references(() => clubMemberships.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Legacy alias for backward compatibility
+export const memberships = membershipPlans;
 
 // === PLAYER PROFILES ===
 // Each user can have one profile per club
@@ -125,7 +195,7 @@ export const playerProfiles = pgTable("player_profiles", {
   rankingPoints: integer("ranking_points").default(0).notNull(),
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
-  membershipId: integer("membership_id").references(() => memberships.id),
+  membershipId: integer("membership_id").references(() => membershipPlans.id),
 });
 
 // === VENUES ===
@@ -431,11 +501,16 @@ export const policyAcceptances = pgTable("policy_acceptances", {
 export const clubsRelations = relations(clubs, ({ many }) => ({
   playerProfiles: many(playerProfiles),
   sessions: many(sessions),
-  memberships: many(memberships),
+  membershipPlans: many(membershipPlans),
+  clubMemberships: many(clubMemberships),
+  merchandise: many(merchandise),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
-  playerProfiles: many(playerProfiles), // User can have profiles in multiple clubs
+  playerProfiles: many(playerProfiles),
+  clubMemberships: many(clubMemberships),
+  membershipRequests: many(membershipRequests),
+  merchandiseOrders: many(merchandiseOrders),
 }));
 
 export const playerProfilesRelations = relations(playerProfiles, ({ one, many }) => ({
@@ -447,11 +522,41 @@ export const playerProfilesRelations = relations(playerProfiles, ({ one, many })
     fields: [playerProfiles.clubId],
     references: [clubs.id],
   }),
-  membership: one(memberships, {
+  membershipPlan: one(membershipPlans, {
     fields: [playerProfiles.membershipId],
-    references: [memberships.id],
+    references: [membershipPlans.id],
   }),
   signups: many(sessionSignups),
+}));
+
+export const membershipPlansRelations = relations(membershipPlans, ({ one, many }) => ({
+  club: one(clubs, { fields: [membershipPlans.clubId], references: [clubs.id] }),
+  clubMemberships: many(clubMemberships),
+}));
+
+export const clubMembershipsRelations = relations(clubMemberships, ({ one }) => ({
+  user: one(users, { fields: [clubMemberships.userId], references: [users.id] }),
+  club: one(clubs, { fields: [clubMemberships.clubId], references: [clubs.id] }),
+  plan: one(membershipPlans, { fields: [clubMemberships.planId], references: [membershipPlans.id] }),
+}));
+
+export const membershipRequestsRelations = relations(membershipRequests, ({ one }) => ({
+  user: one(users, { fields: [membershipRequests.userId], references: [users.id], relationName: "membershipRequestUser" }),
+  club: one(clubs, { fields: [membershipRequests.clubId], references: [clubs.id] }),
+  plan: one(membershipPlans, { fields: [membershipRequests.planId], references: [membershipPlans.id] }),
+  approvedBy: one(users, { fields: [membershipRequests.approvedById], references: [users.id], relationName: "membershipRequestApprover" }),
+}));
+
+export const merchandiseRelations = relations(merchandise, ({ one, many }) => ({
+  club: one(clubs, { fields: [merchandise.clubId], references: [clubs.id] }),
+  orders: many(merchandiseOrders),
+}));
+
+export const merchandiseOrdersRelations = relations(merchandiseOrders, ({ one }) => ({
+  user: one(users, { fields: [merchandiseOrders.userId], references: [users.id] }),
+  club: one(clubs, { fields: [merchandiseOrders.clubId], references: [clubs.id] }),
+  item: one(merchandise, { fields: [merchandiseOrders.merchandiseId], references: [merchandise.id] }),
+  membership: one(clubMemberships, { fields: [merchandiseOrders.membershipId], references: [clubMemberships.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -550,6 +655,14 @@ export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches)
 
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
 export const insertCreditLedgerSchema = createInsertSchema(creditLedger).omit({ id: true, createdAt: true });
+export const insertMembershipPlanSchema = createInsertSchema(membershipPlans).omit({ id: true, createdAt: true });
+export const insertClubMembershipSchema = createInsertSchema(clubMemberships).omit({ id: true, createdAt: true }).extend({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+});
+export const insertMembershipRequestSchema = createInsertSchema(membershipRequests).omit({ id: true, createdAt: true });
+export const insertMerchandiseSchema = createInsertSchema(merchandise).omit({ id: true, createdAt: true });
+export const insertMerchandiseOrderSchema = createInsertSchema(merchandiseOrders).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 export type User = typeof users.$inferSelect;
@@ -579,6 +692,16 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
 export type CreditLedgerEntry = typeof creditLedger.$inferSelect;
 export type InsertCreditLedgerEntry = z.infer<typeof insertCreditLedgerSchema>;
+export type MembershipPlan = typeof membershipPlans.$inferSelect;
+export type InsertMembershipPlan = z.infer<typeof insertMembershipPlanSchema>;
+export type ClubMembership = typeof clubMemberships.$inferSelect;
+export type InsertClubMembership = z.infer<typeof insertClubMembershipSchema>;
+export type MembershipRequest = typeof membershipRequests.$inferSelect;
+export type InsertMembershipRequest = z.infer<typeof insertMembershipRequestSchema>;
+export type Merchandise = typeof merchandise.$inferSelect;
+export type InsertMerchandise = z.infer<typeof insertMerchandiseSchema>;
+export type MerchandiseOrder = typeof merchandiseOrders.$inferSelect;
+export type InsertMerchandiseOrder = z.infer<typeof insertMerchandiseOrderSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;

@@ -10,7 +10,8 @@ export type RBACAction =
   | "MANAGE_TOURNAMENTS"
   | "VIEW_ADMIN_PANEL"
   | "MANAGE_VENUES"
-  | "MANAGE_CREDITS";
+  | "MANAGE_CREDITS"
+  | "MANAGE_MEMBERSHIPS";
 
 interface RBACUser {
   id: number;
@@ -55,6 +56,7 @@ export async function canPerform(user: RBACUser, action: RBACAction, clubId?: nu
       return ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubRole);
 
     case "MANAGE_CREDITS":
+    case "MANAGE_MEMBERSHIPS":
       return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "EDIT_SESSIONS":
