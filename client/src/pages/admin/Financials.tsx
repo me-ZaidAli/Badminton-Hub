@@ -34,6 +34,7 @@ import {
   TrendingUp,
   TrendingDown,
   Package,
+  Trash2,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -148,6 +149,11 @@ export default function Financials() {
     balance: number;
   } | null>(null);
   const [useCreditAmount, setUseCreditAmount] = useState("");
+
+  const [deleteSessionDialog, setDeleteSessionDialog] = useState<{
+    sessionId: number;
+    sessionTitle: string;
+  } | null>(null);
 
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -340,6 +346,20 @@ export default function Financials() {
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+    },
+  });
+
+  const deleteSession = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("DELETE", `/api/sessions/${sessionId}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/admin/financial-summary") || (q.queryKey[0] as string).startsWith("/api/admin/financial-dashboard")) });
+      toast({ title: "Session Deleted", description: "The session has been removed." });
+      setDeleteSessionDialog(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
     },
   });
 
@@ -1228,6 +1248,18 @@ export default function Financials() {
                             Unpaid: £{formatPounds(sessionUnpaid)}
                           </Badge>
                         )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteSessionDialog({ sessionId, sessionTitle: first.sessionTitle });
+                          }}
+                          data-testid={`button-delete-session-${sessionId}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -1827,6 +1859,35 @@ export default function Financials() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteSessionDialog} onOpenChange={(open) => { if (!open) setDeleteSessionDialog(null); }}>
+        <DialogContent data-testid="dialog-delete-session">
+          <DialogHeader>
+            <DialogTitle>Delete Session</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteSessionDialog?.sessionTitle}"? This will permanently remove the session and all associated signups, matches, and financial records. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteSessionDialog(null)} data-testid="button-cancel-delete-session">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteSessionDialog) {
+                  deleteSession.mutate(deleteSessionDialog.sessionId);
+                }
+              }}
+              disabled={deleteSession.isPending}
+              data-testid="button-confirm-delete-session"
+            >
+              {deleteSession.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete Session
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
