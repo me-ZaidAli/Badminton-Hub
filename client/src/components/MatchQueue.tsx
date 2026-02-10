@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -496,6 +496,10 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
   const [loserScore, setLoserScore] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [deleteMatch, setDeleteMatch] = useState<CourtMatch | null>(null);
+  const [editSetScores, setEditSetScores] = useState<{ scoreA: string; scoreB: string }[]>([]);
+  const [editSelectedSet, setEditSelectedSet] = useState<number | null>(null);
+  const [editSetScoreA, setEditSetScoreA] = useState("");
+  const [editSetScoreB, setEditSetScoreB] = useState("");
   const { mutate: editScore, isPending: isEditPending } = useEditMatchScore();
   const { mutate: enterPlayerScore, isPending: isPlayerScorePending } = usePlayerEnterScore();
   const { mutate: removeMatch, isPending: isDeletePending } = useDeleteMatch();
@@ -506,14 +510,38 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
 
   if (completedMatches.length === 0) return null;
 
+  const isMultiSet = (match: CourtMatch | null) => {
+    if (!match) return false;
+    return (match.numberOfSets || 1) > 1;
+  };
+
   const openScoreDialog = (match: CourtMatch, mode: "edit" | "player") => {
     setScoreMatch(match);
     setScoreMode(mode);
-    setFinishStep(1);
-    setWinner(null);
-    setWinnerScore("");
-    setLoserScore("");
     setShowSuccess(false);
+    setEditSelectedSet(null);
+    setEditSetScoreA("");
+    setEditSetScoreB("");
+
+    if (mode === "edit" && isMultiSet(match)) {
+      const existing = (match.setScores as { scoreA: number; scoreB: number }[]) || [];
+      const totalSets = match.numberOfSets || 1;
+      const scores: { scoreA: string; scoreB: string }[] = [];
+      for (let i = 0; i < totalSets; i++) {
+        if (i < existing.length) {
+          scores.push({ scoreA: String(existing[i].scoreA), scoreB: String(existing[i].scoreB) });
+        } else {
+          scores.push({ scoreA: "", scoreB: "" });
+        }
+      }
+      setEditSetScores(scores);
+      setFinishStep(1);
+    } else {
+      setFinishStep(1);
+      setWinner(null);
+      setWinnerScore("");
+      setLoserScore("");
+    }
   };
 
   const resetFinishFlow = () => {
@@ -532,8 +560,35 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
   const getWinnerLabel = () => scoreMatch ? (winner === "A" ? getTeamALabel(scoreMatch) : getTeamBLabel(scoreMatch)) : "";
   const getLoserLabel = () => scoreMatch ? (winner === "A" ? getTeamBLabel(scoreMatch) : getTeamALabel(scoreMatch)) : "";
 
+  const handleSetScoreSave = () => {
+    if (editSelectedSet === null || editSetScoreA === "" || editSetScoreB === "") return;
+    const updated = [...editSetScores];
+    updated[editSelectedSet] = { scoreA: editSetScoreA, scoreB: editSetScoreB };
+    setEditSetScores(updated);
+    setEditSelectedSet(null);
+    setEditSetScoreA("");
+    setEditSetScoreB("");
+  };
+
   const handleFinalConfirm = () => {
-    if (!scoreMatch || !winner || !winnerScore || !loserScore) return;
+    if (!scoreMatch) return;
+
+    if (scoreMode === "edit" && isMultiSet(scoreMatch)) {
+      const validSets = editSetScores.filter(s => s.scoreA !== "" && s.scoreB !== "");
+      if (validSets.length === 0) return;
+      const parsedSets = validSets.map(s => ({ scoreA: Number(s.scoreA), scoreB: Number(s.scoreB) }));
+      let totalA = 0, totalB = 0;
+      for (const s of parsedSets) { totalA += s.scoreA; totalB += s.scoreB; }
+      editScore({ matchId: scoreMatch.id, scoreA: totalA, scoreB: totalB, setScores: parsedSets }, {
+        onSuccess: () => {
+          setShowSuccess(true);
+          setTimeout(() => { setScoreMatch(null); setShowSuccess(false); }, 2000);
+        }
+      });
+      return;
+    }
+
+    if (!winner || !winnerScore || !loserScore) return;
     const wScore = Number(winnerScore);
     const lScore = Number(loserScore);
     const sA = winner === "A" ? wScore : lScore;
@@ -654,12 +709,14 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
         </CardContent>
       </Card>
 
-      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); resetFinishFlow(); setShowSuccess(false); } }}>
+      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); resetFinishFlow(); setShowSuccess(false); setEditSelectedSet(null); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {showSuccess
                 ? "Score Saved"
+                : scoreMatch && scoreMode === "edit" && isMultiSet(scoreMatch)
+                ? (editSelectedSet !== null ? `Edit Set ${editSelectedSet + 1}` : "Edit Set Scores")
                 : finishStep === 1
                 ? "Who won the match?"
                 : finishStep === 2
@@ -668,8 +725,11 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                 ? "Losing team score"
                 : "Confirm match result"}
             </DialogTitle>
-            {!showSuccess && scoreMode === "edit" && finishStep === 1 && (
+            {!showSuccess && scoreMode === "edit" && !(scoreMatch && isMultiSet(scoreMatch)) && finishStep === 1 && (
               <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
+            )}
+            {!showSuccess && scoreMode === "edit" && scoreMatch && isMultiSet(scoreMatch) && (
+              <DialogDescription>Select a set to amend its score</DialogDescription>
             )}
             {!showSuccess && scoreMode === "player" && finishStep === 1 && (
               <DialogDescription>You can enter the score once. If there is a dispute, contact an admin.</DialogDescription>
@@ -681,6 +741,93 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
               <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
               <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
             </div>
+          ) : scoreMatch && scoreMode === "edit" && isMultiSet(scoreMatch) ? (
+            editSelectedSet !== null ? (
+              <div className="space-y-4 py-4">
+                <div className="text-center text-sm text-muted-foreground mb-2">
+                  Enter scores for Set {editSelectedSet + 1}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 text-sm truncate">{getTeamALabel(scoreMatch)}</label>
+                    <Input type="number" min="0" max="99" value={editSetScoreA} onChange={(e) => setEditSetScoreA(e.target.value)} placeholder="Score" className="w-24 text-center text-lg" data-testid="edit-input-set-score-a" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 text-sm truncate">{getTeamBLabel(scoreMatch)}</label>
+                    <Input type="number" min="0" max="99" value={editSetScoreB} onChange={(e) => setEditSetScoreB(e.target.value)} placeholder="Score" className="w-24 text-center text-lg" data-testid="edit-input-set-score-b" />
+                  </div>
+                </div>
+                {editSetScoreA !== "" && editSetScoreB !== "" && editSetScoreA === editSetScoreB && (
+                  <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => { setEditSelectedSet(null); setEditSetScoreA(""); setEditSetScoreB(""); }} data-testid="edit-button-back-sets">
+                    <RotateCcw className="w-4 h-4" /> Back
+                  </Button>
+                  <Button className="flex-1 gap-2" disabled={editSetScoreA === "" || editSetScoreB === "" || editSetScoreA === editSetScoreB} onClick={handleSetScoreSave} data-testid="edit-button-save-set">
+                    <CheckCircle className="w-4 h-4" /> Save Set
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 py-4">
+                <div className="text-xs text-muted-foreground text-center mb-1">
+                  {getTeamALabel(scoreMatch)} vs {getTeamBLabel(scoreMatch)}
+                </div>
+                <div className="space-y-2">
+                  {editSetScores.map((s, i) => {
+                    const hasScore = s.scoreA !== "" && s.scoreB !== "";
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30 cursor-pointer hover-elevate"
+                        onClick={() => {
+                          setEditSelectedSet(i);
+                          setEditSetScoreA(s.scoreA);
+                          setEditSetScoreB(s.scoreB);
+                        }}
+                        data-testid={`edit-set-row-${i}`}
+                      >
+                        <Badge variant="secondary" className="text-xs">Set {i + 1}</Badge>
+                        <div className="flex-1 text-center">
+                          {hasScore ? (
+                            <span className="font-mono font-semibold">{s.scoreA} - {s.scoreB}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Not set</span>
+                          )}
+                        </div>
+                        <Pencil className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const validSets = editSetScores.filter(s => s.scoreA !== "" && s.scoreB !== "");
+                  let totalA = 0, totalB = 0, setsWonA = 0, setsWonB = 0;
+                  for (const s of validSets) {
+                    totalA += Number(s.scoreA); totalB += Number(s.scoreB);
+                    if (Number(s.scoreA) > Number(s.scoreB)) setsWonA++;
+                    else if (Number(s.scoreB) > Number(s.scoreA)) setsWonB++;
+                  }
+                  return validSets.length > 0 ? (
+                    <div className="bg-muted/50 rounded-md p-3 text-center space-y-1">
+                      <div className="text-xs text-muted-foreground">Total Score</div>
+                      <div className="text-xl font-bold">{totalA} - {totalB}</div>
+                      <div className="text-xs text-muted-foreground">Sets won: {setsWonA} - {setsWonB}</div>
+                    </div>
+                  ) : null;
+                })()}
+                <Button
+                  className="w-full gap-2"
+                  disabled={isEditPending || editSetScores.filter(s => s.scoreA !== "" && s.scoreB !== "").length === 0}
+                  onClick={handleFinalConfirm}
+                  data-testid="edit-button-save-all"
+                >
+                  {isEditPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  Save All Scores
+                </Button>
+              </div>
+            )
           ) : scoreMatch && (
             <>
               <div className="flex items-center justify-center gap-2 pt-2 pb-1">
