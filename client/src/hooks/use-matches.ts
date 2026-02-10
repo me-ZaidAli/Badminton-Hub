@@ -169,9 +169,11 @@ export function useSmartGenerateMatches() {
       }
       return res.json();
     },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+    onSuccess: (data, vars) => {
+      if (data?.status !== "waiting" && data?.status !== "full") {
+        queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+      }
     },
   });
 }

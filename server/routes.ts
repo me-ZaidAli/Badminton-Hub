@@ -2344,7 +2344,7 @@ export async function registerRoutes(
       const { mode, queueTargetSize, genderType, isAutoGenerate } = req.body;
 
       if (isAutoGenerate && !session.autoGenerateActive) {
-        return res.status(400).json({ message: "Auto-generation is stopped for this session" });
+        return res.json({ status: "stopped", message: "Auto-generation is stopped for this session", matches: [] });
       }
 
       const matchMode = mode || session.matchMode || "SOCIAL";
@@ -2382,6 +2382,9 @@ export async function registerRoutes(
         }));
 
       if (players.length < playersPerMatch) {
+        if (isAutoGenerate) {
+          return res.json({ status: "waiting", message: `Waiting for players to finish. ${busyPlayerIds.size} players are in live or queued matches.`, matches: [] });
+        }
         return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
       }
 
@@ -2389,7 +2392,7 @@ export async function registerRoutes(
       const matchesNeeded = Math.max(0, queueTarget - queuedCount);
 
       if (matchesNeeded === 0) {
-        return res.json({ message: "Queue is already full", matches: [] });
+        return res.json({ status: "full", message: "Queue is already full", matches: [] });
       }
 
       const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(

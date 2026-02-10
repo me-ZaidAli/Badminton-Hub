@@ -1395,6 +1395,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutate: updateSession } = useUpdateSession();
   const { mutate: stopAllMatches, isPending: isStoppingAll } = useStopAllMatches();
   const queryClient = useQueryClient();
+  const [autoGenWaiting, setAutoGenWaiting] = useState(false);
 
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
@@ -1419,10 +1420,24 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   }, [initialCourtNames]);
 
   useEffect(() => {
-    if (!autoGenerateActive || !isOrganiser) return;
+    if (!autoGenerateActive || !isOrganiser) {
+      setAutoGenWaiting(false);
+      return;
+    }
     const interval = setInterval(() => {
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true });
-    }, 8000);
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+        onSuccess: (data: any) => {
+          if (data?.status === "waiting") {
+            setAutoGenWaiting(true);
+          } else {
+            setAutoGenWaiting(false);
+          }
+        },
+        onError: () => {
+          setAutoGenWaiting(false);
+        },
+      });
+    }, 5000);
     return () => clearInterval(interval);
   }, [autoGenerateActive, isOrganiser, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
 
@@ -1480,7 +1495,15 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   const handleStartAutoGenerate = () => {
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true });
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+      onSuccess: (data: any) => {
+        if (data?.status === "waiting") {
+          setAutoGenWaiting(true);
+        } else {
+          setAutoGenWaiting(false);
+        }
+      },
+    });
   };
 
   const handleStopAutoGenerate = () => {
@@ -1754,9 +1777,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       )}
 
       {autoGenerateActive && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2" data-testid="auto-generate-indicator">
+        <div className={`flex items-center gap-2 text-sm rounded-md px-3 py-2 ${autoGenWaiting ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' : 'text-muted-foreground bg-muted/50'}`} data-testid="auto-generate-indicator">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
+          {autoGenWaiting ? (
+            <span>Waiting for matches to finish before generating new ones... (target: {queueTargetSize} queued)</span>
+          ) : (
+            <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
+          )}
         </div>
       )}
 
