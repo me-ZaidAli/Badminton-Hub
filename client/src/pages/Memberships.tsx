@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Calendar, CreditCard, ShoppingBag, Clock, AlertTriangle, X } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2, Calendar, CreditCard, ShoppingBag, Clock, AlertTriangle, X, User, Shield } from "lucide-react";
 
 function formatPounds(pence: number): string {
   return `£${(pence / 100).toFixed(2)}`;
@@ -77,10 +78,15 @@ interface Membership {
   status: string;
   startDate: string;
   endDate: string;
-  paymentStatus: string;
-  annualPrice?: number;
+  totalDays: number;
+  paymentConfirmed: boolean;
   proratedPrice?: number;
+  prorationFactor?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
   planName?: string;
+  planAnnualPrice?: number;
+  planDefaultSessionFee?: number;
   clubName?: string;
 }
 
@@ -190,7 +196,7 @@ export default function Memberships() {
   const activeMembership = useMemo(() => {
     if (!activeClubId) return null;
     return myMemberships.find(
-      (m) => m.clubId === parseInt(activeClubId) && (m.status === "ACTIVE" || m.status === "APPROVED")
+      (m) => m.clubId === parseInt(activeClubId) && (m.status === "ACTIVE" || m.status === "APPROVED" || m.status === "PENDING")
     ) || null;
   }, [myMemberships, activeClubId]);
 
@@ -401,92 +407,101 @@ export default function Memberships() {
         </div>
       ) : activeMembership ? (
         <>
-          <Card className={`${daysRemaining !== null ? getExpiryBorderColor(daysRemaining) : ""}`}>
-            <CardContent className="py-8 text-center">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2" data-testid="text-expiry-label">
-                Membership Expires In
-              </p>
-              {daysRemaining !== null && (
-                <div className={`text-5xl font-bold ${getExpiryColor(daysRemaining)}`} data-testid="text-expiry-days">
-                  {daysRemaining > 0 ? daysRemaining : 0}
-                </div>
-              )}
-              <p className={`text-lg font-medium mt-1 ${daysRemaining !== null ? getExpiryColor(daysRemaining) : ""}`} data-testid="text-expiry-unit">
-                {daysRemaining !== null && daysRemaining <= 0 ? "EXPIRED" : "DAYS"}
-              </p>
-              {daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0 && (
-                <div className="flex items-center justify-center gap-1 mt-3 text-amber-500">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="text-sm font-medium">Expiring soon - contact your club admin to renew</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Membership Details
-                </span>
-                {getStatusBadge(activeMembership.status)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Plan</p>
-                  <p className="font-medium" data-testid="text-plan-name">{activeMembership.planName || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Club</p>
-                  <p className="font-medium" data-testid="text-club-name">{activeMembership.clubName || activeClubName}</p>
+          <Card className="overflow-visible relative" data-testid="card-member-card">
+            <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-md ${
+              activeMembership.status === "ACTIVE" ? "bg-green-500" :
+              activeMembership.status === "PENDING" ? "bg-amber-500" :
+              activeMembership.status === "EXPIRING" ? "bg-amber-500" : "bg-muted-foreground"
+            }`} />
+            <CardContent className="pt-8 pb-6 px-6">
+              <div className="flex items-start gap-4 mb-6">
+                <Avatar className="h-20 w-20 border-2 border-border">
+                  <AvatarImage src={userData?.profilePictureUrl || ""} alt={userData?.fullName || userData?.username || ""} />
+                  <AvatarFallback className="text-xl font-bold bg-primary/10 text-primary">
+                    {(userData?.fullName || userData?.username || "?").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <h3 className="text-lg font-bold truncate" data-testid="text-member-name">
+                        {userData?.fullName || userData?.username || "Member"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground" data-testid="text-member-email">
+                        {userData?.email || ""}
+                      </p>
+                    </div>
+                    <div data-testid="badge-membership-status">
+                      {getStatusBadge(activeMembership.status)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground" data-testid="text-club-name">
+                      {activeMembership.clubName || activeClubName}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <Separator />
+              <div className="bg-muted/50 dark:bg-muted/20 rounded-md p-4 mb-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Plan</p>
+                    <p className="font-semibold text-sm" data-testid="text-plan-name">{activeMembership.planName || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Member ID</p>
+                    <p className="font-semibold text-sm font-mono" data-testid="text-member-id">#{String(activeMembership.id).padStart(5, "0")}</p>
+                  </div>
+                </div>
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Start Date</p>
-                  <p className="font-medium" data-testid="text-start-date">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Valid From</p>
+                  <p className="font-medium text-sm" data-testid="text-start-date">
                     {activeMembership.startDate ? format(new Date(activeMembership.startDate), "dd MMM yyyy") : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">End Date</p>
-                  <p className="font-medium" data-testid="text-end-date">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Valid Until</p>
+                  <p className="font-medium text-sm" data-testid="text-end-date">
                     {activeMembership.endDate ? format(new Date(activeMembership.endDate), "dd MMM yyyy") : "N/A"}
                   </p>
                 </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Annual Price</p>
-                  <p className="font-medium" data-testid="text-annual-price">
-                    {activeMembership.annualPrice != null ? formatPounds(activeMembership.annualPrice) : "N/A"}
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Annual Price</p>
+                  <p className="font-medium text-sm" data-testid="text-annual-price">
+                    {activeMembership.planAnnualPrice != null ? formatPounds(activeMembership.planAnnualPrice) : "N/A"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Prorated Price</p>
-                  <p className="font-medium" data-testid="text-prorated-price">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Amount Due</p>
+                  <p className="font-medium text-sm" data-testid="text-prorated-price">
                     {activeMembership.proratedPrice != null ? formatPounds(activeMembership.proratedPrice) : "N/A"}
                   </p>
                 </div>
               </div>
 
-              <Separator />
+              <Separator className="mb-4" />
 
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <p className="text-sm text-muted-foreground">Payment Status</p>
-                  <div className="mt-1" data-testid="badge-payment-status">
-                    {getPaymentBadge(activeMembership.paymentStatus)}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Payment</p>
+                    <div data-testid="badge-payment-status">
+                      {getPaymentBadge(activeMembership.paymentConfirmed ? "PAID" : "UNPAID")}
+                    </div>
                   </div>
+                  {daysRemaining !== null && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-0.5">Expires In</p>
+                      <p className={`font-bold text-sm ${getExpiryColor(daysRemaining)}`} data-testid="text-expiry-days">
+                        {daysRemaining > 0 ? `${daysRemaining} days` : "Expired"}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="destructive"
@@ -495,9 +510,23 @@ export default function Memberships() {
                   data-testid="button-cancel-membership"
                 >
                   <X className="h-4 w-4 mr-1" />
-                  Cancel Membership
+                  Cancel
                 </Button>
               </div>
+
+              {daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0 && (
+                <div className="flex items-center gap-1 mt-3 text-amber-500 text-sm">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Expiring soon - contact your club admin to renew</span>
+                </div>
+              )}
+
+              {activeMembership.status === "PENDING" && (
+                <div className="flex items-center gap-1 mt-3 text-amber-500 text-sm">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>Awaiting payment confirmation from your club admin</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
