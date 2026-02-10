@@ -2256,43 +2256,65 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
       }
 
-      // Generate matches using round-robin style pairing
-      const shuffled = [...players].sort(() => 0.5 - Math.random());
-      const generatedMatches = [];
-      const matchCount = Math.min(numberOfMatches || 8, Math.floor(shuffled.length / playersPerMatch) * 2);
+      // Build pairing history for fair match distribution
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        existingMatches.map(m => ({
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          status: m.status,
+        }))
+      );
 
-      for (let i = 0; i < matchCount; i++) {
-        const offset = (i * playersPerSide) % shuffled.length;
-        const teamA: number[] = [];
-        const teamB: number[] = [];
-        for (let j = 0; j < playersPerSide; j++) {
-          teamA.push(shuffled[(offset + j) % shuffled.length].id);
+      // Ensure all eligible players appear in playerMatchCounts
+      for (const p of players) {
+        if (!playerMatchCounts.has(p.id)) {
+          playerMatchCounts.set(p.id, 0);
         }
-        for (let j = 0; j < playersPerSide; j++) {
-          teamB.push(shuffled[(offset + playersPerSide + j) % shuffled.length].id);
-        }
+      }
 
-        generatedMatches.push({
+      const matchCount = Math.min(numberOfMatches || 8, Math.floor(players.length / playersPerMatch));
+      const smartPlayers = players.map(p => ({
+        id: p.id,
+        gender: p.gender,
+        category: p.category,
+        isPaused: false,
+        genderOverride: null as string | null,
+      }));
+
+      const generated = generateSmartMatches({
+        mode: (session.matchMode as "SOCIAL" | "COMPETITIVE") || "SOCIAL",
+        players: smartPlayers,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: genderType,
+        queueTarget: matchCount,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+      });
+
+      const createdMatches = await Promise.all(
+        generated.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
           status: "QUEUED" as const,
-          teamAPlayer1Id: teamA[0],
-          teamAPlayer2Id: playersPerSide === 2 ? teamA[1] : null,
-          teamBPlayer1Id: teamB[0],
-          teamBPlayer2Id: playersPerSide === 2 ? teamB[1] : null,
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
           scoreA: 0,
           scoreB: 0,
           isCompleted: false,
+          pointsToPlayTo: session.defaultPointsToPlayTo || 21,
           numberOfSets: session.numberOfSets || 1,
           currentSet: 1,
           setsWonA: 0,
           setsWonB: 0,
           setScores: [],
-        });
-      }
-
-      const createdMatches = await Promise.all(generatedMatches.map(m => storage.createMatch(m)));
+        }))
+      );
       res.status(201).json(createdMatches);
     } catch (err: any) {
       console.error("Error auto-generating matches:", err);
@@ -2379,6 +2401,14 @@ export async function registerRoutes(
           status: m.status,
         }))
       );
+
+      // Ensure all eligible players appear in playerMatchCounts (even those with 0 matches)
+      // so the global minimum is accurate and players who haven't played get prioritized
+      for (const s of eligibleSignups) {
+        if (!playerMatchCounts.has(s.player.id)) {
+          playerMatchCounts.set(s.player.id, 0);
+        }
+      }
 
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
