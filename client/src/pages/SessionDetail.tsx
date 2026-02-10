@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -1388,6 +1388,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
   const { mutateAsync: completeMatch } = useCompleteMatch();
+  const { mutateAsync: endSet } = useEndSet();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: updateMatchTarget } = useUpdateMatchTarget();
   const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
@@ -1451,6 +1452,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     completedAt: m.completedAt ? (m.completedAt instanceof Date ? m.completedAt.toISOString() : m.completedAt) : null,
     queuePosition: m.queuePosition,
     pointsToPlayTo: (m as any).pointsToPlayTo,
+    numberOfSets: (m as any).numberOfSets,
+    currentSet: (m as any).currentSet,
+    setsWonA: (m as any).setsWonA,
+    setsWonB: (m as any).setsWonB,
+    setScores: (m as any).setScores,
   }));
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
@@ -1774,6 +1780,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     isSignedUp={isSignedUp}
                     onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
                     onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+                    onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
                     onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
                     onCourtNameChange={handleCourtNameChange}
                     onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
@@ -2097,6 +2104,11 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
                           <span className={`font-medium ${(m.scoreB ?? 0) > (m.scoreA ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
                             {m.teamBPlayer1?.user?.fullName}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2.user?.fullName}` : ""}
                           </span>
+                          {m.setScores && (m.setScores as any[]).length > 0 && (
+                            <span className="text-[10px] text-muted-foreground font-mono" data-testid={`text-set-scores-${m.id}`}>
+                              ({(m.setScores as any[]).map((s: any, i: number) => `${s.scoreA}-${s.scoreB}`).join(", ")})
+                            </span>
+                          )}
                         </div>
                       </div>
                       {isOrganiser && (

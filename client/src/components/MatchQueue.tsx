@@ -295,12 +295,19 @@ export function MatchQueue({
                       )}
 
                       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40">
-                        <EditableTarget
-                          matchId={match.id}
-                          value={matchTarget}
-                          isOrganiser={isOrganiser}
-                          onUpdate={updateTarget}
-                        />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <EditableTarget
+                            matchId={match.id}
+                            value={matchTarget}
+                            isOrganiser={isOrganiser}
+                            onUpdate={updateTarget}
+                          />
+                          {match.numberOfSets && match.numberOfSets > 1 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {match.numberOfSets === 3 ? "Best of 3" : "2 Sets"}
+                            </Badge>
+                          )}
+                        </div>
                         {isOrganiser && (
                           <div className="flex items-center gap-1">
                             <Button
@@ -341,6 +348,11 @@ export function MatchQueue({
                             isOrganiser={isOrganiser}
                             onUpdate={updateTarget}
                           />
+                          {match.numberOfSets && match.numberOfSets > 1 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {match.numberOfSets === 3 ? "Best of 3" : "2 Sets"}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-1 mb-1">
                           <PlayerBadge
@@ -576,9 +588,16 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
-                          {match.scoreA} - {match.scoreB}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={(match.scoreA || 0) > (match.scoreB || 0) ? "default" : "secondary"} className="font-mono">
+                            {match.scoreA} - {match.scoreB}
+                          </Badge>
+                          {match.setScores && match.setScores.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground font-mono" data-testid={`text-set-scores-${match.id}`}>
+                              ({match.setScores.map((s: any, i: number) => `${s.scoreA}-${s.scoreB}`).join(", ")})
+                            </span>
+                          )}
+                        </div>
                         {canPlayerEnterScore && (
                           <Button 
                             variant="outline" 

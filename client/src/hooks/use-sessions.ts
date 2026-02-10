@@ -130,7 +130,8 @@ export function useRestartSession() {
     onSuccess: (data, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "matches"] });
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "leaderboard"] });
       toast({ title: "Session Restarted", description: `${data.matchesDeleted} matches deleted. Session is ready for new matches.` });
     },

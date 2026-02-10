@@ -378,6 +378,38 @@ export function useDeleteMatch() {
   });
 }
 
+export function useEndSet() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, setNumber, scoreA, scoreB }: { matchId: number; setNumber: number; scoreA: number; scoreB: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/end-set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setNumber, scoreA, scoreB }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to end set");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      if (data.matchCompleted) {
+        toast({ title: "Match Completed", description: "All sets have been played and scores recorded." });
+      } else {
+        const completedSet = (data.currentSet || 2) - 1;
+        toast({ title: `Set ${completedSet} Recorded`, description: `Set score saved. Ready for set ${data.currentSet}.` });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cannot End Set", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useStopAllMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

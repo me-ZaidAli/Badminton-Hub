@@ -439,6 +439,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       shuttlecockType: undefined,
       liveStreamUrl: undefined,
       defaultPointsToPlayTo: 21,
+      numberOfSets: 1,
     }
   });
 
@@ -915,6 +916,32 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
             />
             <FormField
               control={form.control}
+              name="numberOfSets"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sets Per Match</FormLabel>
+                  <Select
+                    value={String(field.value || 1)}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-number-of-sets">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="1">1 Set (Default)</SelectItem>
+                      <SelectItem value="2">2 Sets</SelectItem>
+                      <SelectItem value="3">Best of 3 Sets</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>How many sets each match will play</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="liveStreamUrl"
               render={({ field }) => (
                 <FormItem>
@@ -967,6 +994,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   const [editVenueId, setEditVenueId] = useState<number | null>(null);
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+  const [editNumberOfSets, setEditNumberOfSets] = useState(1);
 
   const initializeForm = () => {
     setEditTitle(session.title || "");
@@ -989,6 +1017,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     setEditVenueId(session.venueId || null);
     setEditLiveStreamUrl(session.liveStreamUrl || "");
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
+    setEditNumberOfSets(session.numberOfSets || 1);
   };
 
   const handleSave = () => {
@@ -1012,6 +1041,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
         sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
         shuttlecockType: editShuttlecockType || null,
         defaultPointsToPlayTo: editDefaultPoints,
+        numberOfSets: editNumberOfSets,
         venueId: editVenueId,
         liveStreamUrl: editLiveStreamUrl || "",
         shuttleTubesUsed: editShuttleTubes,
@@ -1282,21 +1312,36 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
               </Select>
             </div>
           </div>
-          <div>
-            <Label>Default Points to Play To</Label>
-            <Select value={String(editDefaultPoints)} onValueChange={(v) => setEditDefaultPoints(Number(v))}>
-              <SelectTrigger className="mt-2" data-testid="select-edit-default-points">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">7 Points</SelectItem>
-                <SelectItem value="11">11 Points</SelectItem>
-                <SelectItem value="15">15 Points</SelectItem>
-                <SelectItem value="21">21 Points</SelectItem>
-                <SelectItem value="25">25 Points</SelectItem>
-                <SelectItem value="30">30 Points</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Default Points to Play To</Label>
+              <Select value={String(editDefaultPoints)} onValueChange={(v) => setEditDefaultPoints(Number(v))}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-default-points">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 Points</SelectItem>
+                  <SelectItem value="11">11 Points</SelectItem>
+                  <SelectItem value="15">15 Points</SelectItem>
+                  <SelectItem value="21">21 Points</SelectItem>
+                  <SelectItem value="25">25 Points</SelectItem>
+                  <SelectItem value="30">30 Points</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sets Per Match</Label>
+              <Select value={String(editNumberOfSets)} onValueChange={(v) => setEditNumberOfSets(Number(v))}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-number-of-sets">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 Set (Default)</SelectItem>
+                  <SelectItem value="2">2 Sets</SelectItem>
+                  <SelectItem value="3">Best of 3 Sets</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           {venueList.length > 0 && (
             <div>

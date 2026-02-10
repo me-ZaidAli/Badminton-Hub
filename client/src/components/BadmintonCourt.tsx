@@ -21,6 +21,12 @@ type MatchPlayer = {
   category: string | null;
 };
 
+export type SetScore = {
+  setNumber: number;
+  scoreA: number;
+  scoreB: number;
+};
+
 export type CourtMatch = {
   id: number;
   courtNumber: number | null;
@@ -41,6 +47,11 @@ export type CourtMatch = {
   scoreUpdatedByUserId?: number | null;
   scoreUpdatedAt?: string | null;
   scoreUpdatedByUser?: { id: number; fullName: string } | null;
+  numberOfSets?: number | null;
+  currentSet?: number | null;
+  setsWonA?: number | null;
+  setsWonB?: number | null;
+  setScores?: SetScore[] | null;
 };
 
 type BadmintonCourtProps = {
@@ -52,6 +63,7 @@ type BadmintonCourtProps = {
   isSignedUp: boolean;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onSwapPlayer: (matchId: number, position: string, newPlayerId: number) => void;
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
@@ -164,6 +176,7 @@ export function BadmintonCourt({
   isSignedUp,
   onStartMatch,
   onCompleteMatch,
+  onEndSet,
   onSwapPlayer,
   onCourtNameChange,
   onUpdatePointsTarget,
@@ -175,6 +188,9 @@ export function BadmintonCourt({
   const [winnerScore, setWinnerScore] = useState<string>("");
   const [loserScore, setLoserScore] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [setScoreA, setSetScoreA] = useState<string>("");
+  const [setScoreB, setSetScoreB] = useState<string>("");
+  const [multiSetStep, setMultiSetStep] = useState<"enter" | "confirm">("enter");
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(courtName || `Court ${courtNumber}`);
   const [isEditingTarget, setIsEditingTarget] = useState(false);
@@ -193,11 +209,19 @@ export function BadmintonCourt({
     }
   }, [isEditingName]);
 
+  const matchSets = match?.numberOfSets || 1;
+  const isMultiSet = matchSets > 1;
+  const currentSetNum = match?.currentSet || 1;
+  const completedSets = match?.setScores || [];
+
   const openFinishDialog = () => {
     setFinishStep(1);
     setWinner(null);
     setWinnerScore("");
     setLoserScore("");
+    setSetScoreA("");
+    setSetScoreB("");
+    setMultiSetStep("enter");
     setShowSuccess(false);
     setShowScoreDialog(true);
   };
@@ -207,6 +231,9 @@ export function BadmintonCourt({
     setWinner(null);
     setWinnerScore("");
     setLoserScore("");
+    setSetScoreA("");
+    setSetScoreB("");
+    setMultiSetStep("enter");
   };
 
   const getTeamALabel = () => {
@@ -247,6 +274,28 @@ export function BadmintonCourt({
       }, 2000);
     } catch {
       // Error handled by parent mutation toast - dialog stays open for amendment
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEndSetConfirm = async () => {
+    if (!match) return;
+    const sA = Number(setScoreA);
+    const sB = Number(setScoreB);
+    if (isNaN(sA) || isNaN(sB) || sA < 0 || sB < 0 || sA === sB) return;
+    setIsSubmitting(true);
+    try {
+      const result = onEndSet(match.id, currentSetNum, sA, sB);
+      if (result && typeof (result as any).then === "function") {
+        await result;
+      }
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowScoreDialog(false);
+        setShowSuccess(false);
+      }, 2000);
+    } catch {
     } finally {
       setIsSubmitting(false);
     }
@@ -335,6 +384,11 @@ export function BadmintonCourt({
               </Badge>
             )
           )}
+          {isMultiSet && match?.status === "LIVE" && (
+            <Badge variant="secondary" className="text-xs" data-testid={`badge-sets-${match.id}`}>
+              Set {currentSetNum}/{matchSets} ({match?.setsWonA || 0}-{match?.setsWonB || 0})
+            </Badge>
+          )}
         </div>
         {match?.status === "LIVE" && match.startedAt && (
           <LiveTimer startedAt={match.startedAt} />
@@ -377,10 +431,28 @@ export function BadmintonCourt({
                   <div className="flex items-center justify-center px-4">
                     <div className="bg-white/90 rounded-lg px-4 py-2 shadow-lg">
                       {match.status === "COMPLETED" ? (
-                        <div className="text-2xl font-bold font-mono">
-                          <span className="text-primary">{match.scoreA}</span>
-                          <span className="text-muted-foreground mx-2">-</span>
-                          <span className="text-secondary">{match.scoreB}</span>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold font-mono">
+                            <span className="text-primary">{match.scoreA}</span>
+                            <span className="text-muted-foreground mx-2">-</span>
+                            <span className="text-secondary">{match.scoreB}</span>
+                          </div>
+                          {isMultiSet && completedSets.length > 0 && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                              {completedSets.map((s, i) => (
+                                <span key={i}>{i > 0 && ", "}{s.scoreA}-{s.scoreB}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : match.status === "LIVE" && isMultiSet && completedSets.length > 0 ? (
+                        <div className="text-center">
+                          <div className="text-xs font-semibold text-muted-foreground mb-0.5">Set {currentSetNum}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {completedSets.map((s, i) => (
+                              <span key={i}>{i > 0 && ", "}{s.scoreA}-{s.scoreB}</span>
+                            ))}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-sm font-bold text-muted-foreground">VS</span>
@@ -428,7 +500,7 @@ export function BadmintonCourt({
                     className="gap-2"
                     data-testid={`button-complete-match-${match.id}`}
                   >
-                    <Square className="w-4 h-4" /> End Match
+                    <Square className="w-4 h-4" /> {isMultiSet ? `End Set ${currentSetNum}` : "End Match"}
                   </Button>
                 )}
                 {match.status === "COMPLETED" && (
@@ -442,167 +514,295 @@ export function BadmintonCourt({
 
       <Dialog open={showScoreDialog} onOpenChange={(open) => { if (!open) { setShowScoreDialog(false); resetFinishFlow(); setShowSuccess(false); } }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {showSuccess ? "Match Saved" : finishStep === 1 ? "Who won the match?" : finishStep === 2 ? "Winning team score" : finishStep === 3 ? "Losing team score" : "Confirm match result"}
-            </DialogTitle>
-            <DialogDescription className="sr-only">Enter the final match scores step by step</DialogDescription>
-          </DialogHeader>
+          {isMultiSet ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {showSuccess
+                    ? "Scores Saved"
+                    : multiSetStep === "enter"
+                      ? `Set ${currentSetNum} of ${matchSets} - Enter Scores`
+                      : `Confirm Set ${currentSetNum} Scores`}
+                </DialogTitle>
+                <DialogDescription className="sr-only">Enter set scores for multi-set match</DialogDescription>
+              </DialogHeader>
 
-          {showSuccess ? (
-            <div className="py-8 text-center space-y-3" data-testid="finish-success">
-              <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
-              <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
-            </div>
+              {showSuccess ? (
+                <div className="py-8 text-center space-y-3" data-testid="finish-success">
+                  <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+                  <p className="text-lg font-medium">Set {currentSetNum} scores have been saved.</p>
+                </div>
+              ) : (
+                <>
+                  {completedSets.length > 0 && (
+                    <div className="rounded-lg border border-border p-3 space-y-1" data-testid="previous-sets-summary">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Previous Sets</p>
+                      {completedSets.map((s, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Set {s.setNumber}</span>
+                          <span className="font-mono font-semibold">{s.scoreA} - {s.scoreB}</span>
+                        </div>
+                      ))}
+                      <div className="border-t border-border pt-1 mt-1 flex items-center justify-between text-sm font-medium">
+                        <span>Sets Won</span>
+                        <span className="font-mono">{match?.setsWonA || 0} - {match?.setsWonB || 0}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {multiSetStep === "enter" && (
+                    <div className="space-y-4 pt-2" data-testid="multi-set-enter">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 text-center">
+                          <p className="text-sm font-medium truncate">{getTeamALabel()}</p>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={setScoreA}
+                            onChange={(e) => setSetScoreA(e.target.value)}
+                            className="text-2xl text-center font-bold h-14"
+                            data-testid="input-set-score-a"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center">
+                          <p className="text-sm font-medium truncate">{getTeamBLabel()}</p>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={setScoreB}
+                            onChange={(e) => setSetScoreB(e.target.value)}
+                            className="text-2xl text-center font-bold h-14"
+                            data-testid="input-set-score-b"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full gap-2"
+                        onClick={() => setMultiSetStep("confirm")}
+                        disabled={
+                          setScoreA === "" || setScoreB === "" ||
+                          isNaN(Number(setScoreA)) || isNaN(Number(setScoreB)) ||
+                          Number(setScoreA) < 0 || Number(setScoreB) < 0 ||
+                          (Number(setScoreA) === Number(setScoreB))
+                        }
+                        data-testid="button-next-set-scores"
+                      >
+                        Next <ArrowRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {multiSetStep === "confirm" && (
+                    <div className="space-y-4 pt-2" data-testid="multi-set-confirm">
+                      <div className="rounded-lg border border-border p-4 space-y-3">
+                        <div className="text-center text-xs text-muted-foreground mb-1">Set {currentSetNum}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {Number(setScoreA) > Number(setScoreB) && <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                            <span className={cn("truncate", Number(setScoreA) > Number(setScoreB) ? "font-semibold" : "text-muted-foreground")}>{getTeamALabel()}</span>
+                          </div>
+                          <span className={cn("text-2xl font-bold font-mono", Number(setScoreA) > Number(setScoreB) ? "text-primary" : "text-muted-foreground")}>{setScoreA}</span>
+                        </div>
+                        <div className="border-t border-border" />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {Number(setScoreB) > Number(setScoreA) && <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                            <span className={cn("truncate", Number(setScoreB) > Number(setScoreA) ? "font-semibold" : "text-muted-foreground")}>{getTeamBLabel()}</span>
+                          </div>
+                          <span className={cn("text-2xl font-bold font-mono", Number(setScoreB) > Number(setScoreA) ? "text-primary" : "text-muted-foreground")}>{setScoreB}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-center text-muted-foreground">Confirm set {currentSetNum} scores?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => setMultiSetStep("enter")}
+                          className="gap-2"
+                          data-testid="button-amend-set-scores"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Amend
+                        </Button>
+                        <Button
+                          onClick={handleEndSetConfirm}
+                          disabled={isSubmitting}
+                          className="gap-2"
+                          data-testid="button-confirm-set"
+                        >
+                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           ) : (
             <>
-              <div className="flex items-center justify-center gap-2 pt-2 pb-1">
-                {[1, 2, 3, 4].map((s) => (
-                  <div
-                    key={s}
-                    className={cn(
-                      "w-8 h-1.5 rounded-full transition-colors",
-                      s <= finishStep ? "bg-primary" : "bg-muted"
-                    )}
-                    data-testid={`step-indicator-${s}`}
-                  />
-                ))}
-              </div>
+              <DialogHeader>
+                <DialogTitle>
+                  {showSuccess ? "Match Saved" : finishStep === 1 ? "Who won the match?" : finishStep === 2 ? "Winning team score" : finishStep === 3 ? "Losing team score" : "Confirm match result"}
+                </DialogTitle>
+                <DialogDescription className="sr-only">Enter the final match scores step by step</DialogDescription>
+              </DialogHeader>
 
-              {finishStep === 1 && (
-                <div className="space-y-3 pt-2" data-testid="finish-step-1">
-                  <p className="text-sm text-muted-foreground text-center">Select the winning team</p>
-                  <div className="space-y-2">
-                    <Button
-                      variant={winner === "A" ? "default" : "outline"}
-                      className="w-full justify-start gap-3 py-6"
-                      onClick={() => setWinner("A")}
-                      data-testid="button-select-team-a"
-                    >
-                      <Trophy className={cn("w-5 h-5", winner === "A" ? "text-yellow-300" : "text-muted-foreground")} />
-                      <span className="text-left flex-1 truncate">{getTeamALabel()}</span>
-                      {winner === "A" && <Check className="w-5 h-5" />}
-                    </Button>
-                    <Button
-                      variant={winner === "B" ? "default" : "outline"}
-                      className="w-full justify-start gap-3 py-6"
-                      onClick={() => setWinner("B")}
-                      data-testid="button-select-team-b"
-                    >
-                      <Trophy className={cn("w-5 h-5", winner === "B" ? "text-yellow-300" : "text-muted-foreground")} />
-                      <span className="text-left flex-1 truncate">{getTeamBLabel()}</span>
-                      {winner === "B" && <Check className="w-5 h-5" />}
-                    </Button>
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(2)}
-                    disabled={!winner}
-                    data-testid="button-next-step-1"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
+              {showSuccess ? (
+                <div className="py-8 text-center space-y-3" data-testid="finish-success">
+                  <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+                  <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                    {[1, 2, 3, 4].map((s) => (
+                      <div
+                        key={s}
+                        className={cn(
+                          "w-8 h-1.5 rounded-full transition-colors",
+                          s <= finishStep ? "bg-primary" : "bg-muted"
+                        )}
+                        data-testid={`step-indicator-${s}`}
+                      />
+                    ))}
+                  </div>
 
-              {finishStep === 2 && (
-                <div className="space-y-3 pt-2" data-testid="finish-step-2">
-                  <div className="text-center space-y-1">
-                    <Badge variant="default" className="gap-1">
-                      <Trophy className="w-3 h-3" /> Winner
-                    </Badge>
-                    <p className="font-semibold">{getWinnerLabel()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block text-center">Enter winning team's score</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder=""
-                      value={winnerScore}
-                      onChange={(e) => setWinnerScore(e.target.value)}
-                      className="text-2xl text-center font-bold h-14"
-                      data-testid="input-winner-score"
-                    />
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(3)}
-                    disabled={winnerScore === "" || isNaN(Number(winnerScore)) || Number(winnerScore) < 0}
-                    data-testid="button-next-step-2"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {finishStep === 3 && (
-                <div className="space-y-3 pt-2" data-testid="finish-step-3">
-                  <div className="text-center space-y-1">
-                    <Badge variant="outline" className="gap-1 text-muted-foreground">Losing team</Badge>
-                    <p className="font-semibold">{getLoserLabel()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block text-center">Enter losing team's score</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder=""
-                      value={loserScore}
-                      onChange={(e) => setLoserScore(e.target.value)}
-                      className="text-2xl text-center font-bold h-14"
-                      data-testid="input-loser-score"
-                    />
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(4)}
-                    disabled={loserScore === "" || isNaN(Number(loserScore)) || Number(loserScore) < 0}
-                    data-testid="button-next-step-3"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {finishStep === 4 && (
-                <div className="space-y-4 pt-2" data-testid="finish-step-4">
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-                        <span className="font-semibold truncate">{getWinnerLabel()}</span>
+                  {finishStep === 1 && (
+                    <div className="space-y-3 pt-2" data-testid="finish-step-1">
+                      <p className="text-sm text-muted-foreground text-center">Select the winning team</p>
+                      <div className="space-y-2">
+                        <Button
+                          variant={winner === "A" ? "default" : "outline"}
+                          className="w-full justify-start gap-3 py-6"
+                          onClick={() => setWinner("A")}
+                          data-testid="button-select-team-a"
+                        >
+                          <Trophy className={cn("w-5 h-5", winner === "A" ? "text-yellow-300" : "text-muted-foreground")} />
+                          <span className="text-left flex-1 truncate">{getTeamALabel()}</span>
+                          {winner === "A" && <Check className="w-5 h-5" />}
+                        </Button>
+                        <Button
+                          variant={winner === "B" ? "default" : "outline"}
+                          className="w-full justify-start gap-3 py-6"
+                          onClick={() => setWinner("B")}
+                          data-testid="button-select-team-b"
+                        >
+                          <Trophy className={cn("w-5 h-5", winner === "B" ? "text-yellow-300" : "text-muted-foreground")} />
+                          <span className="text-left flex-1 truncate">{getTeamBLabel()}</span>
+                          {winner === "B" && <Check className="w-5 h-5" />}
+                        </Button>
                       </div>
-                      <span className="text-2xl font-bold font-mono text-primary">{winnerScore}</span>
+                      <Button
+                        className="w-full gap-2"
+                        onClick={() => setFinishStep(2)}
+                        disabled={!winner}
+                        data-testid="button-next-step-1"
+                      >
+                        Next <ArrowRight className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <div className="border-t border-border" />
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-muted-foreground truncate block">{getLoserLabel()}</span>
+                  )}
+
+                  {finishStep === 2 && (
+                    <div className="space-y-3 pt-2" data-testid="finish-step-2">
+                      <div className="text-center space-y-1">
+                        <Badge variant="default" className="gap-1">
+                          <Trophy className="w-3 h-3" /> Winner
+                        </Badge>
+                        <p className="font-semibold">{getWinnerLabel()}</p>
                       </div>
-                      <span className="text-2xl font-bold font-mono text-muted-foreground">{loserScore}</span>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block text-center">Enter winning team's score</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder=""
+                          value={winnerScore}
+                          onChange={(e) => setWinnerScore(e.target.value)}
+                          className="text-2xl text-center font-bold h-14"
+                          data-testid="input-winner-score"
+                        />
+                      </div>
+                      <Button
+                        className="w-full gap-2"
+                        onClick={() => setFinishStep(3)}
+                        disabled={winnerScore === "" || isNaN(Number(winnerScore)) || Number(winnerScore) < 0}
+                        data-testid="button-next-step-2"
+                      >
+                        Next <ArrowRight className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <p className="text-sm text-center text-muted-foreground">Do you agree with these scores?</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={resetFinishFlow}
-                      className="gap-2"
-                      data-testid="button-amend-scores"
-                    >
-                      <RotateCcw className="w-4 h-4" /> Amend Scores
-                    </Button>
-                    <Button
-                      onClick={handleFinalConfirm}
-                      disabled={isSubmitting}
-                      className="gap-2"
-                      data-testid="button-confirm-finish"
-                    >
-                      <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm & Finish"}
-                    </Button>
-                  </div>
-                </div>
+                  )}
+
+                  {finishStep === 3 && (
+                    <div className="space-y-3 pt-2" data-testid="finish-step-3">
+                      <div className="text-center space-y-1">
+                        <Badge variant="outline" className="gap-1 text-muted-foreground">Losing team</Badge>
+                        <p className="font-semibold">{getLoserLabel()}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block text-center">Enter losing team's score</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder=""
+                          value={loserScore}
+                          onChange={(e) => setLoserScore(e.target.value)}
+                          className="text-2xl text-center font-bold h-14"
+                          data-testid="input-loser-score"
+                        />
+                      </div>
+                      <Button
+                        className="w-full gap-2"
+                        onClick={() => setFinishStep(4)}
+                        disabled={loserScore === "" || isNaN(Number(loserScore)) || Number(loserScore) < 0}
+                        data-testid="button-next-step-3"
+                      >
+                        Next <ArrowRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {finishStep === 4 && (
+                    <div className="space-y-4 pt-2" data-testid="finish-step-4">
+                      <div className="rounded-lg border border-border p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                            <span className="font-semibold truncate">{getWinnerLabel()}</span>
+                          </div>
+                          <span className="text-2xl font-bold font-mono text-primary">{winnerScore}</span>
+                        </div>
+                        <div className="border-t border-border" />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-muted-foreground truncate block">{getLoserLabel()}</span>
+                          </div>
+                          <span className="text-2xl font-bold font-mono text-muted-foreground">{loserScore}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-center text-muted-foreground">Do you agree with these scores?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={resetFinishFlow}
+                          className="gap-2"
+                          data-testid="button-amend-scores"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Amend Scores
+                        </Button>
+                        <Button
+                          onClick={handleFinalConfirm}
+                          disabled={isSubmitting}
+                          className="gap-2"
+                          data-testid="button-confirm-finish"
+                        >
+                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm & Finish"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
