@@ -1772,7 +1772,7 @@ export default function Financials() {
               ) : (
                 <>
                   <div>
-                    <Label htmlFor="use-credit-amount" className="text-sm font-medium">Credit to Apply (pence)</Label>
+                    <Label htmlFor="use-credit-amount" className="text-sm font-medium">Credit to Apply (p)</Label>
                     <Input
                       id="use-credit-amount"
                       type="number"

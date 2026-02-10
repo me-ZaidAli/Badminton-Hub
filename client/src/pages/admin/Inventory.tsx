@@ -346,12 +346,21 @@ export default function Inventory() {
     setItemForm({ name: "", supplier: "", unitPrice: "", stockAvailable: "0", isSessionLinked: false, canBeSold: false, isActive: true, notes: "" });
   }
 
+  function penceToPounds(pence: number): string {
+    return (pence / 100).toFixed(2);
+  }
+  function poundsToPence(pounds: string): number {
+    const val = parseFloat(pounds);
+    if (isNaN(val)) return 0;
+    return Math.round(val * 100);
+  }
+
   function openEditItem(item: InventoryItem) {
     setEditingItem(item);
     setItemForm({
       name: item.name,
       supplier: item.supplier || "",
-      unitPrice: String(item.unitPrice),
+      unitPrice: penceToPounds(item.unitPrice),
       stockAvailable: String(item.stockAvailable),
       isSessionLinked: item.isSessionLinked,
       canBeSold: item.canBeSold,
@@ -362,7 +371,7 @@ export default function Inventory() {
 
   function openEditExpense(expense: ExpenseEntry) {
     setEditingExpense(expense);
-    setExpenseForm({ name: expense.name, amount: String(expense.amount), notes: expense.notes || "" });
+    setExpenseForm({ name: expense.name, amount: penceToPounds(expense.amount), notes: expense.notes || "" });
   }
 
   const defaultClubId = adminClubs.length === 1 ? adminClubs[0].id : null;
@@ -494,11 +503,11 @@ export default function Inventory() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end flex-wrap gap-1">
-                          <Button size="sm" variant="outline" onClick={() => { setReceiveForm({ quantity: "", unitPrice: String(item.unitPrice), notes: "" }); setReceiveDialog(item); }} data-testid={`button-receive-${item.id}`}>
+                          <Button size="sm" variant="outline" onClick={() => { setReceiveForm({ quantity: "", unitPrice: penceToPounds(item.unitPrice), notes: "" }); setReceiveDialog(item); }} data-testid={`button-receive-${item.id}`}>
                             <ArrowDown className="w-3 h-3 mr-1" /> Receive
                           </Button>
                           {item.canBeSold && (
-                            <Button size="sm" variant="outline" onClick={() => { setSellForm({ quantity: "1", unitPrice: String(item.unitPrice), buyerName: "", notes: "" }); setSellDialog(item); }} data-testid={`button-sell-${item.id}`}>
+                            <Button size="sm" variant="outline" onClick={() => { setSellForm({ quantity: "1", unitPrice: penceToPounds(item.unitPrice), buyerName: "", notes: "" }); setSellDialog(item); }} data-testid={`button-sell-${item.id}`}>
                               <ShoppingCart className="w-3 h-3 mr-1" /> Sell
                             </Button>
                           )}
@@ -507,10 +516,10 @@ export default function Inventory() {
                               <Wrench className="w-3 h-3 mr-1" /> Use
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => { setAdjustForm({ quantityDelta: "", notes: "" }); setAdjustDialog(item); }} data-testid={`button-adjust-${item.id}`}>
+                          <Button size="sm" variant="ghost" onClick={() => openEditItem(item)} data-testid={`button-edit-${item.id}`} title="Edit item details">
                             <Pencil className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => openEditItem(item)} data-testid={`button-edit-${item.id}`}>
+                          <Button size="sm" variant="ghost" onClick={() => { setAdjustForm({ quantityDelta: "", notes: "" }); setAdjustDialog(item); }} data-testid={`button-adjust-${item.id}`} title="Adjust stock">
                             <ClipboardList className="w-3 h-3" />
                           </Button>
                         </div>
@@ -650,8 +659,8 @@ export default function Inventory() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Unit Price (pence)</Label>
-                <Input type="number" value={itemForm.unitPrice} onChange={e => setItemForm(f => ({ ...f, unitPrice: e.target.value }))} placeholder="0" data-testid="input-item-price" />
+                <Label>Unit Price (&pound;)</Label>
+                <Input type="text" inputMode="decimal" value={itemForm.unitPrice} onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v) || v === "") setItemForm(f => ({ ...f, unitPrice: v })); }} placeholder="0.00" data-testid="input-item-price" />
               </div>
               <div>
                 <Label>{editingItem ? "Stock Available" : "Initial Stock"}</Label>
@@ -686,12 +695,13 @@ export default function Inventory() {
                 const clubId = editingItem?.clubId || effectiveClubId;
                 if (!clubId) { toast({ title: "Select a club", variant: "destructive" }); return; }
                 if (!itemForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
+                const priceInPence = poundsToPence(itemForm.unitPrice);
                 if (editingItem) {
                   updateItem.mutate({
                     id: editingItem.id,
                     name: itemForm.name,
                     supplier: itemForm.supplier || null,
-                    unitPrice: Number(itemForm.unitPrice) || 0,
+                    unitPrice: priceInPence,
                     stockAvailable: Number(itemForm.stockAvailable) || 0,
                     isSessionLinked: itemForm.isSessionLinked,
                     canBeSold: itemForm.canBeSold,
@@ -703,7 +713,7 @@ export default function Inventory() {
                     clubId,
                     name: itemForm.name,
                     supplier: itemForm.supplier || undefined,
-                    unitPrice: Number(itemForm.unitPrice) || 0,
+                    unitPrice: priceInPence,
                     stockAvailable: Number(itemForm.stockAvailable) || 0,
                     isSessionLinked: itemForm.isSessionLinked,
                     canBeSold: itemForm.canBeSold,
@@ -732,8 +742,8 @@ export default function Inventory() {
               <Input type="number" value={receiveForm.quantity} onChange={e => setReceiveForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" data-testid="input-receive-qty" />
             </div>
             <div>
-              <Label>Unit Price (pence)</Label>
-              <Input type="number" value={receiveForm.unitPrice} onChange={e => setReceiveForm(f => ({ ...f, unitPrice: e.target.value }))} data-testid="input-receive-price" />
+              <Label>Unit Price (&pound;)</Label>
+              <Input type="text" inputMode="decimal" value={receiveForm.unitPrice} onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v) || v === "") setReceiveForm(f => ({ ...f, unitPrice: v })); }} data-testid="input-receive-price" />
             </div>
             <div>
               <Label>Notes</Label>
@@ -747,7 +757,7 @@ export default function Inventory() {
               data-testid="button-confirm-receive"
               onClick={() => {
                 const qty = Number(receiveForm.quantity);
-                const price = Number(receiveForm.unitPrice);
+                const price = poundsToPence(receiveForm.unitPrice);
                 if (!qty || qty < 1) { toast({ title: "Enter a valid quantity", variant: "destructive" }); return; }
                 receiveStock.mutate({ itemId: receiveDialog!.id, quantity: qty, unitPrice: price, notes: receiveForm.notes || undefined });
               }}
@@ -807,8 +817,8 @@ export default function Inventory() {
               <Input type="number" value={sellForm.quantity} onChange={e => setSellForm(f => ({ ...f, quantity: e.target.value }))} data-testid="input-sell-qty" />
             </div>
             <div>
-              <Label>Sell Price per Unit (pence)</Label>
-              <Input type="number" value={sellForm.unitPrice} onChange={e => setSellForm(f => ({ ...f, unitPrice: e.target.value }))} data-testid="input-sell-price" />
+              <Label>Sell Price per Unit (&pound;)</Label>
+              <Input type="text" inputMode="decimal" value={sellForm.unitPrice} onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v) || v === "") setSellForm(f => ({ ...f, unitPrice: v })); }} data-testid="input-sell-price" />
             </div>
             <div>
               <Label>Buyer Name</Label>
@@ -826,7 +836,7 @@ export default function Inventory() {
               data-testid="button-confirm-sell"
               onClick={() => {
                 const qty = Number(sellForm.quantity);
-                const price = Number(sellForm.unitPrice);
+                const price = poundsToPence(sellForm.unitPrice);
                 if (!qty || qty < 1) { toast({ title: "Enter quantity", variant: "destructive" }); return; }
                 if (!sellForm.buyerName.trim()) { toast({ title: "Enter buyer name", variant: "destructive" }); return; }
                 sellItem.mutate({ itemId: sellDialog!.id, quantity: qty, unitPrice: price, buyerName: sellForm.buyerName, notes: sellForm.notes || undefined });
@@ -870,8 +880,8 @@ export default function Inventory() {
               <Input value={expenseForm.name} onChange={e => setExpenseForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Net replacement" data-testid="input-expense-name" />
             </div>
             <div>
-              <Label>Amount (pence)</Label>
-              <Input type="number" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" data-testid="input-expense-amount" />
+              <Label>Amount (&pound;)</Label>
+              <Input type="text" inputMode="decimal" value={expenseForm.amount} onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v) || v === "") setExpenseForm(f => ({ ...f, amount: v })); }} placeholder="0.00" data-testid="input-expense-amount" />
             </div>
             <div>
               <Label>Notes</Label>
@@ -887,7 +897,7 @@ export default function Inventory() {
                 const clubId = editingExpense?.clubId || effectiveClubId;
                 if (!clubId) { toast({ title: "Select a club", variant: "destructive" }); return; }
                 if (!expenseForm.name.trim()) { toast({ title: "Description required", variant: "destructive" }); return; }
-                const amount = Number(expenseForm.amount);
+                const amount = poundsToPence(expenseForm.amount);
                 if (!amount || amount < 1) { toast({ title: "Enter a valid amount", variant: "destructive" }); return; }
                 if (editingExpense) {
                   updateExpense.mutate({ id: editingExpense.id, name: expenseForm.name, amount, notes: expenseForm.notes || null });
