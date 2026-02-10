@@ -114,9 +114,14 @@ function scorePairing(
   return score;
 }
 
+function removeUsedPlayers(pool: Player[], match: MatchResult): Player[] {
+  const usedIds = new Set([match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[]);
+  return pool.filter(p => !usedIds.has(p.id));
+}
+
 function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
   const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
-  const eligible = filterByGender(players, genderType);
+  let eligible = filterByGender(players, genderType);
   
   if (eligible.length < 4) return [];
   
@@ -124,8 +129,6 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
   const localPairings = new Map(recentPairings);
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
-  const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
-  const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
   
   for (let q = 0; q < queueTarget; q++) {
     if (eligible.length < 4) break;
@@ -133,6 +136,8 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     
+    const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
+    const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
     const useFemaleMatch = females.length >= 2 && Math.random() < 0.5;
     
     const candidates = generateCandidateDoubles(eligible, females, males, useFemaleMatch);
@@ -150,6 +155,9 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     if (bestMatch) {
       results.push(bestMatch);
       updateTrackingMaps(bestMatch, localPairings, localOpponents, localCounts);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
     }
   }
   
@@ -158,7 +166,7 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
 
 function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
   const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
-  const eligible = filterByGender(players, genderType);
+  let eligible = filterByGender(players, genderType);
   
   if (eligible.length < 2) return [];
   
@@ -209,6 +217,9 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
       localOpponents.set(key, (localOpponents.get(key) || 0) + 1);
       localCounts.set(bestMatch.teamAPlayer1Id, (localCounts.get(bestMatch.teamAPlayer1Id) || 0) + 1);
       localCounts.set(bestMatch.teamBPlayer1Id, (localCounts.get(bestMatch.teamBPlayer1Id) || 0) + 1);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
     }
   }
   
@@ -217,7 +228,7 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
 
 function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
   const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
-  const eligible = filterByGender(players, genderType);
+  let eligible = filterByGender(players, genderType);
   
   if (eligible.length < 4) return [];
   
@@ -225,13 +236,13 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
   const localPairings = new Map(recentPairings);
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
-  const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
-  const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
-  
-  const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
   
   for (let q = 0; q < queueTarget; q++) {
-    if (sorted.length < 4) break;
+    if (eligible.length < 4) break;
+    
+    const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
+    const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
+    const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
     
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
@@ -266,6 +277,9 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
     if (bestMatch) {
       results.push(bestMatch);
       updateTrackingMaps(bestMatch, localPairings, localOpponents, localCounts);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
     }
   }
   
@@ -274,17 +288,19 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
 
 function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
   const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
-  const eligible = filterByGender(players, genderType);
+  let eligible = filterByGender(players, genderType);
   
   if (eligible.length < 2) return [];
   
-  const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
   const results: MatchResult[] = [];
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
   const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
   
   for (let q = 0; q < queueTarget; q++) {
+    if (eligible.length < 2) break;
+    
+    const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     
@@ -326,6 +342,9 @@ function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
       localOpponents.set(key, (localOpponents.get(key) || 0) + 1);
       localCounts.set(bestMatch.teamAPlayer1Id, (localCounts.get(bestMatch.teamAPlayer1Id) || 0) + 1);
       localCounts.set(bestMatch.teamBPlayer1Id, (localCounts.get(bestMatch.teamBPlayer1Id) || 0) + 1);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
     }
   }
   
