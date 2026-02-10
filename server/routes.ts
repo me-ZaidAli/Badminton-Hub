@@ -2240,6 +2240,22 @@ export async function registerRoutes(
         .filter(m => m.queuePosition !== null)
         .map(m => m.queuePosition || 0));
 
+      // Exclude players currently in LIVE or QUEUED matches
+      const busyPlayerIds = new Set<number>();
+      existingMatches
+        .filter(m => m.status === "LIVE" || m.status === "QUEUED")
+        .forEach(m => {
+          if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+        });
+      players = players.filter(p => !busyPlayerIds.has(p.id));
+
+      if (players.length < playersPerMatch) {
+        return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
+      }
+
       // Generate matches using round-robin style pairing
       const shuffled = [...players].sort(() => 0.5 - Math.random());
       const generatedMatches = [];
@@ -2318,8 +2334,23 @@ export async function registerRoutes(
       const signups = await storage.getSessionSignups(sessionId);
       const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
       const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+
+      // Exclude players currently in LIVE or QUEUED matches
+      const busyPlayerIds = new Set<number>();
+      existingMatches
+        .filter(m => m.status === "LIVE" || m.status === "QUEUED")
+        .forEach(m => {
+          if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+        });
+
       const players = eligibleSignups
         .filter(s => !s.isPaused)
+        .filter(s => !busyPlayerIds.has(s.player.id))
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
@@ -2329,10 +2360,9 @@ export async function registerRoutes(
         }));
 
       if (players.length < playersPerMatch) {
-        return res.status(400).json({ message: `Need at least ${playersPerMatch} active (non-paused) players` });
+        return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
       }
 
-      const existingMatches = await storage.getSessionMatches(sessionId);
       const queuedCount = existingMatches.filter(m => m.status === "QUEUED").length;
       const matchesNeeded = Math.max(0, queueTarget - queuedCount);
 
