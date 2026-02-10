@@ -201,8 +201,8 @@ export function PlayerStatsDialog({
                           borderRadius: "8px",
                           fontSize: "12px",
                         }}
-                        formatter={(_: unknown, __: unknown, props: { payload: { result: string } }) => [
-                          props.payload.result === "W" ? "Win" : "Loss",
+                        formatter={(_: unknown, __: unknown, props: { payload?: { result: string } }) => [
+                          props?.payload?.result === "W" ? "Win" : "Loss",
                           "Result",
                         ]}
                       />

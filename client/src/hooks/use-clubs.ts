@@ -254,3 +254,18 @@ export function usePersonalRanking(clubId: number | null) {
     enabled: clubId !== null,
   });
 }
+
+export function useMyTournamentClubs(enabled: boolean = true) {
+  return useQuery<Club[]>({
+    queryKey: ["/api/my-session-clubs"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-session-clubs", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch tournament clubs");
+      }
+      return res.json();
+    },
+    enabled,
+  });
+}

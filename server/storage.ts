@@ -101,6 +101,7 @@ export interface IStorage {
     parentGuardianEmail: string | null;
     password: string;
     accountStatus: string;
+    profilePictureUrl: string | null;
   }>): Promise<User>;
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile>;
   updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
@@ -287,7 +288,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createClub(club: InsertClub): Promise<Club> {
-    const [newClub] = await db.insert(clubs).values(club).returning();
+    const [newClub] = await db.insert(clubs).values(club as any).returning();
     return newClub;
   }
 
@@ -334,28 +335,15 @@ export class DatabaseStorage implements IStorage {
 
   async getUserPlayerProfiles(userId: number): Promise<(PlayerProfile & { club: Club })[]> {
     const result = await db
-      .select({
-        ...playerProfiles,
-        club: clubs
-      })
+      .select()
       .from(playerProfiles)
       .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
       .where(eq(playerProfiles.userId, userId));
     
     return result.map(r => ({
-      id: r.id,
-      userId: r.userId,
-      clubId: r.clubId,
-      clubRole: r.clubRole,
-      membershipStatus: r.membershipStatus,
-      gender: r.gender,
-      category: r.category,
-      rankingPoints: r.rankingPoints,
-      matchesPlayed: r.matchesPlayed,
-      matchesWon: r.matchesWon,
-      membershipId: r.membershipId,
-      club: r.club
-    }));
+      ...r.player_profiles,
+      club: r.clubs
+    })) as any;
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -517,7 +505,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSession(session: InsertSession & { createdBy: number }): Promise<Session> {
-    const [newSession] = await db.insert(sessions).values(session).returning();
+    const [newSession] = await db.insert(sessions).values(session as any).returning();
     return newSession;
   }
 
@@ -551,7 +539,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVenue(venue: InsertVenue): Promise<Venue> {
-    const [newVenue] = await db.insert(venues).values(venue).returning();
+    const [newVenue] = await db.insert(venues).values(venue as any).returning();
     return newVenue;
   }
 
@@ -650,15 +638,15 @@ export class DatabaseStorage implements IStorage {
       return {
         ...m,
         teamAPlayer1: p1,
-        teamAPlayer2: p2,
+        teamAPlayer2: p2 || null,
         teamBPlayer1: p3,
-        teamBPlayer2: p4,
+        teamBPlayer2: p4 || null,
         scoreEnteredByUser,
         scoreUpdatedByUser,
       };
     }));
 
-    return enrichedMatches;
+    return enrichedMatches as any;
   }
 
   // Helper for internal use
@@ -737,6 +725,7 @@ export class DatabaseStorage implements IStorage {
     parentGuardianEmail: string | null;
     password: string;
     accountStatus: string;
+    profilePictureUrl: string | null;
   }>): Promise<User> {
     const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
     return updated;

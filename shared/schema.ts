@@ -755,6 +755,8 @@ export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSche
 export type Expense = typeof expenses.$inferSelect;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type InsertMatch = z.infer<typeof insertMatchSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;

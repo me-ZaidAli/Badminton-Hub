@@ -14,6 +14,8 @@ import {
   memberships
 } from "./schema";
 
+export type { InsertUser, InsertSession } from "./schema";
+
 export const errorSchemas = {
   validation: z.object({
     message: z.string(),
