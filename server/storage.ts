@@ -329,8 +329,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteClub(id: number): Promise<void> {
-    // Soft delete by setting isActive to false
-    await db.update(clubs).set({ isActive: false }).where(eq(clubs.id, id));
+    await db.update(clubs).set({ isActive: false, status: "ARCHIVED" }).where(eq(clubs.id, id));
   }
 
   async getUserPlayerProfiles(userId: number): Promise<(PlayerProfile & { club: Club })[]> {
@@ -1019,29 +1018,31 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${matches.completedAt} <= ${filters.dateTo}`);
     }
 
+    const activeClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.isActive, true));
+    const activeClubIds = activeClubs.map(c => c.id);
+    if (activeClubIds.length === 0) return [];
+
     let sessionFilter: number[] | null = null;
-    if (filters.clubId || filters.matchType) {
-      const sessionConditions: any[] = [];
-      if (filters.clubId) {
-        sessionConditions.push(eq(sessions.clubId, filters.clubId));
-      }
-      if (filters.matchType === "SINGLES") {
-        sessionConditions.push(eq(sessions.playersPerSide, 1));
-      } else if (filters.matchType === "DOUBLES") {
-        sessionConditions.push(eq(sessions.playersPerSide, 2));
-        sessionConditions.push(sql`${sessions.matchGenderType} != 'MIXED'`);
-      } else if (filters.matchType === "MIXED") {
-        sessionConditions.push(eq(sessions.playersPerSide, 2));
-        sessionConditions.push(eq(sessions.matchGenderType, "MIXED"));
-      }
-
-      const filteredSessions = await db.select({ id: sessions.id })
-        .from(sessions)
-        .where(and(...sessionConditions));
-
-      if (filteredSessions.length === 0) return [];
-      sessionFilter = filteredSessions.map(s => s.id);
+    const sessionConditions: any[] = [inArray(sessions.clubId, activeClubIds)];
+    if (filters.clubId) {
+      sessionConditions.push(eq(sessions.clubId, filters.clubId));
     }
+    if (filters.matchType === "SINGLES") {
+      sessionConditions.push(eq(sessions.playersPerSide, 1));
+    } else if (filters.matchType === "DOUBLES") {
+      sessionConditions.push(eq(sessions.playersPerSide, 2));
+      sessionConditions.push(sql`${sessions.matchGenderType} != 'MIXED'`);
+    } else if (filters.matchType === "MIXED") {
+      sessionConditions.push(eq(sessions.playersPerSide, 2));
+      sessionConditions.push(eq(sessions.matchGenderType, "MIXED"));
+    }
+
+    const filteredSessions = await db.select({ id: sessions.id })
+      .from(sessions)
+      .where(and(...sessionConditions));
+
+    if (filteredSessions.length === 0) return [];
+    sessionFilter = filteredSessions.map(s => s.id);
 
     if (sessionFilter) {
       conditions.push(inArray(matches.sessionId, sessionFilter));

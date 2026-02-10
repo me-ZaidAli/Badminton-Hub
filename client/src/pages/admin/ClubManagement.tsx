@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save } from "lucide-react";
+import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
@@ -163,7 +163,7 @@ export default function ClubManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
-      toast({ title: "Club deleted successfully" });
+      toast({ title: "Club archived successfully" });
       setDeleteConfirmOpen(false);
       setClubToDelete(null);
     },
@@ -269,7 +269,7 @@ export default function ClubManagement() {
     if (activeTab === "pending") return club.status === "PENDING" && club.isActive;
     if (activeTab === "approved") return club.status === "APPROVED" && club.isActive;
     if (activeTab === "rejected") return club.status === "REJECTED" && club.isActive;
-    if (activeTab === "deleted") return !club.isActive;
+    if (activeTab === "archived") return !club.isActive;
     return true;
   }) || [];
 
@@ -349,7 +349,7 @@ export default function ClubManagement() {
           </TabsTrigger>
           <TabsTrigger value="approved" data-testid="tab-approved-clubs">Approved</TabsTrigger>
           <TabsTrigger value="rejected" data-testid="tab-rejected-clubs">Rejected</TabsTrigger>
-          <TabsTrigger value="deleted" data-testid="tab-deleted-clubs">Deleted</TabsTrigger>
+          <TabsTrigger value="archived" data-testid="tab-archived-clubs">Archived</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -432,7 +432,7 @@ export default function ClubManagement() {
                           onClick={() => { setClubToDelete(club); setDeleteConfirmOpen(true); }}
                           data-testid={`delete-club-${club.id}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Archive className="w-4 h-4" />
                         </Button>
                       </>
                     )}
@@ -447,9 +447,9 @@ export default function ClubManagement() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Club</DialogTitle>
+            <DialogTitle>Archive Club</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{clubToDelete?.name}"? This action will deactivate the club and all its data.
+              Are you sure you want to archive "{clubToDelete?.name}"? The club will no longer be visible publicly, won't appear in rankings or session listings, and members won't be able to access it. All data will be preserved.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -461,7 +461,7 @@ export default function ClubManagement() {
               data-testid="confirm-delete-club"
             >
               {deleteClubMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Delete Club
+              Archive Club
             </Button>
           </DialogFooter>
         </DialogContent>

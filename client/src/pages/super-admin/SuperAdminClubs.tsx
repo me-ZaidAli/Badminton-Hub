@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import {
   Building2, Search, Loader2, Pencil, Trash2, CheckCircle, XCircle,
-  Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users
+  Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users, Archive
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -187,7 +187,7 @@ export default function SuperAdminClubs() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/super-admin/stats"] });
       setDeleteClub(null);
-      toast({ title: "Club Deleted", description: "Club has been removed from the system." });
+      toast({ title: "Club Archived", description: "Club has been archived and is no longer visible publicly." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to delete club", variant: "destructive" });
@@ -268,7 +268,10 @@ export default function SuperAdminClubs() {
     return owner?.fullName || `User #${ownerId}`;
   };
 
-  const statusBadge = (status: string) => {
+  const statusBadge = (status: string, isActive?: boolean) => {
+    if (!isActive && status === "ARCHIVED") {
+      return <Badge variant="outline" className="text-xs text-muted-foreground"><Archive className="w-3 h-3 mr-1" /> Archived</Badge>;
+    }
     switch (status) {
       case "APPROVED": return <Badge variant="outline" className="text-xs text-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Approved</Badge>;
       case "PENDING": return <Badge variant="outline" className="text-xs text-amber-600"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
@@ -366,7 +369,7 @@ export default function SuperAdminClubs() {
                     <TableCell>
                       <span className="text-sm">{getOwnerName(club.ownerId)}</span>
                     </TableCell>
-                    <TableCell>{statusBadge(club.status)}</TableCell>
+                    <TableCell>{statusBadge(club.status, club.isActive)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="w-3 h-3" />
@@ -403,9 +406,9 @@ export default function SuperAdminClubs() {
                           size="icon"
                           onClick={() => setDeleteClub(club)}
                           className="text-destructive"
-                          data-testid={`button-delete-club-${club.id}`}
+                          data-testid={`button-archive-club-${club.id}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Archive className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -762,10 +765,9 @@ export default function SuperAdminClubs() {
       <AlertDialog open={!!deleteClub} onOpenChange={(open) => !open && setDeleteClub(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Club</AlertDialogTitle>
+            <AlertDialogTitle>Archive Club</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteClub?.name}</strong> and all associated data.
-              This action cannot be undone.
+              This will archive <strong>{deleteClub?.name}</strong>. The club will no longer be visible publicly, won't appear in rankings or session listings, and members won't be able to access it. All data will be preserved and can be restored later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -776,7 +778,7 @@ export default function SuperAdminClubs() {
               data-testid="button-confirm-delete-club"
             >
               {deleteClubMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Delete Club
+              Archive Club
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5568,19 +5568,21 @@ export async function registerRoutes(
       const allClubs = await storage.getClubs();
       const clubMap = new Map(allClubs.map(c => [c.id, c]));
 
-      const enriched = allSessions.map(s => {
-        const club = clubMap.get(s.clubId);
-        return {
-          ...s,
-          clubName: club?.name || "Unknown",
-          clubCity: club?.city || null,
-          clubPostcode: club?.postcode || null,
-          clubAddress: club?.address || null,
-          clubLatitude: club?.latitude || null,
-          clubLongitude: club?.longitude || null,
-          playerLevels: club?.playerLevels || [],
-        };
-      });
+      const enriched = allSessions
+        .filter(s => clubMap.has(s.clubId))
+        .map(s => {
+          const club = clubMap.get(s.clubId)!;
+          return {
+            ...s,
+            clubName: club.name,
+            clubCity: club.city || null,
+            clubPostcode: club.postcode || null,
+            clubAddress: club.address || null,
+            clubLatitude: club.latitude || null,
+            clubLongitude: club.longitude || null,
+            playerLevels: club.playerLevels || [],
+          };
+        });
 
       res.json(enriched);
     } catch (err) {
