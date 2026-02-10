@@ -204,7 +204,7 @@ export default function PlayerManagement() {
 
   const allocateMutation = useMutation({
     mutationFn: async ({ userId, clubIds }: { userId: number, clubIds: number[] }) => {
-      return apiRequest(`/api/admin/players/${userId}/allocate`, "POST", { clubIds });
+      return apiRequest("POST", `/api/admin/players/${userId}/allocate`, { clubIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
