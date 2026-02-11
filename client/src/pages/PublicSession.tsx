@@ -41,7 +41,8 @@ export default function PublicSession() {
       return res.json();
     },
     enabled: !!sessionId,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
+    staleTime: 0,
   });
 
   const { data: leaderboard } = useQuery<any[]>({
@@ -52,7 +53,8 @@ export default function PublicSession() {
       return res.json();
     },
     enabled: !!sessionId,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
+    staleTime: 0,
   });
 
   if (isLoading) {

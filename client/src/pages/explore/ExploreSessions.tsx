@@ -20,7 +20,8 @@ export default function ExploreSessions() {
 
   const { data: allSessions, isLoading } = useQuery<any[]>({
     queryKey: ["/api/public/all-sessions"],
-    refetchInterval: 15000,
+    refetchInterval: 10000,
+    staleTime: 0,
   });
 
   const clubs = useMemo(() => {

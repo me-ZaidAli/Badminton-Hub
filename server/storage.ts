@@ -3,6 +3,7 @@ import {
   users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
+  creditLedger, inventoryMovements,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
@@ -514,7 +515,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSession(id: number): Promise<void> {
-    // Delete related signups and matches first
+    const signupIds = (await db.select({ id: sessionSignups.id }).from(sessionSignups).where(eq(sessionSignups.sessionId, id))).map(s => s.id);
+    if (signupIds.length > 0) {
+      await db.update(creditLedger).set({ linkedSignupId: null }).where(inArray(creditLedger.linkedSignupId, signupIds));
+    }
+    await db.update(creditLedger).set({ linkedSessionId: null }).where(eq(creditLedger.linkedSessionId, id));
+    await db.update(inventoryMovements).set({ sessionId: null }).where(eq(inventoryMovements.sessionId, id));
     await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, id));
     await db.delete(matches).where(eq(matches.sessionId, id));
     await db.delete(sessions).where(eq(sessions.id, id));
@@ -522,6 +528,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSessions(ids: number[]): Promise<void> {
     if (ids.length === 0) return;
+    const signupIds = (await db.select({ id: sessionSignups.id }).from(sessionSignups).where(inArray(sessionSignups.sessionId, ids))).map(s => s.id);
+    if (signupIds.length > 0) {
+      await db.update(creditLedger).set({ linkedSignupId: null }).where(inArray(creditLedger.linkedSignupId, signupIds));
+    }
+    await db.update(creditLedger).set({ linkedSessionId: null }).where(inArray(creditLedger.linkedSessionId, ids));
+    await db.update(inventoryMovements).set({ sessionId: null }).where(inArray(inventoryMovements.sessionId, ids));
     await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, ids));
     await db.delete(matches).where(inArray(matches.sessionId, ids));
     await db.delete(sessions).where(inArray(sessions.id, ids));
