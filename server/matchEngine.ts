@@ -13,6 +13,8 @@ type MatchResult = {
   teamBPlayer2Id: number | null;
 };
 
+type FixedPair = [number, number];
+
 type GenerateOptions = {
   mode: "SOCIAL" | "COMPETITIVE";
   players: Player[];
@@ -23,6 +25,13 @@ type GenerateOptions = {
   recentOpponents: Map<string, number>;
   playerMatchCounts: Map<number, number>;
   priorityPlayerIds?: number[];
+  fixedPairs?: FixedPair[];
+};
+
+type GenerateResult = {
+  matches: MatchResult[];
+  pairConstraintBlocked?: boolean;
+  pairConstraintMessage?: string;
 };
 
 function pairKey(a: number, b: number): string {
@@ -62,6 +71,54 @@ function isWeakPlayer(cat: string | null): boolean {
   return rank <= 1;
 }
 
+function getFixedPartner(playerId: number, fixedPairs: FixedPair[]): number | null {
+  for (const [a, b] of fixedPairs) {
+    if (a === playerId) return b;
+    if (b === playerId) return a;
+  }
+  return null;
+}
+
+function isInFixedPair(playerId: number, fixedPairs: FixedPair[]): boolean {
+  return getFixedPartner(playerId, fixedPairs) !== null;
+}
+
+function candidateRespectsFixedPairs(candidate: MatchResult, fixedPairs: FixedPair[]): boolean {
+  if (!fixedPairs || fixedPairs.length === 0) return true;
+
+  const teamA = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id].filter(Boolean) as number[];
+  const teamB = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
+  const allPlayers = [...teamA, ...teamB];
+
+  for (const [p1, p2] of fixedPairs) {
+    const p1InMatch = allPlayers.includes(p1);
+    const p2InMatch = allPlayers.includes(p2);
+
+    if (p1InMatch && p2InMatch) {
+      const p1InA = teamA.includes(p1);
+      const p2InA = teamA.includes(p2);
+      const p1InB = teamB.includes(p1);
+      const p2InB = teamB.includes(p2);
+
+      if (!((p1InA && p2InA) || (p1InB && p2InB))) {
+        return false;
+      }
+    }
+
+    if (p1InMatch !== p2InMatch) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function opponentPairKey(teamA: number[], teamB: number[]): string {
+  const sortedA = [...teamA].sort((a, b) => a - b);
+  const sortedB = [...teamB].sort((a, b) => a - b);
+  return `${sortedA.join(",")}_vs_${sortedB.join(",")}`;
+}
+
 function scorePairing(
   team: number[],
   opponents: number[],
@@ -69,21 +126,32 @@ function scorePairing(
   recentOpponents: Map<string, number>,
   playerMatchCounts: Map<number, number>,
   priorityPlayerIds?: number[],
-  playerPool?: Player[]
+  playerPool?: Player[],
+  fixedPairs?: FixedPair[]
 ): number {
   let score = 0;
   
   for (let i = 0; i < team.length; i++) {
     for (let j = i + 1; j < team.length; j++) {
       const key = pairKey(team[i], team[j]);
-      score -= (recentPairings.get(key) || 0) * 10;
+      const isFixed = fixedPairs?.some(([a, b]) => 
+        (a === team[i] && b === team[j]) || (a === team[j] && b === team[i])
+      );
+      if (!isFixed) {
+        score -= (recentPairings.get(key) || 0) * 10;
+      }
     }
   }
   
   for (let i = 0; i < opponents.length; i++) {
     for (let j = i + 1; j < opponents.length; j++) {
       const key = pairKey(opponents[i], opponents[j]);
-      score -= (recentPairings.get(key) || 0) * 10;
+      const isFixed = fixedPairs?.some(([a, b]) => 
+        (a === opponents[i] && b === opponents[j]) || (a === opponents[j] && b === opponents[i])
+      );
+      if (!isFixed) {
+        score -= (recentPairings.get(key) || 0) * 10;
+      }
     }
   }
   
@@ -186,16 +254,109 @@ function removeUsedPlayers(pool: Player[], match: MatchResult): Player[] {
   return pool.filter(p => !usedIds.has(p.id));
 }
 
-function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
+function generatePairAwareCandidateDoubles(
+  eligible: Player[],
+  fixedPairs: FixedPair[]
+): MatchResult[] {
+  const candidates: MatchResult[] = [];
+  const maxCandidates = 80;
+
+  const activePairs: FixedPair[] = fixedPairs.filter(([a, b]) =>
+    eligible.some(p => p.id === a) && eligible.some(p => p.id === b)
+  );
+
+  const pairedPlayerIds = new Set<number>();
+  for (const [a, b] of activePairs) {
+    pairedPlayerIds.add(a);
+    pairedPlayerIds.add(b);
+  }
+  const singles = eligible.filter(p => !pairedPlayerIds.has(p.id));
+
+  type TeamUnit = { player1Id: number; player2Id: number };
+
+  const pairUnits: TeamUnit[] = activePairs.map(([a, b]) => ({ player1Id: a, player2Id: b }));
+
+  const singlePairUnits: TeamUnit[] = [];
+  const shuffledSingles = shuffleArray(singles);
+  for (let i = 0; i + 1 < shuffledSingles.length; i += 2) {
+    singlePairUnits.push({ player1Id: shuffledSingles[i].id, player2Id: shuffledSingles[i + 1].id });
+  }
+
+  const allTeamUnits = [...pairUnits, ...singlePairUnits];
+
+  for (let i = 0; i < allTeamUnits.length && candidates.length < maxCandidates; i++) {
+    for (let j = i + 1; j < allTeamUnits.length && candidates.length < maxCandidates; j++) {
+      const teamA = allTeamUnits[i];
+      const teamB = allTeamUnits[j];
+      const ids = new Set([teamA.player1Id, teamA.player2Id, teamB.player1Id, teamB.player2Id]);
+      if (ids.size === 4) {
+        candidates.push({
+          teamAPlayer1Id: teamA.player1Id,
+          teamAPlayer2Id: teamA.player2Id,
+          teamBPlayer1Id: teamB.player1Id,
+          teamBPlayer2Id: teamB.player2Id,
+        });
+      }
+    }
+  }
+
+  if (activePairs.length > 0 && singles.length >= 2) {
+    for (const [pairA, pairB] of activePairs) {
+      const shuffled = shuffleArray(singles);
+      for (let i = 0; i + 1 < shuffled.length && candidates.length < maxCandidates; i += 2) {
+        candidates.push({
+          teamAPlayer1Id: pairA,
+          teamAPlayer2Id: pairB,
+          teamBPlayer1Id: shuffled[i].id,
+          teamBPlayer2Id: shuffled[i + 1].id,
+        });
+      }
+      for (let a = 0; a < shuffled.length && candidates.length < maxCandidates; a++) {
+        for (let b = a + 1; b < shuffled.length && candidates.length < maxCandidates; b++) {
+          const ids = new Set([pairA, pairB, shuffled[a].id, shuffled[b].id]);
+          if (ids.size === 4) {
+            candidates.push({
+              teamAPlayer1Id: pairA,
+              teamAPlayer2Id: pairB,
+              teamBPlayer1Id: shuffled[a].id,
+              teamBPlayer2Id: shuffled[b].id,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  for (let attempt = 0; attempt < 30 && candidates.length < maxCandidates; attempt++) {
+    const s = shuffleArray(eligible);
+    if (s.length >= 4 && new Set([s[0].id, s[1].id, s[2].id, s[3].id]).size === 4) {
+      const candidate: MatchResult = {
+        teamAPlayer1Id: s[0].id,
+        teamAPlayer2Id: s[1].id,
+        teamBPlayer1Id: s[2].id,
+        teamBPlayer2Id: s[3].id,
+      };
+      if (candidateRespectsFixedPairs(candidate, fixedPairs)) {
+        candidates.push(candidate);
+      }
+    }
+  }
+
+  return candidates.filter(c => candidateRespectsFixedPairs(c, fixedPairs));
+}
+
+function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds, fixedPairs } = opts;
   let eligible = filterByGender(players, genderType);
   
-  if (eligible.length < 4) return [];
+  if (eligible.length < 4) return { matches: [] };
   
   const results: MatchResult[] = [];
   const localPairings = new Map(recentPairings);
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
+  
+  const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
   
   for (let q = 0; q < queueTarget; q++) {
     if (eligible.length < 4) break;
@@ -203,17 +364,21 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     
-    const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
-    const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
-    const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
-    const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
-    
-    const candidates = generateCandidateDoubles(eligible, females, males, useFemaleMatch);
+    let candidates: MatchResult[];
+    if (hasFixedPairs) {
+      candidates = generatePairAwareCandidateDoubles(eligible, fixedPairs!);
+    } else {
+      const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
+      const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
+      const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
+      const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
+      candidates = generateCandidateDoubles(eligible, females, males, useFemaleMatch);
+    }
     
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible);
+      const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
       if (s > bestScore) {
         bestScore = s;
         bestMatch = candidate;
@@ -221,22 +386,77 @@ function generateSocialDoubles(opts: GenerateOptions): MatchResult[] {
     }
     
     if (bestMatch) {
+      if (hasFixedPairs) {
+        const teamA = [bestMatch.teamAPlayer1Id, bestMatch.teamAPlayer2Id!].sort((a, b) => a - b);
+        const teamB = [bestMatch.teamBPlayer1Id, bestMatch.teamBPlayer2Id!].sort((a, b) => a - b);
+        const matchupKey = opponentPairKey(teamA, teamB);
+        const reverseKey = opponentPairKey(teamB, teamA);
+
+        const lastMatchOpponentKeys: string[] = [];
+        for (const prevMatch of results) {
+          const prevA = [prevMatch.teamAPlayer1Id, prevMatch.teamAPlayer2Id!].sort((a, b) => a - b);
+          const prevB = [prevMatch.teamBPlayer1Id, prevMatch.teamBPlayer2Id!].sort((a, b) => a - b);
+          lastMatchOpponentKeys.push(opponentPairKey(prevA, prevB));
+          lastMatchOpponentKeys.push(opponentPairKey(prevB, prevA));
+        }
+
+        if (lastMatchOpponentKeys.includes(matchupKey) || lastMatchOpponentKeys.includes(reverseKey)) {
+          const alternativeCandidates = candidates.filter(c => {
+            const cA = [c.teamAPlayer1Id, c.teamAPlayer2Id!].sort((a, b) => a - b);
+            const cB = [c.teamBPlayer1Id, c.teamBPlayer2Id!].sort((a, b) => a - b);
+            const cKey = opponentPairKey(cA, cB);
+            const cRevKey = opponentPairKey(cB, cA);
+            return !lastMatchOpponentKeys.includes(cKey) && !lastMatchOpponentKeys.includes(cRevKey) &&
+                   cKey !== matchupKey && cRevKey !== reverseKey;
+          });
+
+          let altBest: MatchResult | null = null;
+          let altBestScore = -Infinity;
+          for (const alt of alternativeCandidates) {
+            const team = [alt.teamAPlayer1Id, alt.teamAPlayer2Id!];
+            const opp = [alt.teamBPlayer1Id, alt.teamBPlayer2Id!];
+            const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
+            if (s > altBestScore) {
+              altBestScore = s;
+              altBest = alt;
+            }
+          }
+
+          if (altBest) {
+            bestMatch = altBest;
+          } else {
+            return {
+              matches: results,
+              pairConstraintBlocked: true,
+              pairConstraintMessage: "Not enough available players to create a different opponent pairing. Waiting for a current match to finish to allow new combinations.",
+            };
+          }
+        }
+      }
+
       results.push(bestMatch);
       updateTrackingMaps(bestMatch, localPairings, localOpponents, localCounts);
       eligible = removeUsedPlayers(eligible, bestMatch);
     } else {
+      if (hasFixedPairs && results.length === 0) {
+        return {
+          matches: [],
+          pairConstraintBlocked: true,
+          pairConstraintMessage: "Not enough available players to create a different opponent pairing. Waiting for a current match to finish to allow new combinations.",
+        };
+      }
       break;
     }
   }
   
-  return results;
+  return { matches: results };
 }
 
-function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
+function generateSocialSingles(opts: GenerateOptions): GenerateResult {
   const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   let eligible = filterByGender(players, genderType);
   
-  if (eligible.length < 2) return [];
+  if (eligible.length < 2) return { matches: [] };
   
   const results: MatchResult[] = [];
   const localOpponents = new Map(recentOpponents);
@@ -291,51 +511,58 @@ function generateSocialSingles(opts: GenerateOptions): MatchResult[] {
     }
   }
   
-  return results;
+  return { matches: results };
 }
 
-function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
-  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
+function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds, fixedPairs } = opts;
   let eligible = filterByGender(players, genderType);
   
-  if (eligible.length < 4) return [];
+  if (eligible.length < 4) return { matches: [] };
   
   const results: MatchResult[] = [];
   const localPairings = new Map(recentPairings);
   const localOpponents = new Map(recentOpponents);
   const localCounts = new Map(playerMatchCounts);
   
+  const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
+  
   for (let q = 0; q < queueTarget; q++) {
     if (eligible.length < 4) break;
-    
-    const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
-    const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
-    const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
     
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     
-    const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
-    const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
-    const useExtremePairing = Math.random() < 0.15;
-    
-    const candidates = useExtremePairing
-      ? generateExtremePairings(sorted, females, males, useFemaleMatch)
-      : generateCompetitiveCandidates(sorted, females, males, useFemaleMatch);
+    let candidates: MatchResult[];
+    if (hasFixedPairs) {
+      candidates = generatePairAwareCandidateDoubles(eligible, fixedPairs!);
+    } else {
+      const females = eligible.filter(p => getEffectiveGender(p) === "FEMALE");
+      const males = eligible.filter(p => getEffectiveGender(p) !== "FEMALE");
+      const sorted = [...eligible].sort((a, b) => getCategoryRank(b.category) - getCategoryRank(a.category));
+      const femaleProbability = females.length >= 4 ? 0.7 : females.length >= 2 ? 0.55 : 0.3;
+      const useFemaleMatch = females.length >= 2 && Math.random() < femaleProbability;
+      const useExtremePairing = Math.random() < 0.15;
+      candidates = useExtremePairing
+        ? generateExtremePairings(sorted, females, males, useFemaleMatch)
+        : generateCompetitiveCandidates(sorted, females, males, useFemaleMatch);
+    }
     
     for (const candidate of candidates) {
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible);
+      let s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
       
-      const catA1 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer1Id)?.category || null);
-      const catA2 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer2Id)?.category || null);
-      const catB1 = getCategoryRank(eligible.find(p => p.id === candidate.teamBPlayer1Id)?.category || null);
-      const catB2 = getCategoryRank(eligible.find(p => p.id === candidate.teamBPlayer2Id)?.category || null);
-      const teamAAvg = (catA1 + catA2) / 2;
-      const teamBAvg = (catB1 + catB2) / 2;
-      const diff = Math.abs(teamAAvg - teamBAvg);
-      s -= diff * 3;
+      if (!hasFixedPairs) {
+        const catA1 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer1Id)?.category || null);
+        const catA2 = getCategoryRank(eligible.find(p => p.id === candidate.teamAPlayer2Id)?.category || null);
+        const catB1 = getCategoryRank(eligible.find(p => p.id === candidate.teamBPlayer1Id)?.category || null);
+        const catB2 = getCategoryRank(eligible.find(p => p.id === candidate.teamBPlayer2Id)?.category || null);
+        const teamAAvg = (catA1 + catA2) / 2;
+        const teamBAvg = (catB1 + catB2) / 2;
+        const diff = Math.abs(teamAAvg - teamBAvg);
+        s -= diff * 3;
+      }
       
       if (s > bestScore) {
         bestScore = s;
@@ -344,22 +571,77 @@ function generateCompetitiveDoubles(opts: GenerateOptions): MatchResult[] {
     }
     
     if (bestMatch) {
+      if (hasFixedPairs) {
+        const teamA = [bestMatch.teamAPlayer1Id, bestMatch.teamAPlayer2Id!].sort((a, b) => a - b);
+        const teamB = [bestMatch.teamBPlayer1Id, bestMatch.teamBPlayer2Id!].sort((a, b) => a - b);
+        const matchupKey = opponentPairKey(teamA, teamB);
+        const reverseKey = opponentPairKey(teamB, teamA);
+
+        const lastMatchOpponentKeys: string[] = [];
+        for (const prevMatch of results) {
+          const prevA = [prevMatch.teamAPlayer1Id, prevMatch.teamAPlayer2Id!].sort((a, b) => a - b);
+          const prevB = [prevMatch.teamBPlayer1Id, prevMatch.teamBPlayer2Id!].sort((a, b) => a - b);
+          lastMatchOpponentKeys.push(opponentPairKey(prevA, prevB));
+          lastMatchOpponentKeys.push(opponentPairKey(prevB, prevA));
+        }
+
+        if (lastMatchOpponentKeys.includes(matchupKey) || lastMatchOpponentKeys.includes(reverseKey)) {
+          const alternativeCandidates = candidates.filter(c => {
+            const cA = [c.teamAPlayer1Id, c.teamAPlayer2Id!].sort((a, b) => a - b);
+            const cB = [c.teamBPlayer1Id, c.teamBPlayer2Id!].sort((a, b) => a - b);
+            const cKey = opponentPairKey(cA, cB);
+            const cRevKey = opponentPairKey(cB, cA);
+            return !lastMatchOpponentKeys.includes(cKey) && !lastMatchOpponentKeys.includes(cRevKey) &&
+                   cKey !== matchupKey && cRevKey !== reverseKey;
+          });
+
+          let altBest: MatchResult | null = null;
+          let altBestScore = -Infinity;
+          for (const alt of alternativeCandidates) {
+            const team = [alt.teamAPlayer1Id, alt.teamAPlayer2Id!];
+            const opp = [alt.teamBPlayer1Id, alt.teamBPlayer2Id!];
+            const s = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
+            if (s > altBestScore) {
+              altBestScore = s;
+              altBest = alt;
+            }
+          }
+
+          if (altBest) {
+            bestMatch = altBest;
+          } else {
+            return {
+              matches: results,
+              pairConstraintBlocked: true,
+              pairConstraintMessage: "Not enough available players to create a different opponent pairing. Waiting for a current match to finish to allow new combinations.",
+            };
+          }
+        }
+      }
+
       results.push(bestMatch);
       updateTrackingMaps(bestMatch, localPairings, localOpponents, localCounts);
       eligible = removeUsedPlayers(eligible, bestMatch);
     } else {
+      if (hasFixedPairs && results.length === 0) {
+        return {
+          matches: [],
+          pairConstraintBlocked: true,
+          pairConstraintMessage: "Not enough available players to create a different opponent pairing. Waiting for a current match to finish to allow new combinations.",
+        };
+      }
       break;
     }
   }
   
-  return results;
+  return { matches: results };
 }
 
-function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
+function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
   const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds } = opts;
   let eligible = filterByGender(players, genderType);
   
-  if (eligible.length < 2) return [];
+  if (eligible.length < 2) return { matches: [] };
   
   const results: MatchResult[] = [];
   const localOpponents = new Map(recentOpponents);
@@ -417,7 +699,7 @@ function generateCompetitiveSingles(opts: GenerateOptions): MatchResult[] {
     }
   }
   
-  return results;
+  return { matches: results };
 }
 
 function filterByGender(players: Player[], genderType: string): Player[] {
@@ -583,10 +865,13 @@ function updateTrackingMaps(
 export function replacePlayerInQueuedMatches(
   queuedMatches: { id: number; teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null }[],
   pausedPlayerId: number,
-  availablePlayers: Player[]
+  availablePlayers: Player[],
+  fixedPairs?: FixedPair[]
 ): { matchId: number; position: string; newPlayerId: number }[] {
   const replacements: { matchId: number; position: string; newPlayerId: number }[] = [];
   const usedReplacements = new Set<number>();
+
+  const partnerId = fixedPairs ? getFixedPartner(pausedPlayerId, fixedPairs) : null;
   
   for (const match of queuedMatches) {
     const positions = [
@@ -596,12 +881,16 @@ export function replacePlayerInQueuedMatches(
       { field: "teamBPlayer2Id" as const, id: match.teamBPlayer2Id },
     ];
     
+    const playersToReplace = [pausedPlayerId];
+    if (partnerId) playersToReplace.push(partnerId);
+
     for (const pos of positions) {
-      if (pos.id === pausedPlayerId) {
+      if (pos.id !== null && playersToReplace.includes(pos.id)) {
         const matchPlayerIds = new Set(positions.map(p => p.id).filter(Boolean));
         const replacement = availablePlayers.find(p => 
           !p.isPaused && 
           p.id !== pausedPlayerId && 
+          (partnerId === null || p.id !== partnerId) &&
           !matchPlayerIds.has(p.id) && 
           !usedReplacements.has(p.id)
         );
@@ -652,54 +941,14 @@ export function buildPairingHistory(
   return { recentPairings, recentOpponents, playerMatchCounts };
 }
 
-export function generateSmartMatches(opts: GenerateOptions): MatchResult[] {
+export function generateSmartMatches(opts: GenerateOptions): GenerateResult {
   const { mode, playersPerSide } = opts;
   
-  let results: MatchResult[];
   if (mode === "SOCIAL") {
-    results = playersPerSide === 1 ? generateSocialSingles(opts) : generateSocialDoubles(opts);
+    if (playersPerSide === 1) return generateSocialSingles(opts);
+    return generateSocialDoubles(opts);
   } else {
-    results = playersPerSide === 1 ? generateCompetitiveSingles(opts) : generateCompetitiveDoubles(opts);
+    if (playersPerSide === 1) return generateCompetitiveSingles(opts);
+    return generateCompetitiveDoubles(opts);
   }
-  
-  if (results.length === 0 && opts.players.length >= (playersPerSide * 2)) {
-    console.log(`[MatchEngine] No matches generated with strict constraints. Relaxing constraints for ${opts.players.length} players, mode=${mode}, perSide=${playersPerSide}`);
-    const relaxedOpts = {
-      ...opts,
-      recentPairings: new Map<string, number>(),
-      recentOpponents: new Map<string, number>(),
-    };
-    if (mode === "SOCIAL") {
-      results = playersPerSide === 1 ? generateSocialSingles(relaxedOpts) : generateSocialDoubles(relaxedOpts);
-    } else {
-      results = playersPerSide === 1 ? generateCompetitiveSingles(relaxedOpts) : generateCompetitiveDoubles(relaxedOpts);
-    }
-    if (results.length > 0) {
-      console.log(`[MatchEngine] Relaxed constraints produced ${results.length} match(es)`);
-    } else {
-      console.log(`[MatchEngine] Still no matches after relaxation. Players: ${opts.players.map(p => `${p.id}(${p.category}/${getEffectiveGender(p)})`).join(", ")}`);
-    }
-  }
-  
-  return results;
-}
-
-export function getGenderMixInfo(
-  match: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null },
-  playerGenders: Map<number, string>,
-  playerCategories: Map<number, string | null>
-): { isMixedGender: boolean; maleWithFemale: boolean; femaleIsStrong: boolean } {
-  const allIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
-  const genders = allIds.map(id => playerGenders.get(id) || "MALE");
-  const hasFemale = genders.some(g => g === "FEMALE");
-  const hasMale = genders.some(g => g !== "FEMALE");
-  const isMixedGender = hasFemale && hasMale;
-  
-  let femaleIsStrong = false;
-  if (isMixedGender) {
-    const femaleIds = allIds.filter(id => (playerGenders.get(id) || "MALE") === "FEMALE");
-    femaleIsStrong = femaleIds.some(id => isStrongPlayer(playerCategories.get(id) || null));
-  }
-  
-  return { isMixedGender, maleWithFemale: isMixedGender, femaleIsStrong };
 }

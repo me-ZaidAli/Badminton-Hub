@@ -17,6 +17,24 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+function extractFixedPairs(signups: any[]): [number, number][] {
+  const pairGroups = new Map<number, number[]>();
+  for (const s of signups) {
+    const pgId = s.pairGroupId;
+    if (pgId != null) {
+      if (!pairGroups.has(pgId)) pairGroups.set(pgId, []);
+      pairGroups.get(pgId)!.push(s.player.id);
+    }
+  }
+  const pairs: [number, number][] = [];
+  for (const [, playerIds] of pairGroups) {
+    if (playerIds.length === 2) {
+      pairs.push([playerIds[0], playerIds[1]]);
+    }
+  }
+  return pairs;
+}
+
 const scryptAsync = promisify(scrypt);
 
 const uploadsDir = path.join(process.cwd(), "public", "uploads", "coaches");
@@ -1996,9 +2014,10 @@ export async function registerRoutes(
             recentPairings,
             recentOpponents,
             playerMatchCounts,
+            fixedPairs: extractFixedPairs(signups),
           });
 
-          if (generated.length > 0) {
+          if (generated.matches.length > 0) {
             const maxQueuePos = Math.max(0, ...existingMatches
               .filter(m => m.queuePosition !== null)
               .map(m => m.queuePosition || 0));
@@ -2008,10 +2027,10 @@ export async function registerRoutes(
               courtNumber: null,
               queuePosition: maxQueuePos + 1,
               status: "QUEUED" as const,
-              teamAPlayer1Id: generated[0].teamAPlayer1Id,
-              teamAPlayer2Id: generated[0].teamAPlayer2Id,
-              teamBPlayer1Id: generated[0].teamBPlayer1Id,
-              teamBPlayer2Id: generated[0].teamBPlayer2Id,
+              teamAPlayer1Id: generated.matches[0].teamAPlayer1Id,
+              teamAPlayer2Id: generated.matches[0].teamAPlayer2Id,
+              teamBPlayer1Id: generated.matches[0].teamBPlayer1Id,
+              teamBPlayer2Id: generated.matches[0].teamBPlayer2Id,
               scoreA: 0,
               scoreB: 0,
               isCompleted: false,
@@ -2100,17 +2119,18 @@ export async function registerRoutes(
         recentPairings,
         recentOpponents,
         playerMatchCounts,
+        fixedPairs: extractFixedPairs(signups),
       });
 
-      if (generated.length === 0) {
+      if (generated.matches.length === 0) {
         return res.status(400).json({ message: "Could not generate a replacement match" });
       }
 
       const updated = await storage.updateMatch(matchId, {
-        teamAPlayer1Id: generated[0].teamAPlayer1Id,
-        teamAPlayer2Id: generated[0].teamAPlayer2Id,
-        teamBPlayer1Id: generated[0].teamBPlayer1Id,
-        teamBPlayer2Id: generated[0].teamBPlayer2Id,
+        teamAPlayer1Id: generated.matches[0].teamAPlayer1Id,
+        teamAPlayer2Id: generated.matches[0].teamAPlayer2Id,
+        teamBPlayer1Id: generated.matches[0].teamBPlayer1Id,
+        teamBPlayer2Id: generated.matches[0].teamBPlayer2Id,
       });
 
       res.json({ message: "Match reshuffled", match: updated });
@@ -2362,10 +2382,11 @@ export async function registerRoutes(
         recentPairings,
         recentOpponents,
         playerMatchCounts,
+        fixedPairs: extractFixedPairs(eligibleSignups),
       });
 
       const createdMatches = await Promise.all(
-        generated.map((m, i) => storage.createMatch({
+        generated.matches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
@@ -2494,7 +2515,12 @@ export async function registerRoutes(
         recentPairings,
         recentOpponents,
         playerMatchCounts,
+        fixedPairs: extractFixedPairs(eligibleSignups),
       });
+
+      if (generated.pairConstraintBlocked) {
+        return res.json({ status: "pair_blocked", message: generated.pairConstraintMessage || "Pair constraint blocked match generation", matches: [] });
+      }
 
       const maxQueuePos = Math.max(0, ...existingMatches
         .filter(m => m.queuePosition !== null)
@@ -2502,7 +2528,7 @@ export async function registerRoutes(
 
       const defaultTarget = session.defaultPointsToPlayTo || 21;
       const createdMatches = await Promise.all(
-        generated.map((m, i) => storage.createMatch({
+        generated.matches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
@@ -2602,7 +2628,7 @@ export async function registerRoutes(
           genderOverride: s.genderOverride,
         }));
 
-      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers);
+      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers, extractFixedPairs(signups));
 
       for (const rep of replacements) {
         await storage.updateMatch(rep.matchId, { [rep.position]: rep.newPlayerId });
@@ -2687,11 +2713,12 @@ export async function registerRoutes(
         recentOpponents,
         playerMatchCounts,
         priorityPlayerIds: [resumedPlayerId],
+        fixedPairs: extractFixedPairs(eligibleSignups),
       });
 
       const defaultTarget = session.defaultPointsToPlayTo || 21;
       const createdMatches = await Promise.all(
-        generated.map((m, i) => storage.createMatch({
+        generated.matches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: i + 1,

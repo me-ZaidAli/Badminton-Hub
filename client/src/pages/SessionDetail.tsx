@@ -1397,6 +1397,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutate: cancelLiveMatch } = useCancelLiveMatch();
   const queryClient = useQueryClient();
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
+  const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
 
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
@@ -1430,12 +1431,18 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         onSuccess: (data: any) => {
           if (data?.status === "waiting") {
             setAutoGenWaiting(true);
+            setPairConstraintMessage(null);
+          } else if (data?.status === "pair_blocked") {
+            setAutoGenWaiting(true);
+            setPairConstraintMessage(data.message || "Waiting for matches to finish to allow different pair combinations.");
           } else {
             setAutoGenWaiting(false);
+            setPairConstraintMessage(null);
           }
         },
         onError: () => {
           setAutoGenWaiting(false);
+          setPairConstraintMessage(null);
         },
       });
     }, 5000);
@@ -1500,8 +1507,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       onSuccess: (data: any) => {
         if (data?.status === "waiting") {
           setAutoGenWaiting(true);
+          setPairConstraintMessage(null);
+        } else if (data?.status === "pair_blocked") {
+          setAutoGenWaiting(true);
+          setPairConstraintMessage(data.message || "Waiting for matches to finish to allow different pair combinations.");
         } else {
           setAutoGenWaiting(false);
+          setPairConstraintMessage(null);
         }
       },
     });
@@ -1785,7 +1797,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       {autoGenerateActive && (
         <div className={`flex items-center gap-2 text-sm rounded-md px-3 py-2 ${autoGenWaiting ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' : 'text-muted-foreground bg-muted/50'}`} data-testid="auto-generate-indicator">
           <Loader2 className="w-4 h-4 animate-spin" />
-          {autoGenWaiting ? (
+          {pairConstraintMessage ? (
+            <span>{pairConstraintMessage}</span>
+          ) : autoGenWaiting ? (
             <span>Waiting for matches to finish before generating new ones... (target: {queueTargetSize} queued)</span>
           ) : (
             <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
