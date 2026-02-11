@@ -4755,6 +4755,55 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/credit-history", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+    try {
+      const isOwner = user.role === "OWNER";
+      if (!isOwner) {
+        if (clubId) {
+          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else {
+          return res.sendStatus(403);
+        }
+      }
+
+      const query = clubId
+        ? sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
+              cl.linked_session_id AS "linkedSessionId", cl.attendance_status AS "attendanceStatus",
+              cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
+              s.date AS "sessionDate", pu.full_name AS "playerName", pu.email AS "playerEmail",
+              cu.full_name AS "createdByName"
+              FROM credit_ledger cl
+              INNER JOIN clubs c ON cl.club_id = c.id
+              LEFT JOIN sessions s ON cl.linked_session_id = s.id
+              INNER JOIN users pu ON cl.user_id = pu.id
+              INNER JOIN users cu ON cl.created_by_id = cu.id
+              WHERE cl.club_id = ${clubId}
+              ORDER BY cl.created_at DESC`
+        : sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
+              cl.linked_session_id AS "linkedSessionId", cl.attendance_status AS "attendanceStatus",
+              cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
+              s.date AS "sessionDate", pu.full_name AS "playerName", pu.email AS "playerEmail",
+              cu.full_name AS "createdByName"
+              FROM credit_ledger cl
+              INNER JOIN clubs c ON cl.club_id = c.id
+              LEFT JOIN sessions s ON cl.linked_session_id = s.id
+              INNER JOIN users pu ON cl.user_id = pu.id
+              INNER JOIN users cu ON cl.created_by_id = cu.id
+              ORDER BY cl.created_at DESC`;
+
+      const entries = await db.execute(query);
+      res.json(entries.rows);
+    } catch (err: any) {
+      console.error("Error fetching admin credit history:", err);
+      res.status(500).json({ message: "Failed to fetch credit history" });
+    }
+  });
+
   // Update attendance status for a signup (with policy validation fields)
   app.patch("/api/sessions/:sessionId/signups/:signupId/attendance", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

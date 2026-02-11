@@ -35,6 +35,7 @@ import {
   TrendingDown,
   Package,
   Trash2,
+  History,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -118,7 +119,7 @@ export default function Financials() {
   const [matchMode, setMatchMode] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"session" | "player">("session");
+  const [viewMode, setViewMode] = useState<"session" | "player" | "credits">("session");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -154,6 +155,9 @@ export default function Financials() {
     sessionId: number;
     sessionTitle: string;
   } | null>(null);
+
+  const [creditSearchQuery, setCreditSearchQuery] = useState("");
+  const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
 
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -193,6 +197,57 @@ export default function Financials() {
     stockUsed: number;
     collectionRate: string;
   }>({ queryKey: [dashboardQueryUrl] });
+
+  interface CreditHistoryEntry {
+    id: number;
+    userId: number;
+    clubId: number;
+    amount: number;
+    reason: string;
+    linkedSessionId: number | null;
+    attendanceStatus: string | null;
+    createdAt: string;
+    clubName: string;
+    sessionTitle: string | null;
+    sessionDate: string | null;
+    playerName: string;
+    playerEmail: string;
+    createdByName: string;
+  }
+
+  const creditHistoryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    const qs = params.toString();
+    return `/api/admin/credit-history${qs ? `?${qs}` : ""}`;
+  }, [selectedClubId]);
+
+  const { data: creditHistory = [], isLoading: creditLoading } = useQuery<CreditHistoryEntry[]>({
+    queryKey: [creditHistoryUrl],
+    enabled: viewMode === "credits",
+  });
+
+  const creditPlayerGroups = useMemo(() => {
+    const filtered = creditSearchQuery
+      ? creditHistory.filter((e) =>
+          e.playerName.toLowerCase().includes(creditSearchQuery.toLowerCase()) ||
+          e.playerEmail.toLowerCase().includes(creditSearchQuery.toLowerCase())
+        )
+      : creditHistory;
+
+    const groups: Record<string, { playerName: string; playerEmail: string; userId: number; entries: CreditHistoryEntry[]; totalAdded: number; totalUsed: number; balance: number }> = {};
+    filtered.forEach((entry) => {
+      const key = `${entry.userId}-${entry.clubId}`;
+      if (!groups[key]) {
+        groups[key] = { playerName: entry.playerName, playerEmail: entry.playerEmail, userId: entry.userId, entries: [], totalAdded: 0, totalUsed: 0, balance: 0 };
+      }
+      groups[key].entries.push(entry);
+      if (entry.amount > 0) groups[key].totalAdded += entry.amount;
+      else groups[key].totalUsed += Math.abs(entry.amount);
+      groups[key].balance += entry.amount;
+    });
+    return groups;
+  }, [creditHistory, creditSearchQuery]);
 
   const filteredData = useMemo(() => {
     if (paymentFilter === "all") return financialData;
@@ -1050,6 +1105,14 @@ export default function Financials() {
                 <Users className="h-4 w-4 mr-1" />
                 By Player
               </Button>
+              <Button
+                variant={viewMode === "credits" ? "default" : "outline"}
+                onClick={() => setViewMode("credits")}
+                data-testid="button-view-credits"
+              >
+                <History className="h-4 w-4 mr-1" />
+                Credit History
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1307,7 +1370,7 @@ export default function Financials() {
             })
           )}
         </div>
-      ) : (
+      ) : viewMode === "player" ? (
         <div className="space-y-3">
           {Object.keys(playerGroups).length === 0 ? (
             <Card>
@@ -1429,6 +1492,148 @@ export default function Financials() {
                                     {entry.paymentStatus === "PAID" ? "Mark Unpaid" : "Mark Paid"}
                                   </Button>
                                 </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by player name or email..."
+                value={creditSearchQuery}
+                onChange={(e) => setCreditSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-credit-search"
+              />
+            </div>
+            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+              {Object.keys(creditPlayerGroups).length} player(s)
+            </Badge>
+            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+              {creditHistory.length} transaction(s)
+            </Badge>
+          </div>
+
+          {creditLoading ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mt-2">Loading credit history...</p>
+              </CardContent>
+            </Card>
+          ) : Object.keys(creditPlayerGroups).length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credits">
+                No credit history found.
+              </CardContent>
+            </Card>
+          ) : (
+            Object.entries(creditPlayerGroups).map(([key, group]) => {
+              const isExpanded = expandedCreditPlayers.has(key);
+              return (
+                <Card key={key} data-testid={`card-credit-player-${key}`}>
+                  <CardHeader
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setExpandedCreditPlayers((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      });
+                    }}
+                    data-testid={`button-expand-credit-${key}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <CardTitle className="text-base" data-testid={`text-credit-player-name-${key}`}>
+                            {group.playerName}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">{group.playerEmail}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-added-${key}`}>
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                          Added: {"\u00A3"}{formatPounds(group.totalAdded)}
+                        </Badge>
+                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-used-${key}`}>
+                          <TrendingDown className="h-3 w-3 mr-1" />
+                          Used: {"\u00A3"}{formatPounds(group.totalUsed)}
+                        </Badge>
+                        <Badge variant={group.balance > 0 ? "default" : "secondary"} className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-balance-${key}`}>
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Balance: {"\u00A3"}{formatPounds(group.balance)}
+                        </Badge>
+                        <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                          {group.entries.length} txn(s)
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Reason</TableHead>
+                              <TableHead>Session</TableHead>
+                              <TableHead>Club</TableHead>
+                              <TableHead>By</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.entries.map((entry) => (
+                              <TableRow key={entry.id} data-testid={`row-credit-${entry.id}`}>
+                                <TableCell className="whitespace-nowrap text-sm">
+                                  {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
+                                </TableCell>
+                                <TableCell>
+                                  {entry.amount > 0 ? (
+                                    <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                                      <Plus className="h-3 w-3 mr-1" /> Added
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                                      <TrendingDown className="h-3 w-3 mr-1" /> Used
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                                  {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
+                                </TableCell>
+                                <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
+                                  {entry.reason}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {entry.sessionTitle || "-"}
+                                  {entry.sessionDate && (
+                                    <span className="block text-xs">{format(new Date(entry.sessionDate), "MMM d, yyyy")}</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
