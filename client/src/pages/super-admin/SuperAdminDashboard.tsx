@@ -1,12 +1,27 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Users, Building2, Calendar, Trophy, DollarSign,
   Shield, Zap, KeyRound, Mail, BarChart3,
-  Package, CreditCard, Upload
+  Package, CreditCard, Upload, ChevronRight
 } from "lucide-react";
+
+const controlItems = [
+  { href: "/super-admin/users", label: "Users Control", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+  { href: "/super-admin/clubs", label: "Clubs Control", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, color: "text-violet-500", bg: "bg-violet-500/10" },
+  { href: "/all-rankings", label: "All Rankings", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { href: "/admin/members", label: "Members", icon: Users, color: "text-sky-500", bg: "bg-sky-500/10" },
+  { href: "/admin/club-approvals", label: "Club Approvals", icon: Building2, color: "text-teal-500", bg: "bg-teal-500/10" },
+  { href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, color: "text-orange-500", bg: "bg-orange-500/10" },
+  { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+  { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+  { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+  { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
+  { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+];
 
 export default function SuperAdminDashboard() {
   return (
@@ -33,72 +48,21 @@ export default function SuperAdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            <Link href="/super-admin/users">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-users">
-                <Users className="w-4 h-4" /> Users Control
-              </Button>
-            </Link>
-            <Link href="/super-admin/clubs">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-clubs">
-                <Building2 className="w-4 h-4" /> Clubs Control
-              </Button>
-            </Link>
-            <Link href="/super-admin/sessions">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-sessions">
-                <Calendar className="w-4 h-4" /> Sessions Control
-              </Button>
-            </Link>
-            <Link href="/all-rankings">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-rankings">
-                <Trophy className="w-4 h-4" /> All Rankings
-              </Button>
-            </Link>
-            <Link href="/admin/members">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-members">
-                <Users className="w-4 h-4" /> Members
-              </Button>
-            </Link>
-            <Link href="/admin/club-approvals">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-club-approvals">
-                <Building2 className="w-4 h-4" /> Club Approvals
-              </Button>
-            </Link>
-            <Link href="/admin/password-resets">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-password-resets">
-                <KeyRound className="w-4 h-4" /> Password Resets
-              </Button>
-            </Link>
-            <Link href="/admin/messages">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-messages">
-                <Mail className="w-4 h-4" /> Messages
-              </Button>
-            </Link>
-            <Link href="/admin/analytics">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-analytics">
-                <BarChart3 className="w-4 h-4" /> Analytics
-              </Button>
-            </Link>
-            <Link href="/admin/financials">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-financials">
-                <DollarSign className="w-4 h-4" /> Financials
-              </Button>
-            </Link>
-            <Link href="/admin/inventory">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-inventory">
-                <Package className="w-4 h-4" /> Inventory
-              </Button>
-            </Link>
-            <Link href="/admin/membership-board">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-membership-board">
-                <CreditCard className="w-4 h-4" /> Membership Board
-              </Button>
-            </Link>
-            <Link href="/admin/import-members">
-              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-import-members">
-                <Upload className="w-4 h-4" /> Import Members
-              </Button>
-            </Link>
+          <div className="flex flex-col gap-2">
+            {controlItems.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <div
+                  className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
+                  data-testid={`button-quick-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${item.bg}`}>
+                    <item.icon className={`w-5 h-5 ${item.color}`} />
+                  </div>
+                  <span className="flex-1 font-medium text-sm">{item.label}</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </Link>
+            ))}
           </div>
         </CardContent>
       </Card>
