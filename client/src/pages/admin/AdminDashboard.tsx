@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy, KeyRound, Upload } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy, Upload } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -317,50 +317,6 @@ export default function AdminDashboard() {
           </Card>
         )}
 
-        {isAdmin && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-user-approval">
-            <Link href="/admin/approvals">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-cyan-500" />
-                    User Approval
-                    {pendingCount > 0 && (
-                      <Badge variant="destructive" className="ml-1 text-xs px-2 py-0.5" data-testid="badge-pending-count">
-                        {pendingCount}
-                      </Badge>
-                    )}
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Review and approve new member registrations.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
-
-        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-password-resets">
-          <Link href="/admin/password-resets">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <KeyRound className="h-5 w-5 text-amber-500" />
-                  Password Resets
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Generate password reset links or set passwords for members.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
 
         <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
           <Link href="/admin/import-members">
