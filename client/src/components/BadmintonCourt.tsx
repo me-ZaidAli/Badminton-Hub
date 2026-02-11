@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Play, Square, Clock, Users, Pencil, Trophy, ArrowRight, RotateCcw, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import courtImage from "@assets/image_1770246183034.png";
@@ -216,6 +217,12 @@ export function BadmintonCourt({
   const currentSetNum = match?.currentSet || 1;
   const completedSets = match?.setScores || [];
 
+  const [dialogTarget, setDialogTarget] = useState<number>(target);
+
+  useEffect(() => {
+    setDialogTarget(target);
+  }, [target]);
+
   const openFinishDialog = () => {
     setFinishStep(1);
     setWinner(null);
@@ -225,7 +232,15 @@ export function BadmintonCourt({
     setSetScoreB("");
     setMultiSetStep("enter");
     setShowSuccess(false);
+    setDialogTarget(target);
     setShowScoreDialog(true);
+  };
+
+  const handleDialogTargetChange = (newTarget: number) => {
+    setDialogTarget(newTarget);
+    if (match && onUpdatePointsTarget) {
+      onUpdatePointsTarget(match.id, newTarget);
+    }
   };
 
   const resetFinishFlow = () => {
@@ -549,6 +564,20 @@ export function BadmintonCourt({
                 </div>
               ) : (
                 <>
+                  <div className="flex items-center justify-center gap-2 py-1" data-testid="set-target-selector">
+                    <span className="text-sm text-muted-foreground">Play to</span>
+                    <Select value={String(dialogTarget)} onValueChange={(v) => handleDialogTargetChange(Number(v))}>
+                      <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-dialog-target">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[11, 15, 21, 25, 30].map(v => (
+                          <SelectItem key={v} value={String(v)} data-testid={`select-target-${v}`}>{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {completedSets.length > 0 && (
                     <div className="rounded-lg border border-border p-3 space-y-1" data-testid="previous-sets-summary">
                       <p className="text-xs font-medium text-muted-foreground mb-2">Previous Sets</p>
@@ -680,6 +709,20 @@ export function BadmintonCourt({
                         data-testid={`step-indicator-${s}`}
                       />
                     ))}
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 py-1" data-testid="single-set-target-selector">
+                    <span className="text-sm text-muted-foreground">Play to</span>
+                    <Select value={String(dialogTarget)} onValueChange={(v) => handleDialogTargetChange(Number(v))}>
+                      <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-dialog-target-single">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[11, 15, 21, 25, 30].map(v => (
+                          <SelectItem key={v} value={String(v)} data-testid={`select-target-single-${v}`}>{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {finishStep === 1 && (

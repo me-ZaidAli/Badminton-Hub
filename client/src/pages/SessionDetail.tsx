@@ -1417,6 +1417,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [fcStep, setFcStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [fcSubmitting, setFcSubmitting] = useState(false);
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
+  const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
 
   const isSessionCompleted = sessionStatus === "COMPLETED";
 
@@ -1607,6 +1608,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     if (!forcedCompletionActive || forcedCompletionIndex >= forcedMatches.length) return null;
     return forcedMatches[forcedCompletionIndex];
   };
+
+  const currentFcMatch = getCurrentForcedMatch();
+  useEffect(() => {
+    if (currentFcMatch) {
+      setFcDialogTarget(currentFcMatch.pointsToPlayTo || defaultPointsToPlayTo);
+    }
+  }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatch?.pointsToPlayTo, defaultPointsToPlayTo]);
 
   const handleFcConfirm = async () => {
     const match = getCurrentForcedMatch();
@@ -1918,6 +1926,25 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     className={`w-8 h-1 rounded-full ${s <= fcStep ? "bg-primary" : "bg-muted"}`}
                   />
                 ))}
+              </div>
+
+              <div className="flex items-center justify-center gap-2 py-1" data-testid="fc-target-selector">
+                <span className="text-sm text-muted-foreground">Play to</span>
+                <Select value={String(fcDialogTarget)} onValueChange={(v) => {
+                  const val = Number(v);
+                  setFcDialogTarget(val);
+                  const match = getCurrentForcedMatch();
+                  if (match) updateMatchTarget({ matchId: match.id, pointsToPlayTo: val });
+                }}>
+                  <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-fc-target">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[11, 15, 21, 25, 30].map(v => (
+                      <SelectItem key={v} value={String(v)} data-testid={`select-fc-target-${v}`}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {fcStep === 1 && (
