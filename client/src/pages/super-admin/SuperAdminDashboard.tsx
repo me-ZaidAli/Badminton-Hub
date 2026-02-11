@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Building2, Calendar, Trophy, DollarSign,
   Shield, ArrowRight, Activity, AlertCircle, Loader2, UserCheck,
-  Clock, CheckCircle, XCircle, Zap
+  Clock, CheckCircle, XCircle, Zap, KeyRound, Mail, BarChart3,
+  Package, CreditCard, Upload
 } from "lucide-react";
 
 interface SuperAdminStats {
@@ -151,6 +152,84 @@ export default function SuperAdminDashboard() {
         ))}
       </div>
 
+      <Card data-testid="card-quick-actions">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="w-5 h-5 text-primary" />
+            Control Panel
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <Link href="/super-admin/users">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-users">
+                <Users className="w-4 h-4" /> Users Control
+              </Button>
+            </Link>
+            <Link href="/super-admin/clubs">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-clubs">
+                <Building2 className="w-4 h-4" /> Clubs Control
+              </Button>
+            </Link>
+            <Link href="/super-admin/sessions">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-sessions">
+                <Calendar className="w-4 h-4" /> Sessions Control
+              </Button>
+            </Link>
+            <Link href="/all-rankings">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-rankings">
+                <Trophy className="w-4 h-4" /> All Rankings
+              </Button>
+            </Link>
+            <Link href="/admin/members">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-members">
+                <Users className="w-4 h-4" /> Members
+              </Button>
+            </Link>
+            <Link href="/admin/club-approvals">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-club-approvals">
+                <Building2 className="w-4 h-4" /> Club Approvals
+              </Button>
+            </Link>
+            <Link href="/admin/password-resets">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-password-resets">
+                <KeyRound className="w-4 h-4" /> Password Resets
+              </Button>
+            </Link>
+            <Link href="/admin/messages">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-messages">
+                <Mail className="w-4 h-4" /> Messages
+              </Button>
+            </Link>
+            <Link href="/admin/analytics">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-analytics">
+                <BarChart3 className="w-4 h-4" /> Analytics
+              </Button>
+            </Link>
+            <Link href="/admin/financials">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-financials">
+                <DollarSign className="w-4 h-4" /> Financials
+              </Button>
+            </Link>
+            <Link href="/admin/inventory">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-inventory">
+                <Package className="w-4 h-4" /> Inventory
+              </Button>
+            </Link>
+            <Link href="/admin/membership-board">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-membership-board">
+                <CreditCard className="w-4 h-4" /> Membership Board
+              </Button>
+            </Link>
+            <Link href="/admin/import-members">
+              <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-import-members">
+                <Upload className="w-4 h-4" /> Import Members
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-testid="card-users-breakdown">
           <CardHeader>
@@ -267,43 +346,6 @@ export default function SuperAdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-quick-actions">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="w-5 h-5 text-primary" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              <Link href="/super-admin/users">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-users">
-                  <Users className="w-4 h-4" /> Users
-                </Button>
-              </Link>
-              <Link href="/super-admin/clubs">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-clubs">
-                  <Building2 className="w-4 h-4" /> Clubs
-                </Button>
-              </Link>
-              <Link href="/super-admin/sessions">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-sessions">
-                  <Calendar className="w-4 h-4" /> Sessions
-                </Button>
-              </Link>
-              <Link href="/all-rankings">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-rankings">
-                  <Trophy className="w-4 h-4" /> Rankings
-                </Button>
-              </Link>
-              <Link href="/admin/financials">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-financials">
-                  <DollarSign className="w-4 h-4" /> Financials
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

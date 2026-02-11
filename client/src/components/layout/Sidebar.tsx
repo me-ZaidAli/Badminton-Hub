@@ -71,20 +71,7 @@ function useNavItems(): NavItem[] {
 
   if (user?.role === "OWNER") {
     navItems.push({ href: "/super-admin", label: "God's Mode", icon: Shield, section: "super-admin" });
-    navItems.push({ href: "/super-admin/users", label: "Users Control", icon: Users, section: "super-admin" });
-    navItems.push({ href: "/super-admin/clubs", label: "Clubs Control", icon: Building2, section: "super-admin" });
-    navItems.push({ href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, section: "super-admin" });
-    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "super-admin" });
-    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "super-admin" });
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "super-admin" });
-    navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2, section: "super-admin" });
-    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "super-admin" });
-    navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail, section: "super-admin" });
-    navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3, section: "super-admin" });
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "super-admin" });
-    navItems.push({ href: "/admin/inventory", label: "Inventory", icon: Package, section: "super-admin" });
-    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "super-admin" });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "admin" });
     navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "admin" });
