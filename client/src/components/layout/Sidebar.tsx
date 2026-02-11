@@ -40,8 +40,6 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
   }
 
-  navItems.push({ href: "/profile", label: "My Profile", icon: User });
-
   return navItems;
 }
 
