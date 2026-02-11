@@ -1669,14 +1669,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const fcMatch = getCurrentForcedMatch();
   const fcGetTeamALabel = () => {
     if (!fcMatch) return "Team A";
-    const p1 = fcMatch.teamAPlayer1?.user?.fullName || "Player 1";
-    const p2 = fcMatch.teamAPlayer2?.user?.fullName;
+    const p1 = fcMatch.teamAPlayer1?.user?.fullName || (fcMatch.teamAPlayer1 as any)?.fullName || "Player 1";
+    const p2 = fcMatch.teamAPlayer2 ? (fcMatch.teamAPlayer2?.user?.fullName || (fcMatch.teamAPlayer2 as any)?.fullName) : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
   const fcGetTeamBLabel = () => {
     if (!fcMatch) return "Team B";
-    const p1 = fcMatch.teamBPlayer1?.user?.fullName || "Player 1";
-    const p2 = fcMatch.teamBPlayer2?.user?.fullName;
+    const p1 = fcMatch.teamBPlayer1?.user?.fullName || (fcMatch.teamBPlayer1 as any)?.fullName || "Player 1";
+    const p2 = fcMatch.teamBPlayer2 ? (fcMatch.teamBPlayer2?.user?.fullName || (fcMatch.teamBPlayer2 as any)?.fullName) : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
   const fcGetWinnerLabel = () => fcWinner === "A" ? fcGetTeamALabel() : fcGetTeamBLabel();
@@ -2186,13 +2186,13 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
   };
 
   const getTeamALabel = (m: CourtMatch) => {
-    const p1 = m.teamAPlayer1?.user?.fullName || "Player 1";
-    const p2 = m.teamAPlayer2?.user?.fullName;
+    const p1 = m.teamAPlayer1?.user?.fullName || (m.teamAPlayer1 as any)?.fullName || "Player 1";
+    const p2 = m.teamAPlayer2 ? (m.teamAPlayer2?.user?.fullName || (m.teamAPlayer2 as any)?.fullName) : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
   const getTeamBLabel = (m: CourtMatch) => {
-    const p1 = m.teamBPlayer1?.user?.fullName || "Player 1";
-    const p2 = m.teamBPlayer2?.user?.fullName;
+    const p1 = m.teamBPlayer1?.user?.fullName || (m.teamBPlayer1 as any)?.fullName || "Player 1";
+    const p2 = m.teamBPlayer2 ? (m.teamBPlayer2?.user?.fullName || (m.teamBPlayer2 as any)?.fullName) : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
 
@@ -2275,13 +2275,13 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-sm flex-wrap">
                           <span className={`font-medium ${(m.scoreA ?? 0) > (m.scoreB ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
-                            {m.teamAPlayer1?.user?.fullName}{m.teamAPlayer2 ? ` & ${m.teamAPlayer2.user?.fullName}` : ""}
+                            {m.teamAPlayer1?.user?.fullName || (m.teamAPlayer1 as any)?.fullName || "Player"}{m.teamAPlayer2 ? ` & ${m.teamAPlayer2?.user?.fullName || (m.teamAPlayer2 as any)?.fullName || "Player"}` : ""}
                           </span>
                           <Badge variant="secondary" className="text-xs">{m.scoreA ?? 0}</Badge>
                           <span className="text-muted-foreground">vs</span>
                           <Badge variant="secondary" className="text-xs">{m.scoreB ?? 0}</Badge>
                           <span className={`font-medium ${(m.scoreB ?? 0) > (m.scoreA ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
-                            {m.teamBPlayer1?.user?.fullName}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2.user?.fullName}` : ""}
+                            {m.teamBPlayer1?.user?.fullName || (m.teamBPlayer1 as any)?.fullName || "Player"}{m.teamBPlayer2 ? ` & ${m.teamBPlayer2?.user?.fullName || (m.teamBPlayer2 as any)?.fullName || "Player"}` : ""}
                           </span>
                           {m.setScores && (m.setScores as any[]).length > 0 && (
                             <span className="text-[10px] text-muted-foreground font-mono" data-testid={`text-set-scores-${m.id}`}>

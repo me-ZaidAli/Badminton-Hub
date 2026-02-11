@@ -231,15 +231,15 @@ export default function PublicSession() {
                     data-testid={`public-signup-${signup.id}`}
                   >
                     <Avatar className="h-10 w-10 mr-4">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.fullName}`} />
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.fullName || "P"}`} />
                       <AvatarFallback>P</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-semibold">
-                        <PlayerName name={signup.player.fullName} blurred={signup.player.nameBlurred} />
+                        <PlayerName name={signup.player?.fullName} blurred={signup.player?.nameBlurred} />
                       </p>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs h-5">Level {signup.player.category}</Badge>
+                        <Badge variant="outline" className="text-xs h-5">Level {signup.player?.category || "?"}</Badge>
                       </div>
                     </div>
                   </div>
