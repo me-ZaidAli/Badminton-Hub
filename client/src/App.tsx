@@ -31,7 +31,7 @@ import PendingApproval from "@/pages/PendingApproval";
 import Profile from "@/pages/Profile";
 import ExploreClubs from "@/pages/explore/ExploreClubs";
 import ExploreSessions from "@/pages/explore/ExploreSessions";
-import ExploreRankings from "@/pages/explore/ExploreRankings";
+
 import ExploreCoaches from "@/pages/explore/ExploreCoaches";
 import FindCoach from "@/pages/FindCoach";
 import RegisterCoach from "@/pages/RegisterCoach";
@@ -244,7 +244,6 @@ function Router() {
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/explore/clubs" component={ExploreClubs} />
       <Route path="/explore/sessions" component={ExploreSessions} />
-      <Route path="/explore/rankings" component={ExploreRankings} />
       <Route path="/explore/coaches" component={ExploreCoaches} />
       
       {/* Protected Routes */}

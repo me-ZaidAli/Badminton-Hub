@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Trophy, Users, Calendar, Search, Activity } from "lucide-react";
+import { ArrowRight, Users, Calendar, Search, Activity, Zap } from "lucide-react";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
@@ -40,7 +40,7 @@ export default function Home() {
             Elevate Your <span className="text-gradient">Badminton</span> Game
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
-            Find clubs, watch live matches, track rankings, and join sessions - all in one place.
+            Find clubs, watch live matches, and join sessions - all in one place.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
             <Link href="/register">
@@ -75,9 +75,9 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">Explore</h2>
-            <p className="text-muted-foreground text-lg">Browse clubs, sessions, and rankings without signing in</p>
+            <p className="text-muted-foreground text-lg">Browse clubs and sessions without signing in</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 gap-6">
             <Link href="/explore/clubs">
               <Card className="p-6 hover-elevate cursor-pointer h-full" data-testid="card-explore-clubs">
                 <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
@@ -99,18 +99,6 @@ export default function Home() {
                 <p className="text-muted-foreground leading-relaxed mb-4">View upcoming and live sessions across all clubs.</p>
                 <span className="inline-flex items-center text-sm font-medium text-primary">
                   View Sessions <ArrowRight className="ml-1 w-4 h-4" />
-                </span>
-              </Card>
-            </Link>
-            <Link href="/explore/rankings">
-              <Card className="p-6 hover-elevate cursor-pointer h-full" data-testid="card-explore-rankings">
-                <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
-                  <Trophy className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-bold mb-2">Club Rankings</h3>
-                <p className="text-muted-foreground leading-relaxed mb-4">See player leaderboards and rankings for each club.</p>
-                <span className="inline-flex items-center text-sm font-medium text-primary">
-                  View Rankings <ArrowRight className="ml-1 w-4 h-4" />
                 </span>
               </Card>
             </Link>
@@ -149,9 +137,9 @@ export default function Home() {
               description="Book sessions, manage attendance, and automate court allocation effortlessly."
             />
             <FeatureCard
-              icon={Trophy}
-              title="Live Rankings"
-              description="Track your performance with competitive rankings and detailed match statistics."
+              icon={Zap}
+              title="Live Matches"
+              description="Follow live scores in real-time and track match results across sessions."
             />
             <FeatureCard
               icon={Users}
