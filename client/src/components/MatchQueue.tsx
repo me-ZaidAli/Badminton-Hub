@@ -28,6 +28,8 @@ type MatchQueueProps = {
   activeMode?: string;
   genderType?: string;
   defaultPointsToPlayTo?: number;
+  autoGenerateActive?: boolean;
+  onStopAutoGenerate?: () => void;
 };
 
 function PlayerBadge({
@@ -179,6 +181,8 @@ export function MatchQueue({
   activeMode,
   genderType,
   defaultPointsToPlayTo = 21,
+  autoGenerateActive,
+  onStopAutoGenerate,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
@@ -205,10 +209,23 @@ export function MatchQueue({
     <>
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <GripVertical className="w-5 h-5" />
-            Match Queue ({queuedMatches.length} pending)
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <GripVertical className="w-5 h-5" />
+              Match Queue ({queuedMatches.length} pending)
+            </CardTitle>
+            {autoGenerateActive && isOrganiser && onStopAutoGenerate && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={onStopAutoGenerate}
+                data-testid="button-stop-auto-generate-queue"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Stop Generating
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[400px]">

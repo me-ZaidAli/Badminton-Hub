@@ -1398,6 +1398,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const queryClient = useQueryClient();
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
+  const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
 
   const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
@@ -1422,8 +1423,15 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   }, [initialCourtNames]);
 
   useEffect(() => {
-    if (!autoGenerateActive || !isOrganiser) {
+    if (autoGenerateActive) {
+      setAutoGenLocallyStopped(false);
+    }
+  }, [autoGenerateActive]);
+
+  useEffect(() => {
+    if (!autoGenerateActive || !isOrganiser || autoGenLocallyStopped) {
       setAutoGenWaiting(false);
+      setPairConstraintMessage(null);
       return;
     }
     const interval = setInterval(() => {
@@ -1447,7 +1455,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [autoGenerateActive, isOrganiser, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
+  }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -1502,6 +1510,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const handleStartAutoGenerate = () => {
+    setAutoGenLocallyStopped(false);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
       onSuccess: (data: any) => {
@@ -1520,11 +1529,10 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const handleStopAutoGenerate = () => {
-    stopAllMatches({ sessionId }, {
-      onSuccess: () => {
-        setAutoGenWaiting(false);
-      }
-    });
+    setAutoGenLocallyStopped(true);
+    setAutoGenWaiting(false);
+    setPairConstraintMessage(null);
+    updateSession({ sessionId, updates: { autoGenerateActive: false } });
   };
 
   const handleStopAllMatches = () => {
@@ -1733,7 +1741,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     </SelectContent>
                   </Select>
 
-                  {!autoGenerateActive ? (
+                  {(!autoGenerateActive || autoGenLocallyStopped) ? (
                     <>
                       <Button 
                         onClick={handleSmartGenerate}
@@ -1794,7 +1802,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         </Card>
       )}
 
-      {autoGenerateActive && (
+      {autoGenerateActive && !autoGenLocallyStopped && (
         <div className={`flex items-center gap-2 text-sm rounded-md px-3 py-2 ${autoGenWaiting ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' : 'text-muted-foreground bg-muted/50'}`} data-testid="auto-generate-indicator">
           <Loader2 className="w-4 h-4 animate-spin" />
           {pairConstraintMessage ? (
@@ -1851,6 +1859,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               activeMode={activeMode}
               genderType={generateGenderType}
               defaultPointsToPlayTo={defaultPointsToPlayTo}
+              autoGenerateActive={autoGenerateActive && !autoGenLocallyStopped}
+              onStopAutoGenerate={handleStopAutoGenerate}
             />
             <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
           </div>
