@@ -3303,12 +3303,53 @@ export async function registerRoutes(
     }
 
     try {
-      const { name, slug, description } = req.body;
-      if (!name || !slug) {
-        return res.status(400).json({ message: "Name and slug are required" });
+      const { 
+        name, description, address, city, postcode, country, region, continent,
+        contactFullName, contactPhone, contactAddress, googleMapsUrl,
+        isRegisteredWithBE, beRegistrationNumber,
+        hasCompetitions, hasSocialGames, socialGameTimings,
+        providesTraining, trainingDetails,
+        sessionFee, hasMembership, membershipFee,
+        shuttlecockType, providesClubTShirts,
+        adminUserId
+      } = req.body;
+      if (!name || typeof name !== 'string' || name.trim().length < 3) {
+        return res.status(400).json({ message: "Club name is required (min 3 characters)" });
       }
+      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
       
-      const club = await storage.createClub({ name, slug, description, isActive: true, status: "APPROVED" as any });
+      const club = await storage.createClub({ 
+        name: name.trim(), slug, description, isActive: true, status: "APPROVED" as any,
+        address, city, postcode, country, region, continent,
+        contactFullName, contactPhone, contactAddress, googleMapsUrl,
+        isRegisteredWithBE: isRegisteredWithBE || false,
+        beRegistrationNumber,
+        hasCompetitions: hasCompetitions || false,
+        hasSocialGames: hasSocialGames || false,
+        socialGameTimings,
+        providesTraining: providesTraining || false,
+        trainingDetails,
+        sessionFee: sessionFee ? parseInt(sessionFee) : null,
+        hasMembership: hasMembership || false,
+        membershipFee: membershipFee ? parseInt(membershipFee) : null,
+        shuttlecockType,
+        providesClubTShirts: providesClubTShirts || false,
+      });
+
+      if (adminUserId) {
+        const uid = parseInt(adminUserId);
+        await storage.createPlayerProfile({
+          userId: uid,
+          clubId: club.id,
+          clubRole: "ADMIN" as any,
+          membershipStatus: "APPROVED" as any,
+          playerStatus: "ACTIVE" as any,
+        });
+        if (club.id) {
+          await storage.updateClub(club.id, { ownerId: uid });
+        }
+      }
+
       res.status(201).json(club);
     } catch (err: any) {
       console.error("Error creating club:", err);
@@ -3341,12 +3382,31 @@ export async function registerRoutes(
 
     try {
       const clubId = Number(req.params.id);
-      const { status } = req.body;
+      const { status, adminUserId } = req.body;
       if (!["PENDING", "APPROVED", "REJECTED"].includes(status)) {
         return res.status(400).json({ message: "Invalid status" });
       }
       
       const updated = await storage.updateClubStatus(clubId, status);
+
+      if (status === "APPROVED" && adminUserId) {
+        const uid = parseInt(adminUserId);
+        const existingProfiles = await storage.getClubMembers(clubId);
+        const existingProfile = existingProfiles.find((p: any) => p.userId === uid);
+        if (existingProfile) {
+          await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: "ADMIN", membershipStatus: "APPROVED" });
+        } else {
+          await storage.createPlayerProfile({
+            userId: uid,
+            clubId,
+            clubRole: "ADMIN" as any,
+            membershipStatus: "APPROVED" as any,
+            playerStatus: "ACTIVE" as any,
+          });
+        }
+        await storage.updateClub(clubId, { ownerId: uid });
+      }
+
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating club status:", err);
@@ -6207,7 +6267,7 @@ export async function registerRoutes(
         isRegisteredWithBE, beRegistrationNumber, hasCompetitions, hasSocialGames,
         socialGameTimings, providesTraining, trainingDetails,
         sessionFee, hasMembership, membershipFee, shuttlecockType,
-        providesClubTShirts, ageGroups, playerLevels } = req.body;
+        providesClubTShirts, ageGroups, playerLevels, adminUserId } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description || null;
@@ -6235,6 +6295,24 @@ export async function registerRoutes(
       if (providesClubTShirts !== undefined) updateData.providesClubTShirts = providesClubTShirts;
       if (ageGroups !== undefined) updateData.ageGroups = ageGroups;
       if (playerLevels !== undefined) updateData.playerLevels = playerLevels;
+
+      if (adminUserId) {
+        const uid = parseInt(adminUserId);
+        updateData.ownerId = uid;
+        const existingProfiles = await storage.getClubMembers(clubId);
+        const existingProfile = existingProfiles.find((p: any) => p.userId === uid);
+        if (existingProfile) {
+          await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: "ADMIN", membershipStatus: "APPROVED" });
+        } else {
+          await storage.createPlayerProfile({
+            userId: uid,
+            clubId,
+            clubRole: "ADMIN" as any,
+            membershipStatus: "APPROVED" as any,
+            playerStatus: "ACTIVE" as any,
+          });
+        }
+      }
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ message: "No fields to update" });
