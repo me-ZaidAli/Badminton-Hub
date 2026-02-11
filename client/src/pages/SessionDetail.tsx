@@ -1030,7 +1030,12 @@ export default function SessionDetail() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {signups?.map((signup) => {
+          {signups?.slice().sort((a, b) => {
+            const aPaused = !!(a as any).isPaused;
+            const bPaused = !!(b as any).isPaused;
+            if (aPaused !== bPaused) return aPaused ? 1 : -1;
+            return a.player.user.fullName.localeCompare(b.player.user.fullName);
+          }).map((signup) => {
             const s = signup as any;
             const effectiveGender = s.genderOverride || signup.player.gender || "?";
             const isPaused = !!s.isPaused;
