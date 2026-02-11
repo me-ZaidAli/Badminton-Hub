@@ -7006,6 +7006,51 @@ export async function registerRoutes(
     }
   });
 
+  // DELETE /api/inventory/items/:id - Delete an inventory item and its movements
+  app.delete("/api/inventory/items/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const itemId = Number(req.params.id);
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId));
+      if (!item) return res.status(404).json({ message: "Item not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", item.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      await db.delete(inventoryMovements).where(eq(inventoryMovements.itemId, itemId));
+      await db.delete(inventoryItems).where(eq(inventoryItems.id, itemId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting inventory item:", err);
+      res.status(500).json({ message: "Failed to delete inventory item" });
+    }
+  });
+
+  // DELETE /api/inventory/movements/:id - Delete a single stock movement
+  app.delete("/api/inventory/movements/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const movementId = Number(req.params.id);
+      const [movement] = await db.select().from(inventoryMovements).where(eq(inventoryMovements.id, movementId));
+      if (!movement) return res.status(404).json({ message: "Movement not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", movement.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, movement.itemId));
+      if (item) {
+        const newStock = item.stockAvailable - movement.quantityDelta;
+        await db.update(inventoryItems).set({ stockAvailable: Math.max(0, newStock) }).where(eq(inventoryItems.id, item.id));
+      }
+
+      await db.delete(inventoryMovements).where(eq(inventoryMovements.id, movementId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting movement:", err);
+      res.status(500).json({ message: "Failed to delete movement" });
+    }
+  });
+
   // POST /api/inventory/items/:id/receive - Add stock
   app.post("/api/inventory/items/:id/receive", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

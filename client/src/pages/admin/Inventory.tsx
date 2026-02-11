@@ -18,8 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import {
   Package, Plus, Pencil, Loader2, ArrowLeft, ArrowDown, ArrowUp,
-  ShoppingCart, Wrench, ClipboardList, Search, Box, TrendingUp, TrendingDown,
+  ShoppingCart, Wrench, ClipboardList, Search, Box, TrendingUp, TrendingDown, Trash2,
 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
 
 function formatPounds(pence: number): string {
@@ -208,6 +209,7 @@ export default function Inventory() {
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseEntry | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "item" | "movement" | "expense"; id: number; name: string } | null>(null);
 
   const [itemForm, setItemForm] = useState({
     name: "", supplier: "", unitPrice: "", stockAvailable: "0",
@@ -333,11 +335,32 @@ export default function Inventory() {
     onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to update expense", variant: "destructive" }); },
   });
 
+  const deleteItem = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/inventory/items/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/inventory") || (q.queryKey[0] as string).startsWith("/api/expenses")) });
+      toast({ title: "Item Deleted", description: "The inventory item and its stock history have been removed." });
+      setDeleteConfirm(null);
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to delete item", variant: "destructive" }); },
+  });
+
+  const deleteMovement = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/inventory/movements/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/inventory") });
+      toast({ title: "Movement Deleted", description: "Stock level has been adjusted accordingly." });
+      setDeleteConfirm(null);
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to delete movement", variant: "destructive" }); },
+  });
+
   const deleteExpense = useMutation({
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/expenses/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/expenses") });
       toast({ title: "Expense Deleted" });
+      setDeleteConfirm(null);
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to delete expense", variant: "destructive" }); },
   });
@@ -522,6 +545,9 @@ export default function Inventory() {
                           <Button size="sm" variant="ghost" onClick={() => { setAdjustForm({ quantityDelta: "", notes: "" }); setAdjustDialog(item); }} data-testid={`button-adjust-${item.id}`} title="Adjust stock">
                             <ClipboardList className="w-3 h-3" />
                           </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm({ type: "item", id: item.id, name: item.name })} data-testid={`button-delete-item-${item.id}`} title="Delete item">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -549,6 +575,7 @@ export default function Inventory() {
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Details</TableHead>
                     <TableHead>By</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -569,6 +596,13 @@ export default function Inventory() {
                         {m.notes && <span>{m.notes}</span>}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{m.createdByName}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm({ type: "movement", id: m.id, name: `${m.itemName} (${MOVEMENT_LABELS[m.movementType] || m.movementType})` })} data-testid={`button-delete-movement-${m.id}`} title="Delete movement">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -616,8 +650,8 @@ export default function Inventory() {
                           <Button size="sm" variant="ghost" onClick={() => openEditExpense(e)} data-testid={`button-edit-expense-${e.id}`}>
                             <Pencil className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteExpense.mutate(e.id)} data-testid={`button-delete-expense-${e.id}`}>
-                            <TrendingDown className="w-3 h-3" />
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm({ type: "expense", id: e.id, name: e.name })} data-testid={`button-delete-expense-${e.id}`} title="Delete expense">
+                            <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
                       </TableCell>
@@ -912,6 +946,34 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => { if (!o) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteConfirm?.type === "item" ? "Item" : deleteConfirm?.type === "movement" ? "Stock Log Entry" : "Expense"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm?.name}"? This action cannot be undone.
+              {deleteConfirm?.type === "item" && " All associated stock log entries will also be removed."}
+              {deleteConfirm?.type === "movement" && " The stock level will be adjusted to reverse this entry."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!deleteConfirm) return;
+                if (deleteConfirm.type === "item") deleteItem.mutate(deleteConfirm.id);
+                else if (deleteConfirm.type === "movement") deleteMovement.mutate(deleteConfirm.id);
+                else if (deleteConfirm.type === "expense") deleteExpense.mutate(deleteConfirm.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
