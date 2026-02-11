@@ -8,6 +8,7 @@ import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Pages
 import Home from "@/pages/Home";
@@ -90,7 +91,9 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <Component />
+          <ErrorBoundary>
+            <Component />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -126,7 +129,9 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <Component />
+          <ErrorBoundary>
+            <Component />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -157,7 +162,9 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <Component />
+          <ErrorBoundary>
+            <Component />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -188,7 +195,9 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <Component />
+          <ErrorBoundary>
+            <Component />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -205,18 +214,21 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
         <div className="flex flex-1">
           <Sidebar />
           <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-            <Component />
+            <ErrorBoundary>
+              <Component />
+            </ErrorBoundary>
           </main>
         </div>
       </div>
     );
   }
 
-  // Not logged in - show with PublicLayout (shared nav)
   return (
     <PublicLayout>
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
-        <Component />
+        <ErrorBoundary>
+          <Component />
+        </ErrorBoundary>
       </div>
     </PublicLayout>
   );

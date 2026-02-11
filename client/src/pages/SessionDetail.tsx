@@ -1039,11 +1039,11 @@ export default function SessionDetail() {
             return aName.localeCompare(bName);
           }).map((signup) => {
             const s = signup as any;
-            const effectiveGender = s.genderOverride || signup.player.gender || "?";
+            const effectiveGender = s.genderOverride || signup.player?.gender || "?";
             const isPaused = !!s.isPaused;
             const pairGroupId = s.pairGroupId as number | null;
-            const playerUser = signup.player.user as any;
-            const profilePic = playerUser.profilePictureUrl;
+            const playerUser = (signup.player?.user || {}) as any;
+            const profilePic = playerUser?.profilePictureUrl;
             const isEditingName = editingNameSignupId === signup.id;
 
             return (
@@ -1062,9 +1062,9 @@ export default function SessionDetail() {
                       {profilePic ? (
                         <AvatarImage src={profilePic} />
                       ) : (
-                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player.user.fullName}`} />
+                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
                       )}
-                      <AvatarFallback>{signup.player.user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback>{(signup.player?.user?.fullName || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     {isSuperAdmin && (
                       <>
@@ -1130,7 +1130,7 @@ export default function SessionDetail() {
                         className={`font-semibold truncate ${isSuperAdmin ? "cursor-pointer hover:underline" : ""}`}
                         onClick={() => {
                           if (isSuperAdmin) {
-                            setEditNameValue(signup.player.user.fullName);
+                            setEditNameValue(signup.player?.user?.fullName || "");
                             setEditingNameSignupId(signup.id);
                           } else {
                             setStatsPlayerId(signup.playerId);
@@ -1138,7 +1138,7 @@ export default function SessionDetail() {
                         }}
                         data-testid={`text-player-name-${signup.id}`}
                       >
-                        {signup.player.user.fullName}
+                        {signup.player?.user?.fullName || "Unknown"}
                       </p>
                     )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -1160,7 +1160,7 @@ export default function SessionDetail() {
                       </Badge>
                       {isSuperAdmin ? (
                         <Select
-                          value={signup.player.category || ""}
+                          value={signup.player?.category || ""}
                           onValueChange={(grade) => {
                             adminInlineEdit({ profileId: signup.playerId, sessionId: id, category: grade });
                           }}
@@ -1184,7 +1184,7 @@ export default function SessionDetail() {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Badge variant="outline" className="text-xs">{signup.player.category}</Badge>
+                        <Badge variant="outline" className="text-xs">{signup.player?.category || "?"}</Badge>
                       )}
                       {isPaused && (
                         <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" data-testid={`badge-paused-${signup.id}`}>
@@ -1275,16 +1275,16 @@ export default function SessionDetail() {
                           <CommandGroup>
                             {unpairedSignups
                               .filter(s => String(s.id) !== pairPlayer2)
-                              .filter(s => !pairSearch1 || s.player.user.fullName.toLowerCase().includes(pairSearch1.toLowerCase()))
+                              .filter(s => !pairSearch1 || (s.player?.user?.fullName || "").toLowerCase().includes(pairSearch1.toLowerCase()))
                               .map(s => (
                                 <CommandItem
                                   key={s.id}
                                   value={String(s.id)}
-                                  onSelect={() => { setPairPlayer1(String(s.id)); setPairSearch1(s.player.user.fullName); }}
+                                  onSelect={() => { setPairPlayer1(String(s.id)); setPairSearch1(s.player?.user?.fullName || ""); }}
                                   className="cursor-pointer"
                                   data-testid={`select-pair-1-player-${s.id}`}
                                 >
-                                  <span>{s.player.user.fullName}</span>
+                                  <span>{s.player?.user?.fullName || "Unknown"}</span>
                                   {pairPlayer1 === String(s.id) && <Check className="w-4 h-4 ml-auto text-primary" />}
                                 </CommandItem>
                               ))}
@@ -1306,16 +1306,16 @@ export default function SessionDetail() {
                           <CommandGroup>
                             {unpairedSignups
                               .filter(s => String(s.id) !== pairPlayer1)
-                              .filter(s => !pairSearch2 || s.player.user.fullName.toLowerCase().includes(pairSearch2.toLowerCase()))
+                              .filter(s => !pairSearch2 || (s.player?.user?.fullName || "").toLowerCase().includes(pairSearch2.toLowerCase()))
                               .map(s => (
                                 <CommandItem
                                   key={s.id}
                                   value={String(s.id)}
-                                  onSelect={() => { setPairPlayer2(String(s.id)); setPairSearch2(s.player.user.fullName); }}
+                                  onSelect={() => { setPairPlayer2(String(s.id)); setPairSearch2(s.player?.user?.fullName || ""); }}
                                   className="cursor-pointer"
                                   data-testid={`select-pair-2-player-${s.id}`}
                                 >
-                                  <span>{s.player.user.fullName}</span>
+                                  <span>{s.player?.user?.fullName || "Unknown"}</span>
                                   {pairPlayer2 === String(s.id) && <Check className="w-4 h-4 ml-auto text-primary" />}
                                 </CommandItem>
                               ))}
@@ -1346,7 +1346,7 @@ export default function SessionDetail() {
                           Pair {pgId}
                         </Badge>
                         <span className="text-sm truncate">
-                          {members?.map(m => m.player.user.fullName).join(" & ")}
+                          {members?.map(m => m.player?.user?.fullName || "Unknown").join(" & ")}
                         </span>
                       </div>
                       <Button 
@@ -1519,7 +1519,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     .filter(c => !occupiedCourts.has(c));
 
   const availablePlayers = signups.map(s => ({
-    id: s.player.id,
+    id: s.player?.id || s.playerId,
     fullName: s.player?.user?.fullName || "",
     category: s.player?.category,
   }));
