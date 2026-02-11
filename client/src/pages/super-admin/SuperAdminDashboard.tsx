@@ -13,8 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
-  Users, Building2, Calendar, Trophy, DollarSign,
-  Shield, Zap, KeyRound, Mail, BarChart3,
+  Users, Building2, DollarSign,
+  Shield, Zap, Mail, BarChart3,
   Package, CreditCard, Upload, ChevronRight, Loader2,
   CheckCircle, XCircle, Clock, Plus, MapPin, Search, Pencil,
   Archive, Pause
@@ -117,11 +117,8 @@ const defaultEditForm: ClubEditForm = {
 };
 
 const controlItems = [
-  { href: "/super-admin/users", label: "Users Control", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { href: "/super-admin/sessions", label: "Sessions Control", icon: Calendar, color: "text-violet-500", bg: "bg-violet-500/10" },
-  { href: "/all-rankings", label: "All Rankings", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
   { href: "/admin/members", label: "Members", icon: Users, color: "text-sky-500", bg: "bg-sky-500/10" },
-  { href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, color: "text-orange-500", bg: "bg-orange-500/10" },
   { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, color: "text-indigo-500", bg: "bg-indigo-500/10" },
   { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },

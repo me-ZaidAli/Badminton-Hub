@@ -6213,6 +6213,102 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/super-admin/players-comprehensive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const allUsersData = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        role: users.role,
+        accountStatus: users.accountStatus,
+        dateOfBirth: users.dateOfBirth,
+        isJunior: users.isJunior,
+        phone: users.phone,
+        parentGuardianName: users.parentGuardianName,
+        parentGuardianEmail: users.parentGuardianEmail,
+        continent: users.continent,
+        country: users.country,
+        region: users.region,
+        city: users.city,
+        nickname: users.nickname,
+        showPublicName: users.showPublicName,
+        createdAt: users.createdAt,
+      }).from(users).orderBy(users.fullName);
+
+      const allProfiles = await db.select({
+        id: playerProfiles.id,
+        userId: playerProfiles.userId,
+        clubId: playerProfiles.clubId,
+        clubRole: playerProfiles.clubRole,
+        membershipStatus: playerProfiles.membershipStatus,
+        playerStatus: playerProfiles.playerStatus,
+        gender: playerProfiles.gender,
+        category: playerProfiles.category,
+        rankingPoints: playerProfiles.rankingPoints,
+        matchesPlayed: playerProfiles.matchesPlayed,
+        matchesWon: playerProfiles.matchesWon,
+      }).from(playerProfiles);
+
+      const allClubs = await db.select({
+        id: clubs.id,
+        name: clubs.name,
+        city: clubs.city,
+      }).from(clubs);
+
+      const clubMap = new Map(allClubs.map(c => [c.id, c]));
+      const profilesByUser = new Map<number, any[]>();
+      for (const p of allProfiles) {
+        const list = profilesByUser.get(p.userId) || [];
+        list.push({ ...p, clubName: clubMap.get(p.clubId)?.name || "Unknown", clubCity: clubMap.get(p.clubId)?.city || "" });
+        profilesByUser.set(p.userId, list);
+      }
+
+      const result = allUsersData.map(u => {
+        const profiles = profilesByUser.get(u.id) || [];
+        const totalMatchesWon = profiles.reduce((sum, p) => sum + (p.matchesWon || 0), 0);
+        const totalMatchesPlayed = profiles.reduce((sum, p) => sum + (p.matchesPlayed || 0), 0);
+        return { ...u, profiles, totalMatchesWon, totalMatchesPlayed };
+      });
+
+      result.sort((a, b) => b.totalMatchesWon - a.totalMatchesWon);
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error fetching comprehensive players:", err);
+      res.status(500).json({ message: "Failed to fetch players" });
+    }
+  });
+
+  app.patch("/api/super-admin/player-profiles/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const profileId = parseInt(req.params.id);
+      const { gender, category, clubRole, membershipStatus, playerStatus } = req.body;
+      const updateData: Record<string, any> = {};
+      if (gender !== undefined) updateData.gender = gender || null;
+      if (category !== undefined) updateData.category = category;
+      if (clubRole !== undefined) updateData.clubRole = clubRole;
+      if (membershipStatus !== undefined) updateData.membershipStatus = membershipStatus;
+      if (playerStatus !== undefined) updateData.playerStatus = playerStatus;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db.update(playerProfiles).set(updateData).where(eq(playerProfiles.id, profileId)).returning();
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating player profile:", err);
+      res.status(500).json({ message: "Failed to update player profile" });
+    }
+  });
+
   app.post("/api/super-admin/users/:id/reset-password", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (req.user!.role !== "OWNER") return res.sendStatus(403);

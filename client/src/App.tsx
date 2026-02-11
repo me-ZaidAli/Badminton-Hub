@@ -42,6 +42,7 @@ import SuperAdminDashboard from "@/pages/super-admin/SuperAdminDashboard";
 import SuperAdminUsers from "@/pages/super-admin/SuperAdminUsers";
 import SuperAdminClubs from "@/pages/super-admin/SuperAdminClubs";
 import SuperAdminSessions from "@/pages/super-admin/SuperAdminSessions";
+import SuperAdminUsersManagement from "@/pages/super-admin/SuperAdminUsersManagement";
 
 import PlayerManagement from "@/pages/admin/PlayerManagement";
 import Financials from "@/pages/admin/Financials";
@@ -370,6 +371,9 @@ function Router() {
       </Route>
       <Route path="/super-admin/sessions">
         <OwnerRoute component={SuperAdminSessions} />
+      </Route>
+      <Route path="/super-admin/users-management">
+        <OwnerRoute component={SuperAdminUsersManagement} />
       </Route>
       
       {/* Fallback */}
