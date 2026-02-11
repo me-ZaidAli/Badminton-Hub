@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2 } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Zap, Play, AlertTriangle } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -31,9 +31,13 @@ type MatchQueueProps = {
   defaultPointsToPlayTo?: number;
   autoGenerateActive?: boolean;
   onStopAutoGenerate?: () => void;
+  onStartAutoGenerate?: () => void;
+  onGenerateMatch?: () => void;
+  isGenerating?: boolean;
   queueTargetSize?: number;
   onQueueTargetSizeChange?: (size: number) => void;
   onClearQueue?: () => void;
+  notEnoughPlayersMessage?: string | null;
 };
 
 function PlayerBadge({
@@ -187,9 +191,13 @@ export function MatchQueue({
   defaultPointsToPlayTo = 21,
   autoGenerateActive,
   onStopAutoGenerate,
+  onStartAutoGenerate,
+  onGenerateMatch,
+  isGenerating,
   queueTargetSize,
   onQueueTargetSizeChange,
   onClearQueue,
+  notEnoughPlayersMessage,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
@@ -231,6 +239,30 @@ export function MatchQueue({
                     </Select>
                   </div>
                 )}
+                {isOrganiser && onGenerateMatch && !autoGenerateActive && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onGenerateMatch}
+                    disabled={isGenerating || !!notEnoughPlayersMessage}
+                    data-testid="button-generate-match-queue"
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
+                    Generate
+                  </Button>
+                )}
+                {isOrganiser && !autoGenerateActive && onStartAutoGenerate && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={onStartAutoGenerate}
+                    disabled={isGenerating || !!notEnoughPlayersMessage}
+                    data-testid="button-start-auto-generate-queue"
+                  >
+                    <Zap className="w-4 h-4 mr-1" />
+                    Auto
+                  </Button>
+                )}
                 {autoGenerateActive && onStopAutoGenerate && (
                   <Button
                     size="sm"
@@ -257,6 +289,12 @@ export function MatchQueue({
             )}
           </div>
         </CardHeader>
+        {notEnoughPlayersMessage && (
+          <div className="mx-4 mb-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2" data-testid="not-enough-players-message">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-700 dark:text-amber-400">{notEnoughPlayersMessage}</p>
+          </div>
+        )}
         {queuedMatches.length === 0 ? (
           <CardContent className="p-8 text-center text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />

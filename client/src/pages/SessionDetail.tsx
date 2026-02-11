@@ -1378,7 +1378,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   matchMode: "COMPETITIVE" | "SOCIAL" | "TRAINING";
   courtsAvailable: number;
   courtNames?: string[] | null;
-  signups: { playerId: number; player: { id: number; user: { fullName: string }; category: string | null } }[];
+  signups: { playerId: number; isPaused?: boolean; attendanceStatus?: string; player: { id: number; user: { fullName: string }; category: string | null } }[];
   playersPerSide: number;
   matchGenderType: string;
   defaultPointsToPlayTo?: number;
@@ -1516,6 +1516,20 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     fullName: s.player.user.fullName,
     category: s.player.category,
   }));
+
+  const attendingSignups = signups.filter(s => !s.attendanceStatus || s.attendanceStatus === "ATTENDING");
+  const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
+  const minPlayersNeeded = playersPerSide * 2;
+  const pausedCount = attendingSignups.filter(s => s.isPaused).length;
+  const notEnoughPlayersMessage = (() => {
+    if (activePlayerCount < minPlayersNeeded) {
+      if (pausedCount > 0) {
+        return `Not enough active players to generate a match. ${pausedCount} player${pausedCount > 1 ? "s are" : " is"} paused. Resume players or add more to continue.`;
+      }
+      return `Not enough players to generate a match. Need at least ${minPlayersNeeded} active players.`;
+    }
+    return null;
+  })();
 
   const handleSmartGenerate = () => {
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
@@ -1879,9 +1893,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               defaultPointsToPlayTo={defaultPointsToPlayTo}
               autoGenerateActive={autoGenerateActive && !autoGenLocallyStopped}
               onStopAutoGenerate={handleStopAutoGenerate}
+              onStartAutoGenerate={handleStartAutoGenerate}
+              onGenerateMatch={handleSmartGenerate}
+              isGenerating={isSmartGenerating}
               queueTargetSize={queueTargetSize}
               onQueueTargetSizeChange={handleQueueTargetSizeChange}
               onClearQueue={handleClearQueue}
+              notEnoughPlayersMessage={notEnoughPlayersMessage}
             />
             <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
           </div>
