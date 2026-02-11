@@ -439,6 +439,55 @@ export function useCancelLiveMatch() {
   });
 }
 
+export function useTrimQueue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, targetSize }: { sessionId: number; targetSize: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/trim-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ targetSize }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to trim queue");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+    },
+  });
+}
+
+export function useClearQueue() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/clear-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to clear queue");
+      }
+      return res.json();
+    },
+    onSuccess: (data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId] });
+      toast({ title: "Queue Cleared", description: `${data.deleted} queued match${data.deleted !== 1 ? 'es' : ''} removed.` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Clear Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useStopAllMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore, useCancelLiveMatch } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -1395,6 +1395,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutate: updateSession } = useUpdateSession();
   const { mutate: stopAllMatches, isPending: isStoppingAll } = useStopAllMatches();
   const { mutate: cancelLiveMatch } = useCancelLiveMatch();
+  const { mutate: trimQueue } = useTrimQueue();
+  const { mutate: clearQueue, isPending: isClearingQueue } = useClearQueue();
   const queryClient = useQueryClient();
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
@@ -1533,6 +1535,21 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     setAutoGenWaiting(false);
     setPairConstraintMessage(null);
     updateSession({ sessionId, updates: { autoGenerateActive: false } });
+  };
+
+  const handleQueueTargetSizeChange = (newSize: number) => {
+    setQueueTargetSize(newSize);
+    const currentQueuedCount = typedMatches.filter(m => m.status === "QUEUED").length;
+    if (currentQueuedCount > newSize) {
+      trimQueue({ sessionId, targetSize: newSize });
+    }
+  };
+
+  const handleClearQueue = () => {
+    setAutoGenLocallyStopped(true);
+    setAutoGenWaiting(false);
+    setPairConstraintMessage(null);
+    clearQueue({ sessionId });
   };
 
   const handleStopAllMatches = () => {
@@ -1714,22 +1731,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
               {isOrganiser && (
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm whitespace-nowrap">Queue Size:</Label>
-                    <Select value={String(queueTargetSize)} onValueChange={(v) => setQueueTargetSize(Number(v))}>
-                      <SelectTrigger className="w-[70px]" data-testid="select-queue-size">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="4">4</SelectItem>
-                        <SelectItem value="5">5</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
                     <SelectTrigger className="w-[120px]" data-testid="select-generate-gender-type">
                       <SelectValue />
@@ -1861,6 +1862,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               defaultPointsToPlayTo={defaultPointsToPlayTo}
               autoGenerateActive={autoGenerateActive && !autoGenLocallyStopped}
               onStopAutoGenerate={handleStopAutoGenerate}
+              queueTargetSize={queueTargetSize}
+              onQueueTargetSizeChange={handleQueueTargetSizeChange}
+              onClearQueue={handleClearQueue}
             />
             <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
           </div>

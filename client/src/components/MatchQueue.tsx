@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,9 @@ type MatchQueueProps = {
   defaultPointsToPlayTo?: number;
   autoGenerateActive?: boolean;
   onStopAutoGenerate?: () => void;
+  queueTargetSize?: number;
+  onQueueTargetSizeChange?: (size: number) => void;
+  onClearQueue?: () => void;
 };
 
 function PlayerBadge({
@@ -183,6 +187,9 @@ export function MatchQueue({
   defaultPointsToPlayTo = 21,
   autoGenerateActive,
   onStopAutoGenerate,
+  queueTargetSize,
+  onQueueTargetSizeChange,
+  onClearQueue,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
@@ -193,40 +200,70 @@ export function MatchQueue({
     .filter(m => m.status === "QUEUED")
     .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
 
-  if (queuedMatches.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-8 text-center text-muted-foreground">
-          <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p>No matches in queue</p>
-          <p className="text-sm">Generate matches to fill the queue</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <>
-      <Card>
+      <Card className={queuedMatches.length === 0 ? "border-dashed" : ""}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-lg flex items-center gap-2">
               <GripVertical className="w-5 h-5" />
               Match Queue ({queuedMatches.length} pending)
             </CardTitle>
-            {autoGenerateActive && isOrganiser && onStopAutoGenerate && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={onStopAutoGenerate}
-                data-testid="button-stop-auto-generate-queue"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Stop Generating
-              </Button>
+            {isOrganiser && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {onQueueTargetSizeChange && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Max:</span>
+                    <Select
+                      value={String(queueTargetSize ?? 3)}
+                      onValueChange={(v) => onQueueTargetSizeChange(Number(v))}
+                    >
+                      <SelectTrigger className="w-[52px]" data-testid="select-queue-size-inline">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1</SelectItem>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="5">5</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {autoGenerateActive && onStopAutoGenerate && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={onStopAutoGenerate}
+                    data-testid="button-stop-auto-generate-queue"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Stop
+                  </Button>
+                )}
+                {onClearQueue && queuedMatches.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onClearQueue}
+                    data-testid="button-clear-queue"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </CardHeader>
+        {queuedMatches.length === 0 ? (
+          <CardContent className="p-8 text-center text-muted-foreground">
+            <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>No matches in queue</p>
+            <p className="text-sm">Generate matches to fill the queue</p>
+          </CardContent>
+        ) : (
         <CardContent className="p-0">
           <ScrollArea className="h-[400px]">
             <div className="space-y-3 p-4">
@@ -471,6 +508,7 @@ export function MatchQueue({
             </div>
           </ScrollArea>
         </CardContent>
+        )}
       </Card>
 
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>

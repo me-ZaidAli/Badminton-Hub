@@ -2556,6 +2556,72 @@ export async function registerRoutes(
     }
   });
 
+  // === Trim Queue - reduce queued matches to target size ===
+  app.post("/api/sessions/:sessionId/matches/trim-queue", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { targetSize } = req.body;
+      if (typeof targetSize !== "number" || targetSize < 0) {
+        return res.status(400).json({ message: "Invalid target size" });
+      }
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can trim queue" });
+
+      const allMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = allMatches
+        .filter(m => m.status === "QUEUED")
+        .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+      let deletedCount = 0;
+      if (queuedMatches.length > targetSize) {
+        const toDelete = queuedMatches.slice(targetSize);
+        for (const m of toDelete) {
+          await storage.deleteMatch(m.id);
+          deletedCount++;
+        }
+      }
+
+      res.json({ deleted: deletedCount, remaining: Math.min(queuedMatches.length, targetSize) });
+    } catch (err: any) {
+      console.error("Error trimming queue:", err);
+      res.status(500).json({ message: err.message || "Failed to trim queue" });
+    }
+  });
+
+  // === Clear Queue - delete all queued matches and stop auto-generation ===
+  app.post("/api/sessions/:sessionId/matches/clear-queue", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can clear queue" });
+
+      await storage.updateSession(sessionId, { autoGenerateActive: false });
+
+      const allMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = allMatches.filter(m => m.status === "QUEUED");
+
+      for (const m of queuedMatches) {
+        await storage.deleteMatch(m.id);
+      }
+
+      res.json({ deleted: queuedMatches.length });
+    } catch (err: any) {
+      console.error("Error clearing queue:", err);
+      res.status(500).json({ message: err.message || "Failed to clear queue" });
+    }
+  });
+
   // === Stop All Matches - Delete queued, freeze live ===
   app.post("/api/sessions/:sessionId/matches/stop-all", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
