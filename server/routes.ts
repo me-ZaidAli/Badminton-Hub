@@ -83,6 +83,14 @@ async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
+async function comparePasswords(supplied: string, stored: string | null | undefined) {
+  if (!stored || !stored.includes(".")) return false;
+  const [hashed, salt] = stored.split(".");
+  if (!salt) return false;
+  const buf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  return buf.toString("hex") === hashed;
+}
+
 async function hasAdminAccess(userId: number, userRole: string, clubId?: number): Promise<boolean> {
   const result = await canPerform({ id: userId, role: userRole }, "MANAGE_CLUB", clubId);
   log_rbac("MANAGE_CLUB", userId, result, { clubId });
@@ -154,12 +162,13 @@ export async function registerRoutes(
     console.log("Database seeded!");
   }
 
-  // Ensure super admin account exists
+  // Ensure super admin account exists with correct credentials
   const superAdminEmail = "Bpgbirmingham@gmail.com";
+  const superAdminPassword = "SuperAdmin123!";
   let superAdmin = await storage.getUserByUsername(superAdminEmail);
   if (!superAdmin) {
     console.log("Creating super admin account...");
-    const hashedPassword = await hashPassword("SuperAdmin123!");
+    const hashedPassword = await hashPassword(superAdminPassword);
     superAdmin = await storage.createUser({
       fullName: "Super Admin",
       email: superAdminEmail,
@@ -168,10 +177,23 @@ export async function registerRoutes(
       accountStatus: "APPROVED"
     });
     console.log("Super admin account created!");
-  } else if ((superAdmin as any).role !== "OWNER") {
-    // Upgrade existing user to OWNER if not already
-    await storage.updateUser((superAdmin as any).id, { role: "OWNER" });
-    console.log("Super admin account upgraded to OWNER!");
+  } else {
+    const updates: any = {};
+    if ((superAdmin as any).role !== "OWNER") {
+      updates.role = "OWNER";
+    }
+    if ((superAdmin as any).accountStatus !== "APPROVED") {
+      updates.accountStatus = "APPROVED";
+    }
+    const passwordValid = await comparePasswords(superAdminPassword, superAdmin.password);
+    if (!passwordValid) {
+      updates.password = await hashPassword(superAdminPassword);
+      console.log("Super admin password reset to default.");
+    }
+    if (Object.keys(updates).length > 0) {
+      await storage.updateUser((superAdmin as any).id, updates);
+      console.log("Super admin account updated:", Object.keys(updates).join(", "));
+    }
   }
 
   // === PUBLIC: Clubs ===
