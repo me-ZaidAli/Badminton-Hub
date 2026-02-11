@@ -56,7 +56,7 @@ export default function Players() {
   const [genderFilter, setGenderFilter] = useState<string>("all");
   const [editPlayer, setEditPlayer] = useState<PlayerData | null>(null);
   const [editProfileClubId, setEditProfileClubId] = useState<string>("all");
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN" || user?.role === "ORGANISER";
+  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];

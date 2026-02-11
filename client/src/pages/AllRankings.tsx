@@ -241,8 +241,6 @@ function PlayerProfileDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PLAYER">Player</SelectItem>
-                  <SelectItem value="COACH">Coach</SelectItem>
-                  <SelectItem value="ORGANISER">Organiser</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                 </SelectContent>
               </Select>

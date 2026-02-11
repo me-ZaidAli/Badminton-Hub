@@ -363,8 +363,6 @@ export default function ClubsManagement() {
                               <SelectContent>
                                 <SelectItem value="OWNER">Owner</SelectItem>
                                 <SelectItem value="ADMIN">Admin</SelectItem>
-                                <SelectItem value="ORGANISER">Organiser</SelectItem>
-                                <SelectItem value="COACH">Coach</SelectItem>
                                 <SelectItem value="PLAYER">Player</SelectItem>
                               </SelectContent>
                             </Select>

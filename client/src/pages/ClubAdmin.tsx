@@ -520,18 +520,6 @@ export default function ClubAdmin() {
                                   Player
                                 </div>
                               </SelectItem>
-                              <SelectItem value="COACH">
-                                <div className="flex items-center gap-2">
-                                  <User className="w-3 h-3" />
-                                  Coach
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="ORGANISER">
-                                <div className="flex items-center gap-2">
-                                  <User className="w-3 h-3" />
-                                  Organiser
-                                </div>
-                              </SelectItem>
                               <SelectItem value="ADMIN">
                                 <div className="flex items-center gap-2">
                                   <Shield className="w-3 h-3" />

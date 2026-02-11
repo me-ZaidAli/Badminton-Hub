@@ -46,20 +46,13 @@ function useNavItems(): NavItem[] {
   const { data: clubs } = useClubs();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
-  const isOrganiser = user?.role === "ORGANISER";
   const isSuperAdmin = user?.role === "OWNER";
   const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
   const isClubOwner = ownedClubs.length > 0;
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
-  const isRestrictedOrganiser = isOrganiser && !isClubOwner && !hasClubAdminAccess;
-  
-  const navItems: NavItem[] = isRestrictedOrganiser ? [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/organizer", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/sessions", label: "Sessions", icon: Calendar },
-  ] : [
+  const navItems: NavItem[] = [
     { href: "/", label: "Home", icon: Home },
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },

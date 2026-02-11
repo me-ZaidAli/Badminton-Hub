@@ -236,7 +236,7 @@ export async function registerRoutes(
         .filter(p =>
           p.membershipStatus === "APPROVED" &&
           p.club.isActive &&
-          ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(p.clubRole)
+          ["OWNER", "ADMIN"].includes(p.clubRole)
         )
         .map(p => p.club);
       const allClubs = await storage.getClubs();
@@ -1097,7 +1097,7 @@ export async function registerRoutes(
     if (!isOwner && !isPlatformAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
       if (clubIdSet.size === 0) return res.sendStatus(403);
 
@@ -1130,7 +1130,6 @@ export async function registerRoutes(
     try {
       const input = api.sessions.create.input.parse(req.body);
       
-      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, input.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
@@ -1266,7 +1265,7 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updateAttendance.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401); 
-    // Add role check here (ORGANISER+)
+    // Add role check here (ADMIN+)
     
     const status = req.body;
     const updated = await storage.updateSignupStatus(Number(req.params.signupId), status);
@@ -1410,7 +1409,6 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Check session management access (ORGANISER, COACH, ADMIN, OWNER roles)
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
@@ -2855,7 +2853,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     // Only admins can create announcements
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
     const input = api.announcements.create.input.parse(req.body);
@@ -2869,9 +2867,9 @@ export async function registerRoutes(
   // === Admin Endpoints ===
   app.get("/api/admin/signups", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Check role (ADMIN, OWNER, ORGANISER)
+    // Check role (ADMIN, OWNER)
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
     const allSignups = await storage.getAllSignups();
@@ -2882,7 +2880,7 @@ export async function registerRoutes(
   app.post("/api/admin/players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -2911,7 +2909,7 @@ export async function registerRoutes(
   app.patch("/api/admin/players/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -3433,7 +3431,7 @@ export async function registerRoutes(
     try {
       const userId = Number(req.params.id);
       const { role } = req.body;
-      if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(role)) {
+      if (!["OWNER", "ADMIN", "PLAYER"].includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
       }
       
@@ -3489,7 +3487,7 @@ export async function registerRoutes(
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
-      if (clubRole && !["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
+      if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
       }
       if (category && !["A", "B", "C", "D"].includes(category)) {
@@ -3585,13 +3583,12 @@ export async function registerRoutes(
       // Hash password
       const hashedPassword = await hashPassword(password);
 
-      // Create user with ORGANISER role
       const { user, profile } = await storage.createUserWithProfile(
         {
           fullName,
           email,
           password: hashedPassword,
-          role: "ORGANISER",
+          role: "ADMIN",
           accountStatus: "APPROVED", // Auto-approve since admin is creating
         },
         {
@@ -3631,9 +3628,8 @@ export async function registerRoutes(
     }
 
     try {
-      // Get all members of the club where the user has ORGANISER role
       const members = await storage.getClubMembers(clubId);
-      const organizers = members.filter(m => m.user.role === "ORGANISER");
+      const organizers = members.filter(m => m.user.role === "ADMIN");
       res.json(organizers);
     } catch (err: any) {
       console.error("Error fetching organizers:", err);
@@ -3645,7 +3641,7 @@ export async function registerRoutes(
   app.get("/api/admin/calendar/calendars", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -3661,7 +3657,7 @@ export async function registerRoutes(
   app.get("/api/admin/calendar/events", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -3678,7 +3674,7 @@ export async function registerRoutes(
   app.post("/api/admin/calendar/import", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = (req.user as any).role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -3799,7 +3795,7 @@ export async function registerRoutes(
   app.get("/api/admin/players/:playerId/sessions", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
-    if (!["OWNER", "ADMIN", "ORGANISER"].includes(role)) {
+    if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
     }
 
@@ -3838,7 +3834,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const profiles = await storage.getUserPlayerProfiles(user.id);
       const hasClubAdmin = profiles.some(
-        (p: any) => p.clubId === clubId && p.membershipStatus === "APPROVED" && ["ADMIN", "ORGANISER"].includes(p.clubRole)
+        (p: any) => p.clubId === clubId && p.membershipStatus === "APPROVED" && ["ADMIN"].includes(p.clubRole)
       );
       const isClubOwner = await storage.getClub(clubId).then(c => c?.ownerId === user.id);
       if (!hasClubAdmin && !isClubOwner) return res.sendStatus(403);
@@ -3921,7 +3917,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
     }
 
@@ -3933,7 +3929,7 @@ export async function registerRoutes(
       if (!isOwner && !isAdmin) {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         accessibleClubIds = [...clubIdSet];
       }
@@ -3985,7 +3981,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
     }
 
@@ -3994,7 +3990,7 @@ export async function registerRoutes(
       if (!isOwner && !isAdmin) {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         accessibleClubIds = [...clubIdSet];
       }
@@ -4044,7 +4040,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
     }
 
@@ -4058,7 +4054,7 @@ export async function registerRoutes(
       if (!isOwner && !isAdmin) {
         const ownedClubs2 = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles2 = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const myClubIds = new Set([...ownedClubs2.map(c => c.id), ...adminProfiles2.map(p => p.clubId)]);
         const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
           .where(eq(playerProfiles.userId, targetUser.id));
@@ -4089,7 +4085,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
     }
 
@@ -4101,7 +4097,7 @@ export async function registerRoutes(
       if (!isOwner && !isAdmin) {
         const ownedClubs2 = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles2 = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const myClubIds = new Set([...ownedClubs2.map(c => c.id), ...adminProfiles2.map(p => p.clubId)]);
         const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
           .where(eq(playerProfiles.userId, userId));
@@ -4472,7 +4468,7 @@ export async function registerRoutes(
         const clubId = session[0].clubId;
         const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
         const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         if (ownedClub.length === 0 && adminProfile.length === 0) return res.sendStatus(403);
       }
 
@@ -4511,7 +4507,7 @@ export async function registerRoutes(
         const clubId = session[0].clubId;
         const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
         const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         if (ownedClub.length === 0 && adminProfile.length === 0) return res.sendStatus(403);
       }
 
@@ -4537,7 +4533,7 @@ export async function registerRoutes(
     if (!isOwner && !isAdmin) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
       if (clubIdSet.size === 0) return res.sendStatus(403);
       accessibleClubIds = [...clubIdSet];
@@ -4610,7 +4606,7 @@ export async function registerRoutes(
     if (!isOwner) {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
       const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
       if (clubIdSet.size === 0) return res.sendStatus(403);
       accessibleClubIds = [...clubIdSet];
@@ -5106,7 +5102,7 @@ export async function registerRoutes(
       if (!isOwner) {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER", "COACH"])));
+          .where(and(eq(playerProfiles.userId, user.id), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         accessibleClubIds = clubIdSet.size > 0 ? [...clubIdSet] : [];
       }
@@ -5962,8 +5958,6 @@ export async function registerRoutes(
       const usersByRole = {
         OWNER: activeUsers.filter(u => u.role === "OWNER").length,
         ADMIN: activeUsers.filter(u => u.role === "ADMIN").length,
-        ORGANISER: activeUsers.filter(u => u.role === "ORGANISER").length,
-        COACH: activeUsers.filter(u => u.role === "COACH").length,
         PLAYER: activeUsers.filter(u => u.role === "PLAYER").length,
       };
 
@@ -7082,7 +7076,7 @@ export async function registerRoutes(
       } else {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         if (clubIdSet.size === 0) return res.sendStatus(403);
         accessibleClubIds = clubId && clubIdSet.has(clubId) ? [clubId] : [...clubIdSet];
@@ -7427,7 +7421,7 @@ export async function registerRoutes(
       } else {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         if (clubIdSet.size === 0) return res.sendStatus(403);
         accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
@@ -7501,7 +7495,7 @@ export async function registerRoutes(
       } else {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         if (clubIdSet.size === 0) return res.sendStatus(403);
         accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
@@ -7630,7 +7624,7 @@ export async function registerRoutes(
       } else {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         if (clubIdSet.size === 0) return res.sendStatus(403);
         accessibleClubIds = [...clubIdSet];

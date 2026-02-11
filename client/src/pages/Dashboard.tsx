@@ -99,7 +99,7 @@ export default function Dashboard() {
   const membershipStatus = playerProfile?.membershipStatus;
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const hasClubAdminRole = playerProfiles.some(
-    (p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER" || p.clubRole === "ORGANISER" || p.clubRole === "COACH"
+    (p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER"
   );
   const hasApprovedMembership = playerProfiles.some(
     (p: any) => p.membershipStatus === "APPROVED"

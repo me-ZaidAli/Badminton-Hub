@@ -54,7 +54,7 @@ export async function canPerform(user: RBACUser, action: RBACAction, clubId?: nu
       return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "MANAGE_SESSIONS":
-      return ["OWNER", "ADMIN", "ORGANISER", "COACH"].includes(clubRole);
+      return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "MANAGE_CREDITS":
     case "MANAGE_MEMBERSHIPS":
@@ -65,7 +65,7 @@ export async function canPerform(user: RBACUser, action: RBACAction, clubId?: nu
       return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "MANAGE_TOURNAMENTS":
-      return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);
+      return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "VIEW_ADMIN_PANEL":
       return ["OWNER", "ADMIN"].includes(clubRole);

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Users, Building2, Calendar, Trophy, GraduationCap, DollarSign,
+  Users, Building2, Calendar, Trophy, DollarSign,
   Shield, ArrowRight, Activity, AlertCircle, Loader2, UserCheck,
   Clock, CheckCircle, XCircle, Zap
 } from "lucide-react";
@@ -12,7 +12,7 @@ import {
 interface SuperAdminStats {
   users: {
     total: number;
-    byRole: { OWNER: number; ADMIN: number; ORGANISER: number; COACH: number; PLAYER: number };
+    byRole: { OWNER: number; ADMIN: number; ORGANISER?: number; COACH?: number; PLAYER: number };
     pendingApprovals: number;
     closedAccounts: number;
   };
@@ -32,7 +32,7 @@ interface SuperAdminStats {
     live: number;
     completed: number;
   };
-  coaches: {
+  coaches?: {
     total: number;
     active: number;
     suspended: number;
@@ -101,15 +101,6 @@ export default function SuperAdminDashboard() {
       color: "text-amber-500",
       detail: `${stats.matches.live} live, ${stats.matches.completed} completed`,
       badge: stats.matches.live > 0 ? stats.matches.live : null,
-    },
-    {
-      title: "Coaches",
-      value: stats.coaches.total,
-      icon: GraduationCap,
-      href: "/admin/coaches",
-      color: "text-teal-500",
-      detail: `${stats.coaches.active} active, ${stats.coaches.suspended} suspended`,
-      badge: stats.coaches.suspended > 0 ? stats.coaches.suspended : null,
     },
     {
       title: "Revenue",
@@ -298,11 +289,6 @@ export default function SuperAdminDashboard() {
               <Link href="/super-admin/sessions">
                 <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-sessions">
                   <Calendar className="w-4 h-4" /> Sessions
-                </Button>
-              </Link>
-              <Link href="/admin/coaches">
-                <Button variant="outline" className="w-full gap-2 justify-start" data-testid="button-quick-coaches">
-                  <GraduationCap className="w-4 h-4" /> Coaches
                 </Button>
               </Link>
               <Link href="/all-rankings">

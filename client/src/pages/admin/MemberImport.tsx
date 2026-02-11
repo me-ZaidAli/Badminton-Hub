@@ -143,7 +143,7 @@ export default function MemberImport() {
       const gender = genderIdx !== -1 && cols[genderIdx] ? cols[genderIdx].toUpperCase() : "MALE";
       const category = categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx].toUpperCase() : "D";
       let role = roleIdx !== -1 && cols[roleIdx] ? cols[roleIdx].toUpperCase() : "PLAYER";
-      if (role !== "PLAYER" && role !== "COACH") role = "PLAYER";
+      if (role !== "PLAYER" && role !== "ADMIN") role = "PLAYER";
       const phone = phoneIdx !== -1 ? cols[phoneIdx] || "" : "";
 
       parsed.push({ fullName, email, gender, category, role, phone: phone || undefined });
@@ -444,7 +444,7 @@ export default function MemberImport() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="PLAYER">Player</SelectItem>
-                          <SelectItem value="COACH">Coach</SelectItem>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
