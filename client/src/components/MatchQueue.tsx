@@ -75,7 +75,7 @@ function PlayerBadge({
         onClick={() => isOrganiser && setOpen(true)}
         data-testid={`queue-player-${matchId}-${position}`}
       >
-        {player.user.fullName}
+        {player.user?.fullName || player.fullName || "Unknown"}
       </Badge>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -644,11 +644,17 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
     setLoserScore("");
   };
 
-  const getTeamALabel = (m: CourtMatch) =>
-    m.teamAPlayer2 ? `${m.teamAPlayer1.user.fullName} & ${m.teamAPlayer2.user.fullName}` : m.teamAPlayer1.user.fullName;
+  const getTeamALabel = (m: CourtMatch) => {
+    const p1 = m.teamAPlayer1?.user?.fullName || (m.teamAPlayer1 as any)?.fullName || "Player";
+    const p2 = m.teamAPlayer2 ? (m.teamAPlayer2?.user?.fullName || (m.teamAPlayer2 as any)?.fullName) : null;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
 
-  const getTeamBLabel = (m: CourtMatch) =>
-    m.teamBPlayer2 ? `${m.teamBPlayer1.user.fullName} & ${m.teamBPlayer2.user.fullName}` : m.teamBPlayer1.user.fullName;
+  const getTeamBLabel = (m: CourtMatch) => {
+    const p1 = m.teamBPlayer1?.user?.fullName || (m.teamBPlayer1 as any)?.fullName || "Player";
+    const p2 = m.teamBPlayer2 ? (m.teamBPlayer2?.user?.fullName || (m.teamBPlayer2 as any)?.fullName) : null;
+    return p2 ? `${p1} & ${p2}` : p1;
+  };
 
   const getWinnerLabel = () => scoreMatch ? (winner === "A" ? getTeamALabel(scoreMatch) : getTeamBLabel(scoreMatch)) : "";
   const getLoserLabel = () => scoreMatch ? (winner === "A" ? getTeamBLabel(scoreMatch) : getTeamALabel(scoreMatch)) : "";
@@ -726,13 +732,13 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm">
-                          {match.teamAPlayer1.user.fullName}
-                          {match.teamAPlayer2 && ` & ${match.teamAPlayer2.user.fullName}`}
+                          {match.teamAPlayer1?.user?.fullName || (match.teamAPlayer1 as any)?.fullName || "Player"}
+                          {match.teamAPlayer2 && ` & ${match.teamAPlayer2?.user?.fullName || (match.teamAPlayer2 as any)?.fullName || "Player"}`}
                         </span>
                         <span className="text-xs text-muted-foreground">vs</span>
                         <span className="text-sm">
-                          {match.teamBPlayer1.user.fullName}
-                          {match.teamBPlayer2 && ` & ${match.teamBPlayer2.user.fullName}`}
+                          {match.teamBPlayer1?.user?.fullName || (match.teamBPlayer1 as any)?.fullName || "Player"}
+                          {match.teamBPlayer2 && ` & ${match.teamBPlayer2?.user?.fullName || (match.teamBPlayer2 as any)?.fullName || "Player"}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">

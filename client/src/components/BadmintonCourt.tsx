@@ -132,7 +132,7 @@ function PlayerSlot({
         )}
         data-testid={`player-slot-${position}`}
       >
-        <div className="font-semibold text-xs sm:text-sm truncate">{player.user.fullName}</div>
+        <div className="font-semibold text-xs sm:text-sm truncate">{player.user?.fullName || (player as any)?.fullName || "Unknown"}</div>
         <Badge variant="outline" className="text-xs mt-1">{player.category || "?"}</Badge>
       </div>
 
@@ -255,16 +255,16 @@ export function BadmintonCourt({
 
   const getTeamALabel = () => {
     if (!match) return "Team A";
-    return match.teamAPlayer2
-      ? `${match.teamAPlayer1.user.fullName} & ${match.teamAPlayer2.user.fullName}`
-      : match.teamAPlayer1.user.fullName;
+    const p1 = match.teamAPlayer1?.user?.fullName || (match.teamAPlayer1 as any)?.fullName || "Player";
+    const p2 = match.teamAPlayer2 ? (match.teamAPlayer2?.user?.fullName || (match.teamAPlayer2 as any)?.fullName) : null;
+    return p2 ? `${p1} & ${p2}` : p1;
   };
 
   const getTeamBLabel = () => {
     if (!match) return "Team B";
-    return match.teamBPlayer2
-      ? `${match.teamBPlayer1.user.fullName} & ${match.teamBPlayer2.user.fullName}`
-      : match.teamBPlayer1.user.fullName;
+    const p1 = match.teamBPlayer1?.user?.fullName || (match.teamBPlayer1 as any)?.fullName || "Player";
+    const p2 = match.teamBPlayer2 ? (match.teamBPlayer2?.user?.fullName || (match.teamBPlayer2 as any)?.fullName) : null;
+    return p2 ? `${p1} & ${p2}` : p1;
   };
 
   const getWinnerLabel = () => winner === "A" ? getTeamALabel() : getTeamBLabel();
