@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Settings2 } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
@@ -365,21 +365,30 @@ export default function Sessions() {
                     {format(new Date(session.date), "EEE, MMM d")}
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {user && !isSuperUser && (
+                    {user && !isSuperUser && !editableClubIds.has(session.clubId) && (
                       getSessionAccess(session.clubId) === "allowed" ? (
                         <CheckCircle className="h-5 w-5 text-green-500" data-testid={`icon-session-allowed-${session.id}`} />
                       ) : (
                         <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
                       )
                     )}
-                    {editableClubIds.has(session.clubId) && (
-                      <EditSessionDialog session={session} venues={[]} />
+                    {editableClubIds.has(session.clubId) ? (
+                      <>
+                        <EditSessionDialog session={session} venues={[]} />
+                        <Link href={`/sessions/${session.id}`}>
+                          <Button size="sm" data-testid={`button-run-session-${session.id}`}>
+                            <Activity className="h-4 w-4 mr-1" />
+                            Run Session
+                          </Button>
+                        </Link>
+                      </>
+                    ) : (
+                      <Link href={`/sessions/${session.id}`}>
+                        <Button size="sm" variant="outline" data-testid={`button-details-session-${session.id}`}>
+                          Details
+                        </Button>
+                      </Link>
                     )}
-                    <Link href={`/sessions/${session.id}`}>
-                      <Button size="sm" variant="outline" data-testid={`button-details-session-${session.id}`}>
-                        Details
-                      </Button>
-                    </Link>
                   </div>
                 </div>
               </CardContent>
@@ -1064,8 +1073,8 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
           variant="outline"
           data-testid={`button-edit-session-${session.id}`}
         >
-          <Settings2 className="h-4 w-4 mr-1" />
-          Edit Details
+          <Pencil className="h-4 w-4 mr-1" />
+          Edit Session
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
