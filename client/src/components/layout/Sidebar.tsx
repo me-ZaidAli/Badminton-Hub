@@ -53,7 +53,7 @@ export function Sidebar() {
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <Link href="/">
+          <Link href="/dashboard">
             <div className="flex items-center gap-3 cursor-pointer group">
               <img src={logoPath} alt="Club Master" className="h-10 w-10 rounded-xl shadow-lg group-hover:shadow-primary/25 transition-all object-contain" />
               <div>
@@ -147,7 +147,7 @@ export function MobileTopNav() {
   return (
     <div className="md:hidden sticky top-0 z-50">
       <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40">
-        <Link href="/">
+        <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
             <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
             <span className="font-display font-bold text-lg">Club Master</span>

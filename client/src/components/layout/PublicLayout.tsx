@@ -1,30 +1,62 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, Redirect } from "wouter";
 import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut } from "lucide-react";
+import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const navItems = [
-  { label: "Home", href: "/", icon: Home },
+const publicNavItems = [
+  { label: "Home", href: "/", icon: LayoutDashboard },
   { label: "Clubs", href: "/explore/clubs", icon: Search },
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
   { label: "Contact", href: "/contact", icon: Mail },
 ];
+
+function useNavItems() {
+  const { data: user } = useUser();
+
+  if (user) {
+    const items = [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Clubs", href: "/explore/clubs", icon: Search },
+      { label: "Sessions", href: "/explore/sessions", icon: Calendar },
+      { label: "Contact", href: "/contact", icon: Mail },
+    ];
+
+    if (user.role === "ADMIN") {
+      items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
+    }
+    if (user.role === "OWNER") {
+      items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
+      items.push({ label: "God's Mode", href: "/super-admin", icon: Shield });
+    }
+
+    return items;
+  }
+
+  return publicNavItems;
+}
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: user } = useUser();
   const logout = useLogout();
+  const navItems = useNavItems();
+
+  if (user && location === "/") {
+    return <Redirect to="/dashboard" />;
+  }
+
+  const logoHref = user ? "/dashboard" : "/";
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50 bg-background/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <Link href="/">
+          <Link href={logoHref}>
             <div className="flex items-center gap-2 cursor-pointer" data-testid="link-home-logo">
               <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
               <span className="font-display font-bold text-xl">Club Master</span>
@@ -33,14 +65,14 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
           <nav className="hidden md:flex items-center gap-1" data-testid="nav-public">
             {navItems.map((item) => {
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              const isActive = location === item.href || (item.href !== "/" && item.href !== "/dashboard" && location.startsWith(item.href));
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
                     variant={isActive ? "secondary" : "ghost"}
                     size="sm"
                     className="gap-2"
-                    data-testid={`nav-${item.label.toLowerCase()}`}
+                    data-testid={`nav-${item.label.toLowerCase().replace(/['\s]/g, '-')}`}
                   >
                     <item.icon className="w-4 h-4" />
                     {item.label}
@@ -55,12 +87,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             {user ? (
               <>
                 <NotificationBell />
-                <Link href="/dashboard">
-                  <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-2" data-testid="button-go-dashboard">
-                    <LayoutDashboard className="w-4 h-4" />
-                    Dashboard
-                  </Button>
-                </Link>
                 <Link href="/profile">
                   <Button variant="ghost" size="sm" className="hidden md:inline-flex gap-2" data-testid="button-go-profile">
                     <User className="w-4 h-4" />
@@ -93,7 +119,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border/40 bg-white dark:bg-card px-4 py-3 space-y-1" data-testid="mobile-nav-menu">
             {navItems.map((item) => {
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              const isActive = location === item.href || (item.href !== "/" && item.href !== "/dashboard" && location.startsWith(item.href));
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -101,7 +127,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                     className="w-full justify-start gap-2"
                     size="sm"
                     onClick={() => setMobileMenuOpen(false)}
-                    data-testid={`mobile-nav-${item.label.toLowerCase()}`}
+                    data-testid={`mobile-nav-${item.label.toLowerCase().replace(/['\s]/g, '-')}`}
                   >
                     <item.icon className="w-4 h-4" />
                     {item.label}
@@ -111,18 +137,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             })}
             {user ? (
               <div className="border-t border-border/40 pt-2 mt-2 space-y-1">
-                <Link href="/dashboard">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-2"
-                    size="sm"
-                    onClick={() => setMobileMenuOpen(false)}
-                    data-testid="mobile-nav-dashboard"
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    Dashboard
-                  </Button>
-                </Link>
                 <Link href="/profile">
                   <Button
                     variant="ghost"
