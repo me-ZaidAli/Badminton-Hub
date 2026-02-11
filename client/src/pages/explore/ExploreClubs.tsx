@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { ClubMap } from "@/components/ui/club-map";
 import { useClubs } from "@/hooks/use-clubs";
+import { useUser } from "@/hooks/use-auth";
 import { ArrowRight, Users, MapPin, Search, List, Map as MapIcon, ExternalLink } from "lucide-react";
 
 export default function ExploreClubs() {
   const { data: clubs, isLoading } = useClubs();
+  const { data: user } = useUser();
   const [clubSearch, setClubSearch] = useState("");
   const [clubViewMode, setClubViewMode] = useState<"list" | "map">("list");
 
@@ -106,7 +108,7 @@ export default function ExploreClubs() {
                               </a>
                             )}
                           </div>
-                          <Link href="/register">
+                          <Link href={user ? `/join-club/${club.id}` : "/login"}>
                             <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>Join</Button>
                           </Link>
                         </div>
@@ -179,7 +181,7 @@ export default function ExploreClubs() {
                             </a>
                           )}
                         </div>
-                        <Link href="/register">
+                        <Link href={user ? `/join-club/${club.id}` : "/login"}>
                           <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>
                             Join <ArrowRight className="w-3 h-3 ml-1" />
                           </Button>
