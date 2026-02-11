@@ -1,33 +1,18 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import logoPath from "@assets/image_1770381062912.png";
 import { useState } from "react";
 import { 
   Calendar, 
-  Users, 
   Settings, 
   LogOut, 
-  LayoutDashboard,
   ShieldCheck,
-  Building2,
-  MapPin,
-  Home,
-  Upload,
-  BarChart3,
-  Trophy,
-  DollarSign,
-  Search,
-  Mail,
-  KeyRound,
   Menu,
   X,
   User,
   Zap,
   Shield,
-  CreditCard,
-  Package
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,55 +28,19 @@ interface NavItem {
 
 function useNavItems(): NavItem[] {
   const { data: user } = useUser();
-  const { data: clubs } = useClubs();
-  const { data: myAdminClubs } = useMyAdminClubs(!!user);
-
-  const isSuperAdmin = user?.role === "OWNER";
-  const isAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
-  const ownedClubs = clubs?.filter(club => club.ownerId === user?.id) || [];
-  const isClubOwner = ownedClubs.length > 0;
-  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
   const navItems: NavItem[] = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/sessions", label: "Sessions", icon: Calendar },
   ];
 
-  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
-    navItems.push({ href: "/club-admin", label: "My Club", icon: Building2 });
-  }
-
-  if (isSuperAdmin || isClubOwner || hasClubAdminAccess) {
-    navItems.push({ href: "/admin/venues", label: "Venues", icon: MapPin });
-  }
-
-  navItems.push({ href: "/memberships", label: "Memberships", icon: CreditCard });
-
-
   if (user?.role === "OWNER") {
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     navItems.push({ href: "/super-admin", label: "God's Mode", icon: Shield, section: "super-admin" });
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "super-admin" });
   } else if (user?.role === "ADMIN") {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "admin" });
-    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "admin" });
-    navItems.push({ href: "/all-rankings", label: "All Rankings", icon: Trophy, section: "admin" });
-    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "admin" });
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "admin" });
-    navItems.push({ href: "/admin/inventory", label: "Inventory", icon: Package, section: "admin" });
-    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "admin" });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "admin" });
+    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
   }
 
-  if (!isSuperAdmin && !isAdmin && (isClubOwner || hasClubAdminAccess)) {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "club-admin" });
-    navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "club-admin" });
-    navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "club-admin" });
-    navItems.push({ href: "/admin/financials", label: "Financials", icon: DollarSign, section: "club-admin" });
-    navItems.push({ href: "/admin/inventory", label: "Inventory", icon: Package, section: "club-admin" });
-    navItems.push({ href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, section: "club-admin" });
-    navItems.push({ href: "/admin/import-members", label: "Import Members", icon: Upload, section: "club-admin" });
-  }
+  navItems.push({ href: "/profile", label: "My Profile", icon: User });
 
   return navItems;
 }
@@ -131,20 +80,6 @@ export function Sidebar() {
                 <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5" data-testid="label-super-admin-section">
                     <Zap className="w-3 h-3" /> God's Mode
-                  </span>
-                </div>
-              )}
-              {item.section === "admin" && (!prevItem || prevItem.section !== "admin") && (
-                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5" data-testid="label-admin-section">
-                    <Shield className="w-3 h-3" /> Admin
-                  </span>
-                </div>
-              )}
-              {item.section === "club-admin" && (!prevItem || prevItem.section !== "club-admin") && (
-                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5" data-testid="label-club-admin-section">
-                    <Shield className="w-3 h-3" /> Club Admin
                   </span>
                 </div>
               )}
