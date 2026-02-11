@@ -153,7 +153,7 @@ export default function PlayerManagement() {
 
   const bulkActionMutation = useMutation({
     mutationFn: async ({ profileIds, action }: { profileIds: number[], action: string }) => {
-      return apiRequest("/api/admin/players/bulk-action", "POST", { profileIds, action });
+      return apiRequest("POST", "/api/admin/players/bulk-action", { profileIds, action });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.users.list.path] });

@@ -748,9 +748,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePlayerProfile(id: number): Promise<void> {
-    // First delete related session signups
     await db.delete(sessionSignups).where(eq(sessionSignups.playerId, id));
-    // Then delete the player profile
+
+    await db.execute(sql`DELETE FROM matches WHERE team_a_player_1_id = ${id} OR team_b_player_1_id = ${id}`);
+    await db.execute(sql`UPDATE matches SET team_a_player_2_id = NULL WHERE team_a_player_2_id = ${id}`);
+    await db.execute(sql`UPDATE matches SET team_b_player_2_id = NULL WHERE team_b_player_2_id = ${id}`);
+
+    const teamIds = await db.execute(sql`SELECT id FROM tournament_teams WHERE player1_id = ${id}`);
+    if (teamIds.rows && teamIds.rows.length > 0) {
+      const ids = teamIds.rows.map((r: any) => r.id);
+      for (const tid of ids) {
+        await db.execute(sql`DELETE FROM tournament_standings WHERE team_id = ${tid}`);
+        await db.execute(sql`DELETE FROM tournament_matches WHERE team_a_id = ${tid} OR team_b_id = ${tid} OR winner_id = ${tid}`);
+      }
+      await db.execute(sql`DELETE FROM tournament_teams WHERE player1_id = ${id}`);
+    }
+    await db.execute(sql`UPDATE tournament_teams SET player2_id = NULL WHERE player2_id = ${id}`);
+
+    await db.execute(sql`UPDATE credit_ledger SET linked_signup_id = NULL WHERE linked_signup_id IN (SELECT id FROM session_signups WHERE player_id = ${id})`);
+
     await db.delete(playerProfiles).where(eq(playerProfiles.id, id));
   }
 
