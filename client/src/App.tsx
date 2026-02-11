@@ -32,11 +32,7 @@ import Profile from "@/pages/Profile";
 import ExploreClubs from "@/pages/explore/ExploreClubs";
 import ExploreSessions from "@/pages/explore/ExploreSessions";
 
-import ExploreCoaches from "@/pages/explore/ExploreCoaches";
-import FindCoach from "@/pages/FindCoach";
-import RegisterCoach from "@/pages/RegisterCoach";
-import CoachProfile from "@/pages/CoachProfile";
-import JoinCoachSeeker from "@/pages/JoinCoachSeeker";
+
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -63,7 +59,7 @@ import Analytics from "@/pages/admin/Analytics";
 import AllRankings from "@/pages/AllRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
-import CoachManagement from "@/pages/admin/CoachManagement";
+
 import PasswordResets from "@/pages/admin/PasswordResets";
 import ContactForm from "@/pages/ContactForm";
 import Messages from "@/pages/admin/Messages";
@@ -244,7 +240,6 @@ function Router() {
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/explore/clubs" component={ExploreClubs} />
       <Route path="/explore/sessions" component={ExploreSessions} />
-      <Route path="/explore/coaches" component={ExploreCoaches} />
       
       {/* Protected Routes */}
       <Route path="/dashboard">
@@ -283,18 +278,7 @@ function Router() {
       <Route path="/pending-approval">
         <PrivateRoute component={PendingApproval} />
       </Route>
-      <Route path="/find-coach">
-        <PrivateRoute component={FindCoach} />
-      </Route>
-      <Route path="/register-coach">
-        <PrivateRoute component={RegisterCoach} />
-      </Route>
-      <Route path="/coaches/me">
-        <PrivateRoute component={CoachProfile} />
-      </Route>
-      <Route path="/join-coach-seeker">
-        <PrivateRoute component={JoinCoachSeeker} />
-      </Route>
+
       <Route path="/contact">
         <PublicRoute component={ContactForm} />
       </Route>
@@ -366,9 +350,7 @@ function Router() {
       <Route path="/admin/import-members">
         <AdminRoute component={MemberImport} />
       </Route>
-      <Route path="/admin/coaches">
-        <OwnerRoute component={CoachManagement} />
-      </Route>
+
       <Route path="/admin/password-resets">
         <AdminRoute component={PasswordResets} />
       </Route>

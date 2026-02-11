@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import logoPath from "@assets/image_1770381062912.png";
 import { Button } from "@/components/ui/button";
-import { Home, Search, Calendar, Menu, X, GraduationCap, Mail, LayoutDashboard, User, LogOut } from "lucide-react";
+import { Home, Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -11,7 +11,6 @@ const navItems = [
   { label: "Home", href: "/", icon: Home },
   { label: "Clubs", href: "/explore/clubs", icon: Search },
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
-  { label: "Find a Coach", href: "/find-coach", icon: GraduationCap },
   { label: "Contact", href: "/contact", icon: Mail },
 ];
 

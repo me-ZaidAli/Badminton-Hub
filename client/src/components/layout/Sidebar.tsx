@@ -18,7 +18,6 @@ import {
   BarChart3,
   Trophy,
   DollarSign,
-  GraduationCap,
   Search,
   Mail,
   KeyRound,
@@ -75,7 +74,6 @@ function useNavItems(): NavItem[] {
   }
 
   navItems.push({ href: "/memberships", label: "Memberships", icon: CreditCard });
-  navItems.push({ href: "/find-coach", label: "Find a Coach", icon: Search });
 
 
   if (user?.role === "OWNER") {
@@ -87,7 +85,6 @@ function useNavItems(): NavItem[] {
     navItems.push({ href: "/admin/members", label: "Members", icon: Users, section: "super-admin" });
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, section: "super-admin" });
     navItems.push({ href: "/admin/club-approvals", label: "Club Approvals", icon: Building2, section: "super-admin" });
-    navItems.push({ href: "/admin/coaches", label: "Coach Management", icon: GraduationCap, section: "super-admin" });
     navItems.push({ href: "/admin/password-resets", label: "Password Resets", icon: KeyRound, section: "super-admin" });
     navItems.push({ href: "/admin/messages", label: "Messages", icon: Mail, section: "super-admin" });
     navItems.push({ href: "/admin/analytics", label: "Analytics", icon: BarChart3, section: "super-admin" });
