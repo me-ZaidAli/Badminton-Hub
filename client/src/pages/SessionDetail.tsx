@@ -1034,7 +1034,9 @@ export default function SessionDetail() {
             const aPaused = !!(a as any).isPaused;
             const bPaused = !!(b as any).isPaused;
             if (aPaused !== bPaused) return aPaused ? 1 : -1;
-            return a.player.user.fullName.localeCompare(b.player.user.fullName);
+            const aName = a.player?.user?.fullName || "";
+            const bName = b.player?.user?.fullName || "";
+            return aName.localeCompare(bName);
           }).map((signup) => {
             const s = signup as any;
             const effectiveGender = s.genderOverride || signup.player.gender || "?";
@@ -1518,11 +1520,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   const availablePlayers = signups.map(s => ({
     id: s.player.id,
-    fullName: s.player.user.fullName,
-    category: s.player.category,
+    fullName: s.player?.user?.fullName || "",
+    category: s.player?.category,
   }));
 
-  const attendingSignups = signups.filter(s => !s.attendanceStatus || s.attendanceStatus === "ATTENDING");
+  const attendingSignups = signups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
   const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
   const minPlayersNeeded = playersPerSide * 2;
   const pausedCount = attendingSignups.filter(s => s.isPaused).length;
