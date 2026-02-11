@@ -1382,8 +1382,19 @@ export async function registerRoutes(
         await storage.deleteMatch(match.id);
       }
 
+      const signups = await storage.getSessionSignups(sessionId);
+      for (const signup of signups) {
+        await storage.updateSignupStatus(signup.id, { attendanceStatus: "NOT_ATTENDED" });
+        if (signup.isPaused) {
+          await db.update(sessionSignups).set({ isPaused: false }).where(eq(sessionSignups.id, signup.id));
+        }
+        if (signup.pairGroupId) {
+          await db.update(sessionSignups).set({ pairGroupId: null }).where(eq(sessionSignups.id, signup.id));
+        }
+      }
+
       const updated = await storage.updateSession(sessionId, { status: "ACTIVE", autoGenerateActive: false });
-      res.json({ message: "Session restarted", matchesDeleted: matches.length, session: updated });
+      res.json({ message: "Session restarted", matchesDeleted: matches.length, signupsReset: signups.length, session: updated });
     } catch (err: any) {
       console.error("Error restarting session:", err);
       res.status(500).json({ message: err.message || "Failed to restart session" });

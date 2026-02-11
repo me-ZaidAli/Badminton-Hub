@@ -1425,6 +1425,15 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   }, [initialCourtNames]);
 
   useEffect(() => {
+    if (sessionStatus === "ACTIVE") {
+      setAutoGenLocallyStopped(false);
+      setAutoGenWaiting(false);
+      setPairConstraintMessage(null);
+      setForcedCompletionActive(false);
+    }
+  }, [sessionStatus]);
+
+  useEffect(() => {
     if (autoGenerateActive) {
       setAutoGenLocallyStopped(false);
     }

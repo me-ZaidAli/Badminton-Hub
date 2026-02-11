@@ -176,6 +176,9 @@ export function useSmartGenerateMatches() {
         queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
       }
     },
+    onError: (err: Error) => {
+      toast({ title: "Generation Failed", description: err.message || "Failed to generate matches.", variant: "destructive" });
+    },
   });
 }
 
