@@ -1535,7 +1535,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
   const minPlayersNeeded = playersPerSide * 2;
   const pausedCount = attendingSignups.filter(s => s.isPaused).length;
-  const notEnoughPlayersMessage = (() => {
+  const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
+
+  const getNotEnoughPlayersText = () => {
     if (activePlayerCount < minPlayersNeeded) {
       if (pausedCount > 0) {
         return `Not enough active players to generate a match. ${pausedCount} player${pausedCount > 1 ? "s are" : " is"} paused. Resume players or add more to continue.`;
@@ -1543,13 +1545,31 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       return `Not enough players to generate a match. Need at least ${minPlayersNeeded} active players.`;
     }
     return null;
-  })();
+  };
+
+  useEffect(() => {
+    if (activePlayerCount >= minPlayersNeeded && notEnoughPlayersMessage) {
+      setNotEnoughPlayersMessage(null);
+    }
+  }, [activePlayerCount, minPlayersNeeded]);
+
+  const showNotEnoughPlayersWarning = () => {
+    const msg = getNotEnoughPlayersText();
+    if (msg) {
+      setNotEnoughPlayersMessage(msg);
+      setTimeout(() => setNotEnoughPlayersMessage(null), 5000);
+      return true;
+    }
+    return false;
+  };
 
   const handleSmartGenerate = () => {
+    if (showNotEnoughPlayersWarning()) return;
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
   };
 
   const handleStartAutoGenerate = () => {
+    if (showNotEnoughPlayersWarning()) return;
     setAutoGenLocallyStopped(false);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {

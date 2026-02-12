@@ -244,7 +244,7 @@ export function MatchQueue({
                     size="sm"
                     variant="outline"
                     onClick={onGenerateMatch}
-                    disabled={isGenerating || !!notEnoughPlayersMessage}
+                    disabled={isGenerating}
                     data-testid="button-generate-match-queue"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
@@ -256,7 +256,7 @@ export function MatchQueue({
                     size="sm"
                     variant="default"
                     onClick={onStartAutoGenerate}
-                    disabled={isGenerating || !!notEnoughPlayersMessage}
+                    disabled={isGenerating}
                     data-testid="button-start-auto-generate-queue"
                   >
                     <Zap className="w-4 h-4 mr-1" />
