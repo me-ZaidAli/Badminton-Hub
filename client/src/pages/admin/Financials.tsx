@@ -1052,24 +1052,6 @@ export default function Financials() {
                   data-testid="input-date-to"
                 />
               </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {MONTH_NAMES.map((name, idx) => (
-                  <Button
-                    key={name}
-                    size="sm"
-                    variant={
-                      dateFrom === format(startOfMonth(new Date(now.getFullYear(), idx, 1)), "yyyy-MM-dd") &&
-                      dateTo === format(endOfMonth(new Date(now.getFullYear(), idx, 1)), "yyyy-MM-dd")
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() => handleMonthSelect(idx)}
-                    data-testid={`button-month-${name.toLowerCase()}`}
-                  >
-                    {name}
-                  </Button>
-                ))}
-              </div>
             </div>
 
             <div className="flex flex-col md:flex-row gap-3 flex-wrap">
