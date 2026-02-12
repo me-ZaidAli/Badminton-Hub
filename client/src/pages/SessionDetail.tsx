@@ -1418,10 +1418,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
   const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
   const [forcedMatches, setForcedMatches] = useState<CourtMatch[]>([]);
-  const [fcWinner, setFcWinner] = useState<"A" | "B" | null>(null);
-  const [fcWinnerScore, setFcWinnerScore] = useState("");
-  const [fcLoserScore, setFcLoserScore] = useState("");
-  const [fcStep, setFcStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [fcScoreA, setFcScoreA] = useState("");
+  const [fcScoreB, setFcScoreB] = useState("");
+  const [fcStep, setFcStep] = useState<1 | 5>(1);
   const [fcSubmitting, setFcSubmitting] = useState(false);
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
@@ -1647,9 +1646,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const resetFcFlow = () => {
-    setFcWinner(null);
-    setFcWinnerScore("");
-    setFcLoserScore("");
+    setFcScoreA("");
+    setFcScoreB("");
     setFcStep(1);
     setFcShowSuccess(false);
   };
@@ -1663,13 +1661,10 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   const handleFcConfirm = async () => {
     const match = getCurrentForcedMatch();
-    if (!match || !fcWinner || !fcWinnerScore || !fcLoserScore) return;
-    const wScore = Number(fcWinnerScore);
-    const lScore = Number(fcLoserScore);
-    if (isNaN(wScore) || isNaN(lScore) || wScore < 0 || lScore < 0) return;
-    if (wScore <= lScore) return;
-    const sA = fcWinner === "A" ? wScore : lScore;
-    const sB = fcWinner === "B" ? wScore : lScore;
+    if (!match) return;
+    const sA = Number(fcScoreA);
+    const sB = Number(fcScoreB);
+    if (isNaN(sA) || isNaN(sB) || sA < 0 || sB < 0 || sA === sB) return;
     setFcSubmitting(true);
     try {
       await completeMatch({ matchId: match.id, scoreA: sA, scoreB: sB });
@@ -1703,8 +1698,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     const p2 = fcMatch.teamBPlayer2 ? (fcMatch.teamBPlayer2?.user?.fullName || (fcMatch.teamBPlayer2 as any)?.fullName) : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
-  const fcGetWinnerLabel = () => fcWinner === "A" ? fcGetTeamALabel() : fcGetTeamBLabel();
-  const fcGetLoserLabel = () => fcWinner === "A" ? fcGetTeamBLabel() : fcGetTeamALabel();
 
   if (isSessionCompleted) {
     return (
@@ -1976,127 +1969,71 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
               <div className="flex items-center justify-center gap-2 py-1" data-testid="fc-target-selector">
                 <span className="text-sm text-muted-foreground">Play to</span>
-                <Select value={String(fcDialogTarget)} onValueChange={(v) => {
-                  const val = Number(v);
-                  setFcDialogTarget(val);
-                  const match = getCurrentForcedMatch();
-                  if (match) updateMatchTarget({ matchId: match.id, pointsToPlayTo: val });
-                }}>
-                  <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-fc-target">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[11, 15, 21, 25, 30].map(v => (
-                      <SelectItem key={v} value={String(v)} data-testid={`select-fc-target-${v}`}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="number"
+                  min="1"
+                  value={String(fcDialogTarget)}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val) && val > 0) {
+                      setFcDialogTarget(val);
+                      const match = getCurrentForcedMatch();
+                      if (match) updateMatchTarget({ matchId: match.id, pointsToPlayTo: val });
+                    }
+                  }}
+                  className="w-20 h-8 text-sm text-center"
+                  data-testid="input-fc-target"
+                />
               </div>
 
               {fcStep === 1 && (
-                <div className="space-y-3 py-4">
-                  <Button
-                    variant={fcWinner === "A" ? "default" : "outline"}
-                    className="w-full justify-start gap-3"
-                    onClick={() => setFcWinner("A")}
-                    data-testid="fc-button-winner-a"
-                  >
-                    <Trophy className="w-4 h-4" />
-                    {fcGetTeamALabel()}
-                  </Button>
-                  <Button
-                    variant={fcWinner === "B" ? "default" : "outline"}
-                    className="w-full justify-start gap-3"
-                    onClick={() => setFcWinner("B")}
-                    data-testid="fc-button-winner-b"
-                  >
-                    <Trophy className="w-4 h-4" />
-                    {fcGetTeamBLabel()}
-                  </Button>
-                  <Button
-                    className="w-full gap-2 mt-2"
-                    disabled={!fcWinner}
-                    onClick={() => setFcStep(2)}
-                    data-testid="fc-button-next-step1"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {fcStep === 2 && (
-                <div className="space-y-3 py-4">
-                  <Label className="text-sm text-muted-foreground">{fcGetWinnerLabel()} scored:</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={fcWinnerScore}
-                    onChange={(e) => setFcWinnerScore(e.target.value)}
-                    placeholder="Enter score"
-                    className="text-center text-2xl"
-                    data-testid="fc-input-winner-score"
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setFcStep(1)} data-testid="fc-button-back-step2">
-                      <RotateCcw className="w-4 h-4" /> Back
-                    </Button>
-                    <Button className="flex-1 gap-2" disabled={!fcWinnerScore} onClick={() => setFcStep(3)} data-testid="fc-button-next-step2">
-                      Next <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {fcStep === 3 && (
-                <div className="space-y-3 py-4">
-                  <Label className="text-sm text-muted-foreground">{fcGetLoserLabel()} scored:</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={fcLoserScore}
-                    onChange={(e) => setFcLoserScore(e.target.value)}
-                    placeholder="Enter score"
-                    className="text-center text-2xl"
-                    data-testid="fc-input-loser-score"
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 gap-2" onClick={() => setFcStep(2)} data-testid="fc-button-back-step3">
-                      <RotateCcw className="w-4 h-4" /> Back
-                    </Button>
-                    <Button className="flex-1 gap-2" disabled={!fcLoserScore} onClick={() => setFcStep(4)} data-testid="fc-button-next-step3">
-                      Next <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {fcStep === 4 && (
                 <div className="space-y-4 py-4">
-                  <div className="bg-muted/50 rounded-md p-4 text-center space-y-2">
-                    <div className="text-sm text-muted-foreground">Winner</div>
-                    <div className="font-semibold">{fcGetWinnerLabel()}</div>
-                    <div className="text-3xl font-bold">{fcWinnerScore} - {fcLoserScore}</div>
-                    <div className="text-sm text-muted-foreground">{fcGetLoserLabel()}</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 text-sm font-medium truncate" data-testid="fc-text-team-a">{fcGetTeamALabel()}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={fcScoreA}
+                        onChange={(e) => setFcScoreA(e.target.value)}
+                        className="w-24 text-center text-lg font-bold"
+                        data-testid="fc-input-score-a"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 text-sm font-medium truncate" data-testid="fc-text-team-b">{fcGetTeamBLabel()}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={fcScoreB}
+                        onChange={(e) => setFcScoreB(e.target.value)}
+                        className="w-24 text-center text-lg font-bold"
+                        data-testid="fc-input-score-b"
+                      />
+                    </div>
                   </div>
-                  {Number(fcWinnerScore) <= Number(fcLoserScore) && (
-                    <p className="text-sm text-destructive text-center">Winner's score must be higher than the losing team's score</p>
+
+                  {fcScoreA !== "" && fcScoreB !== "" && fcScoreA === fcScoreB && (
+                    <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
                   )}
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 gap-2" onClick={resetFcFlow} data-testid="fc-button-amend">
-                      <RotateCcw className="w-4 h-4" /> Amend
-                    </Button>
-                    <Button
-                      className="flex-1 gap-2"
-                      disabled={fcSubmitting || Number(fcWinnerScore) <= Number(fcLoserScore)}
-                      onClick={handleFcConfirm}
-                      data-testid="fc-button-save"
-                    >
-                      {fcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      {forcedCompletionIndex + 1 < forcedMatches.length ? "Save & Next Match" : "Save Result"}
-                    </Button>
-                  </div>
+
+                  <Button
+                    className="w-full gap-2"
+                    disabled={
+                      fcSubmitting ||
+                      fcScoreA === "" || fcScoreB === "" ||
+                      isNaN(Number(fcScoreA)) || isNaN(Number(fcScoreB)) ||
+                      Number(fcScoreA) < 0 || Number(fcScoreB) < 0 ||
+                      Number(fcScoreA) === Number(fcScoreB)
+                    }
+                    onClick={handleFcConfirm}
+                    data-testid="fc-button-save"
+                  >
+                    {fcSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    {forcedCompletionIndex + 1 < forcedMatches.length ? "Save & Next Match" : "Save Result"}
+                  </Button>
                 </div>
               )}
 

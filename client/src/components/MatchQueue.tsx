@@ -554,10 +554,8 @@ export function MatchQueue({
 export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean }) {
   const [scoreMatch, setScoreMatch] = useState<CourtMatch | null>(null);
   const [scoreMode, setScoreMode] = useState<"edit" | "player">("edit");
-  const [finishStep, setFinishStep] = useState<1 | 2 | 3 | 4>(1);
-  const [winner, setWinner] = useState<"A" | "B" | null>(null);
-  const [winnerScore, setWinnerScore] = useState<string>("");
-  const [loserScore, setLoserScore] = useState<string>("");
+  const [teamScoreA, setTeamScoreA] = useState<string>("");
+  const [teamScoreB, setTeamScoreB] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [deleteMatch, setDeleteMatch] = useState<CourtMatch | null>(null);
   const [editSetScores, setEditSetScores] = useState<{ scoreA: string; scoreB: string }[]>([]);
@@ -599,20 +597,15 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
         }
       }
       setEditSetScores(scores);
-      setFinishStep(1);
     } else {
-      setFinishStep(1);
-      setWinner(null);
-      setWinnerScore("");
-      setLoserScore("");
+      setTeamScoreA("");
+      setTeamScoreB("");
     }
   };
 
   const resetFinishFlow = () => {
-    setFinishStep(1);
-    setWinner(null);
-    setWinnerScore("");
-    setLoserScore("");
+    setTeamScoreA("");
+    setTeamScoreB("");
   };
 
   const getTeamALabel = (m: CourtMatch) => {
@@ -627,8 +620,8 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
     return p2 ? `${p1} & ${p2}` : p1;
   };
 
-  const getWinnerLabel = () => scoreMatch ? (winner === "A" ? getTeamALabel(scoreMatch) : getTeamBLabel(scoreMatch)) : "";
-  const getLoserLabel = () => scoreMatch ? (winner === "A" ? getTeamBLabel(scoreMatch) : getTeamALabel(scoreMatch)) : "";
+
+
 
   const handleSetScoreSave = () => {
     if (editSelectedSet === null || editSetScoreA === "" || editSetScoreB === "") return;
@@ -658,11 +651,9 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
       return;
     }
 
-    if (!winner || !winnerScore || !loserScore) return;
-    const wScore = Number(winnerScore);
-    const lScore = Number(loserScore);
-    const sA = winner === "A" ? wScore : lScore;
-    const sB = winner === "B" ? wScore : lScore;
+    const sA = Number(teamScoreA);
+    const sB = Number(teamScoreB);
+    if (isNaN(sA) || isNaN(sB) || sA < 0 || sB < 0 || sA === sB) return;
     const mutate = scoreMode === "edit" ? editScore : enterPlayerScore;
     mutate({ matchId: scoreMatch.id, scoreA: sA, scoreB: sB }, {
       onSuccess: () => {
@@ -787,21 +778,17 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                 ? "Score Saved"
                 : scoreMatch && scoreMode === "edit" && isMultiSet(scoreMatch)
                 ? (editSelectedSet !== null ? `Edit Set ${editSelectedSet + 1}` : "Edit Set Scores")
-                : finishStep === 1
-                ? "Who won the match?"
-                : finishStep === 2
-                ? "Winning team score"
-                : finishStep === 3
-                ? "Losing team score"
-                : "Confirm match result"}
+                : scoreMode === "edit"
+                ? "Edit Match Score"
+                : "Enter Match Score"}
             </DialogTitle>
-            {!showSuccess && scoreMode === "edit" && !(scoreMatch && isMultiSet(scoreMatch)) && finishStep === 1 && (
+            {!showSuccess && scoreMode === "edit" && !(scoreMatch && isMultiSet(scoreMatch)) && (
               <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
             )}
             {!showSuccess && scoreMode === "edit" && scoreMatch && isMultiSet(scoreMatch) && (
               <DialogDescription>Select a set to amend its score</DialogDescription>
             )}
-            {!showSuccess && scoreMode === "player" && finishStep === 1 && (
+            {!showSuccess && scoreMode === "player" && (
               <DialogDescription>You can enter the score once. If there is a dispute, contact an admin.</DialogDescription>
             )}
           </DialogHeader>
@@ -899,155 +886,53 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
               </div>
             )
           ) : scoreMatch && (
-            <>
-              <div className="flex items-center justify-center gap-2 pt-2 pb-1">
-                {[1, 2, 3, 4].map((s) => (
-                  <div
-                    key={s}
-                    className={cn(
-                      "w-8 h-1.5 rounded-full transition-colors",
-                      s <= finishStep ? "bg-primary" : "bg-muted"
-                    )}
+            <div className="space-y-4 pt-2" data-testid="score-edit-entry">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 text-sm font-medium truncate" data-testid="text-edit-team-a">{getTeamALabel(scoreMatch)}</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={teamScoreA}
+                    onChange={(e) => setTeamScoreA(e.target.value)}
+                    className="w-24 text-center text-lg font-bold"
+                    data-testid="input-edit-score-a"
                   />
-                ))}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 text-sm font-medium truncate" data-testid="text-edit-team-b">{getTeamBLabel(scoreMatch)}</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={teamScoreB}
+                    onChange={(e) => setTeamScoreB(e.target.value)}
+                    className="w-24 text-center text-lg font-bold"
+                    data-testid="input-edit-score-b"
+                  />
+                </div>
               </div>
 
-              {finishStep === 1 && (
-                <div className="space-y-3 pt-2" data-testid="score-edit-step-1">
-                  <p className="text-sm text-muted-foreground text-center">Select the winning team</p>
-                  <div className="space-y-2">
-                    <Button
-                      variant={winner === "A" ? "default" : "outline"}
-                      className="w-full justify-start gap-3 py-6"
-                      onClick={() => setWinner("A")}
-                      data-testid="button-select-winner-a"
-                    >
-                      <Trophy className={cn("w-5 h-5", winner === "A" ? "text-yellow-300" : "text-muted-foreground")} />
-                      <span className="text-left flex-1 truncate">{getTeamALabel(scoreMatch)}</span>
-                      {winner === "A" && <Check className="w-5 h-5" />}
-                    </Button>
-                    <Button
-                      variant={winner === "B" ? "default" : "outline"}
-                      className="w-full justify-start gap-3 py-6"
-                      onClick={() => setWinner("B")}
-                      data-testid="button-select-winner-b"
-                    >
-                      <Trophy className={cn("w-5 h-5", winner === "B" ? "text-yellow-300" : "text-muted-foreground")} />
-                      <span className="text-left flex-1 truncate">{getTeamBLabel(scoreMatch)}</span>
-                      {winner === "B" && <Check className="w-5 h-5" />}
-                    </Button>
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(2)}
-                    disabled={!winner}
-                    data-testid="button-score-next-1"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
+              {teamScoreA !== "" && teamScoreB !== "" && teamScoreA === teamScoreB && (
+                <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
               )}
 
-              {finishStep === 2 && (
-                <div className="space-y-3 pt-2" data-testid="score-edit-step-2">
-                  <div className="text-center space-y-1">
-                    <Badge variant="default" className="gap-1">
-                      <Trophy className="w-3 h-3" /> Winner
-                    </Badge>
-                    <p className="font-semibold">{getWinnerLabel()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block text-center">Enter winning team's score</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder=""
-                      value={winnerScore}
-                      onChange={(e) => setWinnerScore(e.target.value)}
-                      className="text-2xl text-center font-bold h-14"
-                      data-testid="input-edit-winner-score"
-                    />
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(3)}
-                    disabled={winnerScore === "" || isNaN(Number(winnerScore)) || Number(winnerScore) < 0}
-                    data-testid="button-score-next-2"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {finishStep === 3 && (
-                <div className="space-y-3 pt-2" data-testid="score-edit-step-3">
-                  <div className="text-center space-y-1">
-                    <Badge variant="outline" className="gap-1 text-muted-foreground">Losing team</Badge>
-                    <p className="font-semibold">{getLoserLabel()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block text-center">Enter losing team's score</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder=""
-                      value={loserScore}
-                      onChange={(e) => setLoserScore(e.target.value)}
-                      className="text-2xl text-center font-bold h-14"
-                      data-testid="input-edit-loser-score"
-                    />
-                  </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setFinishStep(4)}
-                    disabled={loserScore === "" || isNaN(Number(loserScore)) || Number(loserScore) < 0}
-                    data-testid="button-score-next-3"
-                  >
-                    Next <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {finishStep === 4 && (
-                <div className="space-y-4 pt-2" data-testid="score-edit-step-4">
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-                        <span className="font-semibold truncate">{getWinnerLabel()}</span>
-                      </div>
-                      <span className="text-2xl font-bold font-mono text-primary">{winnerScore}</span>
-                    </div>
-                    <div className="border-t border-border" />
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-muted-foreground truncate block">{getLoserLabel()}</span>
-                      </div>
-                      <span className="text-2xl font-bold font-mono text-muted-foreground">{loserScore}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-center text-muted-foreground">Do you agree with these scores?</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={resetFinishFlow}
-                      className="gap-2"
-                      data-testid="button-score-amend"
-                    >
-                      <RotateCcw className="w-4 h-4" /> Amend Scores
-                    </Button>
-                    <Button
-                      onClick={handleFinalConfirm}
-                      disabled={isEditPending || isPlayerScorePending}
-                      className="gap-2"
-                      data-testid="button-score-confirm"
-                    >
-                      <Check className="w-4 h-4" /> {isEditPending || isPlayerScorePending ? "Saving..." : "Confirm & Finish"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+              <Button
+                className="w-full gap-2"
+                onClick={handleFinalConfirm}
+                disabled={
+                  isEditPending || isPlayerScorePending ||
+                  teamScoreA === "" || teamScoreB === "" ||
+                  isNaN(Number(teamScoreA)) || isNaN(Number(teamScoreB)) ||
+                  Number(teamScoreA) < 0 || Number(teamScoreB) < 0 ||
+                  Number(teamScoreA) === Number(teamScoreB)
+                }
+                data-testid="button-score-confirm"
+              >
+                <Check className="w-4 h-4" /> {isEditPending || isPlayerScorePending ? "Saving..." : "Confirm Scores"}
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>

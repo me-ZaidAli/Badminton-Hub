@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Play, Square, Clock, Users, Pencil, Trophy, ArrowRight, RotateCcw, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import courtImage from "@assets/image_1770246183034.png";
@@ -186,10 +185,8 @@ export function BadmintonCourt({
   defaultPointsToPlayTo = 21,
 }: BadmintonCourtProps) {
   const [showScoreDialog, setShowScoreDialog] = useState(false);
-  const [finishStep, setFinishStep] = useState<1 | 2 | 3 | 4>(1);
-  const [winner, setWinner] = useState<"A" | "B" | null>(null);
-  const [winnerScore, setWinnerScore] = useState<string>("");
-  const [loserScore, setLoserScore] = useState<string>("");
+  const [teamScoreA, setTeamScoreA] = useState<string>("");
+  const [teamScoreB, setTeamScoreB] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [setScoreA, setSetScoreA] = useState<string>("");
   const [setScoreB, setSetScoreB] = useState<string>("");
@@ -224,10 +221,8 @@ export function BadmintonCourt({
   }, [target]);
 
   const openFinishDialog = () => {
-    setFinishStep(1);
-    setWinner(null);
-    setWinnerScore("");
-    setLoserScore("");
+    setTeamScoreA("");
+    setTeamScoreB("");
     setSetScoreA("");
     setSetScoreB("");
     setMultiSetStep("enter");
@@ -244,10 +239,8 @@ export function BadmintonCourt({
   };
 
   const resetFinishFlow = () => {
-    setFinishStep(1);
-    setWinner(null);
-    setWinnerScore("");
-    setLoserScore("");
+    setTeamScoreA("");
+    setTeamScoreB("");
     setSetScoreA("");
     setSetScoreB("");
     setMultiSetStep("enter");
@@ -267,17 +260,13 @@ export function BadmintonCourt({
     return p2 ? `${p1} & ${p2}` : p1;
   };
 
-  const getWinnerLabel = () => winner === "A" ? getTeamALabel() : getTeamBLabel();
-  const getLoserLabel = () => winner === "A" ? getTeamBLabel() : getTeamALabel();
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFinalConfirm = async () => {
-    if (!match || !winner || !winnerScore || !loserScore) return;
-    const wScore = Number(winnerScore);
-    const lScore = Number(loserScore);
-    const sA = winner === "A" ? wScore : lScore;
-    const sB = winner === "B" ? wScore : lScore;
+    if (!match) return;
+    const sA = Number(teamScoreA);
+    const sB = Number(teamScoreB);
+    if (isNaN(sA) || isNaN(sB) || sA < 0 || sB < 0 || sA === sB) return;
     setIsSubmitting(true);
     try {
       const result = onCompleteMatch(match.id, sA, sB);
@@ -290,7 +279,6 @@ export function BadmintonCourt({
         setShowSuccess(false);
       }, 2000);
     } catch {
-      // Error handled by parent mutation toast - dialog stays open for amendment
     } finally {
       setIsSubmitting(false);
     }
@@ -566,16 +554,17 @@ export function BadmintonCourt({
                 <>
                   <div className="flex items-center justify-center gap-2 py-1" data-testid="set-target-selector">
                     <span className="text-sm text-muted-foreground">Play to</span>
-                    <Select value={String(dialogTarget)} onValueChange={(v) => handleDialogTargetChange(Number(v))}>
-                      <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-dialog-target">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[11, 15, 21, 25, 30].map(v => (
-                          <SelectItem key={v} value={String(v)} data-testid={`select-target-${v}`}>{v}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={String(dialogTarget)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val > 0) handleDialogTargetChange(val);
+                      }}
+                      className="w-20 h-8 text-sm text-center"
+                      data-testid="input-dialog-target"
+                    />
                   </div>
 
                   {completedSets.length > 0 && (
@@ -686,9 +675,9 @@ export function BadmintonCourt({
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {showSuccess ? "Match Saved" : finishStep === 1 ? "Who won the match?" : finishStep === 2 ? "Winning team score" : finishStep === 3 ? "Losing team score" : "Confirm match result"}
+                  {showSuccess ? "Match Saved" : "Enter Match Score"}
                 </DialogTitle>
-                <DialogDescription className="sr-only">Enter the final match scores step by step</DialogDescription>
+                <DialogDescription className="sr-only">Enter the final match scores</DialogDescription>
               </DialogHeader>
 
               {showSuccess ? (
@@ -697,170 +686,68 @@ export function BadmintonCourt({
                   <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center justify-center gap-2 pt-2 pb-1">
-                    {[1, 2, 3, 4].map((s) => (
-                      <div
-                        key={s}
-                        className={cn(
-                          "w-8 h-1.5 rounded-full transition-colors",
-                          s <= finishStep ? "bg-primary" : "bg-muted"
-                        )}
-                        data-testid={`step-indicator-${s}`}
-                      />
-                    ))}
-                  </div>
-
+                <div className="space-y-4 pt-2" data-testid="finish-score-entry">
                   <div className="flex items-center justify-center gap-2 py-1" data-testid="single-set-target-selector">
                     <span className="text-sm text-muted-foreground">Play to</span>
-                    <Select value={String(dialogTarget)} onValueChange={(v) => handleDialogTargetChange(Number(v))}>
-                      <SelectTrigger className="w-20 h-8 text-sm" data-testid="select-dialog-target-single">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[11, 15, 21, 25, 30].map(v => (
-                          <SelectItem key={v} value={String(v)} data-testid={`select-target-single-${v}`}>{v}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={String(dialogTarget)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val > 0) handleDialogTargetChange(val);
+                      }}
+                      className="w-20 h-8 text-sm text-center"
+                      data-testid="input-dialog-target-single"
+                    />
                   </div>
 
-                  {finishStep === 1 && (
-                    <div className="space-y-3 pt-2" data-testid="finish-step-1">
-                      <p className="text-sm text-muted-foreground text-center">Select the winning team</p>
-                      <div className="space-y-2">
-                        <Button
-                          variant={winner === "A" ? "default" : "outline"}
-                          className="w-full justify-start gap-3 py-6"
-                          onClick={() => setWinner("A")}
-                          data-testid="button-select-team-a"
-                        >
-                          <Trophy className={cn("w-5 h-5", winner === "A" ? "text-yellow-300" : "text-muted-foreground")} />
-                          <span className="text-left flex-1 truncate">{getTeamALabel()}</span>
-                          {winner === "A" && <Check className="w-5 h-5" />}
-                        </Button>
-                        <Button
-                          variant={winner === "B" ? "default" : "outline"}
-                          className="w-full justify-start gap-3 py-6"
-                          onClick={() => setWinner("B")}
-                          data-testid="button-select-team-b"
-                        >
-                          <Trophy className={cn("w-5 h-5", winner === "B" ? "text-yellow-300" : "text-muted-foreground")} />
-                          <span className="text-left flex-1 truncate">{getTeamBLabel()}</span>
-                          {winner === "B" && <Check className="w-5 h-5" />}
-                        </Button>
-                      </div>
-                      <Button
-                        className="w-full gap-2"
-                        onClick={() => setFinishStep(2)}
-                        disabled={!winner}
-                        data-testid="button-next-step-1"
-                      >
-                        Next <ArrowRight className="w-4 h-4" />
-                      </Button>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-a-label">{getTeamALabel()}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={teamScoreA}
+                        onChange={(e) => setTeamScoreA(e.target.value)}
+                        className="w-24 text-center text-lg font-bold"
+                        data-testid="input-score-a"
+                      />
                     </div>
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-b-label">{getTeamBLabel()}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={teamScoreB}
+                        onChange={(e) => setTeamScoreB(e.target.value)}
+                        className="w-24 text-center text-lg font-bold"
+                        data-testid="input-score-b"
+                      />
+                    </div>
+                  </div>
+
+                  {teamScoreA !== "" && teamScoreB !== "" && teamScoreA === teamScoreB && (
+                    <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
                   )}
 
-                  {finishStep === 2 && (
-                    <div className="space-y-3 pt-2" data-testid="finish-step-2">
-                      <div className="text-center space-y-1">
-                        <Badge variant="default" className="gap-1">
-                          <Trophy className="w-3 h-3" /> Winner
-                        </Badge>
-                        <p className="font-semibold">{getWinnerLabel()}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-2 block text-center">Enter winning team's score</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder=""
-                          value={winnerScore}
-                          onChange={(e) => setWinnerScore(e.target.value)}
-                          className="text-2xl text-center font-bold h-14"
-                          data-testid="input-winner-score"
-                        />
-                      </div>
-                      <Button
-                        className="w-full gap-2"
-                        onClick={() => setFinishStep(3)}
-                        disabled={winnerScore === "" || isNaN(Number(winnerScore)) || Number(winnerScore) < 0}
-                        data-testid="button-next-step-2"
-                      >
-                        Next <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-
-                  {finishStep === 3 && (
-                    <div className="space-y-3 pt-2" data-testid="finish-step-3">
-                      <div className="text-center space-y-1">
-                        <Badge variant="outline" className="gap-1 text-muted-foreground">Losing team</Badge>
-                        <p className="font-semibold">{getLoserLabel()}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-2 block text-center">Enter losing team's score</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder=""
-                          value={loserScore}
-                          onChange={(e) => setLoserScore(e.target.value)}
-                          className="text-2xl text-center font-bold h-14"
-                          data-testid="input-loser-score"
-                        />
-                      </div>
-                      <Button
-                        className="w-full gap-2"
-                        onClick={() => setFinishStep(4)}
-                        disabled={loserScore === "" || isNaN(Number(loserScore)) || Number(loserScore) < 0}
-                        data-testid="button-next-step-3"
-                      >
-                        Next <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-
-                  {finishStep === 4 && (
-                    <div className="space-y-4 pt-2" data-testid="finish-step-4">
-                      <div className="rounded-lg border border-border p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-                            <span className="font-semibold truncate">{getWinnerLabel()}</span>
-                          </div>
-                          <span className="text-2xl font-bold font-mono text-primary">{winnerScore}</span>
-                        </div>
-                        <div className="border-t border-border" />
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <span className="text-muted-foreground truncate block">{getLoserLabel()}</span>
-                          </div>
-                          <span className="text-2xl font-bold font-mono text-muted-foreground">{loserScore}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-center text-muted-foreground">Do you agree with these scores?</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button
-                          variant="outline"
-                          onClick={resetFinishFlow}
-                          className="gap-2"
-                          data-testid="button-amend-scores"
-                        >
-                          <RotateCcw className="w-4 h-4" /> Amend Scores
-                        </Button>
-                        <Button
-                          onClick={handleFinalConfirm}
-                          disabled={isSubmitting}
-                          className="gap-2"
-                          data-testid="button-confirm-finish"
-                        >
-                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm & Finish"}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </>
+                  <Button
+                    className="w-full gap-2"
+                    onClick={handleFinalConfirm}
+                    disabled={
+                      isSubmitting ||
+                      teamScoreA === "" || teamScoreB === "" ||
+                      isNaN(Number(teamScoreA)) || isNaN(Number(teamScoreB)) ||
+                      Number(teamScoreA) < 0 || Number(teamScoreB) < 0 ||
+                      Number(teamScoreA) === Number(teamScoreB)
+                    }
+                    data-testid="button-confirm-finish"
+                  >
+                    <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm Scores"}
+                  </Button>
+                </div>
               )}
             </>
           )}
