@@ -9,8 +9,10 @@ import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { lazy, Suspense } from "react";
 
-// Pages
+const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+
 import Home from "@/pages/Home";
 import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
@@ -21,55 +23,52 @@ import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
 import PublicSession from "@/pages/PublicSession";
 import NotFound from "@/pages/not-found";
-import CreateClub from "@/pages/CreateClub";
 import Clubs from "@/pages/Clubs";
-import JoinClub from "@/pages/JoinClub";
-import ClubAdmin from "@/pages/ClubAdmin";
-import ManageOrganizers from "@/pages/ManageOrganizers";
-import OrganizerDashboard from "@/pages/OrganizerDashboard";
-import PendingApproval from "@/pages/PendingApproval";
 import Profile from "@/pages/Profile";
-import ExploreClubs from "@/pages/explore/ExploreClubs";
-import ExploreSessions from "@/pages/explore/ExploreSessions";
 
+const CreateClub = lazy(() => import("@/pages/CreateClub"));
+const JoinClub = lazy(() => import("@/pages/JoinClub"));
+const ClubAdmin = lazy(() => import("@/pages/ClubAdmin"));
+const ManageOrganizers = lazy(() => import("@/pages/ManageOrganizers"));
+const OrganizerDashboard = lazy(() => import("@/pages/OrganizerDashboard"));
+const PendingApproval = lazy(() => import("@/pages/PendingApproval"));
+const ExploreClubs = lazy(() => import("@/pages/explore/ExploreClubs"));
+const ExploreSessions = lazy(() => import("@/pages/explore/ExploreSessions"));
 
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
-// Admin Pages
-import AdminDashboard from "@/pages/admin/AdminDashboard";
+const SuperAdminDashboard = lazy(() => import("@/pages/super-admin/SuperAdminDashboard"));
+const SuperAdminUsers = lazy(() => import("@/pages/super-admin/SuperAdminUsers"));
+const SuperAdminClubs = lazy(() => import("@/pages/super-admin/SuperAdminClubs"));
+const SuperAdminSessions = lazy(() => import("@/pages/super-admin/SuperAdminSessions"));
+const SuperAdminUsersManagement = lazy(() => import("@/pages/super-admin/SuperAdminUsersManagement"));
 
-// Super Admin Pages
-import SuperAdminDashboard from "@/pages/super-admin/SuperAdminDashboard";
-import SuperAdminUsers from "@/pages/super-admin/SuperAdminUsers";
-import SuperAdminClubs from "@/pages/super-admin/SuperAdminClubs";
-import SuperAdminSessions from "@/pages/super-admin/SuperAdminSessions";
-import SuperAdminUsersManagement from "@/pages/super-admin/SuperAdminUsersManagement";
+const PlayerManagement = lazy(() => import("@/pages/admin/PlayerManagement"));
+const Financials = lazy(() => import("@/pages/admin/Financials"));
+const MembershipBoard = lazy(() => import("@/pages/admin/MembershipBoard"));
+const AdminInventory = lazy(() => import("@/pages/admin/Inventory"));
+const Memberships = lazy(() => import("@/pages/Memberships"));
+const Announcements = lazy(() => import("@/pages/admin/Announcements"));
+const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
+const MemberImport = lazy(() => import("@/pages/admin/MemberImport"));
+const UserApproval = lazy(() => import("@/pages/admin/UserApproval"));
+const ClubManagement = lazy(() => import("@/pages/admin/ClubManagement"));
+const ClubApprovals = lazy(() => import("@/pages/admin/ClubApprovals"));
+const PlayerProfile = lazy(() => import("@/pages/admin/PlayerProfile"));
+const Analytics = lazy(() => import("@/pages/admin/Analytics"));
+const AllRankings = lazy(() => import("@/pages/AllRankings"));
+const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
+const Venues = lazy(() => import("@/pages/Venues"));
+const ClubsManagement = lazy(() => import("@/pages/ClubsManagement"));
 
-import PlayerManagement from "@/pages/admin/PlayerManagement";
-import Financials from "@/pages/admin/Financials";
-import MembershipBoard from "@/pages/admin/MembershipBoard";
-import AdminInventory from "@/pages/admin/Inventory";
-import Memberships from "@/pages/Memberships";
-import Announcements from "@/pages/admin/Announcements";
-import CalendarImport from "@/pages/admin/CalendarImport";
-import MemberImport from "@/pages/admin/MemberImport";
-import UserApproval from "@/pages/admin/UserApproval";
-import ClubManagement from "@/pages/admin/ClubManagement";
-import ClubApprovals from "@/pages/admin/ClubApprovals";
-import PlayerProfile from "@/pages/admin/PlayerProfile";
-import Analytics from "@/pages/admin/Analytics";
-import AllRankings from "@/pages/AllRankings";
-import PlayerRankings from "@/pages/PlayerRankings";
-import Venues from "@/pages/Venues";
-import ClubsManagement from "@/pages/ClubsManagement";
-
-import PasswordResets from "@/pages/admin/PasswordResets";
-import ContactForm from "@/pages/ContactForm";
-import Messages from "@/pages/admin/Messages";
-import InboxPage from "@/pages/Inbox";
-import PolicyPage from "@/pages/PolicyPage";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import TermsConditions from "@/pages/TermsConditions";
-import JuniorConsentPolicy from "@/pages/JuniorConsentPolicy";
+const PasswordResets = lazy(() => import("@/pages/admin/PasswordResets"));
+const ContactForm = lazy(() => import("@/pages/ContactForm"));
+const Messages = lazy(() => import("@/pages/admin/Messages"));
+const InboxPage = lazy(() => import("@/pages/Inbox"));
+const PolicyPage = lazy(() => import("@/pages/PolicyPage"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const TermsConditions = lazy(() => import("@/pages/TermsConditions"));
+const JuniorConsentPolicy = lazy(() => import("@/pages/JuniorConsentPolicy"));
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -91,7 +90,9 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
-            <Component />
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -127,7 +128,9 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
-            <Component />
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -160,7 +163,9 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
-            <Component />
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -193,7 +198,9 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
         <Sidebar />
         <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
-            <Component />
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -212,7 +219,9 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
           <Sidebar />
           <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
             <ErrorBoundary>
-              <Component />
+              <Suspense fallback={<LazyFallback />}>
+                <Component />
+              </Suspense>
             </ErrorBoundary>
           </main>
         </div>
@@ -224,7 +233,9 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
     <PublicLayout>
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
         <ErrorBoundary>
-          <Component />
+          <Suspense fallback={<LazyFallback />}>
+            <Component />
+          </Suspense>
         </ErrorBoundary>
       </div>
     </PublicLayout>
@@ -239,8 +250,8 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />
-      <Route path="/explore/clubs" component={ExploreClubs} />
-      <Route path="/explore/sessions" component={ExploreSessions} />
+      <Route path="/explore/clubs">{() => <Suspense fallback={<LazyFallback />}><ExploreClubs /></Suspense>}</Route>
+      <Route path="/explore/sessions">{() => <Suspense fallback={<LazyFallback />}><ExploreSessions /></Suspense>}</Route>
       
       {/* Protected Routes */}
       <Route path="/dashboard">

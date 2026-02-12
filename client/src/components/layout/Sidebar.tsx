@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
-import logoPath from "@assets/image_1770381062912.png";
+import logoPath from "@assets/image_1770381062912_optimized.png";
 import { useState } from "react";
 import { 
   Calendar, 

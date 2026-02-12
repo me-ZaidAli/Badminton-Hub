@@ -1,5 +1,5 @@
 import { Link, useLocation, Redirect } from "wouter";
-import logoPath from "@assets/image_1770381062912.png";
+import logoPath from "@assets/image_1770381062912_optimized.png";
 import { Button } from "@/components/ui/button";
 import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck } from "lucide-react";
 import { useState } from "react";
