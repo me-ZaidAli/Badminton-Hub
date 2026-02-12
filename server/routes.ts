@@ -4635,6 +4635,41 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/sessions/:sessionId/bulk-fee", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { fee } = req.body;
+      if (fee === undefined || typeof fee !== "number" || fee < 0) {
+        return res.status(400).json({ message: "Fee must be a non-negative number (in pence)" });
+      }
+
+      const sessionRows = await db.select({ id: sessions.id, clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+      if (sessionRows.length === 0) return res.status(404).json({ message: "Session not found" });
+
+      if (!isOwner) {
+        const clubId = sessionRows[0].clubId;
+        const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
+        const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+        if (ownedClub.length === 0 && adminProfile.length === 0) return res.sendStatus(403);
+      }
+
+      const updated = await db.update(sessionSignups)
+        .set({ fee })
+        .where(eq(sessionSignups.sessionId, sessionId))
+        .returning();
+
+      res.json({ updated: updated.length, fee });
+    } catch (err: any) {
+      console.error("Error bulk updating session fees:", err);
+      res.status(500).json({ message: "Failed to bulk update fees" });
+    }
+  });
+
   app.patch("/api/sessions/:sessionId/signups/:signupId/payment", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;

@@ -154,6 +154,9 @@ export default function Financials() {
     sessionTitle: string;
   } | null>(null);
 
+  const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
+  const [bulkFeeAmount, setBulkFeeAmount] = useState("");
+
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
 
@@ -1432,7 +1435,75 @@ export default function Financials() {
                   </CardHeader>
                   {isExpanded && (
                     <CardContent>
-                      <div className="flex justify-end mb-3">
+                      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {bulkFeeSessionId === sessionId ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm text-muted-foreground">£</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="e.g. 7.50"
+                                  value={bulkFeeAmount}
+                                  onChange={(e) => setBulkFeeAmount(e.target.value)}
+                                  className="w-[100px]"
+                                  data-testid={`input-bulk-fee-${sessionId}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                disabled={!bulkFeeAmount || parseFloat(bulkFeeAmount) < 0}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const pence = Math.round(parseFloat(bulkFeeAmount) * 100);
+                                  if (isNaN(pence) || pence < 0) return;
+                                  try {
+                                    await apiRequest("PATCH", `/api/admin/sessions/${sessionId}/bulk-fee`, { fee: pence });
+                                    toast({ title: "Fees Updated", description: `Applied £${parseFloat(bulkFeeAmount).toFixed(2)} to all ${entries.length} players.` });
+                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
+                                    setBulkFeeSessionId(null);
+                                    setBulkFeeAmount("");
+                                  } catch (err: any) {
+                                    toast({ title: "Error", description: err.message || "Failed to apply bulk fee", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-apply-bulk-fee-${sessionId}`}
+                              >
+                                Apply to All
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBulkFeeSessionId(null);
+                                  setBulkFeeAmount("");
+                                }}
+                                data-testid={`button-cancel-bulk-fee-${sessionId}`}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBulkFeeSessionId(sessionId);
+                                setBulkFeeAmount("");
+                              }}
+                              data-testid={`button-set-standard-rate-${sessionId}`}
+                            >
+                              <DollarSign className="h-3 w-3 mr-1" />
+                              Set Standard Rate
+                            </Button>
+                          )}
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"
