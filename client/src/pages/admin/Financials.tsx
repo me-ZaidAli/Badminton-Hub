@@ -158,6 +158,7 @@ export default function Financials() {
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
   const [sortPlayersAlpha, setSortPlayersAlpha] = useState(false);
+  const [sessionPaymentView, setSessionPaymentView] = useState<"all" | "paid" | "unpaid" | "grouped">("all");
 
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
@@ -1439,6 +1440,20 @@ export default function Financials() {
                     <CardContent>
                       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1 border rounded-md p-0.5" data-testid={`filter-payment-view-${sessionId}`}>
+                            <Button size="sm" variant={sessionPaymentView === "all" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("all"); }} data-testid={`button-view-all-${sessionId}`}>
+                              All
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "paid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("paid"); }} data-testid={`button-view-paid-${sessionId}`}>
+                              Paid
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "unpaid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("unpaid"); }} data-testid={`button-view-unpaid-${sessionId}`}>
+                              Unpaid
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "grouped" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("grouped"); }} data-testid={`button-view-grouped-${sessionId}`}>
+                              Group
+                            </Button>
+                          </div>
                           {bulkFeeSessionId === sessionId ? (
                             <div className="flex items-center gap-2 flex-wrap">
                               <div className="flex items-center gap-1">
@@ -1548,10 +1563,60 @@ export default function Financials() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {(sortPlayersAlpha
-                              ? [...entries].sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""))
-                              : entries
-                            ).map((entry) => renderPlayerRow(entry))}
+                            {(() => {
+                              let filtered = entries;
+                              if (sessionPaymentView === "paid") {
+                                filtered = entries.filter((e) => e.paymentStatus === "PAID");
+                              } else if (sessionPaymentView === "unpaid") {
+                                filtered = entries.filter((e) => e.paymentStatus === "UNPAID");
+                              } else if (sessionPaymentView === "grouped") {
+                                filtered = [...entries].sort((a, b) => {
+                                  if (a.paymentStatus === b.paymentStatus) return 0;
+                                  return a.paymentStatus === "UNPAID" ? -1 : 1;
+                                });
+                              }
+                              if (sortPlayersAlpha) {
+                                filtered = [...filtered].sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""));
+                              }
+                              if (filtered.length === 0) {
+                                return (
+                                  <TableRow>
+                                    <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
+                                      No {sessionPaymentView === "paid" ? "paid" : "unpaid"} players in this session.
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              }
+                              if (sessionPaymentView === "grouped" && !sortPlayersAlpha) {
+                                const unpaidEntries = filtered.filter((e) => e.paymentStatus === "UNPAID");
+                                const paidEntries = filtered.filter((e) => e.paymentStatus === "PAID");
+                                return (
+                                  <>
+                                    {unpaidEntries.length > 0 && (
+                                      <>
+                                        <TableRow>
+                                          <TableCell colSpan={7} className="font-semibold text-orange-600 bg-orange-500/5 py-1.5 text-xs">
+                                            Unpaid ({unpaidEntries.length})
+                                          </TableCell>
+                                        </TableRow>
+                                        {unpaidEntries.map((entry) => renderPlayerRow(entry))}
+                                      </>
+                                    )}
+                                    {paidEntries.length > 0 && (
+                                      <>
+                                        <TableRow>
+                                          <TableCell colSpan={7} className="font-semibold text-green-600 bg-green-500/5 py-1.5 text-xs">
+                                            Paid ({paidEntries.length})
+                                          </TableCell>
+                                        </TableRow>
+                                        {paidEntries.map((entry) => renderPlayerRow(entry))}
+                                      </>
+                                    )}
+                                  </>
+                                );
+                              }
+                              return filtered.map((entry) => renderPlayerRow(entry));
+                            })()}
                           </TableBody>
                         </Table>
                       </div>
