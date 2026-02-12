@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { format, startOfMonth, endOfMonth, subMonths, isToday, startOfDay } from "date-fns";
+import { format, isToday, startOfDay } from "date-fns";
 import {
   DollarSign,
   Search,
@@ -102,7 +102,6 @@ const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
 
 const ABANDONED_REASONS = ["Venue issue", "Coach issue", "Safety issue", "Weather", "Other"];
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatPounds(pence: number): string {
   return (pence / 100).toFixed(2);
@@ -112,9 +111,6 @@ export default function Financials() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const now = new Date();
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [sessionType, setSessionType] = useState<string>("all");
   const [matchMode, setMatchMode] = useState<string>("all");
@@ -166,14 +162,12 @@ export default function Financials() {
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedClubId !== "all") params.append("clubId", selectedClubId);
-    if (dateFrom) params.append("dateFrom", dateFrom);
-    if (dateTo) params.append("dateTo", dateTo);
     if (sessionType !== "all") params.append("sessionType", sessionType);
     if (matchMode !== "all") params.append("matchMode", matchMode);
     if (searchQuery) params.append("search", searchQuery);
     const qs = params.toString();
     return `/api/admin/financial-summary${qs ? `?${qs}` : ""}`;
-  }, [selectedClubId, dateFrom, dateTo, sessionType, matchMode, searchQuery]);
+  }, [selectedClubId, sessionType, matchMode, searchQuery]);
 
   const { data: financialData = [], isLoading } = useQuery<FinancialEntry[]>({
     queryKey: [financialQueryUrl],
@@ -182,11 +176,9 @@ export default function Financials() {
   const dashboardQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedClubId !== "all") params.append("clubId", selectedClubId);
-    if (dateFrom) params.append("dateFrom", dateFrom);
-    if (dateTo) params.append("dateTo", dateTo);
     const qs = params.toString();
     return `/api/admin/financial-dashboard${qs ? `?${qs}` : ""}`;
-  }, [selectedClubId, dateFrom, dateTo]);
+  }, [selectedClubId]);
 
   const { data: dashboardData } = useQuery<{
     sessionIncome: number;
@@ -471,22 +463,13 @@ export default function Financials() {
     },
   });
 
-  const handleMonthSelect = useCallback((monthIndex: number) => {
-    const year = now.getFullYear();
-    const monthStart = new Date(year, monthIndex, 1);
-    setDateFrom(format(startOfMonth(monthStart), "yyyy-MM-dd"));
-    setDateTo(format(endOfMonth(monthStart), "yyyy-MM-dd"));
-  }, [now]);
-
   const handleClearFilters = useCallback(() => {
-    setDateFrom(format(startOfMonth(now), "yyyy-MM-dd"));
-    setDateTo(format(endOfMonth(now), "yyyy-MM-dd"));
     setSelectedClubId("all");
     setSessionType("all");
     setMatchMode("all");
     setSearchQuery("");
     setPaymentFilter("all");
-  }, [now]);
+  }, []);
 
   const handleTogglePayment = (entry: FinancialEntry) => {
     const newStatus = entry.paymentStatus === "PAID" ? "UNPAID" : "PAID";
@@ -1033,27 +1016,6 @@ export default function Financials() {
       <Card data-testid="card-filter-bar">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Label className="text-sm text-muted-foreground whitespace-nowrap">From</Label>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-[160px]"
-                  data-testid="input-date-from"
-                />
-                <Label className="text-sm text-muted-foreground whitespace-nowrap">To</Label>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-[160px]"
-                  data-testid="input-date-to"
-                />
-              </div>
-            </div>
-
             <div className="flex flex-col md:flex-row gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

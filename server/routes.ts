@@ -4747,13 +4747,20 @@ export async function registerRoutes(
   app.get("/api/admin/financial-summary", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
+    const isOwner = user.role === "OWNER";
 
-    const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-    const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-      .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-    const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-    if (clubIdSet.size === 0) return res.sendStatus(403);
-    const accessibleClubIds = [...clubIdSet];
+    let accessibleClubIds: number[] = [];
+    if (isOwner) {
+      const allClubs = await db.select({ id: clubs.id }).from(clubs);
+      accessibleClubIds = allClubs.map(c => c.id);
+    } else {
+      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+      const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+      if (clubIdSet.size === 0) return res.sendStatus(403);
+      accessibleClubIds = [...clubIdSet];
+    }
 
     try {
       const queryConditions: any[] = [];
