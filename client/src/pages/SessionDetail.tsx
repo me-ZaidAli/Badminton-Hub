@@ -93,7 +93,10 @@ export default function SessionDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
   const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
+  const { mutate: stopAllMatchesParent, isPending: isStoppingAllParent } = useStopAllMatches();
+  const { data: parentMatches } = useSessionMatches(id);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+  const [endSessionModalOpenParent, setEndSessionModalOpenParent] = useState(false);
   const [editingCapacity, setEditingCapacity] = useState(false);
   const [capacityValue, setCapacityValue] = useState(0);
 
@@ -143,6 +146,8 @@ export default function SessionDetail() {
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   const editableClubIds = new Set(user?.role === "OWNER" ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
   const canEditSession = session ? editableClubIds.has(session.clubId) : false;
+  const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
+  const parentQueuedCount = (parentMatches as any[])?.filter((m: any) => m.status === "QUEUED").length || 0;
   
   const isApprovedMember = (() => {
     if (!user || !session) return false;
@@ -868,6 +873,28 @@ export default function SessionDetail() {
             )}
             {isOrganiser && session.status !== "COMPLETED" && (
               <div className="space-y-2 mt-3">
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    stopAllMatchesParent({ sessionId: id });
+                  }}
+                  disabled={isStoppingAllParent || (parentLiveCount === 0 && parentQueuedCount === 0)}
+                  data-testid="button-stop-all-matches-top"
+                >
+                  <OctagonX className="w-4 h-4" />
+                  {isStoppingAllParent ? "Stopping..." : "Stop All Matches"}
+                </Button>
+                <Button 
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => setEndSessionModalOpenParent(true)}
+                  disabled={parentLiveCount > 0}
+                  data-testid="button-end-session-top"
+                >
+                  <Trophy className="w-4 h-4" />
+                  End Session
+                </Button>
                 <Button 
                   variant="outline" 
                   className="w-full gap-2" 
@@ -1417,6 +1444,15 @@ export default function SessionDetail() {
         open={statsPlayerId !== null}
         onOpenChange={(open) => !open && setStatsPlayerId(null)}
       />
+
+      <EndSessionLeaderboardModal 
+        sessionId={id} 
+        open={endSessionModalOpenParent} 
+        onClose={() => setEndSessionModalOpenParent(false)}
+        onEndSession={() => {
+          updateSession({ sessionId: id, updates: { status: "COMPLETED", autoGenerateActive: false } });
+        }}
+      />
     </div>
   );
 }
@@ -1458,7 +1494,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
   const [queueTargetSize, setQueueTargetSize] = useState(3);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
-  const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
   const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
   const [forcedMatches, setForcedMatches] = useState<CourtMatch[]>([]);
@@ -1865,28 +1900,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                       </Button>
                     </>
                   )}
-
-                  <Button
-                    variant="destructive"
-                    className="gap-2"
-                    onClick={handleStopAllMatches}
-                    disabled={isStoppingAll || (liveMatches.length === 0 && queuedMatches.length === 0)}
-                    data-testid="button-stop-all-matches"
-                  >
-                    <OctagonX className="w-4 h-4" />
-                    {isStoppingAll ? "Stopping..." : "Stop All Matches"}
-                  </Button>
-
-                  <Button 
-                    variant="outline"
-                    className="gap-2 ml-auto"
-                    onClick={() => setEndSessionModalOpen(true)}
-                    disabled={liveMatches.length > 0}
-                    data-testid="button-end-session"
-                  >
-                    <Trophy className="w-4 h-4" />
-                    End Session
-                  </Button>
                 </div>
               )}
             </div>
@@ -1968,14 +1981,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         </div>
       </div>
 
-      <EndSessionLeaderboardModal 
-        sessionId={sessionId} 
-        open={endSessionModalOpen} 
-        onClose={() => setEndSessionModalOpen(false)}
-        onEndSession={() => {
-          updateSession({ sessionId, updates: { status: "COMPLETED", autoGenerateActive: false } });
-        }}
-      />
 
       <Dialog open={forcedCompletionActive && (!!fcMatch || fcStep === 5)} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
