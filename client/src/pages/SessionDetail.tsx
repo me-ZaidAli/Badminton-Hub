@@ -1760,8 +1760,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                         <Button 
                           size="icon" 
                           variant="outline" 
-                          onClick={() => setCourtsToUse(Math.min(courtsAvailable, 10, courtsToUse + 1))}
-                          disabled={courtsToUse >= Math.min(courtsAvailable, 10)}
+                          onClick={() => setCourtsToUse(Math.min(10, courtsToUse + 1))}
+                          disabled={courtsToUse >= 10}
                           data-testid="button-increase-courts"
                         >
                           <Plus className="w-4 h-4" />
