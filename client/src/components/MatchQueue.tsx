@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -396,7 +397,7 @@ export function MatchQueue({
                               title="Female only"
                               className="text-pink-500"
                             >
-                              <span className="text-sm font-bold">F</span>
+                              <IoFemale className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
@@ -407,7 +408,18 @@ export function MatchQueue({
                               title="Male only"
                               className="text-blue-500"
                             >
-                              <span className="text-sm font-bold">M</span>
+                              <IoMale className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-mixed-${match.id}`}
+                              title="Mixed (male + female pair)"
+                              className="text-purple-500"
+                            >
+                              <IoMaleFemale className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
@@ -558,7 +570,7 @@ export function MatchQueue({
                               title="Female only"
                               className="text-pink-500"
                             >
-                              <span className="text-sm font-bold">F</span>
+                              <IoFemale className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
@@ -569,7 +581,18 @@ export function MatchQueue({
                               title="Male only"
                               className="text-blue-500"
                             >
-                              <span className="text-sm font-bold">M</span>
+                              <IoMale className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
+                              title="Mixed (male + female pair)"
+                              className="text-purple-500"
+                            >
+                              <IoMaleFemale className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"
