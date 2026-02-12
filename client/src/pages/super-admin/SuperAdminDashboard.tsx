@@ -179,7 +179,7 @@ const controlItems = [
   { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
-  { href: "#clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10", isAnchor: true },
+  { href: "/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
 ];
 
@@ -1283,113 +1283,6 @@ export default function SuperAdminDashboard() {
               );
             })}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-clubs-management" id="clubs-management">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-emerald-500" />
-            Clubs Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <Card data-testid="card-pending-count">
-              <CardContent className="py-4 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10">
-                    <Clock className="w-5 h-5 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{pendingClubs.length}</p>
-                    <p className="text-xs text-muted-foreground">Pending</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="card-approved-count">
-              <CardContent className="py-4 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-500/10">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{approvedClubs.length}</p>
-                    <p className="text-xs text-muted-foreground">Approved</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="card-total-count">
-              <CardContent className="py-4 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
-                    <Building2 className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{allClubs?.length || 0}</p>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search clubs..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-                data-testid="input-search-clubs"
-              />
-            </div>
-            <Button onClick={() => { setCreateForm({ ...defaultEditForm }); setCreateOpen(true); }} className="gap-2" data-testid="button-create-club">
-              <Plus className="w-4 h-4" /> Create New Club
-            </Button>
-          </div>
-
-          {clubsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {filteredClubs.map((club) => (
-                <div
-                  key={club.id}
-                  className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
-                  onClick={() => setActionClub(club)}
-                  data-testid={`club-item-${club.id}`}
-                >
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
-                    <Building2 className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">{club.name}</span>
-                      {statusLabel(club.status)}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                      {club.city && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {club.city}
-                        </span>
-                      )}
-                      <span>Admin: {getOwnerName(club.ownerId)}</span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                </div>
-              ))}
-              {filteredClubs.length === 0 && (
-                <p className="text-center py-6 text-muted-foreground text-sm">No clubs found.</p>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
 
