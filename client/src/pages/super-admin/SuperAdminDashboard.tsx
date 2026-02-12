@@ -118,9 +118,7 @@ const defaultEditForm: ClubEditForm = {
 
 const controlItems = [
   { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { href: "/admin/members", label: "Members", icon: Users, color: "text-sky-500", bg: "bg-sky-500/10" },
   { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
-  { href: "/admin/analytics", label: "Analytics", icon: BarChart3, color: "text-indigo-500", bg: "bg-indigo-500/10" },
   { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },

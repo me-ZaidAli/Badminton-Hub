@@ -36,6 +36,7 @@ import {
   Package,
   Trash2,
   History,
+  Building2,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -158,6 +159,9 @@ export default function Financials() {
 
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
+
+  const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
+  const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
 
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -318,6 +322,55 @@ export default function Financials() {
     });
     return groups;
   }, [filteredData]);
+
+  const clubRevenueData = useMemo(() => {
+    const clubs: Record<number, { clubId: number; clubName: string; totalRevenue: number; totalPaid: number; memberCount: number; members: Record<number, { userId: number; name: string; email: string; totalFee: number; paidFee: number; sessions: number }> }> = {};
+    filteredData.forEach(entry => {
+      if (!clubs[entry.clubId]) {
+        clubs[entry.clubId] = { clubId: entry.clubId, clubName: entry.clubName, totalRevenue: 0, totalPaid: 0, memberCount: 0, members: {} };
+      }
+      const club = clubs[entry.clubId];
+      club.totalRevenue += entry.fee || 0;
+      if (entry.paymentStatus === "PAID") club.totalPaid += entry.fee || 0;
+      if (!club.members[entry.playerUserId]) {
+        club.members[entry.playerUserId] = { userId: entry.playerUserId, name: entry.playerName, email: entry.playerEmail, totalFee: 0, paidFee: 0, sessions: 0 };
+        club.memberCount++;
+      }
+      club.members[entry.playerUserId].totalFee += entry.fee || 0;
+      if (entry.paymentStatus === "PAID") club.members[entry.playerUserId].paidFee += entry.fee || 0;
+      club.members[entry.playerUserId].sessions++;
+    });
+    return Object.values(clubs).sort((a, b) => b.totalRevenue - a.totalRevenue);
+  }, [filteredData]);
+
+  const revenueSummary = useMemo(() => {
+    const periods: Record<string, { label: string; revenue: number; paid: number; sessions: number; sortKey: string }> = {};
+    financialData.forEach(entry => {
+      const date = new Date(entry.sessionDate);
+      let key = "";
+      let label = "";
+      let sortKey = "";
+      if (summaryPeriod === "month") {
+        key = format(date, "yyyy-MM");
+        label = format(date, "MMM yyyy");
+        sortKey = key;
+      } else if (summaryPeriod === "quarter") {
+        const q = Math.ceil((date.getMonth() + 1) / 3);
+        key = `${date.getFullYear()}-Q${q}`;
+        label = `Q${q} ${date.getFullYear()}`;
+        sortKey = `${date.getFullYear()}-${q}`;
+      } else {
+        key = `${date.getFullYear()}`;
+        label = `${date.getFullYear()}`;
+        sortKey = key;
+      }
+      if (!periods[key]) periods[key] = { label, revenue: 0, paid: 0, sessions: 0, sortKey };
+      periods[key].revenue += entry.fee || 0;
+      if (entry.paymentStatus === "PAID") periods[key].paid += entry.fee || 0;
+      periods[key].sessions++;
+    });
+    return Object.values(periods).sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  }, [financialData, summaryPeriod]);
 
   const updatePayment = useMutation({
     mutationFn: async ({ sessionId, signupId, status }: { sessionId: number; signupId: number; status: "PAID" | "UNPAID" }) => {
@@ -1239,6 +1292,74 @@ export default function Financials() {
         </div>
       )}
 
+      {revenueSummary.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Revenue Summary
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant={summaryPeriod === "month" ? "default" : "outline"} onClick={() => setSummaryPeriod("month")} data-testid="button-summary-month">Monthly</Button>
+              <Button size="sm" variant={summaryPeriod === "quarter" ? "default" : "outline"} onClick={() => setSummaryPeriod("quarter")} data-testid="button-summary-quarter">Quarterly</Button>
+              <Button size="sm" variant={summaryPeriod === "year" ? "default" : "outline"} onClick={() => setSummaryPeriod("year")} data-testid="button-summary-year">Yearly</Button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Period</TableHead>
+                  <TableHead>Total Revenue</TableHead>
+                  <TableHead>Collected</TableHead>
+                  <TableHead>Outstanding</TableHead>
+                  <TableHead>Collection Rate</TableHead>
+                  <TableHead>Signups</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {revenueSummary.map(period => (
+                  <TableRow key={period.sortKey} data-testid={`row-summary-${period.sortKey}`}>
+                    <TableCell className="font-medium" data-testid={`text-summary-period-${period.sortKey}`}>{period.label}</TableCell>
+                    <TableCell className="font-bold" data-testid={`text-summary-revenue-${period.sortKey}`}>{"\u00A3"}{formatPounds(period.revenue)}</TableCell>
+                    <TableCell className="text-green-600" data-testid={`text-summary-collected-${period.sortKey}`}>{"\u00A3"}{formatPounds(period.paid)}</TableCell>
+                    <TableCell className={period.revenue - period.paid > 0 ? "text-orange-600" : "text-muted-foreground"} data-testid={`text-summary-outstanding-${period.sortKey}`}>{"\u00A3"}{formatPounds(period.revenue - period.paid)}</TableCell>
+                    <TableCell data-testid={`text-summary-rate-${period.sortKey}`}>{period.revenue > 0 ? ((period.paid / period.revenue) * 100).toFixed(1) : "0.0"}%</TableCell>
+                    <TableCell data-testid={`text-summary-signups-${period.sortKey}`}>{period.sessions}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {clubRevenueData.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Revenue by Club
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {clubRevenueData.map(club => (
+              <Card key={club.clubId} className="hover-elevate cursor-pointer" onClick={() => setRevenueClubDialog({ clubId: club.clubId, clubName: club.clubName })} data-testid={`card-club-revenue-${club.clubId}`}>
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+                  <CardTitle className="text-sm font-medium" data-testid={`text-club-name-${club.clubId}`}>{club.clubName}</CardTitle>
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold" data-testid={`text-club-total-revenue-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalRevenue)}</div>
+                  <div className="flex items-center justify-between gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
+                    <span className="text-green-600" data-testid={`text-club-paid-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalPaid)} paid</span>
+                    <span data-testid={`text-club-members-${club.clubId}`}>{club.memberCount} members</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       {viewMode === "session" ? (
         <div className="space-y-3">
           {Object.keys(sessionGroups).length === 0 ? (
@@ -2093,6 +2214,59 @@ export default function Financials() {
               Delete Session
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!revenueClubDialog} onOpenChange={(open) => { if (!open) setRevenueClubDialog(null); }}>
+        <DialogContent className="sm:max-w-[700px]" data-testid="dialog-club-revenue">
+          {revenueClubDialog && (() => {
+            const club = clubRevenueData.find(c => c.clubId === revenueClubDialog.clubId);
+            if (!club) return null;
+            const sortedMembers = Object.values(club.members).sort((a, b) => b.totalFee - a.totalFee);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle data-testid="text-dialog-club-title">{revenueClubDialog.clubName} - Member Revenue</DialogTitle>
+                  <DialogDescription data-testid="text-dialog-club-summary">
+                    Total: {"\u00A3"}{formatPounds(club.totalRevenue)} | Paid: {"\u00A3"}{formatPounds(club.totalPaid)} | Outstanding: {"\u00A3"}{formatPounds(club.totalRevenue - club.totalPaid)}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">#</TableHead>
+                        <TableHead>Player</TableHead>
+                        <TableHead>Total Fees</TableHead>
+                        <TableHead>Paid</TableHead>
+                        <TableHead>Outstanding</TableHead>
+                        <TableHead>Sessions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedMembers.map((member, idx) => (
+                        <TableRow key={member.userId} data-testid={`row-member-revenue-${member.userId}`}>
+                          <TableCell className="font-medium text-muted-foreground">{idx + 1}</TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium" data-testid={`text-member-name-${member.userId}`}>{member.name}</div>
+                              <div className="text-xs text-muted-foreground" data-testid={`text-member-email-${member.userId}`}>{member.email}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-bold" data-testid={`text-member-total-fee-${member.userId}`}>{"\u00A3"}{formatPounds(member.totalFee)}</TableCell>
+                          <TableCell className="text-green-600" data-testid={`text-member-paid-${member.userId}`}>{"\u00A3"}{formatPounds(member.paidFee)}</TableCell>
+                          <TableCell className={member.totalFee - member.paidFee > 0 ? "text-orange-600" : "text-muted-foreground"} data-testid={`text-member-outstanding-${member.userId}`}>
+                            {"\u00A3"}{formatPounds(member.totalFee - member.paidFee)}
+                          </TableCell>
+                          <TableCell data-testid={`text-member-sessions-${member.userId}`}>{member.sessions}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
