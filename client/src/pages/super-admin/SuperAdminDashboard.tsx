@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users, Building2, DollarSign,
   Shield, Zap, Mail, BarChart3,
   Package, CreditCard, Upload, ChevronRight, Loader2,
   CheckCircle, XCircle, Clock, Plus, MapPin, Search, Pencil,
-  Archive, Pause
+  Archive, Pause, Trash2, Calendar, Play, Send, Save, User
 } from "lucide-react";
 
 interface ClubRecord {
@@ -88,6 +91,60 @@ interface UserRecord {
   role: string;
 }
 
+interface MemberRecord {
+  id: number;
+  userId: number;
+  clubId: number;
+  clubRole: string;
+  membershipStatus: string;
+  playerStatus: string;
+  gender: string | null;
+  category: string | null;
+  rankingPoints: number;
+  matchesPlayed: number;
+  matchesWon: number;
+  user?: {
+    id: number;
+    fullName: string;
+    email: string;
+    phone?: string;
+    nickname?: string;
+    city?: string;
+    country?: string;
+    region?: string;
+    continent?: string;
+    dateOfBirth?: string;
+    isJunior?: boolean;
+    parentGuardianName?: string;
+    parentGuardianEmail?: string;
+    role?: string;
+  };
+}
+
+interface PendingMember {
+  id: number;
+  userId: number;
+  clubRole: string;
+  membershipStatus: string;
+  user?: {
+    id: number;
+    fullName: string;
+    email: string;
+  };
+}
+
+interface UserDetailFormData {
+  fullName: string;
+  email: string;
+  phone: string;
+  nickname: string;
+  gender: string;
+  category: string;
+  clubRole: string;
+  playerStatus: string;
+  role: string;
+}
+
 const defaultEditForm: ClubEditForm = {
   name: "",
   description: "",
@@ -122,6 +179,7 @@ const controlItems = [
   { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
+  { href: "#clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10", isAnchor: true },
   { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
 ];
 
@@ -293,13 +351,560 @@ function ClubFormFields({ form, setForm, users }: { form: ClubEditForm; setForm:
   );
 }
 
+function MemberDetailDialog({
+  member,
+  club,
+  open,
+  onClose,
+}: {
+  member: MemberRecord;
+  club: ClubRecord;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const [form, setForm] = useState<UserDetailFormData>({
+    fullName: member.user?.fullName || "",
+    email: member.user?.email || "",
+    phone: member.user?.phone || "",
+    nickname: member.user?.nickname || "",
+    gender: member.gender || "",
+    category: member.category || "D",
+    clubRole: member.clubRole || "PLAYER",
+    playerStatus: member.playerStatus || "ACTIVE",
+    role: member.user?.role || "PLAYER",
+  });
+
+  useEffect(() => {
+    setForm({
+      fullName: member.user?.fullName || "",
+      email: member.user?.email || "",
+      phone: member.user?.phone || "",
+      nickname: member.user?.nickname || "",
+      gender: member.gender || "",
+      category: member.category || "D",
+      clubRole: member.clubRole || "PLAYER",
+      playerStatus: member.playerStatus || "ACTIVE",
+      role: member.user?.role || "PLAYER",
+    });
+  }, [member]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/clubs/${club.id}/members/${member.id}/comprehensive`, form);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
+      toast({ title: "Saved", description: "Member details updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
+    },
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/clubs/${club.id}/members/${member.id}/comprehensive`, { ...form, playerStatus: "SUSPENDED" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
+      setForm(f => ({ ...f, playerStatus: "SUSPENDED" }));
+      toast({ title: "Suspended", description: "Member has been suspended." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to suspend", variant: "destructive" });
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/clubs/${club.id}/members/${member.id}/permanent`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
+      setConfirmDelete(false);
+      onClose();
+      toast({ title: "Deleted", description: "Member profile has been permanently deleted." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete", variant: "destructive" });
+    },
+  });
+
+  const winPct = member.matchesPlayed > 0 ? Math.round((member.matchesWon / member.matchesPlayed) * 100) : 0;
+
+  return (
+    <>
+      <Dialog open={open && !confirmDelete} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh]" data-testid="dialog-member-detail">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-primary" />
+              {member.user?.fullName || "Member Detail"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto space-y-5 py-2 pr-2">
+            <div className="flex items-center gap-4 p-3 border rounded-md bg-muted/30" data-testid="member-ranking-summary">
+              <div className="text-center">
+                <div className="text-lg font-bold" data-testid="text-ranking-points">{member.rankingPoints}</div>
+                <div className="text-xs text-muted-foreground">Points</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold" data-testid="text-matches-played">{member.matchesPlayed}</div>
+                <div className="text-xs text-muted-foreground">Played</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold" data-testid="text-matches-won">{member.matchesWon}</div>
+                <div className="text-xs text-muted-foreground">Won</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold" data-testid="text-win-pct">{winPct}%</div>
+                <div className="text-xs text-muted-foreground">Win Rate</div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Personal Info</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Full Name</Label>
+                  <Input value={form.fullName} onChange={(e) => setForm(f => ({ ...f, fullName: e.target.value }))} data-testid="input-member-fullname" />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} data-testid="input-member-email" />
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <Input value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} data-testid="input-member-phone" />
+                </div>
+                <div>
+                  <Label>Nickname</Label>
+                  <Input value={form.nickname} onChange={(e) => setForm(f => ({ ...f, nickname: e.target.value }))} data-testid="input-member-nickname" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Profile Settings</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Gender</Label>
+                  <Select value={form.gender} onValueChange={(v) => setForm(f => ({ ...f, gender: v }))}>
+                    <SelectTrigger data-testid="select-member-detail-gender"><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MALE">Male</SelectItem>
+                      <SelectItem value="FEMALE">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Category</Label>
+                  <Select value={form.category} onValueChange={(v) => setForm(f => ({ ...f, category: v }))}>
+                    <SelectTrigger data-testid="select-member-detail-category"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Club Role</Label>
+                  <Select value={form.clubRole} onValueChange={(v) => setForm(f => ({ ...f, clubRole: v }))}>
+                    <SelectTrigger data-testid="select-member-detail-club-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OWNER">Owner</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="PLAYER">Player</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Player Status</Label>
+                  <Select value={form.playerStatus} onValueChange={(v) => setForm(f => ({ ...f, playerStatus: v }))}>
+                    <SelectTrigger data-testid="select-member-detail-player-status"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                      <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label>System Role (Super Admin)</Label>
+                  <Select value={form.role} onValueChange={(v) => setForm(f => ({ ...f, role: v }))}>
+                    <SelectTrigger data-testid="select-member-detail-system-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OWNER">Owner</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="PLAYER">Player</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-wrap gap-2">
+            <div className="flex items-center gap-1 flex-wrap">
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                data-testid="button-save-member-detail"
+              >
+                {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                Save Changes
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => suspendMutation.mutate()}
+                disabled={suspendMutation.isPending || form.playerStatus === "SUSPENDED"}
+                data-testid="button-suspend-member"
+              >
+                {suspendMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pause className="w-4 h-4 mr-1" />}
+                Suspend
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/inbox?recipientId=${member.userId}`)}
+                data-testid="button-start-chat-member"
+              >
+                <Send className="w-4 h-4 mr-1" /> Start Chat
+              </Button>
+              <Button
+                variant="outline"
+                className="text-destructive"
+                onClick={() => setConfirmDelete(true)}
+                data-testid="button-delete-member-profile"
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Delete Profile
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Member Profile</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the profile for <strong>{member.user?.fullName}</strong> from <strong>{club.name}</strong>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-member">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteProfileMutation.mutate()}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-delete-member"
+            >
+              {deleteProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function MembersManagementDialog({
+  club,
+  open,
+  onClose,
+}: {
+  club: ClubRecord | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [memberSearch, setMemberSearch] = useState("");
+  const [genderFilter, setGenderFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [detailMember, setDetailMember] = useState<MemberRecord | null>(null);
+  const [activeTab, setActiveTab] = useState("members");
+
+  useEffect(() => {
+    if (!open) {
+      setMemberSearch("");
+      setGenderFilter("ALL");
+      setCategoryFilter("ALL");
+      setStatusFilter("ALL");
+      setRoleFilter("ALL");
+      setDetailMember(null);
+      setActiveTab("members");
+    }
+  }, [open]);
+
+  const { data: members, isLoading: membersLoading } = useQuery<MemberRecord[]>({
+    queryKey: ["/api/clubs", club?.id, "members-comprehensive"],
+    queryFn: async () => {
+      if (!club) return [];
+      const res = await fetch(`/api/clubs/${club.id}/members-comprehensive`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch members");
+      return res.json();
+    },
+    enabled: open && !!club,
+  });
+
+  const { data: pendingMembers } = useQuery<PendingMember[]>({
+    queryKey: ["/api/clubs", club?.id, "pending-approvals"],
+    queryFn: async () => {
+      if (!club) return [];
+      const res = await fetch(`/api/clubs/${club.id}/pending-approvals`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch pending approvals");
+      return res.json();
+    },
+    enabled: open && !!club,
+  });
+
+  const approvalMutation = useMutation({
+    mutationFn: async (data: { profileId: number; status: string }) => {
+      if (!club) return;
+      await apiRequest("PATCH", `/api/clubs/${club.id}/members/${data.profileId}/status`, {
+        membershipStatus: data.status,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club?.id, "pending-approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club?.id, "members-comprehensive"] });
+      toast({ title: "Updated", description: "Member status updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update status", variant: "destructive" });
+    },
+  });
+
+  const filteredMembers = useMemo(() => {
+    if (!members) return [];
+    return members
+      .filter((m) => {
+        const name = m.user?.fullName?.toLowerCase() || "";
+        const email = m.user?.email?.toLowerCase() || "";
+        const q = memberSearch.toLowerCase();
+        if (q && !name.includes(q) && !email.includes(q)) return false;
+        if (genderFilter !== "ALL" && m.gender !== genderFilter) return false;
+        if (categoryFilter !== "ALL" && m.category !== categoryFilter) return false;
+        if (statusFilter !== "ALL" && m.playerStatus !== statusFilter) return false;
+        if (roleFilter !== "ALL" && m.clubRole !== roleFilter) return false;
+        return true;
+      })
+      .sort((a, b) => (b.rankingPoints || 0) - (a.rankingPoints || 0));
+  }, [members, memberSearch, genderFilter, categoryFilter, statusFilter, roleFilter]);
+
+  if (!club) return null;
+
+  return (
+    <>
+      <Dialog open={open && !detailMember} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh]" data-testid="dialog-manage-members">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              Members - {club.name}
+            </DialogTitle>
+          </DialogHeader>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+            <TabsList data-testid="tabs-members-management">
+              <TabsTrigger value="members" data-testid="tab-members">Members</TabsTrigger>
+              <TabsTrigger value="pending" data-testid="tab-pending">
+                Pending Approvals
+                {pendingMembers && pendingMembers.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">{pendingMembers.length}</Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="members" className="mt-4">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search name or email..."
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-sa-member-search"
+                  />
+                </div>
+                <Select value={genderFilter} onValueChange={setGenderFilter}>
+                  <SelectTrigger className="w-[110px]" data-testid="select-sa-member-gender">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Gender</SelectItem>
+                    <SelectItem value="MALE">Male</SelectItem>
+                    <SelectItem value="FEMALE">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[100px]" data-testid="select-sa-member-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Cat</SelectItem>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="B">B</SelectItem>
+                    <SelectItem value="C">C</SelectItem>
+                    <SelectItem value="D">D</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[120px]" data-testid="select-sa-member-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Status</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                    <SelectItem value="ARCHIVED">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-[110px]" data-testid="select-sa-member-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Role</SelectItem>
+                    <SelectItem value="OWNER">Owner</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="PLAYER">Player</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {membersLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="overflow-auto max-h-[50vh]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Gender</TableHead>
+                        <TableHead>Cat</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Points</TableHead>
+                        <TableHead>Matches</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredMembers.map((m) => (
+                        <TableRow
+                          key={m.id}
+                          className="cursor-pointer"
+                          onClick={() => setDetailMember(m)}
+                          data-testid={`row-sa-member-${m.id}`}
+                        >
+                          <TableCell>
+                            <span className="text-sm font-medium" data-testid={`text-sa-member-name-${m.id}`}>
+                              {m.user?.fullName || "Unknown"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">{m.user?.email || ""}</span>
+                          </TableCell>
+                          <TableCell><span className="text-xs">{m.gender || "-"}</span></TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{m.category || "-"}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{m.clubRole}</Badge></TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs ${m.playerStatus === "ACTIVE" ? "text-green-600" : m.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"}`}>
+                              {m.playerStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell><span className="text-sm font-medium">{m.rankingPoints}</span></TableCell>
+                          <TableCell><span className="text-sm">{m.matchesPlayed}</span></TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredMembers.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                            No members found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="pending" className="mt-4">
+              {!pendingMembers || pendingMembers.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground text-sm">No pending approvals.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {pendingMembers.map((pm) => (
+                    <div key={pm.id} className="flex items-center gap-4 px-4 py-3 rounded-lg border border-border/50" data-testid={`pending-member-${pm.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-sm" data-testid={`text-pending-name-${pm.id}`}>{pm.user?.fullName || "Unknown"}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{pm.user?.email || ""}</span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Button
+                          size="sm"
+                          onClick={() => approvalMutation.mutate({ profileId: pm.id, status: "APPROVED" })}
+                          disabled={approvalMutation.isPending}
+                          data-testid={`button-approve-member-${pm.id}`}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => approvalMutation.mutate({ profileId: pm.id, status: "REJECTED" })}
+                          disabled={approvalMutation.isPending}
+                          data-testid={`button-reject-member-${pm.id}`}
+                        >
+                          <XCircle className="w-3 h-3 mr-1" /> Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {detailMember && club && (
+        <MemberDetailDialog
+          member={detailMember}
+          club={club}
+          open={!!detailMember}
+          onClose={() => setDetailMember(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export default function SuperAdminDashboard() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [editClub, setEditClub] = useState<ClubRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [editForm, setEditForm] = useState<ClubEditForm>({ ...defaultEditForm });
   const [createForm, setCreateForm] = useState<ClubEditForm>({ ...defaultEditForm });
+  const [actionClub, setActionClub] = useState<ClubRecord | null>(null);
+  const [manageClub, setManageClub] = useState<ClubRecord | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: "pause" | "resume" | "archive" | "delete"; club: ClubRecord } | null>(null);
+  const [transferClub, setTransferClub] = useState<ClubRecord | null>(null);
+  const [transferOwnerId, setTransferOwnerId] = useState("");
 
   const { data: allClubs, isLoading: clubsLoading } = useQuery<ClubRecord[]>({
     queryKey: ["/api/admin/clubs"],
@@ -444,6 +1049,70 @@ export default function SuperAdminDashboard() {
     },
   });
 
+  const pauseClubMutation = useMutation({
+    mutationFn: async (data: { id: number; paused: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/clubs/${data.id}/pause`, { paused: data.paused });
+      return res.json();
+    },
+    onSuccess: (_d, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      setConfirmAction(null);
+      setActionClub(null);
+      toast({ title: variables.paused ? "Club Paused" : "Club Resumed", description: variables.paused ? "The club has been paused." : "The club has been resumed." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to pause/resume club", variant: "destructive" });
+    },
+  });
+
+  const archiveClubMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("PATCH", `/api/super-admin/clubs/${id}/archive`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      setConfirmAction(null);
+      setActionClub(null);
+      toast({ title: "Club Archived", description: "The club has been archived." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to archive club", variant: "destructive" });
+    },
+  });
+
+  const deleteClubMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/super-admin/clubs/${id}/permanent`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      setConfirmAction(null);
+      setActionClub(null);
+      toast({ title: "Club Deleted", description: "The club has been permanently deleted." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete club", variant: "destructive" });
+    },
+  });
+
+  const transferAdminMutation = useMutation({
+    mutationFn: async (data: { clubId: number; newOwnerId: number }) => {
+      const res = await apiRequest("PATCH", `/api/super-admin/clubs/${data.clubId}/transfer`, { newOwnerId: data.newOwnerId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      setTransferClub(null);
+      setTransferOwnerId("");
+      setActionClub(null);
+      toast({ title: "Admin Transferred", description: "The club admin has been changed." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to transfer admin", variant: "destructive" });
+    },
+  });
+
   const pendingClubs = useMemo(() => allClubs?.filter(c => c.status === "PENDING") || [], [allClubs]);
   const approvedClubs = useMemo(() => allClubs?.filter(c => c.status === "APPROVED") || [], [allClubs]);
   const filteredClubs = useMemo(() => {
@@ -459,17 +1128,6 @@ export default function SuperAdminDashboard() {
     return owner?.fullName || `User #${ownerId}`;
   };
 
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case "APPROVED": return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case "PENDING": return <Clock className="w-4 h-4 text-amber-500" />;
-      case "REJECTED": return <XCircle className="w-4 h-4 text-red-500" />;
-      case "PAUSED": return <Pause className="w-4 h-4 text-orange-500" />;
-      case "ARCHIVED": return <Archive className="w-4 h-4 text-muted-foreground" />;
-      default: return null;
-    }
-  };
-
   const statusLabel = (status: string) => {
     switch (status) {
       case "APPROVED": return <Badge variant="outline" className="text-xs text-green-600">Approved</Badge>;
@@ -480,6 +1138,98 @@ export default function SuperAdminDashboard() {
       default: return <Badge variant="outline" className="text-xs">{status}</Badge>;
     }
   };
+
+  const handleConfirmAction = () => {
+    if (!confirmAction) return;
+    switch (confirmAction.type) {
+      case "pause":
+        pauseClubMutation.mutate({ id: confirmAction.club.id, paused: true });
+        break;
+      case "resume":
+        pauseClubMutation.mutate({ id: confirmAction.club.id, paused: false });
+        break;
+      case "archive":
+        archiveClubMutation.mutate(confirmAction.club.id);
+        break;
+      case "delete":
+        deleteClubMutation.mutate(confirmAction.club.id);
+        break;
+    }
+  };
+
+  const confirmActionTitle = () => {
+    if (!confirmAction) return "";
+    switch (confirmAction.type) {
+      case "pause": return "Pause Club";
+      case "resume": return "Resume Club";
+      case "archive": return "Archive Club";
+      case "delete": return "Delete Club Permanently";
+    }
+  };
+
+  const confirmActionDescription = () => {
+    if (!confirmAction) return "";
+    switch (confirmAction.type) {
+      case "pause": return `Are you sure you want to pause "${confirmAction.club.name}"? The club will be temporarily unavailable.`;
+      case "resume": return `Are you sure you want to resume "${confirmAction.club.name}"? The club will become active again.`;
+      case "archive": return `Are you sure you want to archive "${confirmAction.club.name}"? The club will be deactivated and hidden from public view.`;
+      case "delete": return `Are you sure you want to permanently delete "${confirmAction.club.name}"? This will delete ALL associated data including sessions, matches, and member profiles. This action CANNOT be undone.`;
+    }
+  };
+
+  const isConfirmPending = pauseClubMutation.isPending || archiveClubMutation.isPending || deleteClubMutation.isPending;
+
+  const actionMenuItems = (club: ClubRecord) => [
+    {
+      label: "Edit Club Details",
+      icon: Pencil,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      onClick: () => { setActionClub(null); setEditClub(club); },
+    },
+    {
+      label: "Manage Club Members",
+      icon: Users,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      onClick: () => { setActionClub(null); setManageClub(club); },
+    },
+    {
+      label: club.status === "PAUSED" ? "Resume Club" : "Pause Club",
+      icon: club.status === "PAUSED" ? Play : Pause,
+      color: "text-orange-500",
+      bg: "bg-orange-500/10",
+      onClick: () => { setActionClub(null); setConfirmAction({ type: club.status === "PAUSED" ? "resume" : "pause", club }); },
+    },
+    {
+      label: "Change Club Admin",
+      icon: Shield,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      onClick: () => { setActionClub(null); setTransferClub(club); setTransferOwnerId(club.ownerId ? String(club.ownerId) : ""); },
+    },
+    {
+      label: "Edit Club Sessions",
+      icon: Calendar,
+      color: "text-cyan-500",
+      bg: "bg-cyan-500/10",
+      onClick: () => { setActionClub(null); navigate(`/sessions?clubId=${club.id}`); },
+    },
+    {
+      label: "Archive Club",
+      icon: Archive,
+      color: "text-muted-foreground",
+      bg: "bg-muted/50",
+      onClick: () => { setActionClub(null); setConfirmAction({ type: "archive", club }); },
+    },
+    {
+      label: "Delete Club",
+      icon: Trash2,
+      color: "text-red-500",
+      bg: "bg-red-500/10",
+      onClick: () => { setActionClub(null); setConfirmAction({ type: "delete", club }); },
+    },
+  ];
 
   return (
     <div className="space-y-8" data-testid="super-admin-dashboard">
@@ -506,8 +1256,8 @@ export default function SuperAdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-            {controlItems.map((item) => (
-              <Link key={item.href} href={item.href}>
+            {controlItems.map((item) => {
+              const inner = (
                 <div
                   className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
                   data-testid={`button-quick-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -518,13 +1268,25 @@ export default function SuperAdminDashboard() {
                   <span className="flex-1 font-medium text-sm">{item.label}</span>
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
-              </Link>
-            ))}
+              );
+              if ((item as any).isAnchor) {
+                return (
+                  <a key={item.href} href={item.href}>
+                    {inner}
+                  </a>
+                );
+              }
+              return (
+                <Link key={item.href} href={item.href}>
+                  {inner}
+                </Link>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-clubs-management">
+      <Card data-testid="card-clubs-management" id="clubs-management">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Building2 className="w-5 h-5 text-emerald-500" />
@@ -600,7 +1362,7 @@ export default function SuperAdminDashboard() {
                 <div
                   key={club.id}
                   className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
-                  onClick={() => setEditClub(club)}
+                  onClick={() => setActionClub(club)}
                   data-testid={`club-item-${club.id}`}
                 >
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
@@ -630,6 +1392,38 @@ export default function SuperAdminDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!actionClub} onOpenChange={(open) => { if (!open) setActionClub(null); }}>
+        <DialogContent className="max-w-md" data-testid="dialog-club-actions">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-emerald-500" />
+              {actionClub?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Choose an action for this club.
+            </DialogDescription>
+          </DialogHeader>
+          {actionClub && (
+            <div className="flex flex-col gap-2">
+              {actionMenuItems(actionClub).map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
+                  onClick={item.onClick}
+                  data-testid={`action-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${item.bg}`}>
+                    <item.icon className={`w-5 h-5 ${item.color}`} />
+                  </div>
+                  <span className="flex-1 font-medium text-sm">{item.label}</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editClub} onOpenChange={(open) => { if (!open) setEditClub(null); }}>
         <DialogContent className="max-w-2xl" data-testid="dialog-edit-club">
@@ -721,6 +1515,78 @@ export default function SuperAdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!transferClub} onOpenChange={(open) => { if (!open) { setTransferClub(null); setTransferOwnerId(""); } }}>
+        <DialogContent className="max-w-md" data-testid="dialog-transfer-admin">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-purple-500" />
+              Change Club Admin
+            </DialogTitle>
+            <DialogDescription>
+              Select a new admin for <strong>{transferClub?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Current Admin</Label>
+              <p className="text-sm text-muted-foreground mt-1" data-testid="text-current-admin">{transferClub ? getOwnerName(transferClub.ownerId) : ""}</p>
+            </div>
+            <div>
+              <Label>New Admin</Label>
+              <Select value={transferOwnerId} onValueChange={setTransferOwnerId}>
+                <SelectTrigger data-testid="select-new-admin">
+                  <SelectValue placeholder="Select a user..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allUsers?.map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.fullName} ({u.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setTransferClub(null); setTransferOwnerId(""); }} data-testid="button-cancel-transfer">Cancel</Button>
+            <Button
+              onClick={() => transferClub && transferOwnerId && transferAdminMutation.mutate({ clubId: transferClub.id, newOwnerId: parseInt(transferOwnerId) })}
+              disabled={transferAdminMutation.isPending || !transferOwnerId}
+              data-testid="button-confirm-transfer"
+            >
+              {transferAdminMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Transfer Admin
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+        <AlertDialogContent data-testid="dialog-confirm-action">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmActionTitle()}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmActionDescription()}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-confirm-action">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmAction}
+              className={confirmAction?.type === "delete" ? "bg-destructive text-destructive-foreground" : ""}
+              data-testid="button-confirm-confirm-action"
+            >
+              {isConfirmPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              {confirmAction?.type === "delete" ? "Delete Permanently" : confirmAction?.type === "archive" ? "Archive" : confirmAction?.type === "pause" ? "Pause" : "Resume"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <MembersManagementDialog
+        club={manageClub}
+        open={!!manageClub}
+        onClose={() => setManageClub(null)}
+      />
     </div>
   );
 }
