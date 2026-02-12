@@ -871,6 +871,19 @@ export default function SessionDetail() {
                 Start Session
               </Button>
             )}
+            {isOrganiser && session.status !== "COMPLETED" && (session as any).autoGenerateActive && (
+              <Button 
+                variant="destructive"
+                className="w-full gap-2 mt-3" 
+                onClick={() => {
+                  updateSession({ sessionId: id, updates: { autoGenerateActive: false } });
+                }}
+                data-testid="button-stop-session-main"
+              >
+                <X className="w-5 h-5" />
+                Stop Session
+              </Button>
+            )}
             {isOrganiser && session.status !== "COMPLETED" && (
               <div className="space-y-2 mt-3">
                 <Button
@@ -1878,27 +1891,16 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                   </Select>
 
                   {(autoGenerateActive && !autoGenLocallyStopped) && (
-                    <>
-                      <Button 
-                        onClick={handleSmartGenerate}
-                        disabled={isSmartGenerating}
-                        variant="outline"
-                        className="gap-2"
-                        data-testid="button-generate-matches"
-                      >
-                        <Shuffle className="w-4 h-4" />
-                        {isSmartGenerating ? "Generating..." : "Generate Matches"}
-                      </Button>
-                      <Button 
-                        onClick={handleStopAutoGenerate}
-                        variant="destructive"
-                        className="gap-2"
-                        data-testid="button-stop-session"
-                      >
-                        <X className="w-4 h-4" />
-                        Stop Session
-                      </Button>
-                    </>
+                    <Button 
+                      onClick={handleSmartGenerate}
+                      disabled={isSmartGenerating}
+                      variant="outline"
+                      className="gap-2"
+                      data-testid="button-generate-matches"
+                    >
+                      <Shuffle className="w-4 h-4" />
+                      {isSmartGenerating ? "Generating..." : "Generate Matches"}
+                    </Button>
                   )}
                 </div>
               )}
