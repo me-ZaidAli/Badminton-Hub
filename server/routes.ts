@@ -8171,7 +8171,7 @@ export async function registerRoutes(
           .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
         if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
       }
-      const members = await db.select({
+      const rows = await db.select({
         profileId: playerProfiles.id,
         userId: playerProfiles.userId,
         clubId: playerProfiles.clubId,
@@ -8203,6 +8203,38 @@ export async function registerRoutes(
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .where(eq(playerProfiles.clubId, clubId))
         .orderBy(users.fullName);
+      const members = rows.map(r => ({
+        id: r.profileId,
+        userId: r.userId,
+        clubId: r.clubId,
+        clubRole: r.clubRole,
+        membershipStatus: r.membershipStatus,
+        playerStatus: r.playerStatus,
+        gender: r.gender,
+        category: r.category,
+        rankingPoints: r.rankingPoints,
+        matchesPlayed: r.matchesPlayed,
+        matchesWon: r.matchesWon,
+        user: {
+          id: r.userId,
+          fullName: r.fullName,
+          email: r.email,
+          phone: r.phone,
+          city: r.city,
+          country: r.country,
+          region: r.region,
+          continent: r.continent,
+          nickname: r.nickname,
+          dateOfBirth: r.dateOfBirth,
+          isJunior: r.isJunior,
+          parentGuardianName: r.parentGuardianName,
+          parentGuardianEmail: r.parentGuardianEmail,
+          profilePictureUrl: r.profilePictureUrl,
+          accountStatus: r.accountStatus,
+          role: r.role,
+        },
+        createdAt: r.createdAt,
+      }));
       res.json(members);
     } catch (err: any) {
       console.error("Error fetching club members:", err);
@@ -8221,7 +8253,7 @@ export async function registerRoutes(
           .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
         if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
       }
-      const pending = await db.select({
+      const pendingRows = await db.select({
         profileId: playerProfiles.id,
         userId: playerProfiles.userId,
         clubRole: playerProfiles.clubRole,
@@ -8237,6 +8269,17 @@ export async function registerRoutes(
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "PENDING")))
         .orderBy(users.fullName);
+      const pending = pendingRows.map(r => ({
+        id: r.profileId,
+        userId: r.userId,
+        clubRole: r.clubRole,
+        membershipStatus: r.membershipStatus,
+        user: {
+          id: r.userId,
+          fullName: r.fullName,
+          email: r.email,
+        },
+      }));
       res.json(pending);
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch pending approvals" });
