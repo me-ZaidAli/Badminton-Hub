@@ -58,6 +58,7 @@ import ClubApprovals from "@/pages/admin/ClubApprovals";
 import PlayerProfile from "@/pages/admin/PlayerProfile";
 import Analytics from "@/pages/admin/Analytics";
 import AllRankings from "@/pages/AllRankings";
+import PlayerRankings from "@/pages/PlayerRankings";
 import Venues from "@/pages/Venues";
 import ClubsManagement from "@/pages/ClubsManagement";
 
@@ -250,6 +251,9 @@ function Router() {
       </Route>
       <Route path="/sessions/:id">
         <PrivateRoute component={SessionDetail} />
+      </Route>
+      <Route path="/rankings">
+        <PrivateRoute component={PlayerRankings} />
       </Route>
       <Route path="/all-rankings">
         <StrictAdminRoute component={AllRankings} />

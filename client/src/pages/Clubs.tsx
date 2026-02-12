@@ -1399,8 +1399,10 @@ export default function Clubs() {
   const [editClub, setEditClub] = useState<ClubRecord | null>(null);
   const [manageClub, setManageClub] = useState<ClubRecord | null>(null);
 
+  const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const isOwnerRole = user?.role === "OWNER";
   const isAdminRole = user?.role === "ADMIN";
+  const isRegularPlayer = user && !isOwnerRole && !isAdminRole;
 
   const { data: myAdminClubs } = useMyAdminClubs(!!user && (isOwnerRole || isAdminRole));
 
@@ -1408,6 +1410,11 @@ export default function Clubs() {
     queryKey: ["/api/user/memberships"],
     enabled: !!user,
   });
+
+  const myClubIds = useMemo(() => {
+    if (!memberships) return new Set<number>();
+    return new Set(memberships.filter(m => m.membershipStatus === "APPROVED").map(m => m.clubId));
+  }, [memberships]);
 
   const joinMutation = useMutation({
     mutationFn: async (data: { clubId: number }) => {
@@ -1438,7 +1445,15 @@ export default function Clubs() {
     },
   });
 
-  const filteredClubs = clubs?.filter(club => {
+  const baseClubs = useMemo(() => {
+    if (!clubs) return [];
+    if (isRegularPlayer && clubScope === "my") {
+      return clubs.filter(c => myClubIds.has(c.id));
+    }
+    return clubs;
+  }, [clubs, isRegularPlayer, myClubIds, clubScope]);
+
+  const filteredClubs = baseClubs.filter(club => {
     const query = searchQuery.toLowerCase();
     return (
       club.name.toLowerCase().includes(query) ||
@@ -1448,7 +1463,7 @@ export default function Clubs() {
       club.address?.toLowerCase().includes(query) ||
       club.country?.toLowerCase().includes(query)
     );
-  }) || [];
+  });
 
   const clubsWithLocation = filteredClubs.filter(c => c.latitude && c.longitude);
 
@@ -1516,11 +1531,31 @@ export default function Clubs() {
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <PageHeader 
-          title="Browse Clubs" 
-          description="Find a badminton club near you. Search by name, city, postcode, or country."
+          title={isRegularPlayer && clubScope === "my" ? "My Clubs" : "Browse Clubs"}
+          description={isRegularPlayer && clubScope === "my" ? "Clubs you are a member of." : "Find a badminton club near you. Search by name, city, postcode, or country."}
         />
 
         <div className="flex flex-wrap items-center gap-3">
+          {isRegularPlayer && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant={clubScope === "my" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setClubScope("my")}
+                data-testid="button-clubs-scope-my"
+              >
+                My Clubs
+              </Button>
+              <Button
+                variant={clubScope === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setClubScope("all")}
+                data-testid="button-clubs-scope-all"
+              >
+                All Clubs
+              </Button>
+            </div>
+          )}
           <div className="relative flex-1 min-w-[250px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input

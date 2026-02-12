@@ -52,6 +52,7 @@ export default function Sessions() {
   const { data: sessionClubs } = useMySessionClubs(!!user);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -67,6 +68,16 @@ export default function Sessions() {
     queryKey: ["/api/user/memberships"],
     enabled: !!user,
   });
+
+  const myClubIds = useMemo(() => {
+    if (!memberships) return new Set<number>();
+    return new Set(memberships.filter(m => m.membershipStatus === "APPROVED").map(m => m.clubId));
+  }, [memberships]);
+
+  const displayClubs = useMemo(() => {
+    if (isSuperUser || clubScope === "all") return clubs || [];
+    return (clubs || []).filter(c => myClubIds.has(c.id));
+  }, [clubs, clubScope, myClubIds, isSuperUser]);
 
   const getSessionAccess = (clubId: number): "allowed" | "denied" => {
     if (!user) return "denied";
@@ -93,6 +104,9 @@ export default function Sessions() {
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
+    if (!isSuperUser && clubScope === "my") {
+      result = result.filter(s => myClubIds.has(s.clubId));
+    }
     if (selectedClubId !== "all") {
       result = result.filter(s => s.clubId === Number(selectedClubId));
     }
@@ -101,7 +115,7 @@ export default function Sessions() {
       result = result.filter(s => s.title.toLowerCase().includes(q));
     }
     return result;
-  }, [sessions, selectedClubId, searchQuery]);
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isSuperUser]);
 
   const now = useMemo(() => {
     const d = new Date();
@@ -189,6 +203,26 @@ export default function Sessions() {
       />
 
       <div className="flex items-center gap-3 flex-wrap">
+        {!isSuperUser && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant={clubScope === "my" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
+              data-testid="button-sessions-scope-my"
+            >
+              My Clubs
+            </Button>
+            <Button
+              variant={clubScope === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
+              data-testid="button-sessions-scope-all"
+            >
+              All Clubs
+            </Button>
+          </div>
+        )}
         <div className="relative w-full sm:w-[280px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -199,14 +233,14 @@ export default function Sessions() {
             data-testid="input-search-sessions"
           />
         </div>
-        {clubs && clubs.length > 1 && (
+        {displayClubs.length > 1 && (
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
             <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
               <SelectValue placeholder="All Clubs" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clubs</SelectItem>
-              {(canManageSessions && !isSuperUser && sessionClubs ? sessionClubs : clubs)?.map(club => (
+              {displayClubs.map(club => (
                 <SelectItem key={club.id} value={club.id.toString()}>
                   {club.name}
                 </SelectItem>
@@ -366,11 +400,9 @@ export default function Sessions() {
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
                     {user && !isSuperUser && !editableClubIds.has(session.clubId) && (
-                      getSessionAccess(session.clubId) === "allowed" ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" data-testid={`icon-session-allowed-${session.id}`} />
-                      ) : (
+                      getSessionAccess(session.clubId) === "denied" ? (
                         <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
-                      )
+                      ) : null
                     )}
                     {editableClubIds.has(session.clubId) ? (
                       <>
