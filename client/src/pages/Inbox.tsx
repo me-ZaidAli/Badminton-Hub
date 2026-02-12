@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -111,6 +112,7 @@ function getInitials(name: string) {
 export default function InboxPage() {
   const { data: user, isLoading: userLoading } = useUser();
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   const [activeConversation, setActiveConversation] = useState<number | null>(null);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
@@ -120,6 +122,7 @@ export default function InboxPage() {
   const [deleteDialogContact, setDeleteDialogContact] = useState<Conversation | null>(null);
   const [conversationLimitPrompt, setConversationLimitPrompt] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
+  const [initialRecipientHandled, setInitialRecipientHandled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
@@ -172,6 +175,21 @@ export default function InboxPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
     }
   }, [activeConversation, threadMessages.length]);
+
+  useEffect(() => {
+    if (initialRecipientHandled || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    const recipientId = params.get("recipientId");
+    if (recipientId) {
+      const id = Number(recipientId);
+      if (!isNaN(id) && id !== user.id) {
+        setActiveConversation(id);
+        setMobileShowThread(true);
+        setInitialRecipientHandled(true);
+        window.history.replaceState({}, "", "/inbox");
+      }
+    }
+  }, [user, initialRecipientHandled]);
 
   const sendMutation = useMutation({
     mutationFn: async (data: { recipientId: number; body: string }) => {
