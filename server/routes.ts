@@ -6719,8 +6719,10 @@ export async function registerRoutes(
         createdAt: membershipRequests.createdAt,
         fullName: users.fullName,
         email: users.email,
+        planName: membershipPlans.name,
       }).from(membershipRequests)
         .leftJoin(users, eq(membershipRequests.userId, users.id))
+        .leftJoin(membershipPlans, eq(membershipRequests.planId, membershipPlans.id))
         .where(eq(membershipRequests.clubId, clubId))
         .orderBy(desc(membershipRequests.createdAt));
 

@@ -77,7 +77,7 @@ interface MembershipRequest {
   status: string;
   prorationAmount: number | null;
   createdAt: string;
-  userName: string;
+  fullName: string;
   planName: string;
 }
 
@@ -90,7 +90,7 @@ interface ClubMembership {
   startDate: string;
   endDate: string;
   paymentStatus: string;
-  userName: string;
+  fullName: string;
   planName: string;
 }
 
@@ -180,7 +180,7 @@ export default function MembershipBoard() {
     }
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
-      filtered = filtered.filter((r) => r.userName?.toLowerCase().includes(lower));
+      filtered = filtered.filter((r) => r.fullName?.toLowerCase().includes(lower));
     }
     return filtered;
   }, [requests, statusFilter, searchQuery]);
@@ -189,7 +189,7 @@ export default function MembershipBoard() {
     let filtered = memberships;
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
-      filtered = filtered.filter((m) => m.userName?.toLowerCase().includes(lower));
+      filtered = filtered.filter((m) => m.fullName?.toLowerCase().includes(lower));
     }
     return filtered;
   }, [memberships, searchQuery]);
@@ -537,7 +537,7 @@ export default function MembershipBoard() {
                       {filteredRequests.map((req) => (
                         <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
                           <TableCell>
-                            <span className="font-medium" data-testid={`text-request-user-${req.id}`}>{req.userName}</span>
+                            <span className="font-medium" data-testid={`text-request-user-${req.id}`}>{req.fullName}</span>
                           </TableCell>
                           <TableCell data-testid={`text-request-plan-${req.id}`}>{req.planName}</TableCell>
                           <TableCell data-testid={`text-request-date-${req.id}`}>
@@ -668,7 +668,7 @@ export default function MembershipBoard() {
                             </TableCell>
                             <TableCell>
                               <span className="font-medium" data-testid={`text-membership-user-${membership.id}`}>
-                                {membership.userName}
+                                {membership.fullName}
                               </span>
                             </TableCell>
                             <TableCell data-testid={`text-membership-plan-${membership.id}`}>{membership.planName}</TableCell>
