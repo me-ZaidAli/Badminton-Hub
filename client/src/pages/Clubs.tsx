@@ -22,7 +22,8 @@ import { ClubMap } from "@/components/ui/club-map";
 import {
   Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map,
   CheckCircle, Clock, XCircle, Loader2, Building2, Pencil,
-  Trash2, Archive, Pause, Mail, Key, Save, Send, User
+  Trash2, Archive, Pause, Mail, Key, Save, Send, User,
+  ChevronDown, ChevronUp, Phone, Calendar
 } from "lucide-react";
 
 type Membership = {
@@ -68,6 +69,8 @@ interface ClubRecord {
   longitude?: string;
   googleMapsUrl?: string;
   logoUrl?: string;
+  clubPolicies?: string;
+  clubStandards?: string;
 }
 
 interface ClubEditForm {
@@ -95,6 +98,8 @@ interface ClubEditForm {
   providesClubTShirts: boolean;
   isRegisteredWithBE: boolean;
   beRegistrationNumber: string;
+  clubPolicies: string;
+  clubStandards: string;
 }
 
 interface MemberRecord {
@@ -132,10 +137,16 @@ interface PendingMember {
   userId: number;
   clubRole: string;
   membershipStatus: string;
+  gender?: string;
+  category?: string;
   user?: {
     id: number;
     fullName: string;
     email: string;
+    phone?: string;
+    city?: string;
+    dateOfBirth?: string;
+    createdAt?: string;
   };
 }
 
@@ -547,6 +558,103 @@ function UserDetailDialog({
   );
 }
 
+function PendingMemberCard({
+  member,
+  onApprove,
+  onReject,
+  isPending,
+}: {
+  member: PendingMember;
+  onApprove: () => void;
+  onReject: () => void;
+  isPending: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border rounded-md" data-testid={`row-pending-member-${member.id}`}>
+      <div
+        className="flex items-center justify-between gap-3 p-3 cursor-pointer hover-elevate"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground shrink-0">
+            <User className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate" data-testid={`text-pending-name-${member.id}`}>
+              {member.user?.fullName || "Unknown"}
+            </div>
+            <div className="text-xs text-muted-foreground truncate">{member.user?.email || ""}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1">
+            {member.gender && (
+              <Badge variant="outline" className="text-xs">{member.gender}</Badge>
+            )}
+            {member.category && (
+              <Badge variant="outline" className="text-xs">Cat {member.category}</Badge>
+            )}
+          </div>
+          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-3 pb-3 border-t pt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {member.user?.phone && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="w-3 h-3 shrink-0" />
+                <span className="truncate">{member.user.phone}</span>
+              </div>
+            )}
+            {member.user?.city && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="w-3 h-3 shrink-0" />
+                <span className="truncate">{member.user.city}</span>
+              </div>
+            )}
+            {member.user?.dateOfBirth && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="w-3 h-3 shrink-0" />
+                <span>DOB: {member.user.dateOfBirth}</span>
+              </div>
+            )}
+            {member.user?.createdAt && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="w-3 h-3 shrink-0" />
+                <span>Joined: {new Date(member.user.createdAt).toLocaleDateString()}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onApprove(); }}
+              disabled={isPending}
+              data-testid={`button-approve-member-${member.id}`}
+            >
+              <CheckCircle className="w-3 h-3 mr-1" /> Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => { e.stopPropagation(); onReject(); }}
+              disabled={isPending}
+              data-testid={`button-reject-member-${member.id}`}
+            >
+              <XCircle className="w-3 h-3 mr-1" /> Reject
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MembersManagementDialog({
   club,
   open,
@@ -896,39 +1004,15 @@ function MembersManagementDialog({
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : pendingMembers && pendingMembers.length > 0 ? (
-                <div className="space-y-2 max-h-[50vh] overflow-auto">
+                <div className="space-y-3 max-h-[50vh] overflow-auto">
                   {pendingMembers.map((pm) => (
-                    <div
+                    <PendingMemberCard
                       key={pm.id}
-                      className="flex items-center justify-between gap-3 p-3 border rounded-md"
-                      data-testid={`row-pending-member-${pm.id}`}
-                    >
-                      <div>
-                        <div className="text-sm font-medium" data-testid={`text-pending-name-${pm.id}`}>
-                          {pm.user?.fullName || "Unknown"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{pm.user?.email || ""}</div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          onClick={() => approvalMutation.mutate({ profileId: pm.id, status: "APPROVED" })}
-                          disabled={approvalMutation.isPending}
-                          data-testid={`button-approve-member-${pm.id}`}
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" /> Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => approvalMutation.mutate({ profileId: pm.id, status: "REJECTED" })}
-                          disabled={approvalMutation.isPending}
-                          data-testid={`button-reject-member-${pm.id}`}
-                        >
-                          <XCircle className="w-3 h-3 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    </div>
+                      member={pm}
+                      onApprove={() => approvalMutation.mutate({ profileId: pm.id, status: "APPROVED" })}
+                      onReject={() => approvalMutation.mutate({ profileId: pm.id, status: "REJECTED" })}
+                      isPending={approvalMutation.isPending}
+                    />
                   ))}
                 </div>
               ) : (
@@ -991,6 +1075,8 @@ function EditClubDialog({
     providesClubTShirts: false,
     isRegisteredWithBE: false,
     beRegistrationNumber: "",
+    clubPolicies: "",
+    clubStandards: "",
   });
 
   useEffect(() => {
@@ -1020,6 +1106,8 @@ function EditClubDialog({
         providesClubTShirts: club.providesClubTShirts || false,
         isRegisteredWithBE: club.isRegisteredWithBE || false,
         beRegistrationNumber: club.beRegistrationNumber || "",
+        clubPolicies: club.clubPolicies || "",
+        clubStandards: club.clubStandards || "",
       });
     }
   }, [club]);
@@ -1051,6 +1139,8 @@ function EditClubDialog({
         providesClubTShirts: data.form.providesClubTShirts,
         isRegisteredWithBE: data.form.isRegisteredWithBE,
         beRegistrationNumber: data.form.beRegistrationNumber,
+        clubPolicies: data.form.clubPolicies,
+        clubStandards: data.form.clubStandards,
       });
       return res.json();
     },
@@ -1305,6 +1395,34 @@ function EditClubDialog({
                   data-testid="checkbox-edit-club-provides-tshirts"
                 />
                 <Label htmlFor="edit-providesClubTShirts" className="cursor-pointer">Provides Club T-Shirts</Label>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Policies & Standards</div>
+            <div className="space-y-3">
+              <div>
+                <Label>Club Policies</Label>
+                <Textarea
+                  value={editClubForm.clubPolicies}
+                  onChange={(e) => setEditClubForm(f => ({ ...f, clubPolicies: e.target.value }))}
+                  placeholder="Code of conduct, cancellation policy, payment terms..."
+                  className="resize-none"
+                  rows={3}
+                  data-testid="input-edit-club-policies"
+                />
+              </div>
+              <div>
+                <Label>Standards & Expectations</Label>
+                <Textarea
+                  value={editClubForm.clubStandards}
+                  onChange={(e) => setEditClubForm(f => ({ ...f, clubStandards: e.target.value }))}
+                  placeholder="Expected skill level, sportsmanship, dress code..."
+                  className="resize-none"
+                  rows={3}
+                  data-testid="input-edit-club-standards"
+                />
               </div>
             </div>
           </div>

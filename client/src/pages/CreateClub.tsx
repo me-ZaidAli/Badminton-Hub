@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateClub } from "@/hooks/use-clubs";
-import { ArrowLeft, Building2, Loader2, Trophy, Users, GraduationCap, Clock, PoundSterling, AlertCircle, Lock } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Trophy, Users, GraduationCap, Clock, PoundSterling, AlertCircle, Lock, ScrollText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AGE_GROUPS = [
@@ -56,6 +56,8 @@ const createClubSchema = z.object({
   playerLevels: z.array(z.string()).default([]),
   shuttlecockType: z.string().optional(),
   providesClubTShirts: z.boolean().default(false),
+  clubPolicies: z.string().max(2000, "Policies must be less than 2000 characters").optional(),
+  clubStandards: z.string().max(2000, "Standards must be less than 2000 characters").optional(),
   // Contact information (visible only to super admin)
   contactFullName: z.string().min(2, "Full name is required").max(100, "Name too long"),
   contactPhone: z.string().min(5, "Phone number is required").max(20, "Phone number too long"),
@@ -116,6 +118,8 @@ export default function CreateClub() {
       playerLevels: [],
       shuttlecockType: "",
       providesClubTShirts: false,
+      clubPolicies: "",
+      clubStandards: "",
       contactFullName: "",
       contactPhone: "",
       contactAddress: "",
@@ -552,6 +556,62 @@ export default function CreateClub() {
                             data-testid="switch-tshirts"
                           />
                         </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="border-t pt-6 space-y-6">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <ScrollText className="w-5 h-5" />
+                    Club Policies & Standards
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    These will be shown to players when they request to join your club
+                  </p>
+
+                  <FormField
+                    control={form.control}
+                    name="clubPolicies"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Club Policies</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., Code of conduct, cancellation policy, payment terms, guest policy..."
+                            className="resize-none"
+                            rows={4}
+                            data-testid="input-club-policies"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Rules and policies members must agree to
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="clubStandards"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Club Standards & Expectations</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., Expected skill level, sportsmanship expectations, dress code, equipment requirements..."
+                            className="resize-none"
+                            rows={4}
+                            data-testid="input-club-standards"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Expectations for club members
+                        </FormDescription>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />

@@ -8355,6 +8355,7 @@ export async function registerRoutes(
         phone: users.phone,
         city: users.city,
         createdAt: users.createdAt,
+        dateOfBirth: users.dateOfBirth,
       }).from(playerProfiles)
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "PENDING")))
@@ -8364,10 +8365,16 @@ export async function registerRoutes(
         userId: r.userId,
         clubRole: r.clubRole,
         membershipStatus: r.membershipStatus,
+        gender: r.gender,
+        category: r.category,
         user: {
           id: r.userId,
           fullName: r.fullName,
           email: r.email,
+          phone: r.phone,
+          city: r.city,
+          dateOfBirth: r.dateOfBirth,
+          createdAt: r.createdAt,
         },
       }));
       res.json(pending);
