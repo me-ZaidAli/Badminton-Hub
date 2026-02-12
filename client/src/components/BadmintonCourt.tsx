@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Play, Square, Clock, Users, Pencil, Trophy, ArrowRight, RotateCcw, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import courtImage from "@assets/image_1770246183034.png";
@@ -68,6 +69,7 @@ type BadmintonCourtProps = {
   onCancelMatch?: (matchId: number) => void;
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
   defaultPointsToPlayTo?: number;
 };
 
@@ -182,6 +184,7 @@ export function BadmintonCourt({
   onCancelMatch,
   onCourtNameChange,
   onUpdatePointsTarget,
+  onUpdateSets,
   defaultPointsToPlayTo = 21,
 }: BadmintonCourtProps) {
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -389,8 +392,31 @@ export function BadmintonCourt({
               </Badge>
             )
           )}
-          {isMultiSet && match?.status === "LIVE" && (
+          {match && isOrganiser && (
+            <Select
+              value={String(matchSets)}
+              onValueChange={(v) => {
+                const val = Number(v);
+                if (match && onUpdateSets) onUpdateSets(match.id, val);
+              }}
+            >
+              <SelectTrigger className="h-6 w-auto min-w-0 gap-1 px-2 text-xs" data-testid={`select-sets-${match.id}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1" data-testid="select-sets-1">1 Set</SelectItem>
+                <SelectItem value="2" data-testid="select-sets-2">2 Sets</SelectItem>
+                <SelectItem value="3" data-testid="select-sets-3">Best of 3</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {!isOrganiser && isMultiSet && match && (
             <Badge variant="secondary" className="text-xs" data-testid={`badge-sets-${match.id}`}>
+              {matchSets === 3 ? "Best of 3" : `${matchSets} Sets`}
+            </Badge>
+          )}
+          {isMultiSet && match?.status === "LIVE" && (
+            <Badge variant="secondary" className="text-xs" data-testid={`badge-set-progress-${match.id}`}>
               Set {currentSetNum}/{matchSets} ({match?.setsWonA || 0}-{match?.setsWonB || 0})
             </Badge>
           )}

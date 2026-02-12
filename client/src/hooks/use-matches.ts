@@ -253,6 +253,33 @@ export function useUpdateMatchTarget() {
   });
 }
 
+export function useUpdateMatchSets() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ matchId, numberOfSets }: { matchId: number; numberOfSets: number }) => {
+      const res = await fetch(`/api/matches/${matchId}/number-of-sets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numberOfSets }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update number of sets");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Number of Sets Updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useReshuffleMatch() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

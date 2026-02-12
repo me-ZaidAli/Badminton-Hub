@@ -1979,6 +1979,36 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/matches/:id/number-of-sets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const matchId = Number(req.params.id);
+      const { numberOfSets } = req.body;
+
+      if (![1, 2, 3].includes(numberOfSets)) {
+        return res.status(400).json({ message: "Number of sets must be 1, 2, or 3" });
+      }
+
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const session = await storage.getSession(match.sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins and organisers can change number of sets" });
+      }
+
+      const updated = await storage.updateMatch(matchId, { numberOfSets });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating number of sets:", err);
+      res.status(500).json({ message: err.message || "Failed to update number of sets" });
+    }
+  });
+
   // Delete a queued match and regenerate a replacement
   app.delete("/api/matches/:id/queued", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

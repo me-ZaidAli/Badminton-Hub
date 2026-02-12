@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -1398,6 +1398,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const { mutateAsync: endSet } = useEndSet();
   const { mutate: swapPlayer } = useSwapPlayer();
   const { mutate: updateMatchTarget } = useUpdateMatchTarget();
+  const { mutate: updateMatchSets } = useUpdateMatchSets();
   const { mutate: smartGenerate, isPending: isSmartGenerating } = useSmartGenerateMatches();
   const { mutate: updateSession } = useUpdateSession();
   const { mutate: stopAllMatches, isPending: isStoppingAll } = useStopAllMatches();
@@ -1897,6 +1898,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
                     onCourtNameChange={handleCourtNameChange}
                     onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
+                    onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
                     defaultPointsToPlayTo={defaultPointsToPlayTo}
                   />
                 );
