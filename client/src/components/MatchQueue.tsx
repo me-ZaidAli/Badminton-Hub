@@ -344,7 +344,7 @@ export function MatchQueue({
                       </div>
 
                       {isOrganiser && availableCourts.length > 0 && (
-                        <div className="flex items-center justify-center gap-2 mt-3">
+                        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
                           {availableCourts.map(court => (
                             <Button
                               key={court}
