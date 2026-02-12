@@ -1494,6 +1494,16 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     }
   }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatchForEffect?.pointsToPlayTo, defaultPointsToPlayTo]);
 
+  const attendingSignups = signups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
+  const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
+  const minPlayersNeeded = playersPerSide * 2;
+
+  useEffect(() => {
+    if (activePlayerCount >= minPlayersNeeded && notEnoughPlayersMessage) {
+      setNotEnoughPlayersMessage(null);
+    }
+  }, [activePlayerCount, minPlayersNeeded]);
+
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
   const typedMatches: CourtMatch[] = (matches || []).map(m => ({
@@ -1532,9 +1542,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     category: s.player?.category,
   }));
 
-  const attendingSignups = signups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
-  const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
-  const minPlayersNeeded = playersPerSide * 2;
   const pausedCount = attendingSignups.filter(s => s.isPaused).length;
 
   const getNotEnoughPlayersText = () => {
@@ -1546,12 +1553,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     }
     return null;
   };
-
-  useEffect(() => {
-    if (activePlayerCount >= minPlayersNeeded && notEnoughPlayersMessage) {
-      setNotEnoughPlayersMessage(null);
-    }
-  }, [activePlayerCount, minPlayersNeeded]);
 
   const showNotEnoughPlayersWarning = () => {
     const msg = getNotEnoughPlayersText();
