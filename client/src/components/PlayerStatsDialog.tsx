@@ -48,15 +48,15 @@ function computeAchievements(stats: DetailedPlayerStats) {
 }
 
 export function PlayerStatsDialog({
-  playerId,
+  profileId,
   open,
   onOpenChange,
 }: {
-  playerId: number | null;
+  profileId: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: stats, isLoading } = useDetailedPlayerStats(open ? playerId : null);
+  const { data: stats, isLoading } = useDetailedPlayerStats(open ? profileId : null);
 
   const chartData = stats?.matchHistory
     ? [...stats.matchHistory]
