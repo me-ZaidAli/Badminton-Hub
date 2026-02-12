@@ -53,6 +53,7 @@ export default function SessionDetail() {
   const { mutate: adminAddPlayer, isPending: isAdding } = useAdminAddPlayer();
   const { mutate: adminRemovePlayer } = useAdminRemovePlayer();
   const { mutate: deleteSession, isPending: isDeleting } = useDeleteSession();
+  const { mutate: smartGenerateFromParent } = useSmartGenerateMatches();
   const { mutate: toggleGender } = useToggleGender();
   const { mutate: togglePause } = useTogglePause();
   const { mutate: handlePauseReplacement } = useHandlePause();
@@ -850,6 +851,19 @@ export default function SessionDetail() {
                 data-testid="button-join-session"
               >
                 {isJoining ? "Joining..." : "Join Session"}
+              </Button>
+            )}
+            {isOrganiser && session.status !== "COMPLETED" && !(session as any).autoGenerateActive && (
+              <Button 
+                className="w-full gap-2 mt-3 bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/25" 
+                onClick={() => {
+                  updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
+                  smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
+                }}
+                data-testid="button-start-session-main"
+              >
+                <PlayCircle className="w-5 h-5" />
+                Start Session
               </Button>
             )}
             {isOrganiser && session.status !== "COMPLETED" && (
@@ -1828,16 +1842,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     </SelectContent>
                   </Select>
 
-                  {(!autoGenerateActive || autoGenLocallyStopped) ? (
-                    <Button 
-                      onClick={handleStartAutoGenerate}
-                      className="gap-2"
-                      data-testid="button-start-session"
-                    >
-                      <PlayCircle className="w-4 h-4" />
-                      Start Session
-                    </Button>
-                  ) : (
+                  {(autoGenerateActive && !autoGenLocallyStopped) && (
                     <>
                       <Button 
                         onClick={handleSmartGenerate}
