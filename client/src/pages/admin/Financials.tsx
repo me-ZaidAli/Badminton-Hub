@@ -117,6 +117,7 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits">("session");
+  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "past">("upcoming");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -304,6 +305,23 @@ export default function Financials() {
     });
     return Object.fromEntries(sorted);
   }, [filteredData]);
+
+  const { upcomingSessionGroups, pastSessionGroups } = useMemo(() => {
+    const today = startOfDay(new Date());
+    const upcoming: Record<number, FinancialEntry[]> = {};
+    const past: Record<number, FinancialEntry[]> = {};
+    Object.entries(sessionGroups).forEach(([sessionIdStr, entries]) => {
+      const sessionDate = entries[0]?.sessionDate ? startOfDay(new Date(entries[0].sessionDate)) : null;
+      if (sessionDate && sessionDate < today) {
+        past[Number(sessionIdStr)] = entries;
+      } else {
+        upcoming[Number(sessionIdStr)] = entries;
+      }
+    });
+    return { upcomingSessionGroups: upcoming, pastSessionGroups: past };
+  }, [sessionGroups]);
+
+  const activeSessionGroups = sessionTimeTab === "upcoming" ? upcomingSessionGroups : pastSessionGroups;
 
   const playerGroups = useMemo(() => {
     const groups: Record<string, FinancialEntry[]> = {};
@@ -1306,14 +1324,35 @@ export default function Financials() {
 
       {viewMode === "session" ? (
         <div className="space-y-3">
-          {Object.keys(sessionGroups).length === 0 ? (
+          <div className="flex items-center gap-1 border-b pb-2" data-testid="tabs-session-time">
+            <Button
+              size="sm"
+              variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
+              onClick={() => setSessionTimeTab("upcoming")}
+              data-testid="button-upcoming-sessions"
+            >
+              <Calendar className="h-4 w-4 mr-1" />
+              Upcoming ({Object.keys(upcomingSessionGroups).length})
+            </Button>
+            <Button
+              size="sm"
+              variant={sessionTimeTab === "past" ? "default" : "outline"}
+              onClick={() => setSessionTimeTab("past")}
+              data-testid="button-past-sessions"
+            >
+              <History className="h-4 w-4 mr-1" />
+              Past ({Object.keys(pastSessionGroups).length})
+            </Button>
+          </div>
+
+          {Object.keys(activeSessionGroups).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
-                No sessions found for the selected filters.
+                No {sessionTimeTab === "upcoming" ? "upcoming" : "past"} sessions found for the selected filters.
               </CardContent>
             </Card>
           ) : (
-            Object.entries(sessionGroups).map(([sessionIdStr, entries]) => {
+            Object.entries(activeSessionGroups).map(([sessionIdStr, entries]) => {
               const sessionId = Number(sessionIdStr);
               const first = entries[0];
               const sessionPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
