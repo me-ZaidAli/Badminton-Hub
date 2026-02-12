@@ -910,20 +910,6 @@ export default function SessionDetail() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="w-full gap-2" 
-                  onClick={() => {
-                    if (confirm("Are you sure you want to finish this session? This will archive all matches.")) {
-                      updateSession({ sessionId: id, updates: { status: "COMPLETED" } });
-                    }
-                  }}
-                  disabled={isUpdating}
-                  data-testid="button-finish-session"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  {isUpdating ? "Finishing..." : "Finish Session"}
-                </Button>
-                <Button 
-                  variant="outline" 
                   className="w-full gap-2 text-destructive"
                   onClick={() => setRestartDialogOpen(true)}
                   disabled={isRestarting}
