@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Search,
 } from "lucide-react";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
 
@@ -68,6 +69,11 @@ export default function ClubsManagement() {
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Partial<SessionData>>({});
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberGenderFilter, setMemberGenderFilter] = useState("ALL");
+  const [memberCategoryFilter, setMemberCategoryFilter] = useState("ALL");
+  const [memberStatusFilter, setMemberStatusFilter] = useState("ALL");
+  const [memberRoleFilter, setMemberRoleFilter] = useState("ALL");
 
   const { data: clubs, isLoading: clubsLoading } = useQuery<ClubWithStatus[]>({
     queryKey: ["/api/admin/clubs"],
@@ -102,6 +108,21 @@ export default function ClubsManagement() {
     },
     enabled: !!selectedClub,
   });
+
+  const filteredMembers = useMemo(() => {
+    if (!members) return [];
+    return members.filter((m) => {
+      const name = m.user?.fullName?.toLowerCase() || "";
+      const email = m.user?.email?.toLowerCase() || "";
+      const q = memberSearch.toLowerCase();
+      if (q && !name.includes(q) && !email.includes(q)) return false;
+      if (memberGenderFilter !== "ALL" && m.gender !== memberGenderFilter) return false;
+      if (memberCategoryFilter !== "ALL" && m.category !== memberCategoryFilter) return false;
+      if (memberStatusFilter !== "ALL" && m.membershipStatus !== memberStatusFilter) return false;
+      if (memberRoleFilter !== "ALL" && m.clubRole !== memberRoleFilter) return false;
+      return true;
+    });
+  }, [members, memberSearch, memberGenderFilter, memberCategoryFilter, memberStatusFilter, memberRoleFilter]);
 
   const updateMemberMutation = useMutation({
     mutationFn: async ({ profileId, updates }: { profileId: number; updates: { membershipStatus?: string; clubRole?: string } }) => {
@@ -166,6 +187,11 @@ export default function ClubsManagement() {
     setSelectedClub(club);
     setActiveTab("members");
     setSelectedSessions(new Set());
+    setMemberSearch("");
+    setMemberGenderFilter("ALL");
+    setMemberCategoryFilter("ALL");
+    setMemberStatusFilter("ALL");
+    setMemberRoleFilter("ALL");
   };
 
   const handleBack = () => {
@@ -295,9 +321,85 @@ export default function ClubsManagement() {
           <TabsContent value="members">
             <Card>
               <CardHeader>
-                <CardTitle data-testid="text-members-title">Members</CardTitle>
+                <CardTitle data-testid="text-members-title">
+                  Members {members?.length ? `(${filteredMembers.length}${filteredMembers.length !== members.length ? ` of ${members.length}` : ""})` : ""}
+                </CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name or email..."
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      className="pl-10"
+                      data-testid="input-cm-member-search"
+                    />
+                  </div>
+                  <Select value={memberGenderFilter} onValueChange={setMemberGenderFilter}>
+                    <SelectTrigger className="w-[120px]" data-testid="select-cm-member-gender">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Gender</SelectItem>
+                      <SelectItem value="MALE">Male</SelectItem>
+                      <SelectItem value="FEMALE">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={memberCategoryFilter} onValueChange={setMemberCategoryFilter}>
+                    <SelectTrigger className="w-[110px]" data-testid="select-cm-member-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Grade</SelectItem>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={memberStatusFilter} onValueChange={setMemberStatusFilter}>
+                    <SelectTrigger className="w-[130px]" data-testid="select-cm-member-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Status</SelectItem>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="REJECTED">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
+                    <SelectTrigger className="w-[120px]" data-testid="select-cm-member-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Roles</SelectItem>
+                      <SelectItem value="OWNER">Owner</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="PLAYER">Player</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(memberSearch || memberGenderFilter !== "ALL" || memberCategoryFilter !== "ALL" || memberStatusFilter !== "ALL" || memberRoleFilter !== "ALL") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setMemberSearch("");
+                        setMemberGenderFilter("ALL");
+                        setMemberCategoryFilter("ALL");
+                        setMemberStatusFilter("ALL");
+                        setMemberRoleFilter("ALL");
+                      }}
+                      data-testid="button-cm-clear-filters"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
                 {membersLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -306,74 +408,92 @@ export default function ClubsManagement() {
                   <p className="text-muted-foreground text-center py-8" data-testid="text-no-members">
                     No members found for this club.
                   </p>
+                ) : filteredMembers.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8" data-testid="text-no-filtered-members">
+                    No members match your filters.
+                  </p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Player</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Membership Status</TableHead>
-                        <TableHead>Club Role</TableHead>
-                        <TableHead>Ranking Points</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {members.map((member) => (
-                        <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar>
-                                <AvatarFallback>{getInitials(member.user.fullName)}</AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium" data-testid={`text-member-name-${member.id}`}>
-                                {member.user.fullName}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell data-testid={`text-member-email-${member.id}`}>
-                            {member.user.email}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={member.membershipStatus}
-                              onValueChange={(value) =>
-                                updateMemberMutation.mutate({ profileId: member.id, updates: { membershipStatus: value } })
-                              }
-                            >
-                              <SelectTrigger className="w-[140px]" data-testid={`select-member-status-${member.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="PENDING">Pending</SelectItem>
-                                <SelectItem value="APPROVED">Approved</SelectItem>
-                                <SelectItem value="REJECTED">Rejected</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={member.clubRole}
-                              onValueChange={(value) =>
-                                updateMemberMutation.mutate({ profileId: member.id, updates: { clubRole: value } })
-                              }
-                            >
-                              <SelectTrigger className="w-[140px]" data-testid={`select-member-role-${member.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="OWNER">Owner</SelectItem>
-                                <SelectItem value="ADMIN">Admin</SelectItem>
-                                <SelectItem value="PLAYER">Player</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell data-testid={`text-member-points-${member.id}`}>
-                            {member.rankingPoints}
-                          </TableCell>
+                  <div className="overflow-auto max-h-[60vh]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Player</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Gender</TableHead>
+                          <TableHead>Grade</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Points</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredMembers.map((member) => (
+                          <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar>
+                                  <AvatarFallback>{getInitials(member.user.fullName)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium" data-testid={`text-member-name-${member.id}`}>
+                                  {member.user.fullName}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell data-testid={`text-member-email-${member.id}`}>
+                              {member.user.email}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-muted-foreground">{member.gender || "—"}</span>
+                            </TableCell>
+                            <TableCell>
+                              {member.category ? (
+                                <Badge variant="outline">{member.category}</Badge>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={member.membershipStatus}
+                                onValueChange={(value) =>
+                                  updateMemberMutation.mutate({ profileId: member.id, updates: { membershipStatus: value } })
+                                }
+                              >
+                                <SelectTrigger className="w-[130px]" data-testid={`select-member-status-${member.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="PENDING">Pending</SelectItem>
+                                  <SelectItem value="APPROVED">Approved</SelectItem>
+                                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={member.clubRole}
+                                onValueChange={(value) =>
+                                  updateMemberMutation.mutate({ profileId: member.id, updates: { clubRole: value } })
+                                }
+                              >
+                                <SelectTrigger className="w-[120px]" data-testid={`select-member-role-${member.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="OWNER">Owner</SelectItem>
+                                  <SelectItem value="ADMIN">Admin</SelectItem>
+                                  <SelectItem value="PLAYER">Player</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell data-testid={`text-member-points-${member.id}`}>
+                              {member.rankingPoints}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
