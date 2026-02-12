@@ -871,19 +871,6 @@ export default function SessionDetail() {
                 Start Session
               </Button>
             )}
-            {isOrganiser && session.status !== "COMPLETED" && (session as any).autoGenerateActive && (
-              <Button 
-                variant="destructive"
-                className="w-full gap-2 mt-3" 
-                onClick={() => {
-                  updateSession({ sessionId: id, updates: { autoGenerateActive: false } });
-                }}
-                data-testid="button-stop-session-main"
-              >
-                <X className="w-5 h-5" />
-                Stop Session
-              </Button>
-            )}
             {isOrganiser && session.status !== "COMPLETED" && (
               <div className="space-y-2 mt-3">
                 <Button
