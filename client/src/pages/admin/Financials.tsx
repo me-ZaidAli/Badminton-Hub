@@ -37,6 +37,7 @@ import {
   Trash2,
   History,
   Building2,
+  ArrowDownAZ,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -156,6 +157,7 @@ export default function Financials() {
 
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
+  const [sortPlayersAlpha, setSortPlayersAlpha] = useState(false);
 
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
@@ -1524,7 +1526,19 @@ export default function Financials() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Player</TableHead>
+                              <TableHead>
+                                <button
+                                  className="flex items-center gap-1 cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSortPlayersAlpha((prev) => !prev);
+                                  }}
+                                  data-testid={`button-sort-players-${sessionId}`}
+                                >
+                                  Player
+                                  <ArrowDownAZ className={`h-3 w-3 ${sortPlayersAlpha ? "text-foreground" : "text-muted-foreground"}`} />
+                                </button>
+                              </TableHead>
                               <TableHead>Fee</TableHead>
                               <TableHead>Credit Bal.</TableHead>
                               <TableHead>Status</TableHead>
@@ -1534,7 +1548,10 @@ export default function Financials() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {entries.map((entry) => renderPlayerRow(entry))}
+                            {(sortPlayersAlpha
+                              ? [...entries].sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""))
+                              : entries
+                            ).map((entry) => renderPlayerRow(entry))}
                           </TableBody>
                         </Table>
                       </div>
