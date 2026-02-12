@@ -552,7 +552,7 @@ export default function Rankings() {
       )}
 
       <PlayerStatsDialog
-        playerId={statsPlayerId}
+        profileId={statsPlayerId}
         open={statsOpen}
         onOpenChange={setStatsOpen}
       />

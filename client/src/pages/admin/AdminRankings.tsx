@@ -513,7 +513,7 @@ export default function AdminRankings() {
         </div>
       )}
 
-      <PlayerStatsDialog playerId={statsPlayerId} open={statsOpen} onOpenChange={setStatsOpen} />
+      <PlayerStatsDialog profileId={statsPlayerId} open={statsOpen} onOpenChange={setStatsOpen} />
     </div>
   );
 }

@@ -382,7 +382,7 @@ export default function ExploreRankings() {
       </section>
 
       <PlayerStatsDialog
-        playerId={statsPlayerId}
+        profileId={statsPlayerId}
         open={statsOpen}
         onOpenChange={setStatsOpen}
       />
