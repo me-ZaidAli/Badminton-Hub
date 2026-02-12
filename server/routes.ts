@@ -2183,18 +2183,31 @@ export async function registerRoutes(
       } else if (filterType === "mixed") {
         const males = players.filter(p => (p.genderOverride || p.gender) !== "FEMALE");
         const females = players.filter(p => (p.genderOverride || p.gender) === "FEMALE");
-        if (males.length < playersPerSide || females.length < playersPerSide) {
-          return res.status(400).json({ message: `Not enough mixed gender players available` });
+        if (playersPerSide > 1) {
+          if (males.length < 2 || females.length < 2) {
+            return res.status(400).json({ message: `Not enough mixed gender players available (need at least 2 males and 2 females)` });
+          }
+          const shuffledMales = males.sort(() => Math.random() - 0.5);
+          const shuffledFemales = females.sort(() => Math.random() - 0.5);
+          const updated = await storage.updateMatch(matchId, {
+            teamAPlayer1Id: shuffledMales[0].id,
+            teamAPlayer2Id: shuffledFemales[0].id,
+            teamBPlayer1Id: shuffledMales[1].id,
+            teamBPlayer2Id: shuffledFemales[1].id,
+          });
+          return res.json({ message: "Match reshuffled (mixed)", match: updated });
+        } else {
+          if (males.length < 1 || females.length < 1) {
+            return res.status(400).json({ message: `Not enough mixed gender players available` });
+          }
+          const shuffledMales = males.sort(() => Math.random() - 0.5);
+          const shuffledFemales = females.sort(() => Math.random() - 0.5);
+          const updated = await storage.updateMatch(matchId, {
+            teamAPlayer1Id: shuffledMales[0].id,
+            teamBPlayer1Id: shuffledFemales[0].id,
+          });
+          return res.json({ message: "Match reshuffled (mixed)", match: updated });
         }
-        const shuffledMales = males.sort(() => Math.random() - 0.5);
-        const shuffledFemales = females.sort(() => Math.random() - 0.5);
-        const updated = await storage.updateMatch(matchId, {
-          teamAPlayer1Id: shuffledMales[0].id,
-          teamAPlayer2Id: playersPerSide > 1 ? shuffledMales[1]?.id : null,
-          teamBPlayer1Id: shuffledFemales[0].id,
-          teamBPlayer2Id: playersPerSide > 1 ? shuffledFemales[1]?.id : null,
-        });
-        return res.json({ message: "Match reshuffled (mixed)", match: updated });
       }
 
       if (players.length < playersPerMatch) {
