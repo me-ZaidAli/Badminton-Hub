@@ -1629,8 +1629,28 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const handleSmartGenerate = () => {
-    if (showNotEnoughPlayersWarning()) return;
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType });
+    if (activePlayerCount < minPlayersNeeded) {
+      if (showNotEnoughPlayersWarning()) return;
+    }
+    setNotEnoughPlayersMessage(null);
+    if (!autoGenerateActive || autoGenLocallyStopped) {
+      setAutoGenLocallyStopped(false);
+      updateSession({ sessionId, updates: { autoGenerateActive: true } });
+    }
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+      onSuccess: (data: any) => {
+        if (data?.status === "waiting") {
+          setAutoGenWaiting(true);
+          setPairConstraintMessage(null);
+        } else if (data?.status === "pair_blocked") {
+          setAutoGenWaiting(true);
+          setPairConstraintMessage(data.message || "Waiting for matches to finish to allow different pair combinations.");
+        } else {
+          setAutoGenWaiting(false);
+          setPairConstraintMessage(null);
+        }
+      },
+    });
   };
 
   const handleStartAutoGenerate = () => {
