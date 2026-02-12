@@ -898,24 +898,16 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Default Points to Play To</FormLabel>
-                  <Select
-                    value={String(field.value || 21)}
-                    onValueChange={(v) => field.onChange(Number(v))}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="select-default-points">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="7">7 Points</SelectItem>
-                      <SelectItem value="11">11 Points</SelectItem>
-                      <SelectItem value="15">15 Points</SelectItem>
-                      <SelectItem value="21">21 Points</SelectItem>
-                      <SelectItem value="25">25 Points</SelectItem>
-                      <SelectItem value="30">30 Points</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="21"
+                      value={field.value || ""}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : 21)}
+                      data-testid="input-default-points"
+                    />
+                  </FormControl>
                   <FormDescription>Default score target for all matches (can be changed per match)</FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -1322,19 +1314,15 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Default Points to Play To</Label>
-              <Select value={String(editDefaultPoints)} onValueChange={(v) => setEditDefaultPoints(Number(v))}>
-                <SelectTrigger className="mt-2" data-testid="select-edit-default-points">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 Points</SelectItem>
-                  <SelectItem value="11">11 Points</SelectItem>
-                  <SelectItem value="15">15 Points</SelectItem>
-                  <SelectItem value="21">21 Points</SelectItem>
-                  <SelectItem value="25">25 Points</SelectItem>
-                  <SelectItem value="30">30 Points</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                type="number"
+                min={1}
+                className="mt-2"
+                placeholder="21"
+                value={editDefaultPoints || ""}
+                onChange={(e) => setEditDefaultPoints(e.target.value ? Number(e.target.value) : 21)}
+                data-testid="input-edit-default-points"
+              />
             </div>
             <div>
               <Label>Sets Per Match</Label>
