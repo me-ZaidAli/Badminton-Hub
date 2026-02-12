@@ -64,6 +64,7 @@ import ClubsManagement from "@/pages/ClubsManagement";
 import PasswordResets from "@/pages/admin/PasswordResets";
 import ContactForm from "@/pages/ContactForm";
 import Messages from "@/pages/admin/Messages";
+import InboxPage from "@/pages/Inbox";
 import PolicyPage from "@/pages/PolicyPage";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsConditions from "@/pages/TermsConditions";
@@ -278,6 +279,9 @@ function Router() {
       </Route>
       <Route path="/pending-approval">
         <PrivateRoute component={PendingApproval} />
+      </Route>
+      <Route path="/inbox">
+        <PrivateRoute component={InboxPage} />
       </Route>
 
       <Route path="/contact">

@@ -539,6 +539,18 @@ export const announcements = pgTable("announcements", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// === INTERNAL MESSAGES ===
+export const internalMessages = pgTable("internal_messages", {
+  id: serial("id").primaryKey(),
+  senderId: integer("sender_id").references(() => users.id).notNull(),
+  recipientId: integer("recipient_id").references(() => users.id).notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === POLICY ACCEPTANCES ===
 export const policyAcceptances = pgTable("policy_acceptances", {
   id: serial("id").primaryKey(),
@@ -705,6 +717,7 @@ export const insertTournamentCategorySchema = createInsertSchema(tournamentCateg
 export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).omit({ id: true, createdAt: true });
 export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
 
+export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({ id: true, createdAt: true, readAt: true });
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
 export const insertCreditLedgerSchema = createInsertSchema(creditLedger).omit({ id: true, createdAt: true });
 export const insertMembershipPlanSchema = createInsertSchema(membershipPlans).omit({ id: true, createdAt: true });
@@ -775,4 +788,6 @@ export type InsertTournamentCategory = z.infer<typeof insertTournamentCategorySc
 export type InsertTournamentTeam = z.infer<typeof insertTournamentTeamSchema>;
 export type InsertTournamentMatch = z.infer<typeof insertTournamentMatchSchema>;
 export type PolicyAcceptance = typeof policyAcceptances.$inferSelect;
+export type InternalMessage = typeof internalMessages.$inferSelect;
+export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
 export type InsertPolicyAcceptance = z.infer<typeof insertPolicyAcceptanceSchema>;

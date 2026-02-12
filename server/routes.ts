@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -7872,6 +7872,417 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching financial dashboard:", err);
       res.status(500).json({ message: "Failed to fetch financial dashboard" });
+    }
+  });
+
+  // === INTERNAL MESSAGES ===
+  app.get("/api/messages/inbox", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const messages = await db.select({
+        id: internalMessages.id,
+        senderId: internalMessages.senderId,
+        recipientId: internalMessages.recipientId,
+        subject: internalMessages.subject,
+        body: internalMessages.body,
+        clubId: internalMessages.clubId,
+        readAt: internalMessages.readAt,
+        createdAt: internalMessages.createdAt,
+        senderName: users.fullName,
+        senderEmail: users.email,
+      }).from(internalMessages)
+        .innerJoin(users, eq(internalMessages.senderId, users.id))
+        .where(eq(internalMessages.recipientId, userId))
+        .orderBy(desc(internalMessages.createdAt));
+      res.json(messages);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch inbox" });
+    }
+  });
+
+  app.get("/api/messages/sent", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const messages = await db.select({
+        id: internalMessages.id,
+        senderId: internalMessages.senderId,
+        recipientId: internalMessages.recipientId,
+        subject: internalMessages.subject,
+        body: internalMessages.body,
+        clubId: internalMessages.clubId,
+        readAt: internalMessages.readAt,
+        createdAt: internalMessages.createdAt,
+        recipientName: users.fullName,
+        recipientEmail: users.email,
+      }).from(internalMessages)
+        .innerJoin(users, eq(internalMessages.recipientId, users.id))
+        .where(eq(internalMessages.senderId, userId))
+        .orderBy(desc(internalMessages.createdAt));
+      res.json(messages);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch sent messages" });
+    }
+  });
+
+  app.get("/api/messages/unread-count", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const result = await db.select({ count: sql<number>`count(*)::int` })
+        .from(internalMessages)
+        .where(and(eq(internalMessages.recipientId, userId), sql`${internalMessages.readAt} IS NULL`));
+      res.json({ count: result[0]?.count || 0 });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
+  app.post("/api/messages/send", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const senderId = (req.user as any).id;
+      const { recipientId, recipientEmail, subject, body, clubId } = req.body;
+      let resolvedRecipientId = recipientId ? Number(recipientId) : null;
+      if (!resolvedRecipientId && recipientEmail) {
+        const [recipient] = await db.select().from(users).where(eq(users.email, recipientEmail.trim().toLowerCase()));
+        if (!recipient) {
+          return res.status(404).json({ message: "Recipient not found with that email address" });
+        }
+        resolvedRecipientId = recipient.id;
+      }
+      if (!resolvedRecipientId || !body) {
+        return res.status(400).json({ message: "Recipient and message body are required" });
+      }
+      const [msg] = await db.insert(internalMessages).values({
+        senderId,
+        recipientId: resolvedRecipientId,
+        subject: subject || "(No Subject)",
+        body,
+        clubId: clubId ? Number(clubId) : null,
+      }).returning();
+      res.json(msg);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.patch("/api/messages/:id/read", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const messageId = Number(req.params.id);
+      const [msg] = await db.update(internalMessages)
+        .set({ readAt: new Date() })
+        .where(and(eq(internalMessages.id, messageId), eq(internalMessages.recipientId, userId)))
+        .returning();
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+      res.json(msg);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to mark message as read" });
+    }
+  });
+
+  app.post("/api/messages/mark-all-read", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      await db.update(internalMessages)
+        .set({ readAt: new Date() })
+        .where(and(eq(internalMessages.recipientId, userId), sql`${internalMessages.readAt} IS NULL`));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to mark all as read" });
+    }
+  });
+
+  app.delete("/api/messages/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const messageId = Number(req.params.id);
+      const [msg] = await db.select().from(internalMessages).where(eq(internalMessages.id, messageId));
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+      if (msg.senderId !== userId && msg.recipientId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      await db.delete(internalMessages).where(eq(internalMessages.id, messageId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to delete message" });
+    }
+  });
+
+  // Club member comprehensive data for management
+  app.get("/api/clubs/:clubId/members-comprehensive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const members = await db.select({
+        profileId: playerProfiles.id,
+        userId: playerProfiles.userId,
+        clubId: playerProfiles.clubId,
+        clubRole: playerProfiles.clubRole,
+        membershipStatus: playerProfiles.membershipStatus,
+        playerStatus: playerProfiles.playerStatus,
+        gender: playerProfiles.gender,
+        category: playerProfiles.category,
+        rankingPoints: playerProfiles.rankingPoints,
+        matchesPlayed: playerProfiles.matchesPlayed,
+        matchesWon: playerProfiles.matchesWon,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        city: users.city,
+        country: users.country,
+        region: users.region,
+        continent: users.continent,
+        nickname: users.nickname,
+        dateOfBirth: users.dateOfBirth,
+        isJunior: users.isJunior,
+        parentGuardianName: users.parentGuardianName,
+        parentGuardianEmail: users.parentGuardianEmail,
+        profilePictureUrl: users.profilePictureUrl,
+        accountStatus: users.accountStatus,
+        role: users.role,
+        createdAt: users.createdAt,
+      }).from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(eq(playerProfiles.clubId, clubId))
+        .orderBy(users.fullName);
+      res.json(members);
+    } catch (err: any) {
+      console.error("Error fetching club members:", err);
+      res.status(500).json({ message: "Failed to fetch club members" });
+    }
+  });
+
+  // Club pending approvals 
+  app.get("/api/clubs/:clubId/pending-approvals", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const pending = await db.select({
+        profileId: playerProfiles.id,
+        userId: playerProfiles.userId,
+        clubRole: playerProfiles.clubRole,
+        membershipStatus: playerProfiles.membershipStatus,
+        gender: playerProfiles.gender,
+        category: playerProfiles.category,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        city: users.city,
+        createdAt: users.createdAt,
+      }).from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "PENDING")))
+        .orderBy(users.fullName);
+      res.json(pending);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch pending approvals" });
+    }
+  });
+
+  // Approve/Reject club membership
+  app.patch("/api/clubs/:clubId/members/:profileId/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      const { membershipStatus } = req.body;
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const [updated] = await db.update(playerProfiles)
+        .set({ membershipStatus })
+        .where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update member status" });
+    }
+  });
+
+  // Bulk member actions (delete, archive, pause, suspend)
+  app.post("/api/clubs/:clubId/members/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const { profileIds, action } = req.body;
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      if (!Array.isArray(profileIds) || profileIds.length === 0) {
+        return res.status(400).json({ message: "No profiles selected" });
+      }
+      const ids = profileIds.map(Number);
+      if (action === "DELETE") {
+        await db.delete(playerProfiles).where(and(inArray(playerProfiles.id, ids), eq(playerProfiles.clubId, clubId)));
+      } else if (action === "ARCHIVE") {
+        await db.update(playerProfiles).set({ playerStatus: "ARCHIVED" as any }).where(and(inArray(playerProfiles.id, ids), eq(playerProfiles.clubId, clubId)));
+      } else if (action === "PAUSE" || action === "SUSPEND") {
+        await db.update(playerProfiles).set({ playerStatus: "SUSPENDED" as any }).where(and(inArray(playerProfiles.id, ids), eq(playerProfiles.clubId, clubId)));
+      } else {
+        return res.status(400).json({ message: "Invalid action" });
+      }
+      res.json({ success: true, affected: ids.length });
+    } catch (err: any) {
+      console.error("Bulk action error:", err);
+      res.status(500).json({ message: "Failed to perform bulk action" });
+    }
+  });
+
+  // Delete club permanently (super admin only)
+  app.delete("/api/super-admin/clubs/:id/permanent", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.status(403).json({ message: "Not authorized" });
+    try {
+      const clubId = Number(req.params.id);
+      await db.delete(sessionSignups).where(
+        inArray(sessionSignups.sessionId, db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId)))
+      );
+      await db.delete(matches).where(
+        inArray(matches.sessionId, db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId)))
+      );
+      await db.delete(sessions).where(eq(sessions.clubId, clubId));
+      await db.delete(playerProfiles).where(eq(playerProfiles.clubId, clubId));
+      await db.delete(clubMemberships).where(eq(clubMemberships.clubId, clubId));
+      await db.delete(membershipRequests).where(eq(membershipRequests.clubId, clubId));
+      await db.delete(clubs).where(eq(clubs.id, clubId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error permanently deleting club:", err);
+      res.status(500).json({ message: "Failed to permanently delete club" });
+    }
+  });
+
+  // Archive club (super admin only) 
+  app.patch("/api/super-admin/clubs/:id/archive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.status(403).json({ message: "Not authorized" });
+    try {
+      const clubId = Number(req.params.id);
+      const [updated] = await db.update(clubs)
+        .set({ status: "ARCHIVED" as any, isActive: false })
+        .where(eq(clubs.id, clubId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Club not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to archive club" });
+    }
+  });
+
+  // Update member profile comprehensive (for club management)
+  app.patch("/api/clubs/:clubId/members/:profileId/comprehensive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      if (profile.length === 0) return res.status(404).json({ message: "Profile not found" });
+      const { gender, category, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role } = req.body;
+      const profileUpdates: any = {};
+      if (gender !== undefined) profileUpdates.gender = gender;
+      if (category !== undefined) profileUpdates.category = category;
+      if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
+      if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
+      if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
+      if (Object.keys(profileUpdates).length > 0) {
+        await db.update(playerProfiles).set(profileUpdates).where(eq(playerProfiles.id, profileId));
+      }
+      const userUpdates: any = {};
+      if (fullName !== undefined) userUpdates.fullName = fullName;
+      if (email !== undefined) userUpdates.email = email;
+      if (phone !== undefined) userUpdates.phone = phone;
+      if (city !== undefined) userUpdates.city = city;
+      if (country !== undefined) userUpdates.country = country;
+      if (region !== undefined) userUpdates.region = region;
+      if (continent !== undefined) userUpdates.continent = continent;
+      if (nickname !== undefined) userUpdates.nickname = nickname;
+      if (dateOfBirth !== undefined) userUpdates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (isJunior !== undefined) userUpdates.isJunior = isJunior;
+      if (parentGuardianName !== undefined) userUpdates.parentGuardianName = parentGuardianName;
+      if (parentGuardianEmail !== undefined) userUpdates.parentGuardianEmail = parentGuardianEmail;
+      if (role !== undefined && user.role === "OWNER") userUpdates.role = role;
+      if (Object.keys(userUpdates).length > 0) {
+        await db.update(users).set(userUpdates).where(eq(users.id, profile[0].userId));
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating member:", err);
+      res.status(500).json({ message: "Failed to update member" });
+    }
+  });
+
+  // Delete member profile completely
+  app.delete("/api/clubs/:clubId/members/:profileId/permanent", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      await db.delete(sessionSignups).where(eq(sessionSignups.playerId, profileId));
+      await db.delete(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting member:", err);
+      res.status(500).json({ message: "Failed to delete member" });
+    }
+  });
+
+  // Reset password for a member (admin/super admin)
+  app.post("/api/clubs/:clubId/members/:userId/reset-password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const adminUser = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const targetUserId = Number(req.params.userId);
+      if (adminUser.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, adminUser.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.update(users).set({ passwordResetToken: token, passwordResetExpiry: expiry }).where(eq(users.id, targetUserId));
+      res.json({ success: true, resetToken: token });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to generate reset token" });
     }
   });
 

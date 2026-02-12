@@ -13,6 +13,8 @@ import {
   User,
   Zap,
   Shield,
+  Building2,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,6 +33,8 @@ function useNavItems(): NavItem[] {
 
   const navItems: NavItem[] = [
     { href: "/sessions", label: "Sessions", icon: Calendar },
+    { href: "/clubs", label: "Clubs", icon: Building2 },
+    { href: "/inbox", label: "Inbox", icon: Mail },
   ];
 
   if (user?.role === "OWNER") {
