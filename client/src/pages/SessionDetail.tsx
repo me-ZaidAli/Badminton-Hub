@@ -1425,6 +1425,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [fcSubmitting, setFcSubmitting] = useState(false);
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
+  const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
 
   const isSessionCompleted = sessionStatus === "COMPLETED";
 
@@ -1535,7 +1536,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
   const minPlayersNeeded = playersPerSide * 2;
   const pausedCount = attendingSignups.filter(s => s.isPaused).length;
-  const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
 
   const getNotEnoughPlayersText = () => {
     if (activePlayerCount < minPlayersNeeded) {
@@ -1600,6 +1600,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     const currentQueuedCount = typedMatches.filter(m => m.status === "QUEUED").length;
     if (currentQueuedCount > newSize) {
       trimQueue({ sessionId, targetSize: newSize });
+    } else if (currentQueuedCount < newSize && autoGenerateActive && !autoGenLocallyStopped) {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true });
     }
   };
 
@@ -1803,10 +1805,20 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                   </Select>
 
                   {(!autoGenerateActive || autoGenLocallyStopped) ? (
+                    <Button 
+                      onClick={handleStartAutoGenerate}
+                      className="gap-2"
+                      data-testid="button-start-session"
+                    >
+                      <PlayCircle className="w-4 h-4" />
+                      Start Session
+                    </Button>
+                  ) : (
                     <>
                       <Button 
                         onClick={handleSmartGenerate}
                         disabled={isSmartGenerating}
+                        variant="outline"
                         className="gap-2"
                         data-testid="button-generate-matches"
                       >
@@ -1814,25 +1826,15 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                         {isSmartGenerating ? "Generating..." : "Generate Matches"}
                       </Button>
                       <Button 
-                        onClick={handleStartAutoGenerate}
-                        variant="outline"
+                        onClick={handleStopAutoGenerate}
+                        variant="destructive"
                         className="gap-2"
-                        data-testid="button-start-auto-generate"
+                        data-testid="button-stop-session"
                       >
-                        <PlayCircle className="w-4 h-4" />
-                        Auto Generate
+                        <X className="w-4 h-4" />
+                        Stop Session
                       </Button>
                     </>
-                  ) : (
-                    <Button 
-                      onClick={handleStopAutoGenerate}
-                      variant="destructive"
-                      className="gap-2"
-                      data-testid="button-stop-generating"
-                    >
-                      <X className="w-4 h-4" />
-                      Stop Auto-Generated Matches
-                    </Button>
                   )}
 
                   <Button
@@ -1871,7 +1873,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
           ) : autoGenWaiting ? (
             <span>Waiting for matches to finish before generating new ones... (target: {queueTargetSize} queued)</span>
           ) : (
-            <span>Auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
+            <span>Session active — auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
           )}
         </div>
       )}
@@ -1920,9 +1922,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               activeMode={activeMode}
               genderType={generateGenderType}
               defaultPointsToPlayTo={defaultPointsToPlayTo}
-              autoGenerateActive={autoGenerateActive && !autoGenLocallyStopped}
-              onStopAutoGenerate={handleStopAutoGenerate}
-              onStartAutoGenerate={handleStartAutoGenerate}
               onGenerateMatch={handleSmartGenerate}
               isGenerating={isSmartGenerating}
               queueTargetSize={queueTargetSize}

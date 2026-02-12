@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Zap, Play, AlertTriangle } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -29,9 +29,6 @@ type MatchQueueProps = {
   activeMode?: string;
   genderType?: string;
   defaultPointsToPlayTo?: number;
-  autoGenerateActive?: boolean;
-  onStopAutoGenerate?: () => void;
-  onStartAutoGenerate?: () => void;
   onGenerateMatch?: () => void;
   isGenerating?: boolean;
   queueTargetSize?: number;
@@ -189,9 +186,6 @@ export function MatchQueue({
   activeMode,
   genderType,
   defaultPointsToPlayTo = 21,
-  autoGenerateActive,
-  onStopAutoGenerate,
-  onStartAutoGenerate,
   onGenerateMatch,
   isGenerating,
   queueTargetSize,
@@ -239,7 +233,7 @@ export function MatchQueue({
                     </Select>
                   </div>
                 )}
-                {isOrganiser && onGenerateMatch && !autoGenerateActive && (
+                {isOrganiser && onGenerateMatch && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -249,29 +243,6 @@ export function MatchQueue({
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
                     Generate
-                  </Button>
-                )}
-                {isOrganiser && !autoGenerateActive && onStartAutoGenerate && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={onStartAutoGenerate}
-                    disabled={isGenerating}
-                    data-testid="button-start-auto-generate-queue"
-                  >
-                    <Zap className="w-4 h-4 mr-1" />
-                    Auto
-                  </Button>
-                )}
-                {autoGenerateActive && onStopAutoGenerate && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={onStopAutoGenerate}
-                    data-testid="button-stop-auto-generate-queue"
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Stop
                   </Button>
                 )}
                 {onClearQueue && queuedMatches.length > 0 && (
