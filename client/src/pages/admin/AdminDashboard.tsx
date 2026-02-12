@@ -45,8 +45,6 @@ export default function AdminDashboard() {
   const [downloadingAttendance, setDownloadingAttendance] = useState(false);
 
   const isOwner = user?.role === "OWNER";
-  const isAdmin = user?.role === "ADMIN" || isOwner;
-  const hasClubAdminAccess = !isOwner && !isAdmin;
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics"],
@@ -93,8 +91,7 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-3xl font-display font-bold" data-testid="text-dashboard-title">Admin Panel</h1>
           <p className="text-muted-foreground">
-            {isOwner ? "Platform overview across all clubs and members." : 
-             `Overview of your managed club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}.`}
+            {`Overview of your managed club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}.`}
           </p>
         </div>
         <Badge variant="outline" className="text-sm py-1 px-3">
@@ -231,7 +228,7 @@ export default function AdminDashboard() {
           </Link>
         </Card>
 
-        {isAdmin && (
+        {(myAdminClubs?.length ?? 0) > 0 && (
           <Card className="border-border/50 hover-elevate cursor-pointer">
             <Link href="/admin/announcements">
               <CardHeader>

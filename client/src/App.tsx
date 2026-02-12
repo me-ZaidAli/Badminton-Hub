@@ -112,11 +112,9 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
     return null;
   }
 
-  const isSuperAdmin = user.role === "OWNER";
-  const isPlatformAdmin = user.role === "ADMIN";
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   
-  if (!isSuperAdmin && !isPlatformAdmin && !hasClubAdminAccess) {
+  if (!hasClubAdminAccess) {
     setLocation("/dashboard");
     return null;
   }

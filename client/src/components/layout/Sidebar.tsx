@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
+import { useMyAdminClubs } from "@/hooks/use-clubs";
 import logoPath from "@assets/image_1770381062912.png";
 import { useState } from "react";
 import { 
@@ -30,6 +31,7 @@ interface NavItem {
 
 function useNavItems(): NavItem[] {
   const { data: user } = useUser();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
   const navItems: NavItem[] = [
     { href: "/sessions", label: "Sessions", icon: Calendar },
@@ -37,10 +39,14 @@ function useNavItems(): NavItem[] {
     { href: "/inbox", label: "Inbox", icon: Mail },
   ];
 
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+
   if (user?.role === "OWNER") {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+    if (hasClubAdminAccess) {
+      navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+    }
     navItems.push({ href: "/super-admin", label: "God's Mode", icon: Shield, section: "super-admin" });
-  } else if (user?.role === "ADMIN") {
+  } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
   }
 

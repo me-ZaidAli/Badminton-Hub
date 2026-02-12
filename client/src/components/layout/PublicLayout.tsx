@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
+import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -16,6 +17,7 @@ const publicNavItems = [
 
 function useNavItems() {
   const { data: user } = useUser();
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
   if (user) {
     const items = [
@@ -25,12 +27,15 @@ function useNavItems() {
       { label: "Contact", href: "/contact", icon: Mail },
     ];
 
-    if (user.role === "ADMIN") {
-      items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
-    }
+    const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+
     if (user.role === "OWNER") {
-      items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
+      if (hasClubAdminAccess) {
+        items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
+      }
       items.push({ label: "God's Mode", href: "/super-admin", icon: Shield });
+    } else if (user.role === "ADMIN" || hasClubAdminAccess) {
+      items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
     }
 
     return items;
