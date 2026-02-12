@@ -8,8 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, CalendarPlus, UserCheck, Download, Building2, Trophy, Upload } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -174,49 +173,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {analytics?.clubs && analytics.clubs.length > 0 && (
-        <Card className="border-border/50" data-testid="card-club-summary">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Club Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Club</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Players</TableHead>
-                    <TableHead className="text-right">Sessions</TableHead>
-                    <TableHead className="text-right">Matches</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analytics.clubs.map((club) => (
-                    <TableRow key={club.clubId} data-testid={`row-club-summary-${club.clubId}`}>
-                      <TableCell className="font-medium">{club.clubName}</TableCell>
-                      <TableCell>
-                        <Badge variant={club.status === "APPROVED" ? "default" : "secondary"}>
-                          {club.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{club.totalPlayers}</TableCell>
-                      <TableCell className="text-right">{club.totalSessions}</TableCell>
-                      <TableCell className="text-right">{club.totalMatches}</TableCell>
-                      <TableCell className="text-right">£{(club.totalRevenue / 100).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border-border/50 hover-elevate cursor-pointer">
           <Link href="/admin/players">
@@ -295,28 +251,6 @@ export default function AdminDashboard() {
             </Link>
           </Card>
         )}
-
-        {isAdmin && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-calendar-import">
-            <Link href="/admin/calendar">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <CalendarPlus className="h-5 w-5 text-teal-500" />
-                    Calendar Import
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Import sessions from Google Calendar automatically.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
-
 
         <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
           <Link href="/admin/import-members">
