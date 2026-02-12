@@ -101,6 +101,9 @@ export const clubs = pgTable("clubs", {
   // Equipment & Extras
   shuttlecockType: text("shuttlecock_type"), // "feather", "plastic", or "both"
   providesClubTShirts: boolean("provides_club_tshirts").default(false).notNull(),
+  // Club Policies & Standards (shown to members when joining)
+  clubPolicies: text("club_policies"),
+  clubStandards: text("club_standards"),
   // Contact Information (visible only to super admin)
   contactFullName: text("contact_full_name"),
   contactPhone: text("contact_phone"),
