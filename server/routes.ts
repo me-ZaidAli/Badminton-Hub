@@ -2136,16 +2136,34 @@ export async function registerRoutes(
 
       const mode = req.query.mode as string || req.body?.mode;
       const genderType = req.query.genderType as string || req.body?.genderType;
+      const filterType = req.body?.filterType as string | undefined;
       const matchMode = mode || session.matchMode || "SOCIAL";
       const playersPerSide = session.playersPerSide || 2;
       const playersPerMatch = playersPerSide * 2;
-      const gType = genderType || session.matchGenderType || "MIXED";
+
+      let gType = genderType || session.matchGenderType || "MIXED";
+      if (filterType === "female_only") gType = "FEMALE";
+      else if (filterType === "male_only") gType = "MALE";
+      else if (filterType === "mixed") gType = "MIXED";
 
       const signups = await storage.getSessionSignups(match.sessionId);
       const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
       const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
-      const players = eligibleSignups
+
+      const existingMatches = await storage.getSessionMatches(match.sessionId);
+      const busyPlayerIds = new Set<number>();
+      existingMatches
+        .filter(m => m.status === "LIVE")
+        .forEach(m => {
+          if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+        });
+
+      let players = eligibleSignups
         .filter(s => !s.isPaused)
+        .filter(s => !busyPlayerIds.has(s.player.id))
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
@@ -2154,11 +2172,42 @@ export async function registerRoutes(
           genderOverride: s.genderOverride,
         }));
 
-      if (players.length < playersPerMatch) {
-        return res.status(400).json({ message: `Need at least ${playersPerMatch} active players to reshuffle` });
+      if (filterType === "female_only") {
+        players = players.filter(p => (p.genderOverride || p.gender) === "FEMALE");
+      } else if (filterType === "male_only") {
+        players = players.filter(p => (p.genderOverride || p.gender) === "MALE");
+      } else if (filterType === "high_grade") {
+        players = players.filter(p => p.category === "A" || p.category === "B");
+      } else if (filterType === "low_grade") {
+        players = players.filter(p => p.category === "C" || p.category === "D");
+      } else if (filterType === "mixed") {
+        const males = players.filter(p => (p.genderOverride || p.gender) !== "FEMALE");
+        const females = players.filter(p => (p.genderOverride || p.gender) === "FEMALE");
+        if (males.length < playersPerSide || females.length < playersPerSide) {
+          return res.status(400).json({ message: `Not enough mixed gender players available` });
+        }
+        const shuffledMales = males.sort(() => Math.random() - 0.5);
+        const shuffledFemales = females.sort(() => Math.random() - 0.5);
+        const updated = await storage.updateMatch(matchId, {
+          teamAPlayer1Id: shuffledMales[0].id,
+          teamAPlayer2Id: playersPerSide > 1 ? shuffledMales[1]?.id : null,
+          teamBPlayer1Id: shuffledFemales[0].id,
+          teamBPlayer2Id: playersPerSide > 1 ? shuffledFemales[1]?.id : null,
+        });
+        return res.json({ message: "Match reshuffled (mixed)", match: updated });
       }
 
-      const existingMatches = await storage.getSessionMatches(match.sessionId);
+      if (players.length < playersPerMatch) {
+        const filterLabels: Record<string, string> = {
+          female_only: "female",
+          male_only: "male",
+          high_grade: "high grade (A/B)",
+          low_grade: "low grade (C/D)",
+        };
+        const label = filterType ? filterLabels[filterType] || filterType : "";
+        return res.status(400).json({ message: `Not enough ${label} players available` });
+      }
+
       const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
         existingMatches
           .filter(m => m.id !== matchId)

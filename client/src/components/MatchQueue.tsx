@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
@@ -197,6 +197,17 @@ export function MatchQueue({
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
   const { mutate: updateTarget } = useUpdateMatchTarget();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
+  const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
+
+  const handleFilteredReshuffle = (matchId: number, filterType: string) => {
+    setReshuffleErrors(prev => { const n = { ...prev }; delete n[matchId]; return n; });
+    reshuffleMatch({ matchId, mode: activeMode, genderType, filterType }, {
+      onError: (error: Error) => {
+        setReshuffleErrors(prev => ({ ...prev, [matchId]: error.message }));
+        setTimeout(() => setReshuffleErrors(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 3000);
+      },
+    });
+  };
 
   const queuedMatches = matches
     .filter(m => m.status === "QUEUED")
@@ -379,10 +390,52 @@ export function MatchQueue({
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
+                              onClick={() => handleFilteredReshuffle(match.id, "female_only")}
                               disabled={isReshuffling}
-                              data-testid={`button-reshuffle-${match.id}`}
-                              title="Reshuffle players"
+                              data-testid={`button-reshuffle-female-${match.id}`}
+                              title="Female only"
+                              className="text-pink-500"
+                            >
+                              <span className="text-sm font-bold">F</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "male_only")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-male-${match.id}`}
+                              title="Male only"
+                              className="text-blue-500"
+                            >
+                              <span className="text-sm font-bold">M</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "high_grade")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-high-${match.id}`}
+                              title="High grade (A/B)"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "low_grade")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-low-${match.id}`}
+                              title="Low grade (C/D)"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-mixed-${match.id}`}
+                              title="Mixed (male vs female)"
                             >
                               <Shuffle className="w-4 h-4" />
                             </Button>
@@ -398,6 +451,12 @@ export function MatchQueue({
                           </div>
                         )}
                       </div>
+                      {reshuffleErrors[match.id] && (
+                        <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-${match.id}`}>
+                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{reshuffleErrors[match.id]}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* --- DESKTOP/TABLET LAYOUT (>= sm) --- */}
@@ -489,14 +548,56 @@ export function MatchQueue({
                           </div>
                         )}
                         {isOrganiser && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => reshuffleMatch({ matchId: match.id, mode: activeMode, genderType })}
+                              onClick={() => handleFilteredReshuffle(match.id, "female_only")}
                               disabled={isReshuffling}
-                              data-testid={`button-reshuffle-${match.id}`}
-                              title="Reshuffle players"
+                              data-testid={`button-reshuffle-female-desktop-${match.id}`}
+                              title="Female only"
+                              className="text-pink-500"
+                            >
+                              <span className="text-sm font-bold">F</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "male_only")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-male-desktop-${match.id}`}
+                              title="Male only"
+                              className="text-blue-500"
+                            >
+                              <span className="text-sm font-bold">M</span>
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "high_grade")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-high-desktop-${match.id}`}
+                              title="High grade (A/B)"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "low_grade")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-low-desktop-${match.id}`}
+                              title="Low grade (C/D)"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
+                              title="Mixed (male vs female)"
                             >
                               <Shuffle className="w-4 h-4" />
                             </Button>
@@ -504,11 +605,17 @@ export function MatchQueue({
                               size="icon"
                               variant="ghost"
                               onClick={() => setDeleteConfirm(match)}
-                              data-testid={`button-delete-queued-${match.id}`}
+                              data-testid={`button-delete-queued-desktop-${match.id}`}
                               title="Remove match"
                             >
                               <Trash2 className="w-4 h-4 text-destructive" />
                             </Button>
+                          </div>
+                        )}
+                        {reshuffleErrors[match.id] && (
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-desktop-${match.id}`}>
+                            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{reshuffleErrors[match.id]}</span>
                           </div>
                         )}
                       </div>

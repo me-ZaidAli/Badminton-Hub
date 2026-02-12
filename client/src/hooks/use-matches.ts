@@ -284,11 +284,11 @@ export function useReshuffleMatch() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ matchId, mode, genderType }: { matchId: number; mode?: string; genderType?: string }) => {
+    mutationFn: async ({ matchId, mode, genderType, filterType }: { matchId: number; mode?: string; genderType?: string; filterType?: string }) => {
       const res = await fetch(`/api/matches/${matchId}/reshuffle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, genderType }),
+        body: JSON.stringify({ mode, genderType, filterType }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -300,9 +300,6 @@ export function useReshuffleMatch() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       toast({ title: "Match Reshuffled", description: "New player combination generated." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Reshuffle Failed", description: error.message, variant: "destructive" });
     },
   });
 }
