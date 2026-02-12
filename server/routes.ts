@@ -7876,53 +7876,163 @@ export async function registerRoutes(
   });
 
   // === INTERNAL MESSAGES ===
-  app.get("/api/messages/inbox", async (req, res) => {
+
+  app.get("/api/messages/contacts", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
-      const messages = await db.select({
-        id: internalMessages.id,
-        senderId: internalMessages.senderId,
-        recipientId: internalMessages.recipientId,
-        subject: internalMessages.subject,
-        body: internalMessages.body,
-        clubId: internalMessages.clubId,
-        readAt: internalMessages.readAt,
-        createdAt: internalMessages.createdAt,
-        senderName: users.fullName,
-        senderEmail: users.email,
-      }).from(internalMessages)
-        .innerJoin(users, eq(internalMessages.senderId, users.id))
-        .where(eq(internalMessages.recipientId, userId))
-        .orderBy(desc(internalMessages.createdAt));
-      res.json(messages);
+      const userRole = (req.user as any).role;
+
+      let contactableUserIds = new Set<number>();
+
+      if (userRole === "OWNER") {
+        const allUsers = await db.select({ id: users.id }).from(users);
+        allUsers.forEach(u => contactableUserIds.add(u.id));
+      } else {
+        const myProfiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")));
+        const myClubIds = myProfiles.map(p => p.clubId);
+
+        if (myClubIds.length > 0) {
+          const clubMembers = await db.select({ userId: playerProfiles.userId })
+            .from(playerProfiles)
+            .where(and(inArray(playerProfiles.clubId, myClubIds), eq(playerProfiles.membershipStatus, "APPROVED")));
+          clubMembers.forEach(m => contactableUserIds.add(m.userId));
+        }
+
+        const superAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER"));
+        superAdmins.forEach(a => contactableUserIds.add(a.id));
+      }
+
+      contactableUserIds.delete(userId);
+
+      if (contactableUserIds.size === 0) {
+        return res.json([]);
+      }
+
+      const contactUsers = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        role: users.role,
+      }).from(users).where(inArray(users.id, [...contactableUserIds]));
+
+      res.json(contactUsers.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "")));
     } catch (err: any) {
-      res.status(500).json({ message: "Failed to fetch inbox" });
+      res.status(500).json({ message: "Failed to fetch contacts" });
     }
   });
 
-  app.get("/api/messages/sent", async (req, res) => {
+  app.get("/api/messages/conversations", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
+      const allMessages = await db.select({
+        id: internalMessages.id,
+        senderId: internalMessages.senderId,
+        recipientId: internalMessages.recipientId,
+        body: internalMessages.body,
+        readAt: internalMessages.readAt,
+        archivedBySender: internalMessages.archivedBySender,
+        archivedByRecipient: internalMessages.archivedByRecipient,
+        createdAt: internalMessages.createdAt,
+      }).from(internalMessages)
+        .where(or(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, userId)))
+        .orderBy(desc(internalMessages.createdAt));
+
+      const conversations: Record<number, {
+        contactId: number;
+        lastMessage: string;
+        lastMessageAt: string;
+        unreadCount: number;
+        isArchived: boolean;
+      }> = {};
+
+      allMessages.forEach(msg => {
+        const isSender = msg.senderId === userId;
+        const contactId = isSender ? msg.recipientId : msg.senderId;
+        const isArchived = isSender ? msg.archivedBySender : msg.archivedByRecipient;
+
+        if (!conversations[contactId]) {
+          conversations[contactId] = {
+            contactId,
+            lastMessage: msg.body.substring(0, 100),
+            lastMessageAt: msg.createdAt.toISOString(),
+            unreadCount: 0,
+            isArchived: true,
+          };
+        }
+
+        if (!isArchived) {
+          conversations[contactId].isArchived = false;
+        }
+
+        if (!isSender && !msg.readAt) {
+          conversations[contactId].unreadCount++;
+        }
+      });
+
+      const contactIds = Object.keys(conversations).map(Number);
+      if (contactIds.length === 0) return res.json([]);
+
+      const contactUsers = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        role: users.role,
+      }).from(users).where(inArray(users.id, contactIds));
+
+      const contactMap = new Map(contactUsers.map(u => [u.id, u]));
+
+      const result = Object.values(conversations)
+        .filter(c => !c.isArchived)
+        .map(c => ({
+          ...c,
+          contactName: contactMap.get(c.contactId)?.fullName || "Unknown",
+          contactRole: contactMap.get(c.contactId)?.role || "PLAYER",
+        }))
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  app.get("/api/messages/thread/:contactId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const contactId = Number(req.params.contactId);
+
       const messages = await db.select({
         id: internalMessages.id,
         senderId: internalMessages.senderId,
         recipientId: internalMessages.recipientId,
-        subject: internalMessages.subject,
         body: internalMessages.body,
-        clubId: internalMessages.clubId,
         readAt: internalMessages.readAt,
         createdAt: internalMessages.createdAt,
-        recipientName: users.fullName,
-        recipientEmail: users.email,
       }).from(internalMessages)
-        .innerJoin(users, eq(internalMessages.recipientId, users.id))
-        .where(eq(internalMessages.senderId, userId))
-        .orderBy(desc(internalMessages.createdAt));
+        .where(
+          or(
+            and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)),
+            and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId))
+          )
+        )
+        .orderBy(internalMessages.createdAt);
+
+      await db.update(internalMessages)
+        .set({ readAt: new Date() })
+        .where(
+          and(
+            eq(internalMessages.senderId, contactId),
+            eq(internalMessages.recipientId, userId),
+            sql`${internalMessages.readAt} IS NULL`
+          )
+        );
+
       res.json(messages);
     } catch (err: any) {
-      res.status(500).json({ message: "Failed to fetch sent messages" });
+      res.status(500).json({ message: "Failed to fetch thread" });
     }
   });
 
@@ -7932,7 +8042,11 @@ export async function registerRoutes(
       const userId = (req.user as any).id;
       const result = await db.select({ count: sql<number>`count(*)::int` })
         .from(internalMessages)
-        .where(and(eq(internalMessages.recipientId, userId), sql`${internalMessages.readAt} IS NULL`));
+        .where(and(
+          eq(internalMessages.recipientId, userId),
+          sql`${internalMessages.readAt} IS NULL`,
+          eq(internalMessages.archivedByRecipient, false)
+        ));
       res.json({ count: result[0]?.count || 0 });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch unread count" });
@@ -7943,24 +8057,46 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const senderId = (req.user as any).id;
-      const { recipientId, recipientEmail, subject, body, clubId } = req.body;
-      let resolvedRecipientId = recipientId ? Number(recipientId) : null;
-      if (!resolvedRecipientId && recipientEmail) {
-        const [recipient] = await db.select().from(users).where(eq(users.email, recipientEmail.trim().toLowerCase()));
-        if (!recipient) {
-          return res.status(404).json({ message: "Recipient not found with that email address" });
-        }
-        resolvedRecipientId = recipient.id;
-      }
+      const senderRole = (req.user as any).role;
+      const { recipientId, body } = req.body;
+      const resolvedRecipientId = recipientId ? Number(recipientId) : null;
+
       if (!resolvedRecipientId || !body) {
         return res.status(400).json({ message: "Recipient and message body are required" });
       }
+
+      if (senderRole !== "OWNER") {
+        const [recipient] = await db.select({ role: users.role }).from(users).where(eq(users.id, resolvedRecipientId));
+        if (!recipient) return res.status(404).json({ message: "Recipient not found" });
+
+        if (recipient.role !== "OWNER") {
+          const senderClubs = await db.select({ clubId: playerProfiles.clubId })
+            .from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, senderId), eq(playerProfiles.membershipStatus, "APPROVED")));
+          const senderClubIds = senderClubs.map(p => p.clubId);
+
+          if (senderClubIds.length === 0) {
+            return res.status(403).json({ message: "You must belong to a club to send messages" });
+          }
+
+          const recipientClubs = await db.select({ clubId: playerProfiles.clubId })
+            .from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, resolvedRecipientId), eq(playerProfiles.membershipStatus, "APPROVED")));
+          const recipientClubIds = recipientClubs.map(p => p.clubId);
+
+          const sharedClub = senderClubIds.some(id => recipientClubIds.includes(id));
+          if (!sharedClub) {
+            return res.status(403).json({ message: "You can only message players from the same club" });
+          }
+        }
+      }
+
       const [msg] = await db.insert(internalMessages).values({
         senderId,
         recipientId: resolvedRecipientId,
-        subject: subject || "(No Subject)",
+        subject: "",
         body,
-        clubId: clubId ? Number(clubId) : null,
+        clubId: null,
       }).returning();
       res.json(msg);
     } catch (err: any) {
@@ -7984,33 +8120,43 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/messages/mark-all-read", async (req, res) => {
+  app.post("/api/messages/archive-conversation/:contactId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
+      const contactId = Number(req.params.contactId);
+
       await db.update(internalMessages)
-        .set({ readAt: new Date() })
-        .where(and(eq(internalMessages.recipientId, userId), sql`${internalMessages.readAt} IS NULL`));
+        .set({ archivedBySender: true })
+        .where(and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)));
+
+      await db.update(internalMessages)
+        .set({ archivedByRecipient: true })
+        .where(and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId)));
+
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ message: "Failed to mark all as read" });
+      res.status(500).json({ message: "Failed to archive conversation" });
     }
   });
 
-  app.delete("/api/messages/:id", async (req, res) => {
+  app.delete("/api/messages/conversation/:contactId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
-      const messageId = Number(req.params.id);
-      const [msg] = await db.select().from(internalMessages).where(eq(internalMessages.id, messageId));
-      if (!msg) return res.status(404).json({ message: "Message not found" });
-      if (msg.senderId !== userId && msg.recipientId !== userId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      await db.delete(internalMessages).where(eq(internalMessages.id, messageId));
+      const contactId = Number(req.params.contactId);
+
+      await db.delete(internalMessages)
+        .where(
+          or(
+            and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)),
+            and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId))
+          )
+        );
+
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ message: "Failed to delete message" });
+      res.status(500).json({ message: "Failed to delete conversation" });
     }
   });
 

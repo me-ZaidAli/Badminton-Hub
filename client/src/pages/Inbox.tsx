@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -7,9 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -29,143 +26,256 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Mail,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  MessageCircle,
   Send,
-  Inbox as InboxIcon,
-  Trash2,
-  CheckCheck,
   Loader2,
-  ArrowLeft,
   Search,
-  MailOpen,
+  Archive,
+  Trash2,
+  Plus,
+  ArrowLeft,
+  Check,
+  Shield,
+  ChevronDown,
+  User,
 } from "lucide-react";
-import { format } from "date-fns";
-import { Checkbox } from "@/components/ui/checkbox";
+import { format, isToday, isYesterday } from "date-fns";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-interface InternalMessage {
+interface Conversation {
+  contactId: number;
+  contactName: string;
+  contactRole: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  isArchived: boolean;
+}
+
+interface ThreadMessage {
   id: number;
   senderId: number;
   recipientId: number;
-  subject: string;
   body: string;
-  clubId: number | null;
   readAt: string | null;
   createdAt: string;
-  senderName?: string;
-  senderEmail?: string;
-  recipientName?: string;
-  recipientEmail?: string;
+}
+
+interface Contact {
+  id: number;
+  fullName: string;
+  role: string;
+}
+
+function formatMessageTime(dateStr: string) {
+  const date = new Date(dateStr);
+  if (isToday(date)) return format(date, "h:mm a");
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "MMM d");
+}
+
+function formatChatTime(dateStr: string) {
+  const date = new Date(dateStr);
+  return format(date, "h:mm a");
+}
+
+function formatDateSeparator(dateStr: string) {
+  const date = new Date(dateStr);
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "EEEE, MMM d, yyyy");
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
 }
 
 export default function InboxPage() {
   const { data: user, isLoading: userLoading } = useUser();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("inbox");
-  const [selectedMessage, setSelectedMessage] = useState<InternalMessage | null>(null);
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [activeConversation, setActiveConversation] = useState<number | null>(null);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [archiveDialogContact, setArchiveDialogContact] = useState<Conversation | null>(null);
+  const [deleteDialogContact, setDeleteDialogContact] = useState<Conversation | null>(null);
+  const [conversationLimitPrompt, setConversationLimitPrompt] = useState(false);
+  const [mobileShowThread, setMobileShowThread] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [composeForm, setComposeForm] = useState({
-    recipientEmail: "",
-    subject: "",
-    body: "",
-  });
-
-  const { data: inboxMessages, isLoading: inboxLoading } = useQuery<InternalMessage[]>({
-    queryKey: ["/api/messages/inbox"],
+  const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
+    queryKey: ["/api/messages/conversations"],
     enabled: !!user,
+    refetchInterval: 10000,
   });
 
-  const { data: sentMessages, isLoading: sentLoading } = useQuery<InternalMessage[]>({
-    queryKey: ["/api/messages/sent"],
+  const { data: contacts = [] } = useQuery<Contact[]>({
+    queryKey: ["/api/messages/contacts"],
     enabled: !!user,
   });
 
   const { data: unreadCount } = useQuery<{ count: number }>({
     queryKey: ["/api/messages/unread-count"],
     enabled: !!user,
+    refetchInterval: 10000,
   });
 
-  const markReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("PATCH", `/api/messages/${id}/read`);
+  const { data: threadMessages = [], isLoading: threadLoading } = useQuery<ThreadMessage[]>({
+    queryKey: ["/api/messages/thread", activeConversation],
+    queryFn: async () => {
+      if (!activeConversation) return [];
+      const res = await fetch(`/api/messages/thread/${activeConversation}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch thread");
+      return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/inbox"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
-    },
+    enabled: !!user && !!activeConversation,
+    refetchInterval: 5000,
   });
 
-  const markAllReadMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/messages/mark-all-read");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/inbox"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
-      toast({ title: "All messages marked as read" });
-    },
-  });
+  const activeContact = useMemo(() => {
+    if (!activeConversation) return null;
+    const fromConvo = conversations.find(c => c.contactId === activeConversation);
+    if (fromConvo) return { id: fromConvo.contactId, name: fromConvo.contactName, role: fromConvo.contactRole };
+    const fromContacts = contacts.find(c => c.id === activeConversation);
+    if (fromContacts) return { id: fromContacts.id, name: fromContacts.fullName, role: fromContacts.role };
+    return null;
+  }, [activeConversation, conversations, contacts]);
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/messages/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/inbox"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/sent"] });
+  useEffect(() => {
+    if (threadMessages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [threadMessages]);
+
+  useEffect(() => {
+    if (activeConversation && threadMessages.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
-      toast({ title: "Message deleted" });
-      setDeleteId(null);
-      if (selectedMessage) setSelectedMessage(null);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
+    }
+  }, [activeConversation, threadMessages.length]);
 
   const sendMutation = useMutation({
-    mutationFn: async (data: { recipientEmail: string; subject: string; body: string }) => {
+    mutationFn: async (data: { recipientId: number; body: string }) => {
       await apiRequest("POST", "/api/messages/send", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/sent"] });
-      toast({ title: "Message sent successfully" });
-      setComposeOpen(false);
-      setComposeForm({ recipientEmail: "", subject: "", body: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/thread", activeConversation] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      setMessageInput("");
     },
     onError: (error: Error) => {
       toast({ title: "Failed to send", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleOpenMessage = (msg: InternalMessage) => {
-    setSelectedMessage(msg);
-    if (activeTab === "inbox" && !msg.readAt) {
-      markReadMutation.mutate(msg.id);
+  const archiveMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await apiRequest("POST", `/api/messages/archive-conversation/${contactId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      toast({ title: "Conversation archived" });
+      setArchiveDialogContact(null);
+      if (activeConversation === archiveDialogContact?.contactId) {
+        setActiveConversation(null);
+        setMobileShowThread(false);
+      }
+    },
+  });
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await apiRequest("DELETE", `/api/messages/conversation/${contactId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      toast({ title: "Conversation deleted" });
+      setDeleteDialogContact(null);
+      setConversationLimitPrompt(false);
+      if (activeConversation === deleteDialogContact?.contactId) {
+        setActiveConversation(null);
+        setMobileShowThread(false);
+      }
+    },
+  });
+
+  const handleSend = () => {
+    if (!messageInput.trim() || !activeConversation) return;
+    sendMutation.mutate({ recipientId: activeConversation, body: messageInput.trim() });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
-  const handleBulkDelete = () => {
-    selectedIds.forEach(id => deleteMutation.mutate(id));
-    setSelectedIds(new Set());
+  const handleSelectContact = (contact: Contact) => {
+    setActiveConversation(contact.id);
+    setNewChatOpen(false);
+    setContactPickerOpen(false);
+    setMobileShowThread(true);
   };
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const handleOpenConversation = (convo: Conversation) => {
+    setActiveConversation(convo.contactId);
+    setMobileShowThread(true);
   };
+
+  const handleStartNewChat = () => {
+    if (conversations.length >= 5) {
+      setConversationLimitPrompt(true);
+    } else {
+      setNewChatOpen(true);
+    }
+  };
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery) return conversations;
+    const q = searchQuery.toLowerCase();
+    return conversations.filter(c => c.contactName.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
+  }, [conversations, searchQuery]);
+
+  const groupedMessages = useMemo(() => {
+    const groups: { date: string; messages: ThreadMessage[] }[] = [];
+    let currentDate = "";
+    threadMessages.forEach(msg => {
+      const dateKey = format(new Date(msg.createdAt), "yyyy-MM-dd");
+      if (dateKey !== currentDate) {
+        currentDate = dateKey;
+        groups.push({ date: msg.createdAt, messages: [] });
+      }
+      groups[groups.length - 1].messages.push(msg);
+    });
+    return groups;
+  }, [threadMessages]);
 
   if (userLoading) {
     return (
       <div className="h-32 flex items-center justify-center" data-testid="loading-auth">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -175,400 +285,384 @@ export default function InboxPage() {
       <div className="flex items-center justify-center min-h-[50vh]" data-testid="access-denied">
         <Card>
           <CardContent className="py-12 text-center">
-            <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h2 className="text-lg font-semibold mb-2">Login Required</h2>
-            <p className="text-muted-foreground">Please log in to access your inbox.</p>
+            <p className="text-muted-foreground">Please log in to access your messages.</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const currentMessages = activeTab === "inbox" ? inboxMessages : sentMessages;
-  const isLoading = activeTab === "inbox" ? inboxLoading : sentLoading;
-
-  const filteredMessages = currentMessages?.filter(msg => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      msg.subject?.toLowerCase().includes(q) ||
-      msg.body?.toLowerCase().includes(q) ||
-      msg.senderName?.toLowerCase().includes(q) ||
-      msg.recipientName?.toLowerCase().includes(q) ||
-      msg.senderEmail?.toLowerCase().includes(q) ||
-      msg.recipientEmail?.toLowerCase().includes(q)
-    );
-  }) || [];
-
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-inbox-title">Inbox</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Your internal messages
-            {unreadCount && unreadCount.count > 0 && (
-              <Badge variant="secondary" className="ml-2" data-testid="badge-unread-count">
-                {unreadCount.count} unread
-              </Badge>
-            )}
-          </p>
-        </div>
-        <Button onClick={() => setComposeOpen(true)} data-testid="button-compose">
-          <Send className="w-4 h-4 mr-2" />
-          Compose
-        </Button>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedIds(new Set()); }}>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <TabsList data-testid="tabs-inbox-sent">
-            <TabsTrigger value="inbox" data-testid="tab-inbox">
-              <InboxIcon className="w-4 h-4 mr-1" />
-              Inbox
-              {unreadCount && unreadCount.count > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">{unreadCount.count}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="sent" data-testid="tab-sent">
-              <Send className="w-4 h-4 mr-1" />
-              Sent
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {activeTab === "inbox" && unreadCount && unreadCount.count > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => markAllReadMutation.mutate()}
-                disabled={markAllReadMutation.isPending}
-                data-testid="button-mark-all-read"
-              >
-                <CheckCheck className="w-4 h-4 mr-1" />
-                Mark All Read
-              </Button>
-            )}
+    <div className="h-[calc(100vh-120px)] flex flex-col" data-testid="chat-container">
+      <div className="flex flex-1 min-h-0 border rounded-md overflow-hidden">
+        <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 border-r flex flex-col bg-background ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
+          <div className="p-3 border-b space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-lg" data-testid="text-chats-title">Chats</h2>
+              <div className="flex items-center gap-1">
+                {unreadCount && unreadCount.count > 0 && (
+                  <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-total-unread">
+                    {unreadCount.count}
+                  </Badge>
+                )}
+                <Button size="icon" variant="ghost" onClick={handleStartNewChat} data-testid="button-new-chat">
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search messages..."
+                placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 w-48"
-                data-testid="input-search-messages"
+                className="pl-8"
+                data-testid="input-search-conversations"
               />
             </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {convoLoading ? (
+              <div className="p-4 space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-3 animate-pulse">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                    <div className="flex-1">
+                      <div className="h-4 w-24 bg-muted rounded mb-1" />
+                      <div className="h-3 w-40 bg-muted rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No conversations yet</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={handleStartNewChat} data-testid="button-start-chat-empty">
+                  Start a conversation
+                </Button>
+              </div>
+            ) : (
+              filteredConversations.map(convo => (
+                <div
+                  key={convo.contactId}
+                  className={`flex items-center gap-3 px-3 py-3 cursor-pointer hover-elevate ${activeConversation === convo.contactId ? "bg-accent/50" : ""}`}
+                  onClick={() => handleOpenConversation(convo)}
+                  data-testid={`conversation-item-${convo.contactId}`}
+                >
+                  <Avatar className="h-10 w-10 flex-shrink-0">
+                    <AvatarFallback className="text-xs">
+                      {convo.contactRole === "OWNER" ? (
+                        <Shield className="h-4 w-4" />
+                      ) : (
+                        getInitials(convo.contactName)
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate" data-testid={`text-contact-name-${convo.contactId}`}>
+                        {convo.contactName}
+                        {convo.contactRole === "OWNER" && (
+                          <Badge variant="secondary" className="ml-1 text-[10px] no-default-hover-elevate no-default-active-elevate">Admin</Badge>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                        {formatMessageTime(convo.lastMessageAt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
+                      {convo.unreadCount > 0 && (
+                        <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center no-default-hover-elevate no-default-active-elevate" data-testid={`badge-unread-${convo.contactId}`}>
+                          {convo.unreadCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 mt-3 p-3 bg-muted rounded-md flex-wrap">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleBulkDelete}
-              data-testid="button-bulk-delete"
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Delete Selected
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedIds(new Set())}
-              data-testid="button-clear-selection"
-            >
-              Clear
-            </Button>
-          </div>
-        )}
-
-        <TabsContent value="inbox" className="mt-4">
-          <MessageList
-            messages={filteredMessages}
-            isLoading={isLoading}
-            emptyIcon={<InboxIcon className="w-12 h-12" />}
-            emptyText="Your inbox is empty"
-            direction="inbox"
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onOpen={handleOpenMessage}
-            onDelete={setDeleteId}
-          />
-        </TabsContent>
-
-        <TabsContent value="sent" className="mt-4">
-          <MessageList
-            messages={filteredMessages}
-            isLoading={isLoading}
-            emptyIcon={<Send className="w-12 h-12" />}
-            emptyText="No sent messages"
-            direction="sent"
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onOpen={handleOpenMessage}
-            onDelete={setDeleteId}
-          />
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={!!selectedMessage} onOpenChange={(open) => { if (!open) setSelectedMessage(null); }}>
-        <DialogContent className="sm:max-w-[600px]" data-testid="dialog-message-detail">
-          {selectedMessage && (
+        <div className={`flex-1 flex flex-col bg-background ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
+          {activeConversation && activeContact ? (
             <>
-              <DialogHeader>
-                <DialogTitle className="pr-6">{selectedMessage.subject || "(No Subject)"}</DialogTitle>
-                <DialogDescription>
-                  {activeTab === "inbox" ? (
-                    <>From: {selectedMessage.senderName || "Unknown"} ({selectedMessage.senderEmail})</>
-                  ) : (
-                    <>To: {selectedMessage.recipientName || "Unknown"} ({selectedMessage.recipientEmail})</>
+              <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="md:hidden"
+                  onClick={() => { setMobileShowThread(false); setActiveConversation(null); }}
+                  data-testid="button-back-to-list"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="text-xs">
+                    {activeContact.role === "OWNER" ? <Shield className="h-4 w-4" /> : getInitials(activeContact.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
+                  {activeContact.role === "OWNER" && (
+                    <p className="text-[11px] text-muted-foreground">Super Admin</p>
                   )}
-                  {" · "}
-                  {format(new Date(selectedMessage.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="py-4 min-h-[100px] whitespace-pre-wrap text-sm" data-testid="text-message-body">
-                {selectedMessage.body}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      const convo = conversations.find(c => c.contactId === activeConversation);
+                      if (convo) setArchiveDialogContact(convo);
+                    }}
+                    data-testid="button-archive-conversation"
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
-              {selectedMessage.clubId && (
-                <div className="text-xs text-muted-foreground">
-                  Club ID: {selectedMessage.clubId}
-                </div>
-              )}
-
-              <DialogFooter className="gap-2 flex-wrap">
-                {activeTab === "inbox" && selectedMessage.senderEmail && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedMessage(null);
-                      setComposeForm({
-                        recipientEmail: selectedMessage.senderEmail || "",
-                        subject: `Re: ${selectedMessage.subject || ""}`,
-                        body: "",
-                      });
-                      setComposeOpen(true);
-                    }}
-                    data-testid="button-reply"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Reply
-                  </Button>
+              <div className="flex-1 overflow-y-auto px-4 py-3" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--muted)) 1px, transparent 0)", backgroundSize: "24px 24px" }} data-testid="chat-messages-area">
+                {threadLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : threadMessages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+                    <div>
+                      <MessageCircle className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No messages yet. Say hello!</p>
+                    </div>
+                  </div>
+                ) : (
+                  groupedMessages.map((group, gi) => (
+                    <div key={gi}>
+                      <div className="flex justify-center my-3">
+                        <span className="text-[11px] text-muted-foreground bg-muted px-3 py-1 rounded-full" data-testid={`text-date-separator-${gi}`}>
+                          {formatDateSeparator(group.date)}
+                        </span>
+                      </div>
+                      {group.messages.map((msg) => {
+                        const isMine = msg.senderId === user.id;
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}
+                            data-testid={`message-bubble-${msg.id}`}
+                          >
+                            <div
+                              className={`max-w-[75%] px-3 py-2 rounded-lg text-sm relative ${
+                                isMine
+                                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                                  : "bg-card border rounded-bl-sm"
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap break-words" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
+                              <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                                <span className={`text-[10px] ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                                  {formatChatTime(msg.createdAt)}
+                                </span>
+                                {isMine && msg.readAt && (
+                                  <Check className={`h-3 w-3 ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`} />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
                 )}
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setDeleteId(selectedMessage.id);
-                    setSelectedMessage(null);
-                  }}
-                  data-testid="button-delete-message"
-                >
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Delete
-                </Button>
-              </DialogFooter>
+                <div ref={messagesEndRef} />
+              </div>
+
+              <div className="border-t p-3 bg-background">
+                <div className="flex items-end gap-2">
+                  <Input
+                    placeholder="Type a message..."
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="flex-1"
+                    data-testid="input-message"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={!messageInput.trim() || sendMutation.isPending}
+                    data-testid="button-send-message"
+                  >
+                    {sendMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+              <div>
+                <MessageCircle className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <h3 className="text-lg font-medium mb-1">Your Messages</h3>
+                <p className="text-sm mb-4">Select a conversation or start a new chat</p>
+                <Button onClick={handleStartNewChat} data-testid="button-start-chat-main">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Chat
+                </Button>
+              </div>
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
 
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-compose">
+      <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="dialog-new-chat">
           <DialogHeader>
-            <DialogTitle>New Message</DialogTitle>
-            <DialogDescription>Send an internal message to another user</DialogDescription>
+            <DialogTitle>New Chat</DialogTitle>
+            <DialogDescription>Select a club member or super admin to start a conversation</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Recipient Email</Label>
-              <Input
-                placeholder="Enter recipient's email address"
-                value={composeForm.recipientEmail}
-                onChange={(e) => setComposeForm(p => ({ ...p, recipientEmail: e.target.value }))}
-                data-testid="input-recipient-email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Subject</Label>
-              <Input
-                placeholder="Message subject"
-                value={composeForm.subject}
-                onChange={(e) => setComposeForm(p => ({ ...p, subject: e.target.value }))}
-                data-testid="input-subject"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea
-                placeholder="Write your message..."
-                value={composeForm.body}
-                onChange={(e) => setComposeForm(p => ({ ...p, body: e.target.value }))}
-                rows={6}
-                data-testid="input-body"
-              />
-            </div>
+          <div className="py-2">
+            <Command className="border rounded-md">
+              <CommandInput placeholder="Search by name..." data-testid="input-search-contacts" />
+              <CommandList className="max-h-[300px]">
+                <CommandEmpty>No contacts found</CommandEmpty>
+                <CommandGroup heading="Super Admins">
+                  {contacts.filter(c => c.role === "OWNER").map(contact => (
+                    <CommandItem
+                      key={contact.id}
+                      value={contact.fullName}
+                      onSelect={() => handleSelectContact(contact)}
+                      className="cursor-pointer"
+                      data-testid={`contact-item-${contact.id}`}
+                    >
+                      <Shield className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>{contact.fullName}</span>
+                      <Badge variant="secondary" className="ml-auto text-[10px] no-default-hover-elevate no-default-active-elevate">Admin</Badge>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Club Members">
+                  {contacts.filter(c => c.role !== "OWNER").map(contact => (
+                    <CommandItem
+                      key={contact.id}
+                      value={contact.fullName}
+                      onSelect={() => handleSelectContact(contact)}
+                      className="cursor-pointer"
+                      data-testid={`contact-item-${contact.id}`}
+                    >
+                      <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>{contact.fullName}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setComposeOpen(false)} data-testid="button-cancel-compose">
-              Cancel
-            </Button>
-            <Button
-              onClick={() => sendMutation.mutate(composeForm)}
-              disabled={sendMutation.isPending || !composeForm.recipientEmail || !composeForm.body}
-              data-testid="button-send-message"
-            >
-              {sendMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-              Send
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
-        <AlertDialogContent data-testid="dialog-confirm-delete">
+      <AlertDialog open={!!archiveDialogContact} onOpenChange={(open) => { if (!open) setArchiveDialogContact(null); }}>
+        <AlertDialogContent data-testid="dialog-archive-conversation">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Message</AlertDialogTitle>
+            <AlertDialogTitle>Archive Conversation</AlertDialogTitle>
             <AlertDialogDescription>
-              This message will be permanently deleted. This action cannot be undone.
+              Archive your conversation with {archiveDialogContact?.contactName}? You can start a new conversation with them anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-archive">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => archiveDialogContact && archiveMutation.mutate(archiveDialogContact.contactId)}
+              data-testid="button-confirm-archive"
+            >
+              {archiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteDialogContact} onOpenChange={(open) => { if (!open) setDeleteDialogContact(null); }}>
+        <AlertDialogContent data-testid="dialog-delete-conversation">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete your conversation with {deleteDialogContact?.contactName}? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              onClick={() => deleteDialogContact && deleteConversationMutation.mutate(deleteDialogContact.contactId)}
               className="bg-destructive text-destructive-foreground"
               data-testid="button-confirm-delete"
             >
-              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+              {deleteConversationMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
 
-function MessageList({
-  messages,
-  isLoading,
-  emptyIcon,
-  emptyText,
-  direction,
-  selectedIds,
-  onToggleSelect,
-  onOpen,
-  onDelete,
-}: {
-  messages: InternalMessage[];
-  isLoading: boolean;
-  emptyIcon: React.ReactNode;
-  emptyText: string;
-  direction: "inbox" | "sent";
-  selectedIds: Set<number>;
-  onToggleSelect: (id: number) => void;
-  onOpen: (msg: InternalMessage) => void;
-  onDelete: (id: number) => void;
-}) {
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map(i => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-4">
-              <div className="h-5 w-1/3 bg-muted rounded mb-2" />
-              <div className="h-4 w-2/3 bg-muted rounded" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (messages.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="mx-auto mb-4 text-muted-foreground opacity-50">{emptyIcon}</div>
-          <p className="text-muted-foreground">{emptyText}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {messages.map(msg => {
-        const isUnread = direction === "inbox" && !msg.readAt;
-        return (
-          <Card
-            key={msg.id}
-            className={`hover-elevate cursor-pointer ${isUnread ? "border-primary/30" : ""}`}
-            data-testid={`message-card-${msg.id}`}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="pt-1">
-                  <Checkbox
-                    checked={selectedIds.has(msg.id)}
-                    onCheckedChange={() => onToggleSelect(msg.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    data-testid={`checkbox-message-${msg.id}`}
-                  />
+      <Dialog open={conversationLimitPrompt} onOpenChange={setConversationLimitPrompt}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="dialog-conversation-limit">
+          <DialogHeader>
+            <DialogTitle>Too Many Conversations</DialogTitle>
+            <DialogDescription>
+              You have {conversations.length} active conversations. Please delete or archive a conversation before starting a new one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-[300px] overflow-y-auto">
+            {conversations.map(convo => (
+              <div key={convo.contactId} className="flex items-center justify-between gap-2 p-2 rounded-md border" data-testid={`limit-convo-${convo.contactId}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarFallback className="text-xs">{getInitials(convo.contactName)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium truncate">{convo.contactName}</span>
                 </div>
-                <div
-                  className="flex-1 min-w-0"
-                  onClick={() => onOpen(msg)}
-                >
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {isUnread ? (
-                        <Mail className="w-4 h-4 text-primary flex-shrink-0" />
-                      ) : (
-                        <MailOpen className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <span className={`text-sm truncate ${isUnread ? "font-semibold" : "font-medium"}`}>
-                        {direction === "inbox"
-                          ? msg.senderName || "Unknown"
-                          : `To: ${msg.recipientName || "Unknown"}`}
-                      </span>
-                      
-                    </div>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {format(new Date(msg.createdAt), "MMM d, h:mm a")}
-                    </span>
-                  </div>
-                  <p className={`text-sm mt-1 truncate ${isUnread ? "font-medium" : "text-muted-foreground"}`}>
-                    {msg.subject || "(No Subject)"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {msg.body?.substring(0, 100)}
-                  </p>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setConversationLimitPrompt(false);
+                      setArchiveDialogContact(convo);
+                    }}
+                    data-testid={`button-archive-limit-${convo.contactId}`}
+                  >
+                    <Archive className="h-3 w-3 mr-1" />
+                    Archive
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setConversationLimitPrompt(false);
+                      setDeleteDialogContact(convo);
+                    }}
+                    data-testid={`button-delete-limit-${convo.contactId}`}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Delete
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(msg.id);
-                  }}
-                  data-testid={`button-delete-${msg.id}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConversationLimitPrompt(false)} data-testid="button-close-limit">
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
