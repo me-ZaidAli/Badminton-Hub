@@ -1486,6 +1486,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     updateSession({ sessionId, updates: { courtNames: newNames } });
   };
 
+  const currentFcMatchForEffect = (forcedCompletionActive && forcedCompletionIndex < forcedMatches.length) ? forcedMatches[forcedCompletionIndex] : null;
+  useEffect(() => {
+    if (currentFcMatchForEffect) {
+      setFcDialogTarget(currentFcMatchForEffect.pointsToPlayTo || defaultPointsToPlayTo);
+    }
+  }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatchForEffect?.pointsToPlayTo, defaultPointsToPlayTo]);
+
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
   const typedMatches: CourtMatch[] = (matches || []).map(m => ({
@@ -1631,11 +1638,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   };
 
   const currentFcMatch = getCurrentForcedMatch();
-  useEffect(() => {
-    if (currentFcMatch) {
-      setFcDialogTarget(currentFcMatch.pointsToPlayTo || defaultPointsToPlayTo);
-    }
-  }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatch?.pointsToPlayTo, defaultPointsToPlayTo]);
 
   const handleFcConfirm = async () => {
     const match = getCurrentForcedMatch();
