@@ -375,12 +375,10 @@ export default function Sessions() {
                     {editableClubIds.has(session.clubId) ? (
                       <>
                         <EditSessionDialog session={session} venues={[]} />
-                        <Link href={`/sessions/${session.id}`}>
-                          <Button size="sm" data-testid={`button-run-session-${session.id}`}>
-                            <Activity className="h-4 w-4 mr-1" />
-                            Run Session
-                          </Button>
-                        </Link>
+                        <Button size="sm" onClick={() => setLocation(`/sessions/${session.id}`)} data-testid={`button-run-session-${session.id}`}>
+                          <Activity className="h-4 w-4 mr-1" />
+                          Run Session
+                        </Button>
                       </>
                     ) : (
                       <Link href={`/sessions/${session.id}`}>
