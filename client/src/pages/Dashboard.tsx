@@ -13,6 +13,7 @@ import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter
 } from "lucide-react";
+import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
@@ -159,6 +160,8 @@ function DashboardContent({
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(effectiveClubId);
   const [genderFilter, setGenderFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
 
   const filteredLeaderboard = useMemo(() => {
     if (!leaderboard) return [];
@@ -348,7 +351,7 @@ function DashboardContent({
                 </CardTitle>
                 <CardDescription>Players ranked by wins and win percentage</CardDescription>
               </div>
-              <Link href="/all-rankings">
+              <Link href="/rankings">
                 <Button variant="ghost" size="sm" data-testid="button-view-all-rankings">
                   View All <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
@@ -420,7 +423,7 @@ function DashboardContent({
                 </div>
                 <div className="space-y-2">
                   {topPlayers.map((player, index) => (
-                    <Link key={player.id} href={`/all-rankings?playerId=${player.id}`}>
+                    <div key={player.id} onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}>
                       <div
                         className={`flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer hover-elevate ${
                           player.id === playerProfile?.id ? "bg-primary/10 border border-primary/20" : "bg-muted/30"
@@ -462,12 +465,12 @@ function DashboardContent({
                           </div>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
                 {filteredLeaderboard.length > 10 && (
                   <div className="text-center mt-3">
-                    <Link href="/all-rankings">
+                    <Link href="/rankings">
                       <Button variant="ghost" size="sm" className="text-xs" data-testid="button-show-more-players">
                         +{filteredLeaderboard.length - 10} more players <ChevronRight className="w-3 h-3 ml-1" />
                       </Button>
@@ -607,6 +610,12 @@ function DashboardContent({
           </div>
         </div>
       )}
+
+      <PlayerStatsDialog
+        profileId={statsPlayerId}
+        open={statsOpen}
+        onOpenChange={setStatsOpen}
+      />
     </div>
   );
 }

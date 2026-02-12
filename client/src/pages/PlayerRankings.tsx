@@ -252,7 +252,7 @@ export default function PlayerRankings() {
                 data-testid="input-search-rankings"
               />
             </div>
-            {displayClubs.length > 1 && (
+            {displayClubs.length > 0 && (
               <Select value={selectedClubId} onValueChange={setSelectedClubId}>
                 <SelectTrigger className="w-[180px]" data-testid="select-club-filter-rankings">
                   <SelectValue placeholder="All Clubs" />
