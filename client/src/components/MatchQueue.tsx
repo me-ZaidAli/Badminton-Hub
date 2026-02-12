@@ -67,7 +67,7 @@ function PlayerBadge({
       <Badge
         variant="outline"
         className={cn(
-          "text-xs py-1",
+          "text-xs py-1 max-w-[140px] truncate",
           isOrganiser && "cursor-pointer hover:bg-primary/10"
         )}
         onClick={() => isOrganiser && setOpen(true)}
@@ -306,7 +306,7 @@ export function MatchQueue({
                       </div>
 
                       <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 p-2.5">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
                           <PlayerBadge
                             player={match.teamAPlayer1}
                             position="teamAPlayer1Id"
@@ -333,7 +333,7 @@ export function MatchQueue({
                       </div>
 
                       <div className="rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 p-2.5">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
                           <PlayerBadge
                             player={match.teamBPlayer1}
                             position="teamBPlayer1Id"
@@ -372,7 +372,7 @@ export function MatchQueue({
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40">
+                      <div className="mt-3 pt-2.5 border-t border-border/40 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <EditableTarget
                             matchId={match.id}
@@ -387,7 +387,7 @@ export function MatchQueue({
                           )}
                         </div>
                         {isOrganiser && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-wrap">
                             <Button
                               size="icon"
                               variant="ghost"
@@ -444,10 +444,10 @@ export function MatchQueue({
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              onClick={() => handleFilteredReshuffle(match.id)}
                               disabled={isReshuffling}
-                              data-testid={`button-reshuffle-mixed-${match.id}`}
-                              title="Mixed (male vs female)"
+                              data-testid={`button-reshuffle-random-${match.id}`}
+                              title="Random reshuffle"
                             >
                               <Shuffle className="w-4 h-4" />
                             </Button>
@@ -617,10 +617,10 @@ export function MatchQueue({
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                              onClick={() => handleFilteredReshuffle(match.id)}
                               disabled={isReshuffling}
-                              data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
-                              title="Mixed (male vs female)"
+                              data-testid={`button-reshuffle-random-desktop-${match.id}`}
+                              title="Random reshuffle"
                             >
                               <Shuffle className="w-4 h-4" />
                             </Button>
