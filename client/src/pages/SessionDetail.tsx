@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +23,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut } from "lucide-react";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -104,6 +105,7 @@ export default function SessionDetail() {
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<{ playerId: number; playerName: string } | null>(null);
   const [pairPlayer1, setPairPlayer1] = useState<string>("");
   const [pairPlayer2, setPairPlayer2] = useState<string>("");
   const [pairSearch1, setPairSearch1] = useState("");
@@ -1200,10 +1202,13 @@ export default function SessionDetail() {
                   </div>
                 </div>
                 {isOrganiser && (
-                  <div className="flex items-center gap-1 ml-2 shrink-0">
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    <button
+                      className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+                        isPaused 
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400" 
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
                         const newPaused = !isPaused;
@@ -1219,26 +1224,50 @@ export default function SessionDetail() {
                       }}
                       data-testid={`button-toggle-pause-${signup.id}`}
                     >
-                      {isPaused ? <PlayCircle className="w-4 h-4 text-green-600" /> : <PauseCircle className="w-4 h-4 text-amber-600" />}
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      className="text-destructive"
+                      {isPaused ? <PlayCircle className="w-5 h-5" /> : <BedDouble className="w-5 h-5" />}
+                    </button>
+                    <button
+                      className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
-                        adminRemovePlayer({ sessionId: id, playerId: signup.playerId });
+                        setRemoveConfirm({ playerId: signup.playerId, playerName: signup.player?.user?.fullName || "this player" });
                       }}
                       data-testid={`button-remove-player-${signup.playerId}`}
                     >
-                      <X className="w-4 h-4" />
-                    </Button>
+                      <LogOut className="w-5 h-5" />
+                    </button>
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        <AlertDialog open={!!removeConfirm} onOpenChange={(open) => { if (!open) setRemoveConfirm(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Player</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove {removeConfirm?.playerName} from this session? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-remove">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                data-testid="button-confirm-remove"
+                onClick={() => {
+                  if (removeConfirm) {
+                    adminRemovePlayer({ sessionId: id, playerId: removeConfirm.playerId });
+                  }
+                  setRemoveConfirm(null);
+                }}
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {isOrganiser && (
           <div className="space-y-4">
