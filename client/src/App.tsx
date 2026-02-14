@@ -386,7 +386,7 @@ function Router() {
 
       {/* Super Admin Routes - OWNER only */}
       <Route path="/super-admin">
-        <OwnerRoute component={SuperAdminDashboard} />
+        <OwnerRoute component={GodMode} />
       </Route>
       <Route path="/super-admin/users">
         <OwnerRoute component={SuperAdminUsers} />

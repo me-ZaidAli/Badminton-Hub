@@ -13,10 +13,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Link } from "wouter";
 import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
-  Save, Trash2, Pencil, Building2, Clock, User
+  Save, Trash2, Pencil, Building2, Clock, User, Mail, DollarSign,
+  Package, CreditCard, Upload, ChevronRight
 } from "lucide-react";
+
+const controlItems = [
+  { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+  { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
+  { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+  { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+  { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
+  { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+];
 
 interface ClubRecord {
   id: number;
@@ -932,6 +944,31 @@ export default function GodMode() {
           FULL CONTROL
         </Badge>
       </div>
+
+      <Card data-testid="card-control-panel">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="w-5 h-5 text-primary" />
+            Control Panel
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {controlItems.map(item => (
+              <Link key={item.href} href={item.href}>
+                <Card className="hover-elevate cursor-pointer h-full" data-testid={`card-control-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <CardContent className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+                    <div className={`${item.bg} rounded-lg p-2.5`}>
+                      <item.icon className={`w-5 h-5 ${item.color}`} />
+                    </div>
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card data-testid="card-club-selector">
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-3">

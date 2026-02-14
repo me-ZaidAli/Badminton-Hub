@@ -49,7 +49,6 @@ function useNavItems(): NavItem[] {
     if (hasClubAdminAccess) {
       navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     }
-    navItems.push({ href: "/super-admin", label: "God's Mode", icon: Shield, section: "super-admin" });
     navItems.push({ href: "/super-admin/god-mode", label: "God Mode Control", icon: Zap, section: "super-admin" });
   } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
@@ -92,7 +91,7 @@ export function Sidebar() {
               {showSectionDivider && (
                 <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5" data-testid="label-super-admin-section">
-                    <Zap className="w-3 h-3" /> God's Mode
+                    <Zap className="w-3 h-3" /> God Mode
                   </span>
                 </div>
               )}
