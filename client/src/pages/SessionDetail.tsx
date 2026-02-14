@@ -1519,6 +1519,157 @@ export default function SessionDetail() {
           updateSession({ sessionId: id, updates: { status: "COMPLETED", autoGenerateActive: false } });
         }}
       />
+
+      {/* Multi-Select Join Session Modal */}
+      <Dialog open={joinModalOpen} onOpenChange={setJoinModalOpen}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle>Who is joining this session?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {user && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-md border">
+                  <Checkbox
+                    checked={joinSelections[user.id]?.selected || false}
+                    onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], selected: !!checked } }))}
+                    data-testid="checkbox-join-self"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium">{user.fullName} (me)</p>
+                  </div>
+                  {joinSelections[user.id]?.selected && (
+                    <Select value={joinSelections[user.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], paymentMethod: v } }))}>
+                      <SelectTrigger className="w-[160px]" data-testid="select-payment-self">
+                        <SelectValue placeholder="Payment..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
+                        <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
+                        <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                {juniorAccounts?.map((junior: any) => (
+                  <div key={junior.id} className="flex items-center gap-3 p-3 rounded-md border">
+                    <Checkbox
+                      checked={joinSelections[junior.id]?.selected || false}
+                      onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], selected: !!checked } }))}
+                      data-testid={`checkbox-join-junior-${junior.id}`}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{junior.fullName}</p>
+                      <p className="text-xs text-muted-foreground">Junior</p>
+                    </div>
+                    {joinSelections[junior.id]?.selected && (
+                      <Select value={joinSelections[junior.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], paymentMethod: v } }))}>
+                        <SelectTrigger className="w-[160px]" data-testid={`select-payment-junior-${junior.id}`}>
+                          <SelectValue placeholder="Payment..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
+                          <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
+                          <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJoinModalOpen(false)} data-testid="button-cancel-join-multi">Cancel</Button>
+            <Button
+              onClick={() => {
+                const attendees = Object.entries(joinSelections)
+                  .filter(([, v]) => v.selected && v.paymentMethod)
+                  .map(([userId, v]) => ({ userId: Number(userId), paymentMethod: v.paymentMethod }));
+                if (attendees.length === 0) {
+                  toast({ title: "Select at least one attendee and choose payment for each", variant: "destructive" });
+                  return;
+                }
+                const missingPayment = Object.entries(joinSelections).filter(([, v]) => v.selected && !v.paymentMethod);
+                if (missingPayment.length > 0) {
+                  toast({ title: "Please choose a payment method for all selected attendees", variant: "destructive" });
+                  return;
+                }
+                joinMultiMutation.mutate({ sessionId: id, attendees });
+              }}
+              disabled={joinMultiMutation.isPending}
+              data-testid="button-confirm-join-multi"
+            >
+              {joinMultiMutation.isPending ? "Joining..." : "Confirm Signup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Players Modal */}
+      <Dialog open={managePlayersOpen} onOpenChange={setManagePlayersOpen}>
+        <DialogContent className="bg-background max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardList className="w-5 h-5" /> Manage Players</DialogTitle>
+          </DialogHeader>
+          {managePlayersData ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.totalAttendees || 0}</p><p className="text-xs text-muted-foreground">Total Attendees</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600">{managePlayersData.summary?.paid || 0}</p><p className="text-xs text-muted-foreground">Paid</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-yellow-600">{managePlayersData.summary?.pendingBankTransfer || 0}</p><p className="text-xs text-muted-foreground">Pending Transfer</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600">{managePlayersData.summary?.unpaid || 0}</p><p className="text-xs text-muted-foreground">Unpaid</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.cardPayments || 0}</p><p className="text-xs text-muted-foreground">Card</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.bankTransfers || 0}</p><p className="text-xs text-muted-foreground">Bank Transfer</p></CardContent></Card>
+              </div>
+              <Tabs defaultValue="confirmed">
+                <TabsList className="w-full">
+                  <TabsTrigger value="confirmed" className="flex-1" data-testid="tab-confirmed">Confirmed ({managePlayersData.confirmed?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="waiting" className="flex-1" data-testid="tab-waiting">Waiting ({managePlayersData.waiting?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="cancelled" className="flex-1" data-testid="tab-cancelled">Cancelled ({managePlayersData.cancelled?.length || 0})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="confirmed" className="space-y-2 mt-3">
+                  {(managePlayersData.confirmed || []).map((s: any) => (
+                    <ManagePlayerRow key={s.id} signup={s} onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })} onStatusChange={(status) => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: status })} />
+                  ))}
+                  {(!managePlayersData.confirmed || managePlayersData.confirmed.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>}
+                </TabsContent>
+                <TabsContent value="waiting" className="space-y-2 mt-3">
+                  {(managePlayersData.waiting || []).map((s: any, idx: number) => (
+                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md">
+                      <span className="text-sm font-mono text-muted-foreground w-6">{idx + 1}.</span>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
+                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => promoteMutation.mutate(s.id)} disabled={promoteMutation.isPending} data-testid={`button-promote-${s.id}`}>
+                        <ChevronUp className="w-4 h-4 mr-1" /> Promote
+                      </Button>
+                    </div>
+                  ))}
+                  {(!managePlayersData.waiting || managePlayersData.waiting.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No players on waiting list</p>}
+                </TabsContent>
+                <TabsContent value="cancelled" className="space-y-2 mt-3">
+                  {(managePlayersData.cancelled || []).map((s: any) => (
+                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md opacity-60">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
+                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: "CONFIRMED" })} data-testid={`button-reinstate-${s.id}`}>
+                        Reinstate
+                      </Button>
+                    </div>
+                  ))}
+                  {(!managePlayersData.cancelled || managePlayersData.cancelled.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No cancelled signups</p>}
+                </TabsContent>
+              </Tabs>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2193,162 +2344,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
         </DialogContent>
       </Dialog>
 
-      {/* Multi-Select Join Session Modal */}
-      <Dialog open={joinModalOpen} onOpenChange={setJoinModalOpen}>
-        <DialogContent className="bg-background max-w-md">
-          <DialogHeader>
-            <DialogTitle>Who is joining this session?</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {user && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-md border">
-                  <Checkbox
-                    checked={joinSelections[user.id]?.selected || false}
-                    onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], selected: !!checked } }))}
-                    data-testid="checkbox-join-self"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium">{user.fullName} (me)</p>
-                  </div>
-                  {joinSelections[user.id]?.selected && (
-                    <Select value={joinSelections[user.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], paymentMethod: v } }))}>
-                      <SelectTrigger className="w-[160px]" data-testid="select-payment-self">
-                        <SelectValue placeholder="Payment..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
-                        <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
-                        <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                {juniorAccounts?.map((junior: any) => (
-                  <div key={junior.id} className="flex items-center gap-3 p-3 rounded-md border">
-                    <Checkbox
-                      checked={joinSelections[junior.id]?.selected || false}
-                      onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], selected: !!checked } }))}
-                      data-testid={`checkbox-join-junior-${junior.id}`}
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium">{junior.fullName}</p>
-                      <p className="text-xs text-muted-foreground">Junior</p>
-                    </div>
-                    {joinSelections[junior.id]?.selected && (
-                      <Select value={joinSelections[junior.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], paymentMethod: v } }))}>
-                        <SelectTrigger className="w-[160px]" data-testid={`select-payment-junior-${junior.id}`}>
-                          <SelectValue placeholder="Payment..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
-                          <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
-                          <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setJoinModalOpen(false)} data-testid="button-cancel-join-multi">Cancel</Button>
-            <Button
-              onClick={() => {
-                const attendees = Object.entries(joinSelections)
-                  .filter(([, v]) => v.selected && v.paymentMethod)
-                  .map(([userId, v]) => ({ userId: Number(userId), paymentMethod: v.paymentMethod }));
-                if (attendees.length === 0) {
-                  toast({ title: "Select at least one attendee and choose payment for each", variant: "destructive" });
-                  return;
-                }
-                const missingPayment = Object.entries(joinSelections).filter(([, v]) => v.selected && !v.paymentMethod);
-                if (missingPayment.length > 0) {
-                  toast({ title: "Please choose a payment method for all selected attendees", variant: "destructive" });
-                  return;
-                }
-                joinMultiMutation.mutate({ sessionId: id, attendees });
-              }}
-              disabled={joinMultiMutation.isPending}
-              data-testid="button-confirm-join-multi"
-            >
-              {joinMultiMutation.isPending ? "Joining..." : "Confirm Signup"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Manage Players Modal */}
-      <Dialog open={managePlayersOpen} onOpenChange={setManagePlayersOpen}>
-        <DialogContent className="bg-background max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ClipboardList className="w-5 h-5" /> Manage Players</DialogTitle>
-          </DialogHeader>
-          {managePlayersData ? (
-            <div className="space-y-4">
-              {/* Summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.totalAttendees || 0}</p><p className="text-xs text-muted-foreground">Total Attendees</p></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600">{managePlayersData.summary?.paid || 0}</p><p className="text-xs text-muted-foreground">Paid</p></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-yellow-600">{managePlayersData.summary?.pendingBankTransfer || 0}</p><p className="text-xs text-muted-foreground">Pending Transfer</p></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600">{managePlayersData.summary?.unpaid || 0}</p><p className="text-xs text-muted-foreground">Unpaid</p></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.cardPayments || 0}</p><p className="text-xs text-muted-foreground">Card</p></CardContent></Card>
-                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.bankTransfers || 0}</p><p className="text-xs text-muted-foreground">Bank Transfer</p></CardContent></Card>
-              </div>
-
-              {/* Tabs for Confirmed / Waiting / Cancelled */}
-              <Tabs defaultValue="confirmed">
-                <TabsList className="w-full">
-                  <TabsTrigger value="confirmed" className="flex-1" data-testid="tab-confirmed">Confirmed ({managePlayersData.confirmed?.length || 0})</TabsTrigger>
-                  <TabsTrigger value="waiting" className="flex-1" data-testid="tab-waiting">Waiting ({managePlayersData.waiting?.length || 0})</TabsTrigger>
-                  <TabsTrigger value="cancelled" className="flex-1" data-testid="tab-cancelled">Cancelled ({managePlayersData.cancelled?.length || 0})</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="confirmed" className="space-y-2 mt-3">
-                  {(managePlayersData.confirmed || []).map((s: any) => (
-                    <ManagePlayerRow key={s.id} signup={s} onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })} onStatusChange={(status) => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: status })} />
-                  ))}
-                  {(!managePlayersData.confirmed || managePlayersData.confirmed.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>}
-                </TabsContent>
-
-                <TabsContent value="waiting" className="space-y-2 mt-3">
-                  {(managePlayersData.waiting || []).map((s: any, idx: number) => (
-                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md">
-                      <span className="text-sm font-mono text-muted-foreground w-6">{idx + 1}.</span>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
-                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => promoteMutation.mutate(s.id)} disabled={promoteMutation.isPending} data-testid={`button-promote-${s.id}`}>
-                        <ChevronUp className="w-4 h-4 mr-1" /> Promote
-                      </Button>
-                    </div>
-                  ))}
-                  {(!managePlayersData.waiting || managePlayersData.waiting.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No players on waiting list</p>}
-                </TabsContent>
-
-                <TabsContent value="cancelled" className="space-y-2 mt-3">
-                  {(managePlayersData.cancelled || []).map((s: any) => (
-                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md opacity-60">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
-                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: "CONFIRMED" })} data-testid={`button-reinstate-${s.id}`}>
-                        Reinstate
-                      </Button>
-                    </div>
-                  ))}
-                  {(!managePlayersData.cancelled || managePlayersData.cancelled.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No cancelled signups</p>}
-                </TabsContent>
-              </Tabs>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
