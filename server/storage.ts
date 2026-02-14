@@ -108,7 +108,7 @@ export interface IStorage {
     profilePictureUrl: string | null;
   }>): Promise<User>;
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number; grade?: string; adminLocked?: boolean; gradingResetAt?: Date | null }): Promise<PlayerProfile>;
-  updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
+  updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; grade?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
   deletePlayerProfile(id: number): Promise<void>;
   deleteUserCompletely(userId: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
@@ -445,7 +445,7 @@ export class DatabaseStorage implements IStorage {
     return result.map(r => ({ ...r.player_profiles, user: r.users }));
   }
 
-  async updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile> {
+  async updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; grade?: string; gender?: string }, fullName?: string): Promise<PlayerProfile> {
     const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
     const [updated] = await db.update(playerProfiles).set(cleanUpdates as any).where(eq(playerProfiles.id, profileId)).returning();
     
@@ -833,12 +833,13 @@ export class DatabaseStorage implements IStorage {
 
   async createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }> {
     const [user] = await db.insert(users).values(userData).returning();
-    // Default to club 1 if not specified
+    const gradeVal = profileData.category || "C3";
     const [profile] = await db.insert(playerProfiles).values({
       userId: user.id,
       clubId: profileData.clubId || 1,
       gender: profileData.gender as any,
-      category: profileData.category as any,
+      category: "D" as any,
+      grade: gradeVal,
     }).returning();
     return { user, profile };
   }

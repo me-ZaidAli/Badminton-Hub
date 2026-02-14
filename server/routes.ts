@@ -615,14 +615,12 @@ export async function registerRoutes(
       if (gender && ["MALE", "FEMALE"].includes(gender)) {
         profileUpdates.gender = gender;
       }
-      if (category && ["A", "B", "C", "D"].includes(category)) {
-        profileUpdates.category = category;
-      }
       const { grade: gradeUpdate } = req.body;
-      if (gradeUpdate) {
+      const gradeVal = gradeUpdate || category;
+      if (gradeVal) {
         const { GRADE_ORDER: GO } = await import("@shared/schema");
-        if (GO.includes(gradeUpdate)) {
-          profileUpdates.grade = gradeUpdate;
+        if (GO.includes(gradeVal) || ["A", "B", "C", "D"].includes(gradeVal)) {
+          profileUpdates.grade = gradeVal;
         }
       }
       if (Object.keys(profileUpdates).length > 0) {
@@ -798,6 +796,7 @@ export async function registerRoutes(
         membershipStatus: "PENDING",
         gender: gender || null,
         category: "D",
+        grade: "C3",
         membershipId: null
       });
 
@@ -3910,7 +3909,8 @@ export async function registerRoutes(
             clubRole: "PLAYER",
             membershipStatus: "APPROVED",
             gender: gender || null,
-            category: category || "D",
+            category: "D",
+            grade: category || "C3",
             membershipId: null
           });
           results.push({ clubId, success: true, profileId: profile.id });
@@ -4326,7 +4326,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Member not found in this club" });
       }
 
-      const { membershipStatus, clubRole, category, gender, fullName } = req.body;
+      const { membershipStatus, clubRole, category, grade: gradeField, gender, fullName } = req.body;
       
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
@@ -4334,8 +4334,9 @@ export async function registerRoutes(
       if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
       }
-      if (category && !["A", "B", "C", "D"].includes(category)) {
-        return res.status(400).json({ message: "Invalid category" });
+      const gradeInput = gradeField || category;
+      if (gradeInput && !["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1", "A", "B", "C", "D"].includes(gradeInput)) {
+        return res.status(400).json({ message: "Invalid grade" });
       }
       if (gender && !["MALE", "FEMALE"].includes(gender)) {
         return res.status(400).json({ message: "Invalid gender" });
@@ -4348,7 +4349,9 @@ export async function registerRoutes(
       const updates: any = {};
       if (membershipStatus) updates.membershipStatus = membershipStatus;
       if (clubRole) updates.clubRole = clubRole;
-      if (category) updates.category = category;
+      if (gradeInput) {
+        updates.grade = gradeInput;
+      }
       if (gender) updates.gender = gender;
 
       if (membershipStatus === "APPROVED" && !clubRole) {
@@ -4437,7 +4440,7 @@ export async function registerRoutes(
         },
         {
           clubId,
-          category: "D", // Default category
+          category: "D",
         }
       );
 
@@ -4714,7 +4717,8 @@ export async function registerRoutes(
               userId: existingUser.id,
               clubId,
               gender: gender || "MALE",
-              category: category || "D",
+              category: "D",
+              grade: category || "C3",
               clubRole: "PLAYER",
               membershipStatus: "APPROVED",
             });
@@ -4732,7 +4736,8 @@ export async function registerRoutes(
               userId: newUser.id,
               clubId,
               gender: gender || "MALE",
-              category: category || "D",
+              category: "D",
+              grade: category || "C3",
               clubRole: "PLAYER",
               membershipStatus: "APPROVED",
             });
@@ -5200,7 +5205,8 @@ export async function registerRoutes(
         userId: newUser.id,
         clubId: session.clubId,
         gender: gender || "MALE",
-        category: category || "D",
+        category: "D",
+        grade: category || "C3",
         clubRole: "PLAYER",
         membershipStatus: "APPROVED",
       });
@@ -7269,10 +7275,13 @@ export async function registerRoutes(
 
     try {
       const profileId = parseInt(req.params.id);
-      const { gender, category, clubRole, membershipStatus, playerStatus } = req.body;
+      const { gender, category, grade: gradeField, clubRole, membershipStatus, playerStatus } = req.body;
       const updateData: Record<string, any> = {};
       if (gender !== undefined) updateData.gender = gender || null;
-      if (category !== undefined) updateData.category = category;
+      const gradeVal = gradeField || category;
+      if (gradeVal !== undefined) {
+        updateData.grade = gradeVal;
+      }
       if (clubRole !== undefined) updateData.clubRole = clubRole;
       if (membershipStatus !== undefined) updateData.membershipStatus = membershipStatus;
       if (playerStatus !== undefined) updateData.playerStatus = playerStatus;
@@ -9545,10 +9554,13 @@ export async function registerRoutes(
       }
       const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
       if (profile.length === 0) return res.status(404).json({ message: "Profile not found" });
-      const { gender, category, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role } = req.body;
+      const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role } = req.body;
       const profileUpdates: any = {};
       if (gender !== undefined) profileUpdates.gender = gender;
-      if (category !== undefined) profileUpdates.category = category;
+      const gradeValue = gradeField || category;
+      if (gradeValue !== undefined) {
+        profileUpdates.grade = gradeValue;
+      }
       if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
       if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
       if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
@@ -9656,7 +9668,7 @@ export async function registerRoutes(
         membershipStatus: "APPROVED",
         playerStatus: "ACTIVE",
         gender: gender || null,
-        category: category || "D",
+        category: "D",
         grade: category || "C3",
         rankingPoints: 1000,
         matchesPlayed: 0,
