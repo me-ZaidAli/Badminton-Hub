@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, User, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, User, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2, Send } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function PlayerProfile() {
   const [, params] = useRoute("/admin/players/:playerId");
@@ -17,6 +19,27 @@ export default function PlayerProfile() {
   const { data, isLoading } = usePlayerSessionHistory(playerId);
   const updatePayment = useUpdatePaymentStatus();
   const { toast } = useToast();
+
+  const requestPaymentMutation = useMutation({
+    mutationFn: async ({ signupId, sessionId }: { signupId: number; sessionId: number }) => {
+      const res = await apiRequest("POST", "/api/admin/request-payment", {
+        signupId,
+        sessionId,
+        playerId,
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: "Failed" }));
+        throw new Error(error.message || "Failed to send payment request");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Payment Requested", description: "A notification has been sent to the player." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   const handleTogglePayment = (signup: any, newStatus: "PAID" | "UNPAID") => {
     updatePayment.mutate(
@@ -121,14 +144,14 @@ export default function PlayerProfile() {
               <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-lg">
                 <CheckCircle className="h-8 w-8 text-green-500" />
                 <div>
-                  <p className="text-2xl font-bold text-green-600">${(totalPaid / 100).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-green-600">£{(totalPaid / 100).toFixed(2)}</p>
                   <p className="text-sm text-muted-foreground">Total Paid</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-4 bg-orange-500/10 rounded-lg">
                 <AlertCircle className="h-8 w-8 text-orange-500" />
                 <div>
-                  <p className="text-2xl font-bold text-orange-600">${(totalUnpaid / 100).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-orange-600">£{(totalUnpaid / 100).toFixed(2)}</p>
                   <p className="text-sm text-muted-foreground">Outstanding</p>
                 </div>
               </div>
@@ -176,7 +199,7 @@ export default function PlayerProfile() {
                         }
                       </TableCell>
                       <TableCell className="font-bold">
-                        ${((signup.fee || 0) / 100).toFixed(2)}
+                        £{((signup.fee || 0) / 100).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         {signup.paymentStatus === "PAID" ? (
@@ -212,19 +235,34 @@ export default function PlayerProfile() {
                             )}
                           </Button>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleTogglePayment(signup, "PAID")}
-                            disabled={updatePayment.isPending}
-                            data-testid={`button-mark-paid-${signup.id}`}
-                          >
-                            {updatePayment.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Mark Paid"
-                            )}
-                          </Button>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleTogglePayment(signup, "PAID")}
+                              disabled={updatePayment.isPending}
+                              data-testid={`button-mark-paid-${signup.id}`}
+                            >
+                              {updatePayment.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Mark Paid"
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => requestPaymentMutation.mutate({ signupId: signup.id, sessionId: signup.sessionId })}
+                              disabled={requestPaymentMutation.isPending}
+                              data-testid={`button-request-payment-${signup.id}`}
+                            >
+                              {requestPaymentMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <><Send className="h-3 w-3 mr-1" />Request</>
+                              )}
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

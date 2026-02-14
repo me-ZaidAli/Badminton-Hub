@@ -75,6 +75,25 @@ export default function Profile() {
     enabled: !!user,
   });
 
+  const { data: outstandingPayments, isLoading: outstandingLoading } = useQuery<{
+    signupId: number;
+    sessionId: number;
+    playerId: number;
+    fee: number;
+    paymentStatus: string;
+    paymentMethod: string | null;
+    paymentNotes: string | null;
+    signupStatus: string;
+    signupTime: string;
+    sessionTitle: string;
+    sessionDate: string;
+    clubId: number;
+    clubName: string;
+  }[]>({
+    queryKey: ["/api/my-outstanding-payments"],
+    enabled: !!user,
+  });
+
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -509,7 +528,7 @@ export default function Profile() {
         </Card>
       )}
 
-      {(creditsLoading || (creditBalances && creditBalances.length > 0)) && (
+      {(creditsLoading || memberships) && (
         <Card data-testid="card-credit-balance">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -525,14 +544,27 @@ export default function Profile() {
               </div>
             ) : (
             <div className="space-y-3">
-              {creditBalances!.map((cb) => (
-                <div key={cb.clubId} className="flex items-center justify-between py-2" data-testid={`credit-balance-${cb.clubId}`}>
-                  <span className="font-medium">{cb.clubName}</span>
-                  <span className={`text-lg font-bold ${Number(cb.balance) >= 0 ? "text-green-600" : "text-red-600"}`} data-testid={`text-credit-amount-${cb.clubId}`}>
-                    {Number(cb.balance) >= 0 ? "+" : ""}£{(Math.abs(Number(cb.balance)) / 100).toFixed(2)}
-                  </span>
-                </div>
-              ))}
+              {(() => {
+                const balanceMap = new Map((creditBalances || []).map(cb => [cb.clubId, cb]));
+                const allClubs = new Map<number, { clubId: number; clubName: string; balance: number }>();
+                (memberships || []).forEach(m => {
+                  if (!allClubs.has(m.clubId)) {
+                    const existing = balanceMap.get(m.clubId);
+                    allClubs.set(m.clubId, existing || { clubId: m.clubId, clubName: m.clubName, balance: 0 });
+                  }
+                });
+                (creditBalances || []).forEach(cb => {
+                  if (!allClubs.has(cb.clubId)) allClubs.set(cb.clubId, cb);
+                });
+                return Array.from(allClubs.values()).map((cb) => (
+                  <div key={cb.clubId} className="flex items-center justify-between py-2" data-testid={`credit-balance-${cb.clubId}`}>
+                    <span className="font-medium">{cb.clubName}</span>
+                    <span className={`text-lg font-bold ${Number(cb.balance) > 0 ? "text-green-600" : Number(cb.balance) < 0 ? "text-red-600" : "text-muted-foreground"}`} data-testid={`text-credit-amount-${cb.clubId}`}>
+                      {Number(cb.balance) > 0 ? "+" : ""}£{(Math.abs(Number(cb.balance)) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                ));
+              })()}
             </div>
             )}
           </CardContent>
@@ -592,6 +624,63 @@ export default function Profile() {
                 >
                   {showFullHistory ? "Show Less" : `Show All (${creditHistory.length})`}
                 </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(outstandingLoading || (outstandingPayments && outstandingPayments.length > 0)) && (
+        <Card data-testid="card-outstanding-payments">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              Outstanding Payments
+            </CardTitle>
+            <CardDescription>Unpaid session fees that need your attention</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {outstandingLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(() => {
+                  const grouped = (outstandingPayments || []).reduce((acc, p) => {
+                    if (!acc[p.clubName]) acc[p.clubName] = [];
+                    acc[p.clubName].push(p);
+                    return acc;
+                  }, {} as Record<string, typeof outstandingPayments>);
+                  return Object.entries(grouped).map(([clubName, payments]) => {
+                    const total = (payments || []).reduce((sum, p) => sum + p.fee, 0);
+                    return (
+                      <div key={clubName} className="space-y-2" data-testid={`outstanding-club-${clubName}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{clubName}</span>
+                          <Badge variant="secondary" data-testid={`badge-outstanding-total-${clubName}`}>
+                            Total: £{(total / 100).toFixed(2)}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1">
+                          {(payments || []).map((p) => (
+                            <div key={p.signupId} className="flex items-center justify-between py-1.5 px-3 rounded-md bg-muted/50" data-testid={`outstanding-item-${p.signupId}`}>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">{p.sessionTitle}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(p.sessionDate), "MMM d, yyyy")}
+                                </span>
+                              </div>
+                              <span className="text-sm font-bold text-amber-600" data-testid={`text-outstanding-fee-${p.signupId}`}>
+                                £{(p.fee / 100).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </CardContent>
