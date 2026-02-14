@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -248,6 +248,25 @@ export default function AdminDashboard() {
             </Link>
           </Card>
         )}
+
+        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
+          <Link href="/admin/memberships">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-teal-500" />
+                  Membership Management
+                </span>
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Manage membership plans, requests, and payment status.
+              </p>
+            </CardContent>
+          </Link>
+        </Card>
 
         <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
           <Link href="/admin/import-members">

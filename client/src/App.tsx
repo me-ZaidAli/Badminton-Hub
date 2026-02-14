@@ -342,6 +342,9 @@ function Router() {
       <Route path="/admin/membership-board">
         <AdminRoute component={MembershipBoard} />
       </Route>
+      <Route path="/admin/memberships">
+        <AdminRoute component={MembershipBoard} />
+      </Route>
       <Route path="/admin/inventory">
         <AdminRoute component={AdminInventory} />
       </Route>
