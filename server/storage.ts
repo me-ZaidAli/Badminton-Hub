@@ -869,7 +869,7 @@ export class DatabaseStorage implements IStorage {
 
   private computeLeaderboardFromMatches(
     matchList: Match[],
-    players: Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName?: boolean; nickname?: string | null }>
+    players: Map<number, { fullName: string; gender: string | null; category: string | null; grade?: string | null; showPublicName?: boolean; nickname?: string | null; [key: string]: any }>
   ) {
     const statsMap = new Map<number, { matchesPlayed: number; matchesWon: number; setsWon: number; pointsWon: number }>();
 
@@ -922,6 +922,7 @@ export class DatabaseStorage implements IStorage {
       fullName: string;
       gender: string | null;
       category: string | null;
+      grade: string | null;
       matchesPlayed: number;
       matchesWon: number;
       matchesLost: number;
@@ -941,6 +942,7 @@ export class DatabaseStorage implements IStorage {
         fullName: player.fullName,
         gender: player.gender,
         category: player.category,
+        grade: player.grade ?? null,
         matchesPlayed: stats.matchesPlayed,
         matchesWon: stats.matchesWon,
         matchesLost: stats.matchesPlayed - stats.matchesWon,
@@ -998,12 +1000,13 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(inArray(playerProfiles.id, [...playerIds]));
 
-    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName: boolean; nickname: string | null }>();
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; grade: string | null; showPublicName: boolean; nickname: string | null }>();
     for (const r of profileRows) {
       playerMap.set(r.player_profiles.id, {
         fullName: r.users.fullName,
         gender: r.player_profiles.gender,
         category: r.player_profiles.category,
+        grade: r.player_profiles.grade,
         showPublicName: r.users.showPublicName,
         nickname: r.users.nickname,
       });
@@ -1038,12 +1041,13 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(inArray(playerProfiles.id, [...playerIds]));
 
-    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; showPublicName: boolean; nickname: string | null }>();
+    const playerMap = new Map<number, { fullName: string; gender: string | null; category: string | null; grade: string | null; showPublicName: boolean; nickname: string | null }>();
     for (const r of profileRows) {
       playerMap.set(r.player_profiles.id, {
         fullName: r.users.fullName,
         gender: r.player_profiles.gender,
         category: r.player_profiles.category,
+        grade: r.player_profiles.grade,
         showPublicName: r.users.showPublicName,
         nickname: r.users.nickname,
       });
@@ -1126,6 +1130,7 @@ export class DatabaseStorage implements IStorage {
       fullName: string;
       gender: string | null;
       category: string | null;
+      grade: string | null;
       clubId: number;
       clubName: string;
       isJunior: boolean;
@@ -1136,7 +1141,8 @@ export class DatabaseStorage implements IStorage {
     }>();
 
     for (const r of profileRows) {
-      if (filters.category && r.player_profiles.category !== filters.category) continue;
+      const playerGrade = r.player_profiles.grade || r.player_profiles.category;
+      if (filters.category && playerGrade !== filters.category && r.player_profiles.category !== filters.category) continue;
       if (filters.gender === "JUNIOR") {
         if (!r.users.isJunior) continue;
       } else if (filters.gender && r.player_profiles.gender !== filters.gender) continue;
@@ -1145,6 +1151,7 @@ export class DatabaseStorage implements IStorage {
         fullName: r.users.fullName,
         gender: r.player_profiles.gender,
         category: r.player_profiles.category,
+        grade: r.player_profiles.grade,
         clubId: r.player_profiles.clubId,
         clubName: r.clubs.name,
         isJunior: r.users.isJunior,
@@ -1185,6 +1192,7 @@ export class DatabaseStorage implements IStorage {
         fullName: player.fullName,
         gender: player.gender,
         category: player.category,
+        grade: player.grade,
         clubId: player.clubId,
         clubName: player.clubName,
         matchesPlayed: stats.matchesPlayed,
