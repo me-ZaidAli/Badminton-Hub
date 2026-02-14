@@ -1637,11 +1637,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
       if (showNotEnoughPlayersWarning()) return;
     }
     setNotEnoughPlayersMessage(null);
-    if (!autoGenerateActive || autoGenLocallyStopped) {
+    const wasInactive = !autoGenerateActive || autoGenLocallyStopped;
+    if (wasInactive) {
       setAutoGenLocallyStopped(false);
       updateSession({ sessionId, updates: { autoGenerateActive: true } });
     }
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive }, {
       onSuccess: (data: any) => {
         if (data?.status === "waiting") {
           setAutoGenWaiting(true);
@@ -1887,18 +1888,16 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     </SelectContent>
                   </Select>
 
-                  {(autoGenerateActive && !autoGenLocallyStopped) && (
-                    <Button 
-                      onClick={handleSmartGenerate}
-                      disabled={isSmartGenerating}
-                      variant="outline"
-                      className="gap-2"
-                      data-testid="button-generate-matches"
-                    >
-                      <Shuffle className="w-4 h-4" />
-                      {isSmartGenerating ? "Generating..." : "Generate Matches"}
-                    </Button>
-                  )}
+                  <Button 
+                    onClick={handleSmartGenerate}
+                    disabled={isSmartGenerating}
+                    variant="outline"
+                    className="gap-2"
+                    data-testid="button-generate-matches"
+                  >
+                    <Shuffle className="w-4 h-4" />
+                    {isSmartGenerating ? "Generating..." : "Generate Matches"}
+                  </Button>
                 </div>
               )}
             </div>
