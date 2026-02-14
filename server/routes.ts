@@ -1369,6 +1369,284 @@ export async function registerRoutes(
     res.sendStatus(200);
   });
 
+  // === JUNIOR ACCOUNTS ===
+  app.get("/api/juniors", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const juniors = await storage.getJuniorAccounts(req.user!.id);
+    res.json(juniors);
+  });
+
+  app.post("/api/juniors", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { fullName, dateOfBirth, gender, emergencyContact, medicalNotes } = req.body;
+      if (!fullName || fullName.trim().length === 0) {
+        return res.status(400).json({ message: "Full name is required" });
+      }
+      const junior = await storage.createJuniorAccount(req.user!.id, {
+        fullName: fullName.trim(),
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        gender,
+        emergencyContact,
+        medicalNotes,
+      });
+      res.status(201).json(junior);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/juniors/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const juniorId = Number(req.params.id);
+      const junior = await storage.getUser(juniorId);
+      if (!junior || junior.parentUserId !== req.user!.id) {
+        if (req.user!.role !== "OWNER") {
+          return res.status(403).json({ message: "Not authorized to edit this junior account" });
+        }
+      }
+      const { fullName, dateOfBirth, emergencyContact, medicalNotes } = req.body;
+      const updates: any = {};
+      if (fullName !== undefined) updates.fullName = fullName;
+      if (dateOfBirth !== undefined) updates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (emergencyContact !== undefined) updates.emergencyContact = emergencyContact;
+      if (medicalNotes !== undefined) updates.medicalNotes = medicalNotes;
+      const updated = await storage.updateUser(juniorId, updates);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/juniors/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const juniorId = Number(req.params.id);
+      const junior = await storage.getUser(juniorId);
+      if (!junior || junior.parentUserId !== req.user!.id) {
+        if (req.user!.role !== "OWNER") {
+          return res.status(403).json({ message: "Not authorized to delete this junior account" });
+        }
+      }
+      await storage.deleteUserCompletely(juniorId);
+      res.sendStatus(200);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Add junior to a club (create player profile for junior in parent's club)
+  app.post("/api/juniors/:id/clubs/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const juniorId = Number(req.params.id);
+      const clubId = Number(req.params.clubId);
+      const junior = await storage.getUser(juniorId);
+      if (!junior || junior.parentUserId !== req.user!.id) {
+        if (req.user!.role !== "OWNER") {
+          return res.status(403).json({ message: "Not authorized" });
+        }
+      }
+      const existing = await storage.getPlayerProfile(juniorId, clubId);
+      if (existing) {
+        return res.status(400).json({ message: "Junior already has a profile in this club" });
+      }
+      const { gender, grade } = req.body;
+      const profile = await storage.createPlayerProfile({
+        userId: juniorId,
+        clubId,
+        clubRole: "PLAYER",
+        membershipStatus: "APPROVED",
+        gender: gender || undefined,
+        category: "D",
+        grade: grade || "C3",
+      });
+      res.status(201).json(profile);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === MULTI-ATTENDEE SESSION JOIN ===
+  app.post("/api/sessions/:id/join-multi", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const { attendees } = req.body;
+    if (!attendees || !Array.isArray(attendees) || attendees.length === 0) {
+      return res.status(400).json({ message: "At least one attendee is required" });
+    }
+
+    const signups = await storage.getSessionSignups(sessionId);
+    const confirmedCount = signups.filter(s => (s as any).signupStatus !== "CANCELLED").length;
+    let fee = session.sessionFee;
+    if (fee == null) {
+      const club = await storage.getClub(session.clubId);
+      fee = club?.sessionFee ?? 1000;
+    }
+
+    const results: any[] = [];
+    const errors: string[] = [];
+
+    for (const attendee of attendees) {
+      const { userId, paymentMethod } = attendee;
+      if (!paymentMethod || !["CARD", "BANK_TRANSFER", "NONE"].includes(paymentMethod)) {
+        errors.push(`${userId}: Payment method required (CARD, BANK_TRANSFER, or NONE)`);
+        continue;
+      }
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        errors.push(`${userId}: User not found`);
+        continue;
+      }
+
+      if (targetUser.id !== req.user!.id && targetUser.parentUserId !== req.user!.id) {
+        if (req.user!.role !== "OWNER") {
+          errors.push(`${targetUser.fullName}: Not authorized to sign up this user`);
+          continue;
+        }
+      }
+
+      const profile = await storage.getPlayerProfile(userId, session.clubId);
+      if (!profile) {
+        errors.push(`${targetUser.fullName}: Not a member of this club`);
+        continue;
+      }
+
+      if (profile.membershipStatus !== "APPROVED") {
+        errors.push(`${targetUser.fullName}: Membership not approved`);
+        continue;
+      }
+
+      const alreadySignedUp = signups.some(s => s.playerId === profile.id);
+      if (alreadySignedUp) {
+        errors.push(`${targetUser.fullName}: Already signed up`);
+        continue;
+      }
+
+      if (session.genderRestriction === "FEMALE_ONLY" && profile.gender !== "FEMALE") {
+        errors.push(`${targetUser.fullName}: This session is for female players only`);
+        continue;
+      }
+
+      const currentConfirmed = confirmedCount + results.filter(r => r.signupStatus === "CONFIRMED").length;
+      const isFull = currentConfirmed >= session.maxPlayers;
+
+      const signup = await storage.createSessionSignupEnhanced({
+        sessionId,
+        playerId: profile.id,
+        fee,
+        paymentMethod,
+        signupStatus: isFull ? "WAITING" : "CONFIRMED",
+        waitingListPosition: isFull ? currentConfirmed - session.maxPlayers + 1 : undefined,
+        signedUpByUserId: req.user!.id,
+      });
+
+      results.push({ ...signup, userName: targetUser.fullName });
+    }
+
+    res.status(201).json({ signups: results, errors });
+  });
+
+  // === MANAGE PLAYERS (Admin) ===
+  app.get("/api/sessions/:id/manage-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const signups = await storage.getSessionSignups(sessionId);
+    const confirmed = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED");
+    const waiting = signups.filter((s: any) => s.signupStatus === "WAITING");
+    const cancelled = signups.filter((s: any) => s.signupStatus === "CANCELLED");
+
+    const paidCount = confirmed.filter((s: any) => s.paymentStatus === "PAID").length;
+    const pendingCount = confirmed.filter((s: any) => s.paymentStatus === "PENDING").length;
+    const unpaidCount = confirmed.filter((s: any) => s.paymentStatus === "UNPAID").length;
+    const cardCount = confirmed.filter((s: any) => s.paymentMethod === "CARD").length;
+    const bankTransferCount = confirmed.filter((s: any) => s.paymentMethod === "BANK_TRANSFER").length;
+
+    res.json({
+      summary: {
+        totalAttendees: confirmed.length,
+        paid: paidCount,
+        pendingBankTransfer: pendingCount,
+        unpaid: unpaidCount,
+        cardPayments: cardCount,
+        bankTransfers: bankTransferCount,
+        waitingListCount: waiting.length,
+      },
+      confirmed,
+      waiting: waiting.sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0)),
+      cancelled,
+    });
+  });
+
+  // Admin: Update signup payment status
+  app.patch("/api/sessions/:sessionId/signups/:signupId/payment-override", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const signupId = Number(req.params.signupId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes } = req.body;
+    const updated = await storage.updateSessionSignupPayment(signupId, {
+      paymentStatus,
+      paymentMethod,
+      verifiedByAdmin,
+      adminNotes,
+    });
+    res.json(updated);
+  });
+
+  // Admin: Move player between lists (confirm/waiting/cancel)
+  app.patch("/api/sessions/:sessionId/signups/:signupId/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const signupId = Number(req.params.signupId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { signupStatus, waitingListPosition } = req.body;
+    const updated = await storage.updateSessionSignupStatus(signupId, {
+      signupStatus,
+      waitingListPosition: waitingListPosition !== undefined ? waitingListPosition : null,
+    });
+    res.json(updated);
+  });
+
+  // Admin: Promote from waiting list
+  app.post("/api/sessions/:sessionId/promote-waiting", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { signupId } = req.body;
+    const updated = await storage.updateSessionSignupStatus(signupId, {
+      signupStatus: "CONFIRMED",
+      waitingListPosition: null,
+    });
+    res.json(updated);
+  });
+
   app.patch(api.sessions.updateAttendance.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401); 
     // Add role check here (ADMIN+)
@@ -4966,6 +5244,9 @@ export async function registerRoutes(
           playerId: sessionSignups.playerId,
           fee: sessionSignups.fee,
           paymentStatus: sessionSignups.paymentStatus,
+          paymentMethod: sessionSignups.paymentMethod,
+          signupStatus: sessionSignups.signupStatus,
+          verifiedByAdmin: sessionSignups.verifiedByAdmin,
           attendanceStatus: sessionSignups.attendanceStatus,
           attendanceNote: sessionSignups.attendanceNote,
           partialPercentage: sessionSignups.partialPercentage,
@@ -8071,6 +8352,7 @@ export async function registerRoutes(
 
       const sessionIncome = signupsData.reduce((sum, s) => sum + (s.fee || 0), 0);
       const sessionPaid = signupsData.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+      const sessionPending = signupsData.filter(s => s.paymentStatus === "PENDING").reduce((sum, s) => sum + (s.fee || 0), 0);
 
       const movementConditions: any[] = [inArray(inventoryMovements.clubId, filteredClubIds)];
       if (qDateFrom) movementConditions.push(gte(inventoryMovements.createdAt, qDateFrom));
@@ -8106,6 +8388,7 @@ export async function registerRoutes(
       res.json({
         sessionIncome,
         sessionPaid,
+        sessionPending,
         sessionOutstanding: sessionIncome - sessionPaid,
         inventorySales,
         inventoryPurchases,

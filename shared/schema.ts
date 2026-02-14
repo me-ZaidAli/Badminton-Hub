@@ -12,7 +12,9 @@ export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
 
 export const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"] as const;
 export type Grade = typeof GRADE_ORDER[number];
-export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID", "PENDING"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["CARD", "BANK_TRANSFER", "NONE"]);
+export const signupStatusEnum = pgEnum("signup_status", ["CONFIRMED", "WAITING", "CANCELLED"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", [
   "ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL",
   "NO_SHOW", "JUSTIFIED_CANCELLATION", "SICKNESS", "EMERGENCY",
@@ -48,9 +50,12 @@ export const users = pgTable("users", {
   claimedProfileId: integer("claimed_profile_id"),
   dateOfBirth: timestamp("date_of_birth"),
   isJunior: boolean("is_junior").default(false).notNull(),
+  parentUserId: integer("parent_user_id"),
   phone: text("phone"),
   parentGuardianName: text("parent_guardian_name"),
   parentGuardianEmail: text("parent_guardian_email"),
+  emergencyContact: text("emergency_contact"),
+  medicalNotes: text("medical_notes"),
   continent: text("continent"),
   country: text("country"),
   region: text("region"),
@@ -305,6 +310,11 @@ export const sessionSignups = pgTable("session_signups", {
   playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
   fee: integer("fee").notNull(),
   paymentStatus: paymentStatusEnum("payment_status").default("UNPAID").notNull(),
+  paymentMethod: paymentMethodEnum("payment_method").default("NONE"),
+  signupStatus: signupStatusEnum("signup_status").default("CONFIRMED").notNull(),
+  waitingListPosition: integer("waiting_list_position"),
+  verifiedByAdmin: boolean("verified_by_admin").default(false).notNull(),
+  signedUpByUserId: integer("signed_up_by_user_id").references(() => users.id),
   attendanceStatus: attendanceStatusEnum("attendance_status").default("NOT_ATTENDED").notNull(),
   signupTime: timestamp("signup_time").defaultNow().notNull(),
   genderOverride: text("gender_override"),
@@ -313,6 +323,7 @@ export const sessionSignups = pgTable("session_signups", {
   attendanceNote: text("attendance_note"),
   partialPercentage: integer("partial_percentage"),
   policyMet: boolean("policy_met"),
+  adminNotes: text("admin_notes"),
 });
 
 // === CREDIT LEDGER ===

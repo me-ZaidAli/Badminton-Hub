@@ -98,8 +98,11 @@ export interface IStorage {
     phone: string | null;
     dateOfBirth: Date | null;
     isJunior: boolean;
+    parentUserId: number | null;
     parentGuardianName: string | null;
     parentGuardianEmail: string | null;
+    emergencyContact: string | null;
+    medicalNotes: string | null;
     password: string;
     accountStatus: string;
     profilePictureUrl: string | null;
@@ -109,6 +112,16 @@ export interface IStorage {
   deletePlayerProfile(id: number): Promise<void>;
   deleteUserCompletely(userId: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
+
+  // Junior accounts
+  getJuniorAccounts(parentUserId: number): Promise<User[]>;
+  createJuniorAccount(parentUserId: number, data: { fullName: string; dateOfBirth?: Date; gender?: string; emergencyContact?: string; medicalNotes?: string }): Promise<User>;
+
+  // Enhanced session signups
+  createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup>;
+  updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }): Promise<SessionSignup>;
+  updateSessionSignupStatus(signupId: number, updates: { signupStatus?: string; waitingListPosition?: number | null }): Promise<SessionSignup>;
+  getWaitingListForSession(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
   getPlayerMatchHistory(playerProfileId: number): Promise<Match[]>;
   getDynamicClubLeaderboard(clubId: number): Promise<{
@@ -732,8 +745,11 @@ export class DatabaseStorage implements IStorage {
     phone: string | null;
     dateOfBirth: Date | null;
     isJunior: boolean;
+    parentUserId: number | null;
     parentGuardianName: string | null;
     parentGuardianEmail: string | null;
+    emergencyContact: string | null;
+    medicalNotes: string | null;
     password: string;
     accountStatus: string;
     profilePictureUrl: string | null;
@@ -1634,6 +1650,76 @@ export class DatabaseStorage implements IStorage {
 
   async getPolicyAcceptances(userId: number): Promise<PolicyAcceptance[]> {
     return await db.select().from(policyAcceptances).where(eq(policyAcceptances.userId, userId)).orderBy(desc(policyAcceptances.acceptedAt));
+  }
+
+  async getJuniorAccounts(parentUserId: number): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.parentUserId, parentUserId)).orderBy(users.fullName);
+  }
+
+  async createJuniorAccount(parentUserId: number, data: { fullName: string; dateOfBirth?: Date; gender?: string; emergencyContact?: string; medicalNotes?: string }): Promise<User> {
+    const parent = await this.getUser(parentUserId);
+    if (!parent) throw new Error("Parent user not found");
+
+    const juniorEmail = `junior_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@junior.local`;
+
+    const [junior] = await db.insert(users).values({
+      fullName: data.fullName,
+      email: juniorEmail,
+      password: "JUNIOR_NO_LOGIN",
+      role: "PLAYER",
+      isJunior: true,
+      parentUserId: parentUserId,
+      dateOfBirth: data.dateOfBirth || null,
+      emergencyContact: data.emergencyContact || parent.phone || null,
+      medicalNotes: data.medicalNotes || null,
+      parentGuardianName: parent.fullName,
+      parentGuardianEmail: parent.email,
+      accountStatus: "APPROVED",
+      emailVerified: true,
+    }).returning();
+    return junior;
+  }
+
+  async createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup> {
+    const paymentStatus = data.paymentMethod === "CARD" ? "PAID" : data.paymentMethod === "BANK_TRANSFER" ? "PENDING" : "UNPAID";
+    const [signup] = await db.insert(sessionSignups).values({
+      sessionId: data.sessionId,
+      playerId: data.playerId,
+      fee: data.fee,
+      paymentStatus: paymentStatus as any,
+      paymentMethod: (data.paymentMethod || "NONE") as any,
+      signupStatus: (data.signupStatus || "CONFIRMED") as any,
+      waitingListPosition: data.waitingListPosition || null,
+      signedUpByUserId: data.signedUpByUserId || null,
+      verifiedByAdmin: false,
+      attendanceStatus: "NOT_ATTENDED",
+    }).returning();
+    return signup;
+  }
+
+  async updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }): Promise<SessionSignup> {
+    const [updated] = await db.update(sessionSignups).set(updates as any).where(eq(sessionSignups.id, signupId)).returning();
+    return updated;
+  }
+
+  async updateSessionSignupStatus(signupId: number, updates: { signupStatus?: string; waitingListPosition?: number | null }): Promise<SessionSignup> {
+    const [updated] = await db.update(sessionSignups).set(updates as any).where(eq(sessionSignups.id, signupId)).returning();
+    return updated;
+  }
+
+  async getWaitingListForSession(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]> {
+    const results = await db.query.sessionSignups.findMany({
+      where: and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.signupStatus, "WAITING" as any)),
+      with: {
+        player: {
+          with: {
+            user: true,
+          },
+        },
+      },
+      orderBy: [sessionSignups.waitingListPosition],
+    });
+    return results as any;
   }
 }
 

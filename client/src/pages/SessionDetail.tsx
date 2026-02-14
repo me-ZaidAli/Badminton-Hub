@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
@@ -23,7 +24,10 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -50,6 +54,8 @@ export default function SessionDetail() {
   const { data: allPlayers } = usePlayers();
   const { mutate: join, isPending: isJoining } = useJoinSession();
   const { mutate: withdraw, isPending: isWithdrawing } = useWithdrawSession();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const { mutate: adminAddPlayer, isPending: isAdding } = useAdminAddPlayer();
   const { mutate: adminRemovePlayer } = useAdminRemovePlayer();
   const { mutate: deleteSession, isPending: isDeleting } = useDeleteSession();
@@ -107,6 +113,63 @@ export default function SessionDetail() {
   const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  // Multi-select join modal
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [joinSelections, setJoinSelections] = useState<Record<number, { selected: boolean; paymentMethod: string }>>({});
+  const { data: juniorAccounts } = useQuery<any[]>({
+    queryKey: ["/api/juniors"],
+    enabled: !!user,
+  });
+  const joinMultiMutation = useMutation({
+    mutationFn: async (data: { sessionId: number; attendees: { userId: number; paymentMethod: string }[] }) => {
+      const res = await apiRequest("POST", `/api/sessions/${data.sessionId}/join-multi`, { attendees: data.attendees });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to join session" }));
+        throw new Error(errData.message || "Failed to join session");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setJoinModalOpen(false);
+      const signedUp = data.signups?.length || 0;
+      const errs = data.errors?.length || 0;
+      toast({ title: `${signedUp} attendee${signedUp !== 1 ? "s" : ""} signed up`, description: errs > 0 ? `${errs} issue(s): ${data.errors.join("; ")}` : undefined, variant: errs > 0 ? "destructive" : undefined });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to join", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Manage players modal
+  const [managePlayersOpen, setManagePlayersOpen] = useState(false);
+  const { data: managePlayersData, refetch: refetchManagePlayers } = useQuery<any>({
+    queryKey: ["/api/sessions", id, "manage-players"],
+    enabled: managePlayersOpen && !!session,
+  });
+  const paymentOverrideMutation = useMutation({
+    mutationFn: async (data: { signupId: number; paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${id}/signups/${data.signupId}/payment-override`, data);
+      return res.json();
+    },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); },
+  });
+  const statusOverrideMutation = useMutation({
+    mutationFn: async (data: { signupId: number; signupStatus: string; waitingListPosition?: number | null }) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${id}/signups/${data.signupId}/status`, data);
+      return res.json();
+    },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); },
+  });
+  const promoteMutation = useMutation({
+    mutationFn: async (signupId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${id}/promote-waiting`, { signupId });
+      return res.json();
+    },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); toast({ title: "Player promoted from waiting list" }); },
+  });
 
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState<{ playerId: number; playerName: string } | null>(null);
@@ -856,7 +919,17 @@ export default function SessionDetail() {
             ) : (
               <Button 
                 className="w-full shadow-lg shadow-primary/25" 
-                onClick={() => join(id)}
+                onClick={() => {
+                  if (juniorAccounts && juniorAccounts.length > 0) {
+                    const selections: Record<number, { selected: boolean; paymentMethod: string }> = {};
+                    selections[user.id] = { selected: true, paymentMethod: "" };
+                    juniorAccounts.forEach((j: any) => { selections[j.id] = { selected: false, paymentMethod: "" }; });
+                    setJoinSelections(selections);
+                    setJoinModalOpen(true);
+                  } else {
+                    join(id);
+                  }
+                }}
                 disabled={isJoining || (signups?.length || 0) >= session.maxPlayers}
                 data-testid="button-join-session"
               >
@@ -939,6 +1012,9 @@ export default function SessionDetail() {
           </h2>
           {isOrganiser && (
             <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" className="gap-2" onClick={() => setManagePlayersOpen(true)} data-testid="button-manage-players">
+                <ClipboardList className="w-4 h-4" /> Manage Players
+              </Button>
               <Dialog open={addDialogOpen} onOpenChange={(open) => {
                 setAddDialogOpen(open);
                 if (!open) setPlayerSearchQuery("");
@@ -2116,6 +2192,223 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Multi-Select Join Session Modal */}
+      <Dialog open={joinModalOpen} onOpenChange={setJoinModalOpen}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle>Who is joining this session?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {user && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-md border">
+                  <Checkbox
+                    checked={joinSelections[user.id]?.selected || false}
+                    onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], selected: !!checked } }))}
+                    data-testid="checkbox-join-self"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium">{user.fullName} (me)</p>
+                  </div>
+                  {joinSelections[user.id]?.selected && (
+                    <Select value={joinSelections[user.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [user.id]: { ...prev[user.id], paymentMethod: v } }))}>
+                      <SelectTrigger className="w-[160px]" data-testid="select-payment-self">
+                        <SelectValue placeholder="Payment..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
+                        <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
+                        <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                {juniorAccounts?.map((junior: any) => (
+                  <div key={junior.id} className="flex items-center gap-3 p-3 rounded-md border">
+                    <Checkbox
+                      checked={joinSelections[junior.id]?.selected || false}
+                      onCheckedChange={(checked) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], selected: !!checked } }))}
+                      data-testid={`checkbox-join-junior-${junior.id}`}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{junior.fullName}</p>
+                      <p className="text-xs text-muted-foreground">Junior</p>
+                    </div>
+                    {joinSelections[junior.id]?.selected && (
+                      <Select value={joinSelections[junior.id]?.paymentMethod || ""} onValueChange={(v) => setJoinSelections(prev => ({ ...prev, [junior.id]: { ...prev[junior.id], paymentMethod: v } }))}>
+                        <SelectTrigger className="w-[160px]" data-testid={`select-payment-junior-${junior.id}`}>
+                          <SelectValue placeholder="Payment..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CARD"><div className="flex items-center gap-2"><CreditCard className="w-3 h-3" />Pay Now</div></SelectItem>
+                          <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Building2 className="w-3 h-3" />Bank Transfer</div></SelectItem>
+                          <SelectItem value="NONE"><div className="flex items-center gap-2"><Ban className="w-3 h-3" />No Payment</div></SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJoinModalOpen(false)} data-testid="button-cancel-join-multi">Cancel</Button>
+            <Button
+              onClick={() => {
+                const attendees = Object.entries(joinSelections)
+                  .filter(([, v]) => v.selected && v.paymentMethod)
+                  .map(([userId, v]) => ({ userId: Number(userId), paymentMethod: v.paymentMethod }));
+                if (attendees.length === 0) {
+                  toast({ title: "Select at least one attendee and choose payment for each", variant: "destructive" });
+                  return;
+                }
+                const missingPayment = Object.entries(joinSelections).filter(([, v]) => v.selected && !v.paymentMethod);
+                if (missingPayment.length > 0) {
+                  toast({ title: "Please choose a payment method for all selected attendees", variant: "destructive" });
+                  return;
+                }
+                joinMultiMutation.mutate({ sessionId: id, attendees });
+              }}
+              disabled={joinMultiMutation.isPending}
+              data-testid="button-confirm-join-multi"
+            >
+              {joinMultiMutation.isPending ? "Joining..." : "Confirm Signup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Players Modal */}
+      <Dialog open={managePlayersOpen} onOpenChange={setManagePlayersOpen}>
+        <DialogContent className="bg-background max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardList className="w-5 h-5" /> Manage Players</DialogTitle>
+          </DialogHeader>
+          {managePlayersData ? (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.totalAttendees || 0}</p><p className="text-xs text-muted-foreground">Total Attendees</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600">{managePlayersData.summary?.paid || 0}</p><p className="text-xs text-muted-foreground">Paid</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-yellow-600">{managePlayersData.summary?.pendingBankTransfer || 0}</p><p className="text-xs text-muted-foreground">Pending Transfer</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600">{managePlayersData.summary?.unpaid || 0}</p><p className="text-xs text-muted-foreground">Unpaid</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.cardPayments || 0}</p><p className="text-xs text-muted-foreground">Card</p></CardContent></Card>
+                <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{managePlayersData.summary?.bankTransfers || 0}</p><p className="text-xs text-muted-foreground">Bank Transfer</p></CardContent></Card>
+              </div>
+
+              {/* Tabs for Confirmed / Waiting / Cancelled */}
+              <Tabs defaultValue="confirmed">
+                <TabsList className="w-full">
+                  <TabsTrigger value="confirmed" className="flex-1" data-testid="tab-confirmed">Confirmed ({managePlayersData.confirmed?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="waiting" className="flex-1" data-testid="tab-waiting">Waiting ({managePlayersData.waiting?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="cancelled" className="flex-1" data-testid="tab-cancelled">Cancelled ({managePlayersData.cancelled?.length || 0})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="confirmed" className="space-y-2 mt-3">
+                  {(managePlayersData.confirmed || []).map((s: any) => (
+                    <ManagePlayerRow key={s.id} signup={s} onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })} onStatusChange={(status) => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: status })} />
+                  ))}
+                  {(!managePlayersData.confirmed || managePlayersData.confirmed.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>}
+                </TabsContent>
+
+                <TabsContent value="waiting" className="space-y-2 mt-3">
+                  {(managePlayersData.waiting || []).map((s: any, idx: number) => (
+                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md">
+                      <span className="text-sm font-mono text-muted-foreground w-6">{idx + 1}.</span>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
+                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => promoteMutation.mutate(s.id)} disabled={promoteMutation.isPending} data-testid={`button-promote-${s.id}`}>
+                        <ChevronUp className="w-4 h-4 mr-1" /> Promote
+                      </Button>
+                    </div>
+                  ))}
+                  {(!managePlayersData.waiting || managePlayersData.waiting.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No players on waiting list</p>}
+                </TabsContent>
+
+                <TabsContent value="cancelled" className="space-y-2 mt-3">
+                  {(managePlayersData.cancelled || []).map((s: any) => (
+                    <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md opacity-60">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
+                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: "CONFIRMED" })} data-testid={`button-reinstate-${s.id}`}>
+                        Reinstate
+                      </Button>
+                    </div>
+                  ))}
+                  {(!managePlayersData.cancelled || managePlayersData.cancelled.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No cancelled signups</p>}
+                </TabsContent>
+              </Tabs>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PaymentBadge({ status, method }: { status?: string; method?: string }) {
+  const statusColors: Record<string, string> = {
+    PAID: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    UNPAID: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  };
+  const methodLabels: Record<string, string> = { CARD: "Card", BANK_TRANSFER: "Bank Transfer", NONE: "No Payment" };
+  return (
+    <div className="flex gap-1 flex-wrap">
+      <Badge variant="secondary" className={statusColors[status || "UNPAID"] || ""}>{status || "UNPAID"}</Badge>
+      {method && method !== "NONE" && <Badge variant="outline" className="text-xs">{methodLabels[method] || method}</Badge>}
+    </div>
+  );
+}
+
+function ManagePlayerRow({ signup, onPaymentOverride, onStatusChange }: { signup: any; onPaymentOverride: (u: any) => void; onStatusChange: (s: string) => void }) {
+  const [showOverride, setShowOverride] = useState(false);
+  return (
+    <div className="p-3 border rounded-md space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <p className="font-medium text-sm">{signup.player?.user?.fullName || "Unknown"}</p>
+          {signup.player?.user?.isJunior && <Badge variant="outline" className="text-xs">Junior</Badge>}
+        </div>
+        <PaymentBadge status={signup.paymentStatus} method={signup.paymentMethod} />
+        {signup.verifiedByAdmin && <Badge variant="secondary" className="text-xs bg-green-50 dark:bg-green-950">Verified</Badge>}
+        <Button size="icon" variant="ghost" onClick={() => setShowOverride(!showOverride)} data-testid={`button-override-${signup.id}`}>
+          <Settings2 className="w-4 h-4" />
+        </Button>
+      </div>
+      {showOverride && (
+        <div className="flex flex-wrap gap-2 pt-2 border-t">
+          <Select onValueChange={(v) => { const [ps, pm] = v.split("|"); onPaymentOverride({ paymentStatus: ps, paymentMethod: pm }); setShowOverride(false); }}>
+            <SelectTrigger className="w-[180px]" data-testid={`select-override-payment-${signup.id}`}>
+              <SelectValue placeholder="Set Payment..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PAID|CARD">Paid (Card)</SelectItem>
+              <SelectItem value="PAID|BANK_TRANSFER">Paid (Bank Transfer)</SelectItem>
+              <SelectItem value="PENDING|BANK_TRANSFER">Pending (Bank Transfer)</SelectItem>
+              <SelectItem value="UNPAID|NONE">Unpaid</SelectItem>
+            </SelectContent>
+          </Select>
+          {signup.paymentStatus === "PENDING" && (
+            <Button size="sm" variant="outline" onClick={() => { onPaymentOverride({ paymentStatus: "PAID", verifiedByAdmin: true }); setShowOverride(false); }} data-testid={`button-verify-${signup.id}`}>
+              <Check className="w-3 h-3 mr-1" /> Verify
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="text-destructive" onClick={() => { onStatusChange("CANCELLED"); setShowOverride(false); }} data-testid={`button-cancel-signup-${signup.id}`}>
+            <X className="w-3 h-3 mr-1" /> Remove
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { onStatusChange("WAITING"); setShowOverride(false); }} data-testid={`button-to-waiting-${signup.id}`}>
+            Move to Waiting
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

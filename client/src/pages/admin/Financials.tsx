@@ -45,7 +45,10 @@ interface FinancialEntry {
   sessionId: number;
   playerId: number;
   fee: number;
-  paymentStatus: "PAID" | "UNPAID";
+  paymentStatus: "PAID" | "UNPAID" | "PENDING";
+  paymentMethod?: "CARD" | "BANK_TRANSFER" | "NONE" | null;
+  signupStatus?: "CONFIRMED" | "WAITING" | "CANCELLED" | null;
+  verifiedByAdmin?: boolean | null;
   attendanceStatus: string;
   attendanceNote: string | null;
   partialPercentage: number | null;
@@ -190,6 +193,7 @@ export default function Financials() {
   const { data: dashboardData } = useQuery<{
     sessionIncome: number;
     sessionPaid: number;
+    sessionPending: number;
     sessionOutstanding: number;
     inventorySales: number;
     inventoryPurchases: number;
@@ -295,6 +299,7 @@ export default function Financials() {
 
   const totalRevenue = useMemo(() => filteredData.reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const paidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
+  const pendingTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PENDING").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const unpaidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
 
@@ -956,17 +961,34 @@ export default function Financials() {
         })()}
       </TableCell>
       <TableCell>
-        {entry.paymentStatus === "PAID" ? (
-          <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-${entry.signupId}`}>
-            <CheckCircle className="h-3 w-3 mr-1" />
-            PAID
-          </Badge>
-        ) : (
-          <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-${entry.signupId}`}>
-            <AlertCircle className="h-3 w-3 mr-1" />
-            UNPAID
-          </Badge>
-        )}
+        <div className="flex flex-col gap-1">
+          {entry.paymentStatus === "PAID" ? (
+            <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-${entry.signupId}`}>
+              <CheckCircle className="h-3 w-3 mr-1" />
+              PAID
+            </Badge>
+          ) : entry.paymentStatus === "PENDING" ? (
+            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" data-testid={`badge-payment-${entry.signupId}`}>
+              <Clock className="h-3 w-3 mr-1" />
+              PENDING
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-${entry.signupId}`}>
+              <AlertCircle className="h-3 w-3 mr-1" />
+              UNPAID
+            </Badge>
+          )}
+          {entry.paymentMethod && entry.paymentMethod !== "NONE" && (
+            <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-method-${entry.signupId}`}>
+              {entry.paymentMethod === "CARD" ? <><CreditCard className="h-3 w-3 mr-1" />Card</> : <><Building2 className="h-3 w-3 mr-1" />Bank Transfer</>}
+            </Badge>
+          )}
+          {entry.verifiedByAdmin && (
+            <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-green-50 dark:bg-green-950" data-testid={`badge-verified-${entry.signupId}`}>
+              <CheckCircle className="h-3 w-3 mr-1" />Verified
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <Button
@@ -1099,6 +1121,7 @@ export default function Financials() {
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="UNPAID">Unpaid</SelectItem>
                 </SelectContent>
               </Select>
@@ -1139,7 +1162,7 @@ export default function Financials() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         <Card data-testid="card-total-revenue">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
@@ -1164,6 +1187,21 @@ export default function Financials() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {filteredData.filter((e) => e.paymentStatus === "PAID").length} paid
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-pending-transfers">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Transfers</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600" data-testid="text-pending-transfers">
+              £{formatPounds(pendingTotal)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {filteredData.filter((e) => e.paymentStatus === "PENDING").length} awaiting verification
             </p>
           </CardContent>
         </Card>
@@ -1726,17 +1764,29 @@ export default function Financials() {
                                   })()}
                                 </TableCell>
                                 <TableCell>
-                                  {entry.paymentStatus === "PAID" ? (
-                                    <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-player-${entry.signupId}`}>
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                      PAID
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-player-${entry.signupId}`}>
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      UNPAID
-                                    </Badge>
-                                  )}
+                                  <div className="flex flex-col gap-1">
+                                    {entry.paymentStatus === "PAID" ? (
+                                      <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-player-${entry.signupId}`}>
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        PAID
+                                      </Badge>
+                                    ) : entry.paymentStatus === "PENDING" ? (
+                                      <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" data-testid={`badge-payment-player-${entry.signupId}`}>
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        PENDING
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-payment-player-${entry.signupId}`}>
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        UNPAID
+                                      </Badge>
+                                    )}
+                                    {entry.paymentMethod && entry.paymentMethod !== "NONE" && (
+                                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-method-player-${entry.signupId}`}>
+                                        {entry.paymentMethod === "CARD" ? "Card" : "Bank Transfer"}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   <Button

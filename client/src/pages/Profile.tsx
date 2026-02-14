@@ -12,7 +12,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard, Eye, EyeOff } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard, Eye, EyeOff, Users, Plus, Pencil, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
@@ -27,6 +27,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Profile() {
   const [, navigate] = useLocation();
@@ -77,6 +79,116 @@ export default function Profile() {
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
   const [isEditingPrivacy, setIsEditingPrivacy] = useState(false);
+
+  const [juniorDialogOpen, setJuniorDialogOpen] = useState(false);
+  const [editingJunior, setEditingJunior] = useState<any>(null);
+  const [deletingJuniorId, setDeletingJuniorId] = useState<number | null>(null);
+  const [juniorForm, setJuniorForm] = useState({
+    fullName: "",
+    dateOfBirth: "",
+    emergencyContact: "",
+    medicalNotes: "",
+  });
+
+  const { data: juniors, isLoading: juniorsLoading } = useQuery<any[]>({
+    queryKey: ["/api/juniors"],
+    enabled: !!user,
+  });
+
+  const addJuniorMutation = useMutation({
+    mutationFn: async (data: { fullName: string; dateOfBirth?: string; emergencyContact?: string; medicalNotes?: string }) => {
+      const res = await apiRequest("POST", "/api/juniors", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to add junior");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Junior added", description: "Junior account has been created." });
+      queryClient.invalidateQueries({ queryKey: ["/api/juniors"] });
+      setJuniorDialogOpen(false);
+      resetJuniorForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const editJuniorMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { fullName: string; dateOfBirth?: string; emergencyContact?: string; medicalNotes?: string } }) => {
+      const res = await apiRequest("PATCH", `/api/juniors/${id}`, data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update junior");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Junior updated", description: "Junior account has been updated." });
+      queryClient.invalidateQueries({ queryKey: ["/api/juniors"] });
+      setJuniorDialogOpen(false);
+      setEditingJunior(null);
+      resetJuniorForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteJuniorMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/juniors/${id}`);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to delete junior");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Junior removed", description: "Junior account has been deleted." });
+      queryClient.invalidateQueries({ queryKey: ["/api/juniors"] });
+      setDeletingJuniorId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetJuniorForm = () => {
+    setJuniorForm({ fullName: "", dateOfBirth: "", emergencyContact: "", medicalNotes: "" });
+  };
+
+  const openAddJuniorDialog = () => {
+    setEditingJunior(null);
+    resetJuniorForm();
+    setJuniorDialogOpen(true);
+  };
+
+  const openEditJuniorDialog = (junior: any) => {
+    setEditingJunior(junior);
+    setJuniorForm({
+      fullName: junior.fullName || "",
+      dateOfBirth: junior.dateOfBirth ? new Date(junior.dateOfBirth).toISOString().split("T")[0] : "",
+      emergencyContact: junior.emergencyContact || "",
+      medicalNotes: junior.medicalNotes || "",
+    });
+    setJuniorDialogOpen(true);
+  };
+
+  const handleSaveJunior = () => {
+    const payload = {
+      fullName: juniorForm.fullName,
+      dateOfBirth: juniorForm.dateOfBirth || undefined,
+      emergencyContact: juniorForm.emergencyContact || undefined,
+      medicalNotes: juniorForm.medicalNotes || undefined,
+    };
+    if (editingJunior) {
+      editJuniorMutation.mutate({ id: editingJunior.id, data: payload });
+    } else {
+      addJuniorMutation.mutate(payload);
+    }
+  };
 
   const updatePrivacyMutation = useMutation({
     mutationFn: async (data: { nickname?: string; showPublicName?: boolean }) => {
@@ -702,6 +814,160 @@ export default function Profile() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card data-testid="card-junior-accounts">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Junior Accounts
+              </CardTitle>
+              <CardDescription>Manage your children's accounts</CardDescription>
+            </div>
+            <Button onClick={openAddJuniorDialog} data-testid="button-add-junior">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Junior
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {juniorsLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : juniors && juniors.length > 0 ? (
+            <div className="space-y-3">
+              {juniors.map((junior: any) => (
+                <div
+                  key={junior.id}
+                  className="flex items-center justify-between gap-4 py-3 border-b border-border/50 last:border-0"
+                  data-testid={`junior-row-${junior.id}`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium" data-testid={`text-junior-name-${junior.id}`}>{junior.fullName}</span>
+                    {junior.dateOfBirth && (
+                      <span className="text-sm text-muted-foreground" data-testid={`text-junior-dob-${junior.id}`}>
+                        DOB: {format(new Date(junior.dateOfBirth), "MMM d, yyyy")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditJuniorDialog(junior)}
+                      data-testid={`button-edit-junior-${junior.id}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingJuniorId(junior.id)}
+                      data-testid={`button-delete-junior-${junior.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-juniors">No junior accounts added yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={juniorDialogOpen} onOpenChange={(open) => { if (!open) { setJuniorDialogOpen(false); setEditingJunior(null); resetJuniorForm(); } }}>
+        <DialogContent className="bg-background" data-testid="dialog-junior-form">
+          <DialogHeader>
+            <DialogTitle>{editingJunior ? "Edit Junior" : "Add Junior"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="juniorFullName">Full Name *</Label>
+              <Input
+                id="juniorFullName"
+                value={juniorForm.fullName}
+                onChange={(e) => setJuniorForm({ ...juniorForm, fullName: e.target.value })}
+                placeholder="Child's full name"
+                data-testid="input-junior-fullname"
+              />
+            </div>
+            <div>
+              <Label htmlFor="juniorDob">Date of Birth</Label>
+              <Input
+                id="juniorDob"
+                type="date"
+                value={juniorForm.dateOfBirth}
+                onChange={(e) => setJuniorForm({ ...juniorForm, dateOfBirth: e.target.value })}
+                data-testid="input-junior-dob"
+              />
+            </div>
+            <div>
+              <Label htmlFor="juniorEmergency">Emergency Contact</Label>
+              <Input
+                id="juniorEmergency"
+                value={juniorForm.emergencyContact}
+                onChange={(e) => setJuniorForm({ ...juniorForm, emergencyContact: e.target.value })}
+                placeholder="Emergency contact number"
+                data-testid="input-junior-emergency"
+              />
+            </div>
+            <div>
+              <Label htmlFor="juniorMedical">Medical Notes</Label>
+              <Textarea
+                id="juniorMedical"
+                value={juniorForm.medicalNotes}
+                onChange={(e) => setJuniorForm({ ...juniorForm, medicalNotes: e.target.value })}
+                placeholder="Any medical conditions or allergies"
+                data-testid="input-junior-medical"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => { setJuniorDialogOpen(false); setEditingJunior(null); resetJuniorForm(); }}
+              data-testid="button-cancel-junior"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveJunior}
+              disabled={!juniorForm.fullName.trim() || addJuniorMutation.isPending || editJuniorMutation.isPending}
+              data-testid="button-save-junior"
+            >
+              {(addJuniorMutation.isPending || editJuniorMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingJunior ? "Save Changes" : "Add Junior"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deletingJuniorId !== null} onOpenChange={(open) => { if (!open) setDeletingJuniorId(null); }}>
+        <AlertDialogContent className="bg-background" data-testid="dialog-delete-junior">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Junior Account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this junior account. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-junior">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => { if (deletingJuniorId) deleteJuniorMutation.mutate(deletingJuniorId); }}
+              disabled={deleteJuniorMutation.isPending}
+              data-testid="button-confirm-delete-junior"
+            >
+              {deleteJuniorMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card className="border-destructive/20">
         <CardHeader>
