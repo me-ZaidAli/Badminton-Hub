@@ -146,6 +146,13 @@ export default function MembershipBoard() {
   const [editPlanSessionFee, setEditPlanSessionFee] = useState("");
   const [editPlanIsDefault, setEditPlanIsDefault] = useState(false);
 
+  const [editMembershipDialog, setEditMembershipDialog] = useState<ClubMembership | null>(null);
+  const [editMembershipPlanId, setEditMembershipPlanId] = useState("");
+  const [editMembershipStatus, setEditMembershipStatus] = useState("");
+  const [editMembershipPayment, setEditMembershipPayment] = useState(false);
+  const [editMembershipStartDate, setEditMembershipStartDate] = useState("");
+  const [editMembershipEndDate, setEditMembershipEndDate] = useState("");
+
   const [addMembershipDialog, setAddMembershipDialog] = useState(false);
   const [addMemberUserId, setAddMemberUserId] = useState<string>("");
   const [addMemberPlanId, setAddMemberPlanId] = useState<string>("");
@@ -395,6 +402,72 @@ export default function MembershipBoard() {
       toast({ title: "Error", description: error.message || "Failed to add membership.", variant: "destructive" });
     },
   });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async ({ id, paymentConfirmed }: { id: number; paymentConfirmed: boolean }) => {
+      await apiRequest("PATCH", `/api/club-memberships/${id}/payment`, { paymentConfirmed });
+    },
+    onSuccess: () => {
+      invalidateMemberships();
+      toast({ title: "Payment Updated", description: "Payment status has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update payment.", variant: "destructive" });
+    },
+  });
+
+  const editDetailsMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; planId?: number; status?: string; startDate?: string; endDate?: string; paymentConfirmed?: boolean }) => {
+      await apiRequest("PATCH", `/api/club-memberships/${id}/details`, data);
+    },
+    onSuccess: () => {
+      invalidateMemberships();
+      setEditMembershipDialog(null);
+      toast({ title: "Membership Updated", description: "Membership details have been saved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update membership.", variant: "destructive" });
+    },
+  });
+
+  const openEditMembership = (membership: ClubMembership) => {
+    setEditMembershipPlanId(membership.planId?.toString() || "");
+    setEditMembershipStatus(membership.status);
+    setEditMembershipPayment(membership.paymentStatus === "PAID");
+    setEditMembershipStartDate(membership.startDate ? format(new Date(membership.startDate), "yyyy-MM-dd") : "");
+    setEditMembershipEndDate(membership.endDate ? format(new Date(membership.endDate), "yyyy-MM-dd") : "");
+    setEditMembershipDialog(membership);
+  };
+
+  const handleSaveEditMembership = () => {
+    if (!editMembershipDialog) return;
+    const updates: Record<string, any> = { id: editMembershipDialog.id };
+
+    if (editMembershipPlanId && Number(editMembershipPlanId) !== editMembershipDialog.planId) {
+      updates.planId = Number(editMembershipPlanId);
+    }
+    if (editMembershipStatus !== editMembershipDialog.status) {
+      updates.status = editMembershipStatus;
+    }
+    const currentPaid = editMembershipDialog.paymentStatus === "PAID";
+    if (editMembershipPayment !== currentPaid) {
+      updates.paymentConfirmed = editMembershipPayment;
+    }
+    if (editMembershipStartDate) {
+      const origStart = editMembershipDialog.startDate ? format(new Date(editMembershipDialog.startDate), "yyyy-MM-dd") : "";
+      if (editMembershipStartDate !== origStart) updates.startDate = editMembershipStartDate;
+    }
+    if (editMembershipEndDate) {
+      const origEnd = editMembershipDialog.endDate ? format(new Date(editMembershipDialog.endDate), "yyyy-MM-dd") : "";
+      if (editMembershipEndDate !== origEnd) updates.endDate = editMembershipEndDate;
+    }
+
+    if (Object.keys(updates).length <= 1) {
+      toast({ title: "No changes", description: "No changes were detected.", variant: "destructive" });
+      return;
+    }
+    editDetailsMutation.mutate(updates as any);
+  };
 
   const handleApprove = (requestId: number) => {
     const today = format(new Date(), "yyyy-MM-dd");
@@ -647,6 +720,8 @@ export default function MembershipBoard() {
                   <SelectValue placeholder="Bulk Action..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="mark_paid">Mark as Paid</SelectItem>
+                  <SelectItem value="mark_unpaid">Mark as Unpaid</SelectItem>
                   <SelectItem value="cancel">Cancel Selected</SelectItem>
                   {isOwner && <SelectItem value="delete">Delete Selected</SelectItem>}
                 </SelectContent>
@@ -762,6 +837,28 @@ export default function MembershipBoard() {
                             <TableCell>{getPaymentBadge(membership.paymentStatus)}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1 flex-wrap">
+                                {membership.paymentStatus !== "PAID" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => markPaidMutation.mutate({ id: membership.id, paymentConfirmed: true })}
+                                    disabled={markPaidMutation.isPending}
+                                    data-testid={`button-mark-paid-${membership.id}`}
+                                  >
+                                    <CreditCard className="h-4 w-4 mr-1" />
+                                    Mark Paid
+                                  </Button>
+                                )}
+                                {membership.paymentStatus === "PAID" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => markPaidMutation.mutate({ id: membership.id, paymentConfirmed: false })}
+                                    disabled={markPaidMutation.isPending}
+                                    data-testid={`button-mark-unpaid-${membership.id}`}
+                                  >
+                                    Mark Unpaid
+                                  </Button>
+                                )}
                                 {membership.status === "PENDING" && (
                                   <Button
                                     size="sm"
@@ -775,17 +872,19 @@ export default function MembershipBoard() {
                                   </Button>
                                 )}
                                 <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleEditDates(membership)}
-                                  data-testid={`button-edit-dates-${membership.id}`}
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => openEditMembership(membership)}
+                                  title="Edit membership"
+                                  data-testid={`button-edit-membership-${membership.id}`}
                                 >
-                                  <Calendar className="h-4 w-4" />
+                                  <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button
-                                  size="sm"
-                                  variant="outline"
+                                  size="icon"
+                                  variant="ghost"
                                   onClick={() => handleCancel(membership.id)}
+                                  title="Cancel membership"
                                   data-testid={`button-cancel-${membership.id}`}
                                 >
                                   <X className="h-4 w-4" />
@@ -1310,6 +1409,110 @@ export default function MembershipBoard() {
             >
               {addMembershipMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Add Membership
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editMembershipDialog} onOpenChange={(open) => !open && setEditMembershipDialog(null)}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Membership
+            </DialogTitle>
+          </DialogHeader>
+          {editMembershipDialog && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-md bg-muted/50">
+                <p className="text-sm font-medium" data-testid="text-edit-membership-name">{editMembershipDialog.fullName}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Membership Plan</Label>
+                <Select value={editMembershipPlanId} onValueChange={setEditMembershipPlanId}>
+                  <SelectTrigger data-testid="select-edit-membership-plan">
+                    <SelectValue placeholder="Select a plan..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id.toString()}>
+                        {plan.name} - £{formatPounds(plan.annualPrice)}/year
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={editMembershipStatus} onValueChange={setEditMembershipStatus}>
+                  <SelectTrigger data-testid="select-edit-membership-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Status</Label>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="edit-membership-payment"
+                    checked={editMembershipPayment}
+                    onCheckedChange={setEditMembershipPayment}
+                    data-testid="switch-edit-membership-payment"
+                  />
+                  <Label htmlFor="edit-membership-payment" className="cursor-pointer">
+                    {editMembershipPayment ? (
+                      <Badge variant="default" className="bg-green-500 no-default-hover-elevate">Paid</Badge>
+                    ) : (
+                      <Badge variant="destructive" className="no-default-hover-elevate">Unpaid</Badge>
+                    )}
+                  </Label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-membership-start">Start Date</Label>
+                  <Input
+                    id="edit-membership-start"
+                    type="date"
+                    value={editMembershipStartDate}
+                    onChange={(e) => setEditMembershipStartDate(e.target.value)}
+                    data-testid="input-edit-membership-start"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-membership-end">End Date</Label>
+                  <Input
+                    id="edit-membership-end"
+                    type="date"
+                    value={editMembershipEndDate}
+                    onChange={(e) => setEditMembershipEndDate(e.target.value)}
+                    data-testid="input-edit-membership-end"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMembershipDialog(null)} data-testid="button-edit-membership-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEditMembership}
+              disabled={editDetailsMutation.isPending}
+              data-testid="button-edit-membership-confirm"
+            >
+              {editDetailsMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

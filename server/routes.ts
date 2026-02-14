@@ -7511,6 +7511,85 @@ export async function registerRoutes(
     }
   });
 
+  // 15b. PATCH /api/club-memberships/:id/payment - Toggle payment status
+  app.patch("/api/club-memberships/:id/payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membershipId = Number(req.params.id);
+      const [membership] = await db.select().from(clubMemberships).where(eq(clubMemberships.id, membershipId));
+      if (!membership) return res.status(404).json({ message: "Membership not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", membership.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        paymentConfirmed: z.boolean(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(clubMemberships).set({
+        paymentConfirmed: body.paymentConfirmed,
+      }).where(eq(clubMemberships.id, membershipId)).returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating membership payment:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update payment status" });
+    }
+  });
+
+  // 15c. PATCH /api/club-memberships/:id/details - Edit full membership details
+  app.patch("/api/club-memberships/:id/details", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const membershipId = Number(req.params.id);
+      const [membership] = await db.select().from(clubMemberships).where(eq(clubMemberships.id, membershipId));
+      if (!membership) return res.status(404).json({ message: "Membership not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", membership.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        planId: z.number().int().optional(),
+        status: z.enum(["PENDING", "ACTIVE", "EXPIRED", "CANCELLED"]).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        paymentConfirmed: z.boolean().optional(),
+      }).parse(req.body);
+
+      const updates: Record<string, any> = {};
+      if (body.planId !== undefined) updates.planId = body.planId;
+      if (body.status !== undefined) updates.status = body.status;
+      if (body.paymentConfirmed !== undefined) updates.paymentConfirmed = body.paymentConfirmed;
+      if (body.startDate) {
+        updates.startDate = new Date(body.startDate);
+      }
+      if (body.endDate) {
+        updates.endDate = new Date(body.endDate);
+      }
+      if (body.startDate && body.endDate) {
+        const start = new Date(body.startDate);
+        const end = new Date(body.endDate);
+        updates.totalDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+      }
+
+      if (body.status === "CANCELLED") {
+        updates.cancelledAt = new Date();
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No updates provided" });
+      }
+
+      const [updated] = await db.update(clubMemberships).set(updates).where(eq(clubMemberships.id, membershipId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating membership details:", err);
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid input", errors: err.errors });
+      res.status(500).json({ message: "Failed to update membership details" });
+    }
+  });
+
   // 15a. POST /api/clubs/:clubId/memberships/add - Directly add a membership for a user
   app.post("/api/clubs/:clubId/memberships/add", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -7578,10 +7657,26 @@ export async function registerRoutes(
 
       const body = z.object({
         membershipIds: z.array(z.number().int()),
-        action: z.enum(["cancel", "delete"]),
+        action: z.enum(["cancel", "delete", "mark_paid", "mark_unpaid"]),
       }).parse(req.body);
 
-      if (body.action === "cancel") {
+      if (body.action === "mark_paid") {
+        await db.update(clubMemberships).set({
+          paymentConfirmed: true,
+        }).where(and(
+          inArray(clubMemberships.id, body.membershipIds),
+          eq(clubMemberships.clubId, clubId)
+        ));
+        res.json({ success: true, action: "mark_paid", count: body.membershipIds.length });
+      } else if (body.action === "mark_unpaid") {
+        await db.update(clubMemberships).set({
+          paymentConfirmed: false,
+        }).where(and(
+          inArray(clubMemberships.id, body.membershipIds),
+          eq(clubMemberships.clubId, clubId)
+        ));
+        res.json({ success: true, action: "mark_unpaid", count: body.membershipIds.length });
+      } else if (body.action === "cancel") {
         await db.update(clubMemberships).set({
           status: "CANCELLED",
           cancelledAt: new Date(),
