@@ -139,6 +139,15 @@ export function NotificationBell() {
             ))
           )}
         </div>
+        <div className="border-t p-2">
+          <button
+            className="w-full text-center text-sm text-primary font-medium py-1.5 rounded-md hover-elevate"
+            onClick={() => setLocation("/notifications")}
+            data-testid="link-view-all-notifications"
+          >
+            View all notifications
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
   );

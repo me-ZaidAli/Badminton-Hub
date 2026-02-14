@@ -6497,6 +6497,41 @@ export async function registerRoutes(
     }
   });
 
+  // Update notification status (in_progress, completed, archived)
+  app.patch("/api/notifications/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { status } = req.body;
+      if (!["in_progress", "completed", "archived"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const notif = await storage.updateNotificationStatus(Number(req.params.id), req.user!.id, status);
+      if (!notif) return res.status(404).json({ message: "Notification not found" });
+      res.json(notif);
+    } catch (err) {
+      console.error("Error updating notification status:", err);
+      res.status(500).json({ message: "Failed to update notification status" });
+    }
+  });
+
+  // Bulk update notification statuses
+  app.post("/api/notifications/bulk-status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { ids, status } = req.body;
+      if (!Array.isArray(ids) || !["in_progress", "completed", "archived"].includes(status)) {
+        return res.status(400).json({ message: "Invalid request" });
+      }
+      const validIds = ids.filter((id: any) => typeof id === "number" && Number.isInteger(id) && id > 0);
+      if (validIds.length === 0) return res.status(400).json({ message: "No valid IDs provided" });
+      await storage.bulkUpdateNotificationStatus(validIds, req.user!.id, status);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error bulk updating notification status:", err);
+      res.status(500).json({ message: "Failed to bulk update" });
+    }
+  });
+
   // Public endpoint: sessions with club info for location search
   app.get("/api/public/sessions-with-clubs", async (_req, res) => {
     try {

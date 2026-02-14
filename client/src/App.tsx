@@ -61,6 +61,7 @@ const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
 const Venues = lazy(() => import("@/pages/Venues"));
 const ClubsManagement = lazy(() => import("@/pages/ClubsManagement"));
 
+const NotificationsPage = lazy(() => import("@/pages/Notifications"));
 const PasswordResets = lazy(() => import("@/pages/admin/PasswordResets"));
 const ContactForm = lazy(() => import("@/pages/ContactForm"));
 const Messages = lazy(() => import("@/pages/admin/Messages"));
@@ -295,6 +296,9 @@ function Router() {
       </Route>
       <Route path="/inbox">
         <PrivateRoute component={InboxPage} />
+      </Route>
+      <Route path="/notifications">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationsPage /></Suspense>} />
       </Route>
 
       <Route path="/contact">

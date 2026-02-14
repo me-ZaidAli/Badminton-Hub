@@ -273,6 +273,8 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<Notification>;
   markAllNotificationsRead(userId: number): Promise<void>;
+  updateNotificationStatus(id: number, userId: number, status: string): Promise<Notification | null>;
+  bulkUpdateNotificationStatus(ids: number[], userId: number, status: string): Promise<void>;
 
   // Policy Acceptances
   createPolicyAcceptance(acceptance: InsertPolicyAcceptance): Promise<PolicyAcceptance>;
@@ -1628,7 +1630,7 @@ export class DatabaseStorage implements IStorage {
 
   // Notifications
   async getNotifications(userId: number): Promise<Notification[]> {
-    return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(50);
+    return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(200);
   }
 
   async getUnreadNotificationCount(userId: number): Promise<number> {
@@ -1649,6 +1651,24 @@ export class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(userId: number): Promise<void> {
     await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
+  }
+
+  async updateNotificationStatus(id: number, userId: number, status: string): Promise<Notification | null> {
+    const [result] = await db.update(notifications)
+      .set({ status: status as any })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
+      .returning();
+    return result || null;
+  }
+
+  async bulkUpdateNotificationStatus(ids: number[], userId: number, status: string): Promise<void> {
+    if (ids.length === 0) return;
+    await db.update(notifications)
+      .set({ status: status as any })
+      .where(and(
+        sql`${notifications.id} = ANY(${ids})`,
+        eq(notifications.userId, userId)
+      ));
   }
 
   async createPolicyAcceptance(acceptance: InsertPolicyAcceptance): Promise<PolicyAcceptance> {
