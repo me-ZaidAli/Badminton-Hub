@@ -9293,5 +9293,57 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/god-mode/clubs/:clubId/add-member", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+
+      const { fullName, email, phone, nickname, gender, category, clubRole, password } = req.body;
+      if (!fullName || !email) return res.status(400).json({ message: "Name and email are required" });
+
+      let existingUser = await storage.getUserByUsername(email);
+      if (!existingUser) {
+        const { hashPassword } = await import("./auth");
+        const hashed = await hashPassword(password || "changeme123");
+        existingUser = await storage.createUser({
+          fullName,
+          email,
+          password: hashed,
+          role: "PLAYER",
+        });
+      }
+
+      const existingProfile = await storage.getPlayerProfile(existingUser.id, clubId);
+      if (existingProfile) {
+        return res.status(400).json({ message: "User is already a member of this club" });
+      }
+
+      const profile = await storage.createPlayerProfile({
+        userId: existingUser.id,
+        clubId,
+        clubRole: clubRole || "PLAYER",
+        membershipStatus: "APPROVED",
+        playerStatus: "ACTIVE",
+        gender: gender || null,
+        category: category || "D",
+        grade: category || "C3",
+        rankingPoints: 1000,
+        matchesPlayed: 0,
+        matchesWon: 0,
+      });
+
+      if (phone) await db.update(users).set({ phone }).where(eq(users.id, existingUser.id));
+      if (nickname) await db.update(users).set({ nickname }).where(eq(users.id, existingUser.id));
+
+      res.status(201).json({ ...profile, user: { id: existingUser.id, fullName: existingUser.fullName, email: existingUser.email } });
+    } catch (err: any) {
+      console.error("Error adding member:", err);
+      res.status(500).json({ message: err.message || "Failed to add member" });
+    }
+  });
+
   return httpServer;
 }

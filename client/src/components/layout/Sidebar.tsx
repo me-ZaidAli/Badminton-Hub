@@ -50,6 +50,7 @@ function useNavItems(): NavItem[] {
       navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
     }
     navItems.push({ href: "/super-admin", label: "God's Mode", icon: Shield, section: "super-admin" });
+    navItems.push({ href: "/super-admin/god-mode", label: "God Mode Control", icon: Zap, section: "super-admin" });
   } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
     navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
   }
