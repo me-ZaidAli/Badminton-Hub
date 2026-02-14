@@ -7476,6 +7476,63 @@ export async function registerRoutes(
     }
   });
 
+  // 15a. POST /api/clubs/:clubId/memberships/add - Directly add a membership for a user
+  app.post("/api/clubs/:clubId/memberships/add", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        userId: z.number().int(),
+        planId: z.number().int(),
+        startDate: z.string(),
+        paymentStatus: z.enum(["PAID", "UNPAID"]).default("UNPAID"),
+      }).parse(req.body);
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, body.userId));
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const [plan] = await db.select().from(membershipPlans).where(
+        and(eq(membershipPlans.id, body.planId), eq(membershipPlans.clubId, clubId))
+      );
+      if (!plan) return res.status(404).json({ message: "Membership plan not found for this club" });
+
+      const existingActive = await db.select().from(clubMemberships).where(
+        and(
+          eq(clubMemberships.userId, body.userId),
+          eq(clubMemberships.clubId, clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        )
+      );
+      if (existingActive.length > 0) {
+        return res.status(400).json({ message: "User already has an active membership for this club" });
+      }
+
+      const start = new Date(body.startDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 365);
+
+      const [newMembership] = await db.insert(clubMemberships).values({
+        userId: body.userId,
+        clubId,
+        planId: body.planId,
+        startDate: start,
+        endDate: end,
+        totalDays: 365,
+        status: "ACTIVE",
+        paymentConfirmed: body.paymentStatus === "PAID",
+      }).returning();
+
+      res.json(newMembership);
+    } catch (err: any) {
+      console.error("Error adding membership:", err);
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to add membership" });
+    }
+  });
+
   // 15. POST /api/clubs/:clubId/memberships/bulk-action
   app.post("/api/clubs/:clubId/memberships/bulk-action", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

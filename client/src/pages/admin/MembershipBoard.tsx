@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users } from "lucide-react";
+import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users, UserPlus } from "lucide-react";
 import { Link } from "wouter";
 
 function formatPounds(pence: number): string {
@@ -146,6 +146,13 @@ export default function MembershipBoard() {
   const [editPlanSessionFee, setEditPlanSessionFee] = useState("");
   const [editPlanIsDefault, setEditPlanIsDefault] = useState(false);
 
+  const [addMembershipDialog, setAddMembershipDialog] = useState(false);
+  const [addMemberUserId, setAddMemberUserId] = useState<string>("");
+  const [addMemberPlanId, setAddMemberPlanId] = useState<string>("");
+  const [addMemberStartDate, setAddMemberStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [addMemberPaymentStatus, setAddMemberPaymentStatus] = useState<string>("UNPAID");
+  const [addMemberSearch, setAddMemberSearch] = useState("");
+
   const clubId = selectedClubId || (myAdminClubs && myAdminClubs.length > 0 ? myAdminClubs[0].id.toString() : "");
 
   const requestsUrl = clubId ? `/api/clubs/${clubId}/membership-requests` : null;
@@ -172,6 +179,33 @@ export default function MembershipBoard() {
     queryKey: [plansUrl],
     enabled: !!plansUrl,
   });
+
+  const { data: clubMembers = [] } = useQuery<any[]>({
+    queryKey: ["/api/clubs", clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/members`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!clubId && addMembershipDialog,
+  });
+
+  const addMembershipExpiryDate = useMemo(() => {
+    if (!addMemberStartDate) return "";
+    const start = new Date(addMemberStartDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 365);
+    return format(end, "yyyy-MM-dd");
+  }, [addMemberStartDate]);
+
+  const filteredClubMembers = useMemo(() => {
+    if (!addMemberSearch) return clubMembers;
+    const lower = addMemberSearch.toLowerCase();
+    return clubMembers.filter((m: any) => {
+      const name = m.user?.fullName || m.fullName || "";
+      return name.toLowerCase().includes(lower);
+    });
+  }, [clubMembers, addMemberSearch]);
 
   const filteredRequests = useMemo(() => {
     let filtered = requests;
@@ -335,6 +369,30 @@ export default function MembershipBoard() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to delete plan.", variant: "destructive" });
+    },
+  });
+
+  const addMembershipMutation = useMutation({
+    mutationFn: async (data: { userId: number; planId: number; startDate: string; paymentStatus: string }) => {
+      const res = await apiRequest("POST", `/api/clubs/${clubId}/memberships/add`, data);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to add membership" }));
+        throw new Error(errData.message || "Failed to add membership");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateMemberships();
+      setAddMembershipDialog(false);
+      setAddMemberUserId("");
+      setAddMemberPlanId("");
+      setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
+      setAddMemberPaymentStatus("UNPAID");
+      setAddMemberSearch("");
+      toast({ title: "Membership Added", description: "The membership has been created successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add membership.", variant: "destructive" });
     },
   });
 
@@ -606,10 +664,27 @@ export default function MembershipBoard() {
           )}
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-lg" data-testid="text-memberships-count">
                 Active Memberships ({filteredMemberships.length})
               </CardTitle>
+              {clubId && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setAddMemberUserId("");
+                    setAddMemberPlanId(plans.length > 0 ? plans[0].id.toString() : "");
+                    setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
+                    setAddMemberPaymentStatus("UNPAID");
+                    setAddMemberSearch("");
+                    setAddMembershipDialog(true);
+                  }}
+                  data-testid="button-add-membership"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Add Membership
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {!clubId ? (
@@ -1104,6 +1179,137 @@ export default function MembershipBoard() {
             >
               {editPlanMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addMembershipDialog} onOpenChange={setAddMembershipDialog}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Add Membership
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Select Member</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search members..."
+                  className="pl-10"
+                  value={addMemberSearch}
+                  onChange={(e) => setAddMemberSearch(e.target.value)}
+                  data-testid="input-add-member-search"
+                />
+              </div>
+              <div className="border rounded-md max-h-[180px] overflow-y-auto">
+                {filteredClubMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No members found</p>
+                ) : (
+                  filteredClubMembers.map((member: any) => {
+                    const userId = member.user?.id || member.userId;
+                    const name = member.user?.fullName || member.fullName || "Unknown";
+                    const isSelected = addMemberUserId === String(userId);
+                    return (
+                      <div
+                        key={userId}
+                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover-elevate ${isSelected ? "bg-primary/10" : ""}`}
+                        onClick={() => setAddMemberUserId(String(userId))}
+                        data-testid={`member-option-${userId}`}
+                      >
+                        {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
+                        <span className="text-sm truncate">{name}</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-member-plan">Membership Plan</Label>
+              <Select value={addMemberPlanId} onValueChange={setAddMemberPlanId}>
+                <SelectTrigger data-testid="select-add-member-plan">
+                  <SelectValue placeholder="Select a plan..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id.toString()}>
+                      {plan.name} - £{formatPounds(plan.annualPrice)}/year
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-member-start-date">Start Date</Label>
+              <Input
+                id="add-member-start-date"
+                type="date"
+                value={addMemberStartDate}
+                onChange={(e) => setAddMemberStartDate(e.target.value)}
+                data-testid="input-add-member-start-date"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Expiry Date (auto-calculated)</Label>
+              <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium" data-testid="text-add-member-expiry">
+                  {addMembershipExpiryDate ? format(new Date(addMembershipExpiryDate), "dd MMM yyyy") : "Select a start date"}
+                </span>
+                <span className="text-xs text-muted-foreground ml-auto">365 days</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Payment Status</Label>
+              <Select value={addMemberPaymentStatus} onValueChange={setAddMemberPaymentStatus}>
+                <SelectTrigger data-testid="select-add-member-payment">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="UNPAID">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddMembershipDialog(false)} data-testid="button-add-membership-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!addMemberUserId) {
+                  toast({ title: "Please select a member", variant: "destructive" });
+                  return;
+                }
+                if (!addMemberPlanId) {
+                  toast({ title: "Please select a membership plan", variant: "destructive" });
+                  return;
+                }
+                if (!addMemberStartDate) {
+                  toast({ title: "Please select a start date", variant: "destructive" });
+                  return;
+                }
+                addMembershipMutation.mutate({
+                  userId: Number(addMemberUserId),
+                  planId: Number(addMemberPlanId),
+                  startDate: addMemberStartDate,
+                  paymentStatus: addMemberPaymentStatus,
+                });
+              }}
+              disabled={addMembershipMutation.isPending}
+              data-testid="button-add-membership-confirm"
+            >
+              {addMembershipMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Add Membership
             </Button>
           </DialogFooter>
         </DialogContent>
