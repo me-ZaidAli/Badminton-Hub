@@ -1244,6 +1244,44 @@ export async function registerRoutes(
         ...input, 
         createdBy: req.user!.id 
       });
+
+      try {
+        const clubMembers = await storage.getClubMembers(input.clubId);
+        const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
+        const club = await storage.getClub(input.clubId);
+        const clubName = club?.name || "your club";
+        const existingSignups = await storage.getSessionSignups(session.id);
+        const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
+        
+        for (const member of approvedMembers) {
+          if (member.userId === req.user!.id) continue;
+          if (existingPlayerIds.has(member.id)) continue;
+          
+          try {
+            await storage.createSessionSignupEnhanced({
+              sessionId: session.id,
+              playerId: member.id,
+              fee: session.sessionFee || club?.sessionFee || 0,
+              signupStatus: "INVITED",
+              signedUpByUserId: req.user!.id,
+            });
+          } catch (signupErr) {
+            console.error(`[SESSION CREATE] Failed to create invite signup for member ${member.id}:`, signupErr);
+            continue;
+          }
+          
+          await storage.createNotification({
+            userId: member.userId,
+            type: "SESSION_INVITE",
+            title: "New Session Available",
+            message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}.`,
+            linkUrl: `/sessions`,
+          });
+        }
+      } catch (inviteErr) {
+        console.error("[SESSION CREATE] Failed to send invitations:", inviteErr);
+      }
+
       res.status(201).json(session);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1282,10 +1320,30 @@ export async function registerRoutes(
 
     const signups = await storage.getSessionSignups(sessionId);
 
-    // Check if already signed up - prevent duplicates
-    const alreadySignedUp = signups.some(s => s.playerId === profile.id);
-    if (alreadySignedUp) {
-      return res.status(400).json({ message: "You are already signed up for this session" });
+    const existingSignup = signups.find((s: any) => s.playerId === profile.id);
+    if (existingSignup) {
+      if (existingSignup.signupStatus === "CONFIRMED") {
+        return res.status(400).json({ message: "You are already confirmed for this session" });
+      }
+      if (existingSignup.signupStatus === "WAITING") {
+        return res.status(400).json({ message: "You are already on the waiting list for this session" });
+      }
+      const confirmedCurrent = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      const sessionFull = confirmedCurrent >= session.maxPlayers;
+      if (sessionFull) {
+        const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+          signupStatus: "WAITING",
+          waitingListPosition: maxPos + 1,
+        });
+        return res.json({ ...updated, addedToWaitingList: true });
+      }
+      const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+        signupStatus: "CONFIRMED",
+        waitingListPosition: null,
+      });
+      return res.json(updated);
     }
 
     // Check private session restriction
@@ -1400,6 +1458,153 @@ export async function registerRoutes(
     }
 
     res.sendStatus(200);
+  });
+
+  app.post("/api/sessions/:id/player-status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
+    if (!profile) return res.status(403).json({ message: "You must be a member of this club." });
+
+    const { action } = req.body;
+    if (!["accept", "decline", "cancel", "join", "wait"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    const signups = await storage.getSessionSignups(sessionId);
+    const existingSignup = signups.find((s: any) => s.playerId === profile.id);
+    const confirmedCount = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+    const isFull = confirmedCount >= session.maxPlayers;
+
+    if (action === "accept" || action === "join") {
+      if (existingSignup) {
+        if (existingSignup.signupStatus === "CONFIRMED") {
+          return res.status(400).json({ message: "You are already confirmed." });
+        }
+        if (isFull && existingSignup.signupStatus !== "WAITING") {
+          const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+          const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+          const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+            signupStatus: "WAITING",
+            waitingListPosition: maxPos + 1,
+          });
+          return res.json({ ...updated, addedToWaitingList: true });
+        }
+        const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+          signupStatus: "CONFIRMED",
+          waitingListPosition: null,
+        });
+        return res.json(updated);
+      }
+      let fee = session.sessionFee;
+      if (fee == null) {
+        const club = await storage.getClub(session.clubId);
+        fee = club?.sessionFee ?? 1000;
+      }
+      if (isFull) {
+        const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        const signup = await storage.createSessionSignupEnhanced({
+          sessionId,
+          playerId: profile.id,
+          fee,
+          signupStatus: "WAITING",
+          waitingListPosition: maxPos + 1,
+          signedUpByUserId: req.user!.id,
+        });
+        return res.status(201).json({ ...signup, addedToWaitingList: true });
+      }
+      const signup = await storage.createSessionSignup(sessionId, profile.id, fee);
+      return res.status(201).json(signup);
+    }
+
+    if (action === "wait") {
+      if (existingSignup) {
+        if (existingSignup.signupStatus === "WAITING") {
+          return res.status(400).json({ message: "You are already on the waiting list." });
+        }
+        const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+          signupStatus: "WAITING",
+          waitingListPosition: maxPos + 1,
+        });
+        return res.json(updated);
+      }
+      let fee = session.sessionFee;
+      if (fee == null) {
+        const club = await storage.getClub(session.clubId);
+        fee = club?.sessionFee ?? 1000;
+      }
+      const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+      const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+      const signup = await storage.createSessionSignupEnhanced({
+        sessionId,
+        playerId: profile.id,
+        fee,
+        signupStatus: "WAITING",
+        waitingListPosition: maxPos + 1,
+        signedUpByUserId: req.user!.id,
+      });
+      return res.status(201).json(signup);
+    }
+
+    if (action === "decline") {
+      if (!existingSignup) {
+        return res.status(400).json({ message: "You are not signed up for this session." });
+      }
+      const wasConfirmed = !existingSignup.signupStatus || existingSignup.signupStatus === "CONFIRMED";
+      const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+        signupStatus: "NOT_ATTENDING",
+        waitingListPosition: null,
+      });
+      if (wasConfirmed) {
+        const refreshedSignups = await storage.getSessionSignups(sessionId);
+        const newConfirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+        if (newConfirmedCount < session.maxPlayers) {
+          const waitingPlayers = refreshedSignups
+            .filter((s: any) => s.signupStatus === "WAITING")
+            .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          if (waitingPlayers.length > 0) {
+            await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
+              signupStatus: "CONFIRMED",
+              waitingListPosition: null,
+            });
+          }
+        }
+      }
+      return res.json(updated);
+    }
+
+    if (action === "cancel") {
+      if (!existingSignup) {
+        return res.status(400).json({ message: "You are not signed up for this session." });
+      }
+      const wasConfirmed = !existingSignup.signupStatus || existingSignup.signupStatus === "CONFIRMED";
+      const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+        signupStatus: "NOT_ATTENDING",
+        waitingListPosition: null,
+      });
+      if (wasConfirmed) {
+        const refreshedSignups = await storage.getSessionSignups(sessionId);
+        const newConfirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+        if (newConfirmedCount < session.maxPlayers) {
+          const waitingPlayers = refreshedSignups
+            .filter((s: any) => s.signupStatus === "WAITING")
+            .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          if (waitingPlayers.length > 0) {
+            await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
+              signupStatus: "CONFIRMED",
+              waitingListPosition: null,
+            });
+          }
+        }
+      }
+      return res.json(updated);
+    }
   });
 
   // === JUNIOR ACCOUNTS ===
