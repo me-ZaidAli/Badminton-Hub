@@ -100,6 +100,7 @@ interface MemberRecord {
   playerStatus: string;
   gender: string | null;
   category: string | null;
+  grade?: string | null;
   rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
@@ -372,7 +373,7 @@ function MemberDetailDialog({
     phone: member.user?.phone || "",
     nickname: member.user?.nickname || "",
     gender: member.gender || "",
-    category: member.category || "D",
+    category: member.grade || member.category || "C3",
     clubRole: member.clubRole || "PLAYER",
     playerStatus: member.playerStatus || "ACTIVE",
     role: member.user?.role || "PLAYER",
@@ -385,7 +386,7 @@ function MemberDetailDialog({
       phone: member.user?.phone || "",
       nickname: member.user?.nickname || "",
       gender: member.gender || "",
-      category: member.category || "D",
+      category: member.grade || member.category || "C3",
       clubRole: member.clubRole || "PLAYER",
       playerStatus: member.playerStatus || "ACTIVE",
       role: member.user?.role || "PLAYER",
@@ -506,10 +507,9 @@ function MemberDetailDialog({
                   <Select value={form.category} onValueChange={(v) => setForm(f => ({ ...f, category: v }))}>
                     <SelectTrigger data-testid="select-member-detail-category"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A">A</SelectItem>
-                      <SelectItem value="B">B</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                      <SelectItem value="D">D</SelectItem>
+                      {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -692,7 +692,7 @@ function MembersManagementDialog({
         const q = memberSearch.toLowerCase();
         if (q && !name.includes(q) && !email.includes(q)) return false;
         if (genderFilter !== "ALL" && m.gender !== genderFilter) return false;
-        if (categoryFilter !== "ALL" && m.category !== categoryFilter) return false;
+        if (categoryFilter !== "ALL" && (m.grade || m.category) !== categoryFilter) return false;
         if (statusFilter !== "ALL" && m.playerStatus !== statusFilter) return false;
         if (roleFilter !== "ALL" && m.clubRole !== roleFilter) return false;
         return true;
@@ -751,10 +751,9 @@ function MembersManagementDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Cat</SelectItem>
-                    <SelectItem value="A">A</SelectItem>
-                    <SelectItem value="B">B</SelectItem>
-                    <SelectItem value="C">C</SelectItem>
-                    <SelectItem value="D">D</SelectItem>
+                    {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -817,7 +816,7 @@ function MembersManagementDialog({
                             <span className="text-sm text-muted-foreground">{m.user?.email || ""}</span>
                           </TableCell>
                           <TableCell><span className="text-xs">{m.gender || "-"}</span></TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs">{m.category || "-"}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{m.grade || m.category || "-"}</Badge></TableCell>
                           <TableCell><Badge variant="outline" className="text-xs">{m.clubRole}</Badge></TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-xs ${m.playerStatus === "ACTIVE" ? "text-green-600" : m.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"}`}>

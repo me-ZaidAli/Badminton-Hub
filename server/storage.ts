@@ -104,7 +104,7 @@ export interface IStorage {
     accountStatus: string;
     profilePictureUrl: string | null;
   }>): Promise<User>;
-  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile>;
+  updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number; grade?: string; adminLocked?: boolean; gradingResetAt?: Date | null }): Promise<PlayerProfile>;
   updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
   deletePlayerProfile(id: number): Promise<void>;
   deleteUserCompletely(userId: number): Promise<void>;
@@ -742,7 +742,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number }): Promise<PlayerProfile> {
+  async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number; grade?: string; adminLocked?: boolean; gradingResetAt?: Date | null }): Promise<PlayerProfile> {
     const [updated] = await db.update(playerProfiles).set(updates as any).where(eq(playerProfiles.id, id)).returning();
     return updated;
   }

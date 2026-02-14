@@ -117,7 +117,7 @@ export default function ClubsManagement() {
       const q = memberSearch.toLowerCase();
       if (q && !name.includes(q) && !email.includes(q)) return false;
       if (memberGenderFilter !== "ALL" && m.gender !== memberGenderFilter) return false;
-      if (memberCategoryFilter !== "ALL" && m.category !== memberCategoryFilter) return false;
+      if (memberCategoryFilter !== "ALL" && (m.grade || m.category) !== memberCategoryFilter) return false;
       if (memberStatusFilter !== "ALL" && m.membershipStatus !== memberStatusFilter) return false;
       if (memberRoleFilter !== "ALL" && m.clubRole !== memberRoleFilter) return false;
       return true;
@@ -352,11 +352,10 @@ export default function ClubsManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">All Grade</SelectItem>
-                      <SelectItem value="A">A</SelectItem>
-                      <SelectItem value="B">B</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                      <SelectItem value="D">D</SelectItem>
+                      <SelectItem value="ALL">All Grades</SelectItem>
+                      {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Select value={memberStatusFilter} onValueChange={setMemberStatusFilter}>
@@ -446,8 +445,8 @@ export default function ClubsManagement() {
                               <span className="text-sm text-muted-foreground">{member.gender || "—"}</span>
                             </TableCell>
                             <TableCell>
-                              {member.category ? (
-                                <Badge variant="outline">{member.category}</Badge>
+                              {(member.grade || member.category) ? (
+                                <Badge variant="outline">{member.grade || member.category}</Badge>
                               ) : (
                                 <span className="text-sm text-muted-foreground">—</span>
                               )}

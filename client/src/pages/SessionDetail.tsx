@@ -102,7 +102,7 @@ export default function SessionDetail() {
 
   const [guestName, setGuestName] = useState("");
   const [guestGender, setGuestGender] = useState("MALE");
-  const [guestCategory, setGuestCategory] = useState("D");
+  const [guestCategory, setGuestCategory] = useState("C3");
 
   const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
@@ -116,10 +116,15 @@ export default function SessionDetail() {
   const [pairSearch2, setPairSearch2] = useState("");
 
   const CATEGORIES = [
-    { value: "A", label: "Category A" },
-    { value: "B", label: "Category B" },
-    { value: "C", label: "Category C" },
-    { value: "D", label: "Category D" },
+    { value: "C3", label: "C3" },
+    { value: "C2", label: "C2" },
+    { value: "C1", label: "C1" },
+    { value: "B3", label: "B3" },
+    { value: "B2", label: "B2" },
+    { value: "B1", label: "B1" },
+    { value: "A3", label: "A3" },
+    { value: "A2", label: "A2" },
+    { value: "A1", label: "A1" },
   ];
 
   const JUNIOR_AGE_GROUPS = [
@@ -197,7 +202,7 @@ export default function SessionDetail() {
           setAddGuestDialogOpen(false);
           setGuestName("");
           setGuestGender("MALE");
-          setGuestCategory("D");
+          setGuestCategory("C3");
         }
       });
     }
@@ -272,7 +277,7 @@ export default function SessionDetail() {
                   setEditDuration(session.durationMinutes || 120);
                   setEditCourts(session.courtsAvailable);
                   setEditShuttleTubes(session.shuttleTubesUsed || 0);
-                  setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
+                  setEditCategories(session.allowedCategories || ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]);
                   setEditLiveStreamUrl(session.liveStreamUrl || "");
                   setEditClubId(session.clubId);
                   setEditMaxPlayers(session.maxPlayers);
@@ -980,7 +985,7 @@ export default function SessionDetail() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">{player.fullName}</span>
                                   <Badge variant="outline" className="text-xs">{player.gender || "?"}</Badge>
-                                  <Badge variant="secondary" className="text-xs">Cat {player.category}</Badge>
+                                  <Badge variant="secondary" className="text-xs">{player.grade || player.category || "C3"}</Badge>
                                 </div>
                                 {isCurrentlyAdding ? (
                                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -1030,16 +1035,15 @@ export default function SessionDetail() {
                       </Select>
                     </div>
                     <div>
-                      <Label>Category</Label>
+                      <Label>Grade</Label>
                       <Select value={guestCategory} onValueChange={setGuestCategory}>
                         <SelectTrigger className="mt-2" data-testid="select-guest-category">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="A">A</SelectItem>
-                          <SelectItem value="B">B</SelectItem>
-                          <SelectItem value="C">C</SelectItem>
-                          <SelectItem value="D">D</SelectItem>
+                          {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1189,9 +1193,9 @@ export default function SessionDetail() {
                       </Badge>
                       {isSuperAdmin ? (
                         <Select
-                          value={signup.player?.category || ""}
-                          onValueChange={(grade) => {
-                            adminInlineEdit({ profileId: signup.playerId, sessionId: id, category: grade });
+                          value={signup.player?.grade || signup.player?.category || "C3"}
+                          onValueChange={(newGrade) => {
+                            adminInlineEdit({ profileId: signup.playerId, sessionId: id, grade: newGrade });
                           }}
                         >
                           <SelectTrigger 
@@ -1201,19 +1205,19 @@ export default function SessionDetail() {
                             <SelectValue placeholder="Grade" />
                           </SelectTrigger>
                           <SelectContent>
-                            {["A", "B", "C", "D"].map((grade) => (
+                            {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
                               <SelectItem
-                                key={grade}
-                                value={grade}
-                                data-testid={`menu-grade-${grade}-${signup.id}`}
+                                key={g}
+                                value={g}
+                                data-testid={`menu-grade-${g}-${signup.id}`}
                               >
-                                Grade {grade}
+                                {g}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Badge variant="outline" className="text-xs">{signup.player?.category || "?"}</Badge>
+                        <Badge variant="outline" className="text-xs">{signup.player?.grade || signup.player?.category || "?"}</Badge>
                       )}
                       {isPaused && (
                         <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" data-testid={`badge-paused-${signup.id}`}>

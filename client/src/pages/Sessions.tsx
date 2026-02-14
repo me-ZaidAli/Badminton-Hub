@@ -27,10 +27,15 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
-  { value: "A", label: "Category A (Advanced)" },
-  { value: "B", label: "Category B (Intermediate+)" },
-  { value: "C", label: "Category C (Intermediate)" },
-  { value: "D", label: "Category D (Beginner)" },
+  { value: "A1", label: "A1 (Elite)" },
+  { value: "A2", label: "A2 (Advanced+)" },
+  { value: "A3", label: "A3 (Advanced)" },
+  { value: "B1", label: "B1 (Upper Intermediate)" },
+  { value: "B2", label: "B2 (Intermediate+)" },
+  { value: "B3", label: "B3 (Intermediate)" },
+  { value: "C1", label: "C1 (Lower Intermediate)" },
+  { value: "C2", label: "C2 (Beginner+)" },
+  { value: "C3", label: "C3 (Beginner)" },
 ] as const;
 
 const JUNIOR_AGE_GROUPS = [
@@ -473,7 +478,7 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       playersPerSide: 2,
       matchGenderType: "MIXED",
       durationMinutes: 120,
-      allowedCategories: ["A", "B", "C", "D"],
+      allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
       sessionFee: undefined,
       shuttlecockType: undefined,
       liveStreamUrl: undefined,
@@ -1041,7 +1046,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     setEditIsPrivate(session.isPrivate || false);
     setEditSessionType(session.sessionType || "OPEN");
     setEditJuniorAgeGroups(session.juniorAgeGroups || []);
-    setEditCategories(session.allowedCategories || ["A", "B", "C", "D"]);
+    setEditCategories(session.allowedCategories || ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]);
     setEditSessionFee(session.sessionFee != null ? (session.sessionFee / 100).toFixed(2) : "");
     setEditShuttlecockType(session.shuttlecockType || "");
     setEditDefaultPoints(session.defaultPointsToPlayTo || 21);

@@ -26,6 +26,7 @@ interface PlayerProfile {
   playerStatus: string;
   gender: string | null;
   category: string | null;
+  grade?: string | null;
   rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
@@ -288,7 +289,7 @@ export default function SuperAdminUsersManagement() {
       }
       if (filterCity !== "all" && p.city !== filterCity) return false;
       if (filterGrade !== "all") {
-        const hasGrade = p.profiles.some(pr => pr.category === filterGrade);
+        const hasGrade = p.profiles.some(pr => (pr.grade || pr.category) === filterGrade);
         if (!hasGrade) return false;
       }
       return true;
@@ -320,7 +321,7 @@ export default function SuperAdminUsersManagement() {
     });
     const pf: Record<number, Record<string, any>> = {};
     player.profiles.forEach(pr => {
-      pf[pr.id] = { gender: pr.gender || "", category: pr.category || "D", clubRole: pr.clubRole, membershipStatus: pr.membershipStatus, playerStatus: pr.playerStatus };
+      pf[pr.id] = { gender: pr.gender || "", category: pr.grade || pr.category || "C3", clubRole: pr.clubRole, membershipStatus: pr.membershipStatus, playerStatus: pr.playerStatus };
     });
     setProfileEditForm(pf);
   };
@@ -503,10 +504,9 @@ export default function SuperAdminUsersManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Grades</SelectItem>
-                    <SelectItem value="A">Grade A</SelectItem>
-                    <SelectItem value="B">Grade B</SelectItem>
-                    <SelectItem value="C">Grade C</SelectItem>
-                    <SelectItem value="D">Grade D</SelectItem>
+                    {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -840,7 +840,7 @@ export default function SuperAdminUsersManagement() {
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                           <span>Gender: {pr.gender || "N/A"}</span>
-                          <span>Grade: {pr.category || "N/A"}</span>
+                          <span>Grade: {pr.grade || pr.category || "N/A"}</span>
                           <span>W: {pr.matchesWon} / P: {pr.matchesPlayed}</span>
                         </div>
                       </div>
@@ -998,15 +998,14 @@ export default function SuperAdminUsersManagement() {
                           </div>
                           <div>
                             <Label>Grade</Label>
-                            <Select value={profileEditForm[pr.id]?.category || "D"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], category: v } }))}>
+                            <Select value={profileEditForm[pr.id]?.category || "C3"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], category: v } }))}>
                               <SelectTrigger data-testid={`select-profile-grade-${pr.id}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="A">Grade A</SelectItem>
-                                <SelectItem value="B">Grade B</SelectItem>
-                                <SelectItem value="C">Grade C</SelectItem>
-                                <SelectItem value="D">Grade D</SelectItem>
+                                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>

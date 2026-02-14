@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { evaluateAllClubsGrades } from "./grading";
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +99,16 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+
+      setInterval(async () => {
+        try {
+          log("Running daily grading evaluation...", "grading");
+          await evaluateAllClubsGrades();
+          log("Daily grading evaluation complete", "grading");
+        } catch (err) {
+          console.error("Daily grading evaluation failed:", err);
+        }
+      }, 24 * 60 * 60 * 1000);
     },
   );
 })();

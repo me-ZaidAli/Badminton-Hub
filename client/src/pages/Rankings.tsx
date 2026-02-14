@@ -108,14 +108,14 @@ function EditProfileDialog({
   const { toast } = useToast();
   const [fullName, setFullName] = useState("");
   const [editGender, setEditGender] = useState("MALE");
-  const [editCategory, setEditCategory] = useState("D");
+  const [editCategory, setEditCategory] = useState("C3");
   const [editClubRole, setEditClubRole] = useState("PLAYER");
 
   const resetForm = (p: LeaderboardPlayer | null) => {
     if (p) {
       setFullName(p.fullName || "");
       setEditGender(p.gender || "MALE");
-      setEditCategory(p.category || "D");
+      setEditCategory(p.grade || p.category || "C3");
       setEditClubRole(p.clubRole || "PLAYER");
     }
   };
@@ -187,10 +187,9 @@ function EditProfileDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="A">Grade A</SelectItem>
-                <SelectItem value="B">Grade B</SelectItem>
-                <SelectItem value="C">Grade C</SelectItem>
-                <SelectItem value="D">Grade D</SelectItem>
+                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -334,10 +333,9 @@ export default function Rankings() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Grades</SelectItem>
-                <SelectItem value="A">Grade A</SelectItem>
-                <SelectItem value="B">Grade B</SelectItem>
-                <SelectItem value="C">Grade C</SelectItem>
-                <SelectItem value="D">Grade D</SelectItem>
+                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={gender} onValueChange={setGender}>
@@ -488,7 +486,7 @@ export default function Rankings() {
                     </TableCell>
                   )}
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="font-mono">{player.category || "?"}</Badge>
+                    <Badge variant="outline" className="font-mono">{player.grade || player.category || "?"}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {player.matchesPlayed}

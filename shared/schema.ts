@@ -9,6 +9,9 @@ export const clubRoleEnum = pgEnum("club_role", ["OWNER", "ADMIN", "ORGANISER", 
 export const membershipStatusEnum = pgEnum("membership_status", ["PENDING", "APPROVED", "REJECTED"]); // Club membership status
 export const genderEnum = pgEnum("gender", ["MALE", "FEMALE"]);
 export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
+
+export const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"] as const;
+export type Grade = typeof GRADE_ORDER[number];
 export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", [
   "ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL",
@@ -104,6 +107,7 @@ export const clubs = pgTable("clubs", {
   // Club Policies & Standards (shown to members when joining)
   clubPolicies: text("club_policies"),
   clubStandards: text("club_standards"),
+  autoGradingEnabled: boolean("auto_grading_enabled").default(true).notNull(),
   // Contact Information (visible only to super admin)
   contactFullName: text("contact_full_name"),
   contactPhone: text("contact_phone"),
@@ -240,6 +244,9 @@ export const playerProfiles = pgTable("player_profiles", {
   playerStatus: playerStatusEnum("player_status").default("ACTIVE").notNull(), // Active, Suspended, or Archived
   gender: genderEnum("gender"),
   category: categoryEnum("category").default("D"),
+  grade: text("grade").default("C3"),
+  adminLocked: boolean("admin_locked").default(false).notNull(),
+  gradingResetAt: timestamp("grading_reset_at"),
   rankingPoints: integer("ranking_points").default(0).notNull(),
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),

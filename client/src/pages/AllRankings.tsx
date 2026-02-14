@@ -120,7 +120,7 @@ function PlayerProfileDialog({
   const [editData, setEditData] = useState({
     fullName: "",
     gender: "MALE",
-    category: "D",
+    category: "C3",
     clubRole: "PLAYER",
     email: "",
     phone: "",
@@ -131,7 +131,7 @@ function PlayerProfileDialog({
       setEditData({
         fullName: player.fullName || "",
         gender: player.gender || "MALE",
-        category: player.category || "D",
+        category: player.grade || player.category || "C3",
         clubRole: player.clubRole || "PLAYER",
         email: player.email || "",
         phone: player.phone || "",
@@ -226,10 +226,9 @@ function PlayerProfileDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">Grade A</SelectItem>
-                  <SelectItem value="B">Grade B</SelectItem>
-                  <SelectItem value="C">Grade C</SelectItem>
-                  <SelectItem value="D">Grade D</SelectItem>
+                  {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -267,7 +266,7 @@ function PlayerProfileDialog({
               <ProfileField label="Phone" value={player.phone || "N/A"} testId="text-view-phone" />
               <ProfileField label="Sex" value={player.gender === "MALE" ? "Male" : player.gender === "FEMALE" ? "Female" : player.gender || "N/A"} testId="text-view-gender" />
               <ProfileField label="Age Group" value={player.isJunior ? "Junior" : "Adult"} testId="text-view-agegroup" />
-              <ProfileField label="Grade" value={player.category ? `Grade ${player.category}` : "N/A"} testId="text-view-grade" />
+              <ProfileField label="Grade" value={(player as any).grade || player.category ? `Grade ${(player as any).grade || player.category}` : "N/A"} testId="text-view-grade" />
               <ProfileField label="Club" value={player.clubName} testId="text-view-club" />
               <ProfileField label="Club Role" value={player.clubRole} testId="text-view-clubrole" />
               <ProfileField label="Country" value={player.userCountry || player.clubCountry || "N/A"} testId="text-view-country" />
@@ -631,10 +630,9 @@ export default function AllRankings() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Grades</SelectItem>
-                      <SelectItem value="A">Grade A</SelectItem>
-                      <SelectItem value="B">Grade B</SelectItem>
-                      <SelectItem value="C">Grade C</SelectItem>
-                      <SelectItem value="D">Grade D</SelectItem>
+                      {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -851,7 +849,7 @@ export default function AllRankings() {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="font-mono">{player.category || "?"}</Badge>
+                      <Badge variant="outline" className="font-mono">{(player as any).grade || player.category || "?"}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">{player.matchesPlayed}</TableCell>
                     <TableCell className="text-right font-medium">

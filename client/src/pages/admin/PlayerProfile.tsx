@@ -95,7 +95,7 @@ export default function PlayerProfile() {
               <h2 className="text-xl font-bold">{player.user?.fullName || "Unknown"}</h2>
               <p className="text-sm text-muted-foreground">{player.user?.email}</p>
               <div className="flex gap-2 mt-3">
-                <Badge variant="outline">{player.category || "Unranked"}</Badge>
+                <Badge variant="outline">{player.grade || player.category || "C3"}</Badge>
                 <Badge variant="secondary">{player.gender}</Badge>
               </div>
               <div className="mt-4 text-sm text-muted-foreground">

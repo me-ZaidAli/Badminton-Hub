@@ -28,6 +28,7 @@ type ProfileData = {
   clubId: number;
   gender: string | null;
   category: string | null;
+  grade: string | null;
   playerStatus: string;
   rankingPoints: number;
   matchesPlayed: number;
@@ -57,13 +58,11 @@ function getDisplayProfile(player: PlayerData, selectedClubId: string): ProfileD
 }
 
 function getCategoryBadgeClass(category: string | null) {
-  switch (category) {
-    case "A": return "bg-green-500/10 text-green-600 border-green-500/30";
-    case "B": return "bg-blue-500/10 text-blue-600 border-blue-500/30";
-    case "C": return "bg-orange-500/10 text-orange-600 border-orange-500/30";
-    case "D": return "bg-muted text-muted-foreground";
-    default: return "bg-muted text-muted-foreground";
-  }
+  if (!category) return "bg-muted text-muted-foreground";
+  if (category.startsWith("A")) return "bg-green-500/10 text-green-600 border-green-500/30";
+  if (category.startsWith("B")) return "bg-blue-500/10 text-blue-600 border-blue-500/30";
+  if (category.startsWith("C")) return "bg-orange-500/10 text-orange-600 border-orange-500/30";
+  return "bg-muted text-muted-foreground";
 }
 
 function getStatusBadge(status: string) {
@@ -137,7 +136,7 @@ export default function PlayerManagement() {
         : profiles.filter(pr => pr.clubId === Number(clubFilter));
 
       const matchesCategory = categoryFilter === "all" ||
-        relevantProfiles.some(pr => pr.category === categoryFilter);
+        relevantProfiles.some(pr => (pr.grade || pr.category) === categoryFilter);
 
       const matchesGender = genderFilter === "all" ||
         relevantProfiles.some(pr => pr.gender === genderFilter);
@@ -337,10 +336,9 @@ export default function PlayerManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="A">Category A</SelectItem>
-                <SelectItem value="B">Category B</SelectItem>
-                <SelectItem value="C">Category C</SelectItem>
-                <SelectItem value="D">Category D</SelectItem>
+                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={genderFilter} onValueChange={setGenderFilter}>
@@ -446,7 +444,7 @@ export default function PlayerManagement() {
                     const profile = getDisplayProfile(player, clubFilter);
                     const totalMatches = player.playerProfiles.reduce((sum, pr) => sum + pr.matchesPlayed, 0);
                     const totalWins = player.playerProfiles.reduce((sum, pr) => sum + pr.matchesWon, 0);
-                    const categories = Array.from(new Set(player.playerProfiles.map(pr => pr.category).filter(Boolean)));
+                    const categories = Array.from(new Set(player.playerProfiles.map(pr => pr.grade || pr.category).filter(Boolean)));
                     const genders = Array.from(new Set(player.playerProfiles.map(pr => pr.gender).filter(Boolean)));
 
                     return (
@@ -746,7 +744,7 @@ function EditMemberDialog({
   const [email, setEmail] = useState(player.email);
   const [phone, setPhone] = useState(player.phone || "");
   const [gender, setGender] = useState(activeProfile?.gender || "");
-  const [category, setCategory] = useState(activeProfile?.category || "D");
+  const [category, setCategory] = useState(activeProfile?.grade || activeProfile?.category || "C3");
   const [clubId, setClubId] = useState(activeProfile?.clubId?.toString() || "");
   const [dateOfBirth, setDateOfBirth] = useState(
     player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : ""
@@ -763,7 +761,7 @@ function EditMemberDialog({
     if (email !== player.email) updates.email = email;
     if (phone !== (player.phone || "")) updates.phone = phone || null;
     if (gender !== (activeProfile?.gender || "")) updates.gender = gender;
-    if (category !== (activeProfile?.category || "D")) updates.category = category;
+    if (category !== (activeProfile?.grade || activeProfile?.category || "C3")) updates.category = category;
     if (clubId && Number(clubId) !== activeProfile?.clubId) updates.clubId = Number(clubId);
 
     const origDob = player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : "";
@@ -870,10 +868,9 @@ function EditMemberDialog({
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">Category A</SelectItem>
-                  <SelectItem value="B">Category B</SelectItem>
-                  <SelectItem value="C">Category C</SelectItem>
-                  <SelectItem value="D">Category D</SelectItem>
+                  {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

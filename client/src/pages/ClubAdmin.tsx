@@ -132,14 +132,8 @@ export default function ClubAdmin() {
 
   const filteredApprovedMembers = categoryFilter === "ALL" 
     ? approvedMembers 
-    : approvedMembers.filter(m => m.category === categoryFilter);
+    : approvedMembers.filter(m => (m.grade || m.category) === categoryFilter);
 
-  const groupedByCategory = {
-    A: approvedMembers.filter(m => m.category === "A"),
-    B: approvedMembers.filter(m => m.category === "B"),
-    C: approvedMembers.filter(m => m.category === "C"),
-    D: approvedMembers.filter(m => m.category === "D"),
-  };
 
   const handleApprove = (profileId: number) => {
     updateMemberMutation.mutate({ profileId, updates: { membershipStatus: "APPROVED" } });
@@ -440,10 +434,9 @@ export default function ClubAdmin() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Categories</SelectItem>
-                    <SelectItem value="A">Category A ({groupedByCategory.A.length})</SelectItem>
-                    <SelectItem value="B">Category B ({groupedByCategory.B.length})</SelectItem>
-                    <SelectItem value="C">Category C ({groupedByCategory.C.length})</SelectItem>
-                    <SelectItem value="D">Category D ({groupedByCategory.D.length})</SelectItem>
+                    {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -455,7 +448,7 @@ export default function ClubAdmin() {
                 </div>
               ) : filteredApprovedMembers.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground">
-                  {categoryFilter === "ALL" ? "No approved members yet." : `No members in Category ${categoryFilter}.`}
+                  {categoryFilter === "ALL" ? "No approved members yet." : `No members in Grade ${categoryFilter}.`}
                 </p>
               ) : (
                 <Table>
@@ -499,7 +492,7 @@ export default function ClubAdmin() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{member.category || "D"}</Badge>
+                          <Badge variant="outline">{member.grade || member.category || "C3"}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">{member.gender || "N/A"}</Badge>
@@ -668,19 +661,24 @@ export default function ClubAdmin() {
               </div>
               
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Grade</Label>
                 <Select 
-                  value={editingMember.category || "D"} 
-                  onValueChange={(v) => setEditingMember({...editingMember, category: v as "A" | "B" | "C" | "D"})}
+                  value={editingMember.grade || editingMember.category || "C3"} 
+                  onValueChange={(v) => setEditingMember({...editingMember, grade: v})}
                 >
                   <SelectTrigger data-testid="select-edit-category">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="A">Category A (Advanced)</SelectItem>
-                    <SelectItem value="B">Category B (Intermediate+)</SelectItem>
-                    <SelectItem value="C">Category C (Intermediate)</SelectItem>
-                    <SelectItem value="D">Category D (Beginner)</SelectItem>
+                    <SelectItem value="A1">A1 (Elite)</SelectItem>
+                    <SelectItem value="A2">A2 (Advanced+)</SelectItem>
+                    <SelectItem value="A3">A3 (Advanced)</SelectItem>
+                    <SelectItem value="B1">B1 (Upper Intermediate)</SelectItem>
+                    <SelectItem value="B2">B2 (Intermediate+)</SelectItem>
+                    <SelectItem value="B3">B3 (Intermediate)</SelectItem>
+                    <SelectItem value="C1">C1 (Lower Intermediate)</SelectItem>
+                    <SelectItem value="C2">C2 (Beginner+)</SelectItem>
+                    <SelectItem value="C3">C3 (Beginner)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

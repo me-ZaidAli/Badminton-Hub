@@ -195,10 +195,9 @@ export default function ExploreRankings() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Grades</SelectItem>
-                    <SelectItem value="A">Grade A</SelectItem>
-                    <SelectItem value="B">Grade B</SelectItem>
-                    <SelectItem value="C">Grade C</SelectItem>
-                    <SelectItem value="D">Grade D</SelectItem>
+                    {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 
@@ -332,7 +331,7 @@ export default function ExploreRankings() {
                         </TableCell>
                       )}
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="font-mono">{player.category || "?"}</Badge>
+                        <Badge variant="outline" className="font-mono">{(player as any).grade || player.category || "?"}</Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {player.matchesPlayed}

@@ -13,6 +13,7 @@ import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
+import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -617,6 +618,13 @@ export async function registerRoutes(
       if (category && ["A", "B", "C", "D"].includes(category)) {
         profileUpdates.category = category;
       }
+      const { grade: gradeUpdate } = req.body;
+      if (gradeUpdate) {
+        const { GRADE_ORDER: GO } = await import("@shared/schema");
+        if (GO.includes(gradeUpdate)) {
+          profileUpdates.grade = gradeUpdate;
+        }
+      }
       if (Object.keys(profileUpdates).length > 0) {
         await storage.updatePlayerProfile(profileId, profileUpdates);
       }
@@ -625,6 +633,103 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error inline updating player profile:", err);
       res.status(500).json({ message: err.message || "Failed to update player profile" });
+    }
+  });
+
+  app.get("/api/player-profiles/:profileId/grading-stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profileId = Number(req.params.profileId);
+      const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.id, profileId)).then(r => r[0]);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      const stats = await computePlayerGradingStats(profileId, profile.clubId, profile.gradingResetAt);
+      res.json(stats);
+    } catch (err: any) {
+      console.error("Error fetching grading stats:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch grading stats" });
+    }
+  });
+
+  app.patch("/api/admin/player-profiles/:profileId/grade", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+
+    try {
+      const profileId = Number(req.params.profileId);
+      const { grade } = req.body;
+      const { GRADE_ORDER } = await import("@shared/schema");
+
+      if (!grade || !GRADE_ORDER.includes(grade)) {
+        return res.status(400).json({ message: `Invalid grade. Must be one of: ${GRADE_ORDER.join(", ")}` });
+      }
+
+      await storage.updatePlayerProfile(profileId, { 
+        grade, 
+        gradingResetAt: new Date()
+      });
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating grade:", err);
+      res.status(500).json({ message: err.message || "Failed to update grade" });
+    }
+  });
+
+  app.patch("/api/admin/player-profiles/:profileId/admin-locked", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+
+    try {
+      const profileId = Number(req.params.profileId);
+      const { adminLocked } = req.body;
+
+      if (typeof adminLocked !== "boolean") {
+        return res.status(400).json({ message: "adminLocked must be a boolean" });
+      }
+
+      await storage.updatePlayerProfile(profileId, { adminLocked });
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating admin lock:", err);
+      res.status(500).json({ message: err.message || "Failed to update admin lock" });
+    }
+  });
+
+  app.patch("/api/admin/clubs/:clubId/auto-grading", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+
+    try {
+      const clubId = Number(req.params.clubId);
+      const { autoGradingEnabled } = req.body;
+
+      if (typeof autoGradingEnabled !== "boolean") {
+        return res.status(400).json({ message: "autoGradingEnabled must be a boolean" });
+      }
+
+      await db.update(clubs).set({ autoGradingEnabled }).where(eq(clubs.id, clubId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating auto grading:", err);
+      res.status(500).json({ message: err.message || "Failed to update auto grading" });
+    }
+  });
+
+  app.post("/api/admin/clubs/:clubId/evaluate-grades", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+
+    try {
+      const clubId = Number(req.params.clubId);
+      const changes = await evaluateClubGrades(clubId);
+      res.json({ changes, count: changes.length });
+    } catch (err: any) {
+      console.error("Error evaluating grades:", err);
+      res.status(500).json({ message: err.message || "Failed to evaluate grades" });
     }
   });
 
@@ -1235,10 +1340,11 @@ export async function registerRoutes(
       }
     }
 
-    // Check category restriction
-    if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 4) {
-      if (profile.category && !session.allowedCategories.includes(profile.category)) {
-        return res.status(400).json({ message: `This session is only open to categories: ${session.allowedCategories.join(", ")}` });
+    // Check category/grade restriction
+    if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 9) {
+      const playerGrade = profile.grade || profile.category;
+      if (playerGrade && !session.allowedCategories.includes(playerGrade)) {
+        return res.status(400).json({ message: `This session is only open to grades: ${session.allowedCategories.join(", ")}` });
       }
     }
 
@@ -1348,7 +1454,7 @@ export async function registerRoutes(
         updates.courtNames = courtNames.map((n: string) => n.trim());
       }
       if (allowedCategories !== undefined) {
-        const validCategories = ["A", "B", "C", "D"];
+        const validCategories = ["A", "B", "C", "D", "C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
         if (!Array.isArray(allowedCategories) || !allowedCategories.every(c => validCategories.includes(c))) {
           return res.status(400).json({ message: "Invalid categories" });
         }
@@ -1806,6 +1912,14 @@ export async function registerRoutes(
           }
         }
 
+        const gradingSession = currentMatch.sessionId ? await storage.getSession(currentMatch.sessionId) : null;
+        if (gradingSession) {
+          const playerIds = [currentMatch.teamAPlayer1Id, currentMatch.teamAPlayer2Id, currentMatch.teamBPlayer1Id, currentMatch.teamBPlayer2Id].filter(Boolean) as number[];
+          for (const pid of playerIds) {
+            evaluatePlayerGrade(pid, gradingSession.clubId).catch(err => console.error("Grading error:", err));
+          }
+        }
+
         return res.json({ ...updated, matchCompleted: true });
       } else {
         const updated = await storage.updateMatch(matchId, {
@@ -1901,6 +2015,14 @@ export async function registerRoutes(
             startedAt: new Date(),
             queuePosition: null
           });
+        }
+      }
+
+      const gradingSession2 = currentMatch.sessionId ? await storage.getSession(currentMatch.sessionId) : null;
+      if (gradingSession2) {
+        const playerIds = [currentMatch.teamAPlayer1Id, currentMatch.teamAPlayer2Id, currentMatch.teamBPlayer1Id, currentMatch.teamBPlayer2Id].filter(Boolean) as number[];
+        for (const pid of playerIds) {
+          evaluatePlayerGrade(pid, gradingSession2.clubId).catch(err => console.error("Grading error:", err));
         }
       }
 

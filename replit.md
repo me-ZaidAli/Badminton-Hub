@@ -29,6 +29,7 @@ The frontend is built with React 18, TypeScript, Wouter for routing, and TanStac
 -   **Club Member Management**: Admins and super admins can manage club members directly from the Clubs page. Features include alphabetical member lists, advanced filters (search, gender, category, status, role), bulk actions (delete, archive, pause, suspend), pending approvals tab, and detailed user editing with password reset and messaging capabilities.
 -   **Account Management**: Features registration, account claiming, password reset functionality, and self-service account deletion.
 -   **Legal Policies System**: Manages in-app legal content, policy acceptance logging, and parental consent for junior accounts.
+-   **Automatic Player Grading System**: 9-tier skill grading (C3→C2→C1→B3→B2→B1→A3→A2→A1) with automatic promotion/demotion based on rolling 5-session performance windows. Thresholds: 55% win rate for promotion, below 40% for demotion, minimum 10 games and 3 sessions required. Admin lock feature prevents auto-changes. Club-level toggle to enable/disable auto-grading. Schema uses `grade` field (text) alongside legacy `category` enum for backward compatibility. Frontend displays `grade || category || "C3"` pattern throughout.
 
 ## External Dependencies
 

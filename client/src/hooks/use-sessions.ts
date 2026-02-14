@@ -385,11 +385,11 @@ export function useAdminInlineEditPlayer() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ profileId, sessionId, fullName, gender, category }: { profileId: number; sessionId: number; fullName?: string; gender?: string; category?: string }) => {
+    mutationFn: async ({ profileId, sessionId, fullName, gender, category, grade }: { profileId: number; sessionId: number; fullName?: string; gender?: string; category?: string; grade?: string }) => {
       const res = await fetch(`/api/admin/player-profiles/${profileId}/inline`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, gender, category }),
+        body: JSON.stringify({ fullName, gender, category, grade }),
         credentials: "include",
       });
       if (!res.ok) {

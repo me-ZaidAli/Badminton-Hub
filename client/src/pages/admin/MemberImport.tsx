@@ -65,7 +65,7 @@ export default function MemberImport() {
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [manualGender, setManualGender] = useState("MALE");
-  const [manualCategory, setManualCategory] = useState("D");
+  const [manualCategory, setManualCategory] = useState("C3");
   const [manualRole, setManualRole] = useState("PLAYER");
   const [manualPhone, setManualPhone] = useState("");
 
@@ -141,7 +141,7 @@ export default function MemberImport() {
       if (!fullName || !email) continue;
 
       const gender = genderIdx !== -1 && cols[genderIdx] ? cols[genderIdx].toUpperCase() : "MALE";
-      const category = categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx].toUpperCase() : "D";
+      const category = categoryIdx !== -1 && cols[categoryIdx] ? cols[categoryIdx].toUpperCase() : "C3";
       let role = roleIdx !== -1 && cols[roleIdx] ? cols[roleIdx].toUpperCase() : "PLAYER";
       if (role !== "PLAYER" && role !== "ADMIN") role = "PLAYER";
       const phone = phoneIdx !== -1 ? cols[phoneIdx] || "" : "";
@@ -228,7 +228,7 @@ export default function MemberImport() {
     setManualName("");
     setManualEmail("");
     setManualGender("MALE");
-    setManualCategory("D");
+    setManualCategory("C3");
     setManualRole("PLAYER");
     setManualPhone("");
     setImportResult(null);
@@ -429,10 +429,9 @@ export default function MemberImport() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="A">A</SelectItem>
-                          <SelectItem value="B">B</SelectItem>
-                          <SelectItem value="C">C</SelectItem>
-                          <SelectItem value="D">D</SelectItem>
+                          {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

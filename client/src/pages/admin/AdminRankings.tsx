@@ -25,6 +25,8 @@ interface AdminRankingPlayer {
   email?: string;
   gender: string;
   category: string;
+  grade?: string;
+  adminLocked?: boolean;
   matchesPlayed: number;
   matchesWon: number;
   playerStatus: string;
@@ -289,10 +291,9 @@ export default function AdminRankings() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Grades</SelectItem>
-                <SelectItem value="A">Grade A</SelectItem>
-                <SelectItem value="B">Grade B</SelectItem>
-                <SelectItem value="C">Grade C</SelectItem>
-                <SelectItem value="D">Grade D</SelectItem>
+                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={genderFilter} onValueChange={setGenderFilter}>
@@ -459,7 +460,7 @@ export default function AdminRankings() {
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className="font-mono" data-testid={`badge-category-${player.profileId}`}>
-                            {player.category || "?"}
+                            {player.grade || player.category || "C3"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center hidden sm:table-cell" data-testid={`text-gender-${player.profileId}`}>
