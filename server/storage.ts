@@ -119,7 +119,7 @@ export interface IStorage {
 
   // Enhanced session signups
   createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup>;
-  updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }): Promise<SessionSignup>;
+  updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string }): Promise<SessionSignup>;
   updateSessionSignupStatus(signupId: number, updates: { signupStatus?: string; waitingListPosition?: number | null }): Promise<SessionSignup>;
   getWaitingListForSession(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
@@ -1725,7 +1725,7 @@ export class DatabaseStorage implements IStorage {
     return signup;
   }
 
-  async updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }): Promise<SessionSignup> {
+  async updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string }): Promise<SessionSignup> {
     const [updated] = await db.update(sessionSignups).set(updates as any).where(eq(sessionSignups.id, signupId)).returning();
     return updated;
   }

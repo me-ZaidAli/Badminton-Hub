@@ -13,8 +13,8 @@ export const categoryEnum = pgEnum("category", ["A", "B", "C", "D"]);
 export const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"] as const;
 export type Grade = typeof GRADE_ORDER[number];
 export const paymentStatusEnum = pgEnum("payment_status", ["PAID", "UNPAID", "PENDING"]);
-export const paymentMethodEnum = pgEnum("payment_method", ["CARD", "BANK_TRANSFER", "NONE"]);
-export const signupStatusEnum = pgEnum("signup_status", ["CONFIRMED", "WAITING", "CANCELLED"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["CARD", "BANK_TRANSFER", "CASH", "ONLINE", "MEMBERSHIP_CREDIT", "NONE"]);
+export const signupStatusEnum = pgEnum("signup_status", ["CONFIRMED", "WAITING", "INVITED", "NOT_ATTENDING", "CANCELLED"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", [
   "ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL",
   "NO_SHOW", "JUSTIFIED_CANCELLATION", "SICKNESS", "EMERGENCY",
@@ -324,6 +324,7 @@ export const sessionSignups = pgTable("session_signups", {
   partialPercentage: integer("partial_percentage"),
   policyMet: boolean("policy_met"),
   adminNotes: text("admin_notes"),
+  paymentNotes: text("payment_notes"),
 });
 
 // === CREDIT LEDGER ===

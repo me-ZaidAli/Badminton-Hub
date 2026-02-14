@@ -1281,9 +1281,6 @@ export async function registerRoutes(
     }
 
     const signups = await storage.getSessionSignups(sessionId);
-    if (signups.length >= session.maxPlayers) {
-      return res.status(400).json({ message: "Session full" });
-    }
 
     // Check if already signed up - prevent duplicates
     const alreadySignedUp = signups.some(s => s.playerId === profile.id);
@@ -1298,6 +1295,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "This is a private session. Only admins or organisers can add players." });
       }
     }
+
+    const confirmedCount = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+    const isFull = confirmedCount >= session.maxPlayers;
 
     // Check gender restriction (females-only sessions)
     if (session.genderRestriction === "FEMALE_ONLY") {
@@ -1354,6 +1354,20 @@ export async function registerRoutes(
       const club = await storage.getClub(session.clubId);
       fee = club?.sessionFee ?? 1000;
     }
+
+    if (isFull) {
+      const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+      const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+      const signup = await storage.createSessionSignupEnhanced({
+        sessionId,
+        playerId: profile.id,
+        fee,
+        signupStatus: "WAITING",
+        waitingListPosition: maxPos + 1,
+        signedUpByUserId: req.user!.id,
+      });
+      return res.status(201).json({ ...signup, addedToWaitingList: true });
+    }
     
     const signup = await storage.createSessionSignup(sessionId, profile.id, fee);
     res.status(201).json(signup);
@@ -1366,6 +1380,25 @@ export async function registerRoutes(
     if (!profile) return res.sendStatus(400);
 
     await storage.deleteSessionSignup(sessionId, profile.id);
+
+    // Auto-promote first waiting list player
+    const session = await storage.getSession(sessionId);
+    if (session) {
+      const allSignups = await storage.getSessionSignups(sessionId);
+      const confirmedCount = allSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      if (confirmedCount < session.maxPlayers) {
+        const waitingPlayers = allSignups
+          .filter((s: any) => s.signupStatus === "WAITING")
+          .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+        if (waitingPlayers.length > 0) {
+          await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
+            signupStatus: "CONFIRMED",
+            waitingListPosition: null,
+          });
+        }
+      }
+    }
+
     res.sendStatus(200);
   });
 
@@ -1565,13 +1598,22 @@ export async function registerRoutes(
     const signups = await storage.getSessionSignups(sessionId);
     const confirmed = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED");
     const waiting = signups.filter((s: any) => s.signupStatus === "WAITING");
+    const invited = signups.filter((s: any) => s.signupStatus === "INVITED");
+    const notAttending = signups.filter((s: any) => s.signupStatus === "NOT_ATTENDING");
     const cancelled = signups.filter((s: any) => s.signupStatus === "CANCELLED");
 
     const paidCount = confirmed.filter((s: any) => s.paymentStatus === "PAID").length;
     const pendingCount = confirmed.filter((s: any) => s.paymentStatus === "PENDING").length;
     const unpaidCount = confirmed.filter((s: any) => s.paymentStatus === "UNPAID").length;
+    const cashCount = confirmed.filter((s: any) => s.paymentMethod === "CASH").length;
+    const onlineCount = confirmed.filter((s: any) => s.paymentMethod === "ONLINE").length;
     const cardCount = confirmed.filter((s: any) => s.paymentMethod === "CARD").length;
     const bankTransferCount = confirmed.filter((s: any) => s.paymentMethod === "BANK_TRANSFER").length;
+    const membershipCreditCount = confirmed.filter((s: any) => s.paymentMethod === "MEMBERSHIP_CREDIT").length;
+
+    const totalCollected = confirmed
+      .filter((s: any) => s.paymentStatus === "PAID")
+      .reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
 
     res.json({
       summary: {
@@ -1579,12 +1621,20 @@ export async function registerRoutes(
         paid: paidCount,
         pendingBankTransfer: pendingCount,
         unpaid: unpaidCount,
+        cashPayments: cashCount,
+        onlinePayments: onlineCount,
         cardPayments: cardCount,
         bankTransfers: bankTransferCount,
+        membershipCredits: membershipCreditCount,
         waitingListCount: waiting.length,
+        invitedCount: invited.length,
+        notAttendingCount: notAttending.length,
+        totalCollected,
       },
       confirmed,
       waiting: waiting.sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0)),
+      invited,
+      notAttending,
       cancelled,
     });
   });
@@ -1600,17 +1650,18 @@ export async function registerRoutes(
     const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
-    const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes } = req.body;
+    const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes, paymentNotes } = req.body;
     const updated = await storage.updateSessionSignupPayment(signupId, {
       paymentStatus,
       paymentMethod,
       verifiedByAdmin,
       adminNotes,
+      paymentNotes,
     });
     res.json(updated);
   });
 
-  // Admin: Move player between lists (confirm/waiting/cancel)
+  // Admin: Move player between lists (confirm/waiting/cancel/invited/not_attending)
   app.patch("/api/sessions/:sessionId/signups/:signupId/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const sessionId = Number(req.params.sessionId);
@@ -1622,10 +1673,35 @@ export async function registerRoutes(
     if (!canAccess) return res.sendStatus(403);
 
     const { signupStatus, waitingListPosition } = req.body;
+
+    // Get existing signup to check if moving away from CONFIRMED
+    const allSignups = await storage.getSessionSignups(sessionId);
+    const existingSignup = allSignups.find((s: any) => s.id === signupId);
+    const wasConfirmed = existingSignup && (!existingSignup.signupStatus || existingSignup.signupStatus === "CONFIRMED");
+    const isLeavingConfirmed = wasConfirmed && signupStatus !== "CONFIRMED";
+
     const updated = await storage.updateSessionSignupStatus(signupId, {
       signupStatus,
       waitingListPosition: waitingListPosition !== undefined ? waitingListPosition : null,
     });
+
+    // Auto-promote from waiting list if a confirmed player was moved away
+    if (isLeavingConfirmed) {
+      const refreshedSignups = await storage.getSessionSignups(sessionId);
+      const confirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      if (confirmedCount < session.maxPlayers) {
+        const waitingPlayers = refreshedSignups
+          .filter((s: any) => s.signupStatus === "WAITING")
+          .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+        if (waitingPlayers.length > 0) {
+          await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
+            signupStatus: "CONFIRMED",
+            waitingListPosition: null,
+          });
+        }
+      }
+    }
+
     res.json(updated);
   });
 
@@ -1962,16 +2038,27 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Player already in session" });
       }
 
-      // Check capacity
-      if (signups.length >= session.maxPlayers) {
-        return res.status(400).json({ message: "Session is full" });
-      }
-
       // Use session fee or club default fee or fallback to 1000 pence
       let fee = session.sessionFee;
       if (fee == null) {
         const club = await storage.getClub(session.clubId);
         fee = club?.sessionFee ?? 1000;
+      }
+
+      // Check capacity - admin can still add but to waiting list
+      const confirmedCount = signups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      if (confirmedCount >= session.maxPlayers) {
+        const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        const signup = await storage.createSessionSignupEnhanced({
+          sessionId,
+          playerId,
+          fee,
+          signupStatus: "WAITING",
+          waitingListPosition: maxPos + 1,
+          signedUpByUserId: req.user!.id,
+        });
+        return res.status(201).json({ ...signup, addedToWaitingList: true });
       }
 
       const signup = await storage.createSessionSignup(sessionId, playerId, fee);

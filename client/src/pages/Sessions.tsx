@@ -16,7 +16,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet } from "lucide-react";
+import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
@@ -63,6 +64,8 @@ export default function Sessions() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [detailsSession, setDetailsSession] = useState<any>(null);
+  const [financeSession, setFinanceSession] = useState<any>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
@@ -366,7 +369,11 @@ export default function Sessions() {
                   </span>
                 </div>
                 
-                <h3 className="text-xl font-bold mb-2">
+                <h3
+                  className="text-xl font-bold mb-2 cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => setDetailsSession(session)}
+                  data-testid={`button-session-title-${session.id}`}
+                >
                   {session.title}
                 </h3>
                 
@@ -411,6 +418,10 @@ export default function Sessions() {
                     )}
                     {editableClubIds.has(session.clubId) ? (
                       <>
+                        <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
+                          <Wallet className="h-4 w-4 mr-1" />
+                          Finances
+                        </Button>
                         <EditSessionDialog session={session} venues={[]} />
                         <Button size="sm" onClick={() => setLocation(`/sessions/${session.id}`)} data-testid={`button-run-session-${session.id}`}>
                           <Activity className="h-4 w-4 mr-1" />
@@ -454,6 +465,23 @@ export default function Sessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {detailsSession && (
+        <SessionDetailsModal
+          session={detailsSession}
+          open={!!detailsSession}
+          onOpenChange={(open) => { if (!open) setDetailsSession(null); }}
+          isAdmin={editableClubIds.has(detailsSession.clubId)}
+        />
+      )}
+
+      {financeSession && (
+        <SessionFinanceModal
+          session={financeSession}
+          open={!!financeSession}
+          onOpenChange={(open) => { if (!open) setFinanceSession(null); }}
+        />
+      )}
     </div>
   );
 }
