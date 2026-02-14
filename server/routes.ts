@@ -5929,6 +5929,129 @@ export async function registerRoutes(
     }
   });
 
+  // Get outstanding (unpaid) session fees for the current user across all clubs
+  app.get("/api/my-outstanding-payments", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const profiles = await db
+        .select({ id: playerProfiles.id, clubId: playerProfiles.clubId })
+        .from(playerProfiles)
+        .where(eq(playerProfiles.userId, user.id));
+
+      if (profiles.length === 0) return res.json([]);
+
+      const profileIds = profiles.map(p => p.id);
+      const unpaidSignups = await db
+        .select({
+          signupId: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          paymentStatus: sessionSignups.paymentStatus,
+          paymentMethod: sessionSignups.paymentMethod,
+          paymentNotes: sessionSignups.paymentNotes,
+          signupStatus: sessionSignups.signupStatus,
+          signupTime: sessionSignups.signupTime,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          clubId: sessions.clubId,
+          clubName: clubs.name,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .innerJoin(clubs, eq(sessions.clubId, clubs.id))
+        .where(
+          and(
+            inArray(sessionSignups.playerId, profileIds),
+            eq(sessionSignups.paymentStatus, "UNPAID"),
+            inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING"])
+          )
+        )
+        .orderBy(desc(sessions.date));
+
+      res.json(unpaidSignups);
+    } catch (err: any) {
+      console.error("Error fetching outstanding payments:", err);
+      res.status(500).json({ message: "Failed to fetch outstanding payments" });
+    }
+  });
+
+  // Admin: Request payment from a player (sends notification)
+  app.post("/api/admin/request-payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { signupId, sessionId, playerId, message } = req.body;
+    
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const signup = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId)).limit(1);
+    if (!signup.length) return res.status(404).json({ message: "Signup not found" });
+
+    const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+    if (!profile.length) return res.status(404).json({ message: "Player not found" });
+
+    const club = await storage.getClub(session.clubId);
+    const feeDisplay = `£${(signup[0].fee / 100).toFixed(2)}`;
+
+    await storage.createNotification({
+      userId: profile[0].userId,
+      type: "PAYMENT_REQUEST",
+      title: "Payment Requested",
+      message: message || `Payment of ${feeDisplay} is due for "${session.title}" at ${club?.name || "your club"}. Please arrange payment.`,
+      linkUrl: "/profile",
+    });
+
+    res.json({ success: true });
+  });
+
+  // Admin: Get outstanding payments for a specific player in a club
+  app.get("/api/admin/clubs/:clubId/player/:playerId/outstanding", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    const playerId = Number(req.params.playerId);
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const unpaidSignups = await db
+        .select({
+          signupId: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          paymentStatus: sessionSignups.paymentStatus,
+          paymentMethod: sessionSignups.paymentMethod,
+          paymentNotes: sessionSignups.paymentNotes,
+          signupStatus: sessionSignups.signupStatus,
+          signupTime: sessionSignups.signupTime,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(
+          and(
+            eq(sessionSignups.playerId, playerId),
+            eq(sessions.clubId, clubId),
+            eq(sessionSignups.paymentStatus, "UNPAID"),
+            inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING"])
+          )
+        )
+        .orderBy(desc(sessions.date));
+
+      res.json(unpaidSignups);
+    } catch (err: any) {
+      console.error("Error fetching player outstanding payments:", err);
+      res.status(500).json({ message: "Failed to fetch outstanding payments" });
+    }
+  });
+
   // Get credit history for current user (for profile view)
   app.get("/api/my-credits/history", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
