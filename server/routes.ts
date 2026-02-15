@@ -7936,7 +7936,11 @@ export async function registerRoutes(
       query = query.where(and(...conditions)).orderBy(desc(clubMemberships.createdAt));
 
       const results = await query;
-      res.json(results);
+      const mapped = results.map((r: any) => ({
+        ...r,
+        paymentStatus: r.paymentConfirmed ? "PAID" : "UNPAID",
+      }));
+      res.json(mapped);
     } catch (err: any) {
       console.error("Error fetching club memberships:", err);
       res.status(500).json({ message: "Failed to fetch memberships" });
@@ -9113,7 +9117,51 @@ export async function registerRoutes(
 
       const generalExpenses = expensesAll.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-      const totalIncome = sessionIncome + inventorySales;
+      const membershipConditions: any[] = [inArray(clubMemberships.clubId, filteredClubIds)];
+      const membershipsData = await db.select({
+        id: clubMemberships.id,
+        userId: clubMemberships.userId,
+        clubId: clubMemberships.clubId,
+        planId: clubMemberships.planId,
+        status: clubMemberships.status,
+        startDate: clubMemberships.startDate,
+        endDate: clubMemberships.endDate,
+        paymentConfirmed: clubMemberships.paymentConfirmed,
+        proratedPrice: clubMemberships.proratedPrice,
+        createdAt: clubMemberships.createdAt,
+        fullName: users.fullName,
+        email: users.email,
+        planName: membershipPlans.name,
+        planAnnualPrice: membershipPlans.annualPrice,
+      }).from(clubMemberships)
+        .leftJoin(users, eq(clubMemberships.userId, users.id))
+        .leftJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .leftJoin(clubs, eq(clubMemberships.clubId, clubs.id))
+        .where(and(...membershipConditions));
+
+      const activeMemberships = membershipsData.filter(m => m.status === "ACTIVE");
+      const membershipTotalRevenue = activeMemberships.reduce((sum, m) => sum + (m.proratedPrice || m.planAnnualPrice || 0), 0);
+      const membershipPaid = activeMemberships.filter(m => m.paymentConfirmed).reduce((sum, m) => sum + (m.proratedPrice || m.planAnnualPrice || 0), 0);
+      const membershipUnpaid = membershipTotalRevenue - membershipPaid;
+      const membershipOverdue = activeMemberships.filter(m => !m.paymentConfirmed && m.endDate && new Date(m.endDate) < new Date()).length;
+
+      const membershipMembers = membershipsData.map(m => ({
+        id: m.id,
+        userId: m.userId,
+        clubId: m.clubId,
+        fullName: m.fullName,
+        email: m.email,
+        planName: m.planName,
+        planPrice: m.proratedPrice || m.planAnnualPrice || 0,
+        status: m.status,
+        paymentStatus: m.paymentConfirmed ? "PAID" : "UNPAID",
+        startDate: m.startDate,
+        endDate: m.endDate,
+        createdAt: m.createdAt,
+        isOverdue: !m.paymentConfirmed && m.endDate && new Date(m.endDate) < new Date(),
+      }));
+
+      const totalIncome = sessionIncome + inventorySales + membershipPaid;
       const totalExpenses = inventoryPurchases + generalExpenses;
       const netRevenue = totalIncome - totalExpenses;
 
@@ -9130,6 +9178,12 @@ export async function registerRoutes(
         netRevenue,
         stockUsed,
         collectionRate: sessionIncome > 0 ? ((sessionPaid / sessionIncome) * 100).toFixed(1) : "0.0",
+        membershipTotalRevenue,
+        membershipPaid,
+        membershipUnpaid,
+        membershipOverdue,
+        membershipActiveCount: activeMemberships.length,
+        membershipMembers,
       });
     } catch (err: any) {
       console.error("Error fetching financial dashboard:", err);

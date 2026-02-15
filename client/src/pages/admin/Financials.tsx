@@ -38,6 +38,7 @@ import {
   History,
   Building2,
   ArrowDownAZ,
+  AlertTriangle,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -120,7 +121,7 @@ export default function Financials() {
   const [matchMode, setMatchMode] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"session" | "player" | "credits">("session");
+  const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships">("session");
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "past">("upcoming");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
@@ -190,6 +191,22 @@ export default function Financials() {
     return `/api/admin/financial-dashboard${qs ? `?${qs}` : ""}`;
   }, [selectedClubId]);
 
+  interface MembershipMember {
+    id: number;
+    userId: number;
+    clubId: number;
+    fullName: string;
+    email: string;
+    planName: string;
+    planPrice: number;
+    status: string;
+    paymentStatus: string;
+    startDate: string;
+    endDate: string;
+    createdAt: string;
+    isOverdue: boolean;
+  }
+
   const { data: dashboardData } = useQuery<{
     sessionIncome: number;
     sessionPaid: number;
@@ -203,6 +220,12 @@ export default function Financials() {
     netRevenue: number;
     stockUsed: number;
     collectionRate: string;
+    membershipTotalRevenue: number;
+    membershipPaid: number;
+    membershipUnpaid: number;
+    membershipOverdue: number;
+    membershipActiveCount: number;
+    membershipMembers: MembershipMember[];
   }>({ queryKey: [dashboardQueryUrl] });
 
   interface CreditHistoryEntry {
@@ -1157,6 +1180,14 @@ export default function Financials() {
                 <History className="h-4 w-4 mr-1" />
                 Credit History
               </Button>
+              <Button
+                variant={viewMode === "memberships" ? "default" : "outline"}
+                onClick={() => setViewMode("memberships")}
+                data-testid="button-view-memberships"
+              >
+                <CreditCard className="h-4 w-4 mr-1" />
+                Memberships
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1249,6 +1280,7 @@ export default function Financials() {
               <p className="text-xs text-muted-foreground mt-1">
                 Sessions: {"\u00A3"}{formatPounds(dashboardData.sessionIncome)}
                 {dashboardData.inventorySales > 0 && <> + Sales: {"\u00A3"}{formatPounds(dashboardData.inventorySales)}</>}
+                {dashboardData.membershipPaid > 0 && <> + Memberships: {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</>}
               </p>
             </CardContent>
           </Card>
@@ -1293,6 +1325,66 @@ export default function Financials() {
                 {dashboardData.stockUsed}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Items used in sessions</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {dashboardData && dashboardData.membershipActiveCount > 0 && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card data-testid="card-membership-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Revenue</CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="text-membership-revenue">
+                {"\u00A3"}{formatPounds(dashboardData.membershipTotalRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{dashboardData.membershipActiveCount} active memberships</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-membership-paid">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Collected</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600" data-testid="text-membership-paid">
+                {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "PAID").length} paid
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-membership-unpaid">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Outstanding</CardTitle>
+              <AlertCircle className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600" data-testid="text-membership-unpaid">
+                {"\u00A3"}{formatPounds(dashboardData.membershipUnpaid)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "UNPAID").length} unpaid
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-membership-overdue">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600" data-testid="text-membership-overdue">
+                {dashboardData.membershipOverdue}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Unpaid past due date</p>
             </CardContent>
           </Card>
         </div>
