@@ -115,21 +115,23 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   };
 
   const renderPlayerRow = (signup: any, showActions: boolean) => (
-    <div key={signup.id} className="flex items-center justify-between py-2 px-3 rounded-md border border-border/50 gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="font-medium truncate" data-testid={`text-player-name-${signup.id}`}>{getPlayerName(signup)}</span>
-        {getPlayerGrade(signup) && (
-          <Badge variant="outline" className="text-xs shrink-0">{getPlayerGrade(signup)}</Badge>
-        )}
-        {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
-          <Badge variant="secondary" className="text-xs shrink-0">#{signup.waitingListPosition}</Badge>
-        )}
-        {getPlayerUserId(signup) === user?.id && (
-          <Badge variant="secondary" className="text-xs shrink-0">You</Badge>
-        )}
+    <div key={signup.id} className="py-2 px-3 rounded-md border border-border/50">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate text-sm" data-testid={`text-player-name-${signup.id}`}>{getPlayerName(signup)}</span>
+          {getPlayerGrade(signup) && (
+            <Badge variant="outline" className="text-xs shrink-0">{getPlayerGrade(signup)}</Badge>
+          )}
+          {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
+            <Badge variant="secondary" className="text-xs shrink-0">#{signup.waitingListPosition}</Badge>
+          )}
+          {getPlayerUserId(signup) === user?.id && (
+            <Badge variant="secondary" className="text-xs shrink-0">You</Badge>
+          )}
+        </div>
       </div>
       {showActions && isAdmin && (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
           {signup.signupStatus === "WAITING" && (
             <>
               <Button
@@ -380,17 +382,19 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2" data-testid="text-session-details-title">
+          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl" data-testid="text-session-details-title">
             {session.title}
           </DialogTitle>
-          <DialogDescription>
-            <span className="flex items-center gap-2 text-sm">
+          <DialogDescription asChild>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
               <span>{format(new Date(session.date), "EEE, MMM d, yyyy")}</span>
+              <span className="hidden sm:inline">&middot;</span>
               <span>{session.startTime}</span>
-              <span>({confirmed.length}/{session.maxPlayers || "~"} confirmed)</span>
-            </span>
+              <span className="hidden sm:inline">&middot;</span>
+              <span>{confirmed.length}/{session.maxPlayers || "~"} confirmed</span>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -403,18 +407,18 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             {renderPlayerActionBar()}
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 gap-1">
-                <TabsTrigger value="confirmed" className="text-xs" data-testid="tab-confirmed">
-                  Confirmed ({confirmed.length})
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+                <TabsTrigger value="confirmed" className="text-xs px-2" data-testid="tab-confirmed">
+                  In ({confirmed.length})
                 </TabsTrigger>
-                <TabsTrigger value="waiting" className="text-xs" data-testid="tab-waiting">
-                  Waiting ({waiting.length})
+                <TabsTrigger value="waiting" className="text-xs px-2" data-testid="tab-waiting">
+                  Wait ({waiting.length})
                 </TabsTrigger>
-                <TabsTrigger value="invited" className="text-xs" data-testid="tab-invited">
+                <TabsTrigger value="invited" className="text-xs px-2" data-testid="tab-invited">
                   Invited ({invited.length})
                 </TabsTrigger>
-                <TabsTrigger value="notAttending" className="text-xs" data-testid="tab-not-attending">
-                  Not Going ({notAttending.length})
+                <TabsTrigger value="notAttending" className="text-xs px-2" data-testid="tab-not-attending">
+                  Out ({notAttending.length})
                 </TabsTrigger>
               </TabsList>
 

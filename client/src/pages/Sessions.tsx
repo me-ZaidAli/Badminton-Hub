@@ -370,7 +370,7 @@ export default function Sessions() {
                 </div>
                 
                 <h3
-                  className="text-xl font-bold mb-2 cursor-pointer hover:text-primary transition-colors"
+                  className="text-xl font-bold mb-2 cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() => setDetailsSession(session)}
                   data-testid={`button-session-title-${session.id}`}
                 >
