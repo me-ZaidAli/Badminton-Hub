@@ -3942,7 +3942,6 @@ export async function registerRoutes(
                 await db.execute(sql`UPDATE matches SET team_a_player_2_id = ${keepProfile.id} WHERE team_a_player_2_id = ${rp.id}`);
                 await db.execute(sql`UPDATE matches SET team_b_player_1_id = ${keepProfile.id} WHERE team_b_player_1_id = ${rp.id}`);
                 await db.execute(sql`UPDATE matches SET team_b_player_2_id = ${keepProfile.id} WHERE team_b_player_2_id = ${rp.id}`);
-                await db.execute(sql`UPDATE credit_ledger SET player_profile_id = ${keepProfile.id} WHERE player_profile_id = ${rp.id}`);
                 await db.execute(sql`UPDATE tournament_teams SET player1_id = ${keepProfile.id} WHERE player1_id = ${rp.id}`);
                 await db.execute(sql`UPDATE tournament_teams SET player2_id = ${keepProfile.id} WHERE player2_id = ${rp.id}`);
 
@@ -3952,8 +3951,10 @@ export async function registerRoutes(
               }
             }
 
-            await db.execute(sql`UPDATE messages SET sender_id = ${keepId} WHERE sender_id = ${removeId}`);
-            await db.execute(sql`UPDATE messages SET recipient_id = ${keepId} WHERE recipient_id = ${removeId}`);
+            await db.execute(sql`UPDATE internal_messages SET sender_id = ${keepId} WHERE sender_id = ${removeId}`);
+            await db.execute(sql`UPDATE internal_messages SET recipient_id = ${keepId} WHERE recipient_id = ${removeId}`);
+            await db.execute(sql`UPDATE credit_ledger SET user_id = ${keepId} WHERE user_id = ${removeId}`);
+            await db.execute(sql`UPDATE credit_ledger SET created_by_id = ${keepId} WHERE created_by_id = ${removeId}`);
             await db.execute(sql`UPDATE club_memberships SET user_id = ${keepId} WHERE user_id = ${removeId} AND club_id NOT IN (SELECT club_id FROM club_memberships WHERE user_id = ${keepId})`);
             await db.execute(sql`DELETE FROM club_memberships WHERE user_id = ${removeId}`);
             await db.execute(sql`UPDATE membership_requests SET user_id = ${keepId} WHERE user_id = ${removeId} AND club_id NOT IN (SELECT club_id FROM membership_requests WHERE user_id = ${keepId})`);
