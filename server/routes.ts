@@ -1912,6 +1912,48 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.delete("/api/sessions/:sessionId/signups/:signupId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const signupId = Number(req.params.signupId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const allSignups = await storage.getSessionSignups(sessionId);
+      const signup = allSignups.find((s: any) => s.id === signupId);
+      if (!signup) return res.status(404).json({ message: "Signup not found" });
+
+      const wasConfirmed = !signup.signupStatus || signup.signupStatus === "CONFIRMED";
+
+      await db.delete(sessionSignups).where(eq(sessionSignups.id, signupId));
+
+      if (wasConfirmed) {
+        const refreshedSignups = await storage.getSessionSignups(sessionId);
+        const confirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+        if (confirmedCount < session.maxPlayers) {
+          const waitingPlayers = refreshedSignups
+            .filter((s: any) => s.signupStatus === "WAITING")
+            .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          if (waitingPlayers.length > 0) {
+            await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
+              signupStatus: "CONFIRMED",
+              waitingListPosition: null,
+            });
+          }
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing signup:", error);
+      res.status(500).json({ message: "Failed to remove player" });
+    }
+  });
+
   // Admin: Promote from waiting list
   app.post("/api/sessions/:sessionId/promote-waiting", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

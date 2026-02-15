@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, ArrowUp, PoundSterling, Loader2, LogIn, LogOut, UserPlus, MapPin, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, ArrowUp, PoundSterling, Loader2, LogIn, LogOut, UserPlus, MapPin, Calendar, ChevronDown, ChevronUp, MessageSquare, Trash2, Ban, Send } from "lucide-react";
 import { format } from "date-fns";
 
 interface SessionDetailsModalProps {
@@ -36,6 +36,8 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   const { toast } = useToast();
   const { data: user } = useUser();
   const [expandedSection, setExpandedSection] = useState<string | null>("confirmed");
+  const [messageTarget, setMessageTarget] = useState<{ userId: number; name: string } | null>(null);
+  const [messageText, setMessageText] = useState("");
 
   const { data: manageData, isLoading } = useQuery<any>({
     queryKey: ["/api/sessions", session.id, "manage-players"],
@@ -64,7 +66,39 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       toast({ title: "Player status updated" });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (signupId: number) => {
+      await apiRequest("DELETE", `/api/sessions/${session.id}/signups/${signupId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Player removed from session" });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove player", variant: "destructive" });
+    },
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ recipientId, body }: { recipientId: number; body: string }) => {
+      await apiRequest("POST", "/api/messages/send", { recipientId, body });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      toast({ title: "Message sent" });
+      setMessageTarget(null);
+      setMessageText("");
+    },
+    onError: () => {
+      toast({ title: "Failed to send message", variant: "destructive" });
     },
   });
 
@@ -129,6 +163,20 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     setExpandedSection(expandedSection === section ? null : section);
   };
 
+  const openQuickMessage = (signup: any) => {
+    const userId = getPlayerUserId(signup);
+    const name = getPlayerName(signup);
+    if (userId) {
+      setMessageTarget({ userId, name });
+      setMessageText("");
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!messageTarget || !messageText.trim()) return;
+    sendMessageMutation.mutate({ recipientId: messageTarget.userId, body: messageText.trim() });
+  };
+
   const renderResponseSummary = () => (
     <div className="flex items-center justify-center gap-6 py-3">
       <button
@@ -180,19 +228,19 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     const isMe = getPlayerUserId(signup) === user?.id;
 
     return (
-      <div key={signup.id} className="flex items-center gap-3 py-2.5" data-testid={`player-row-${signup.id}`}>
-        <Avatar className={`h-9 w-9 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
+      <div key={signup.id} className="flex items-center gap-2 py-2" data-testid={`player-row-${signup.id}`}>
+        <Avatar className={`h-8 w-8 shrink-0 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
           <AvatarFallback className="text-xs font-medium bg-muted">
             {getInitials(name)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
-            {isMe && <Badge variant="secondary" className="text-xs shrink-0">You</Badge>}
-            {grade && <Badge variant="outline" className="text-xs shrink-0">{grade}</Badge>}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-sm truncate max-w-[120px]" data-testid={`text-player-name-${signup.id}`}>{name}</span>
+            {isMe && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">You</Badge>}
+            {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{grade}</Badge>}
             {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
-              <Badge variant="secondary" className="text-xs shrink-0">#{signup.waitingListPosition}</Badge>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">#{signup.waitingListPosition}</Badge>
             )}
           </div>
         </div>
@@ -203,54 +251,59 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
   const renderAdminActions = (signup: any) => {
     const status = signup.signupStatus;
+    const isPending = statusMutation.isPending || removeMutation.isPending;
+    const playerUserId = getPlayerUserId(signup);
+    const isConfirmed = status === "CONFIRMED" || !status;
+
     return (
-      <div className="flex items-center gap-1 shrink-0">
-        {status === "WAITING" && (
-          <>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-promote-${signup.id}`}>
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-invite-waiting-${signup.id}`}>
-              <Mail className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-remove-waiting-${signup.id}`}>
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </>
-        )}
-        {status === "INVITED" && (
-          <>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-confirm-invited-${signup.id}`}>
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-decline-invited-${signup.id}`}>
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </>
-        )}
-        {(status === "CONFIRMED" || !status) && (
-          <>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "WAITING" })} disabled={statusMutation.isPending} data-testid={`button-to-waiting-${signup.id}`}>
-              <Clock className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-invite-confirmed-${signup.id}`}>
-              <Mail className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-not-attending-${signup.id}`}>
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </>
-        )}
-        {status === "NOT_ATTENDING" && (
-          <>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-reconfirm-${signup.id}`}>
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-reinvite-${signup.id}`}>
-              <Mail className="h-4 w-4" />
-            </Button>
-          </>
-        )}
+      <div className="flex items-center shrink-0">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: isConfirmed ? "WAITING" : "CONFIRMED" })}
+          disabled={isPending}
+          title={isConfirmed ? "Move to waiting list" : "Confirm player"}
+          data-testid={`button-status-toggle-${signup.id}`}
+        >
+          {isConfirmed ? <Clock className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+        </Button>
+
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => playerUserId ? openQuickMessage(signup) : undefined}
+          disabled={!playerUserId}
+          title="Send message"
+          data-testid={`button-message-${signup.id}`}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => removeMutation.mutate(signup.id)}
+          disabled={isPending}
+          title="Remove from session"
+          data-testid={`button-remove-${signup.id}`}
+        >
+          <UserMinus className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
+          disabled={isPending || status === "NOT_ATTENDING"}
+          title="Mark as declined"
+          data-testid={`button-decline-${signup.id}`}
+        >
+          <Ban className="h-3.5 w-3.5" />
+        </Button>
       </div>
     );
   };
@@ -403,6 +456,55 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     );
   };
 
+  const renderQuickMessageDialog = () => {
+    if (!messageTarget) return null;
+    return (
+      <Dialog open={!!messageTarget} onOpenChange={(open) => { if (!open) { setMessageTarget(null); setMessageText(""); } }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Message {messageTarget.name}
+            </DialogTitle>
+            <DialogDescription>Send a quick message to this player</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              placeholder="Type your message..."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              className="min-h-[100px] text-sm"
+              data-testid="input-quick-message"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setMessageTarget(null); setMessageText(""); }}
+                data-testid="button-cancel-message"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSendMessage}
+                disabled={!messageText.trim() || sendMessageMutation.isPending}
+                data-testid="button-send-message"
+              >
+                {sendMessageMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <Send className="h-3 w-3 mr-1" />
+                )}
+                Send
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const drawerContent = (
     <div className="px-4 pb-6 overflow-y-auto max-h-[70vh]">
       <div className="text-center mb-4">
@@ -445,15 +547,18 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   );
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <DrawerHeader className="sr-only">
-          <DrawerTitle>{session.title}</DrawerTitle>
-          <DrawerDescription>Session details and player responses</DrawerDescription>
-        </DrawerHeader>
-        {drawerContent}
-      </DrawerContent>
-    </Drawer>
+    <>
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader className="sr-only">
+            <DrawerTitle>{session.title}</DrawerTitle>
+            <DrawerDescription>Session details and player responses</DrawerDescription>
+          </DrawerHeader>
+          {drawerContent}
+        </DrawerContent>
+      </Drawer>
+      {renderQuickMessageDialog()}
+    </>
   );
 }
 
