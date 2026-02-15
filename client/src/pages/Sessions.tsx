@@ -66,7 +66,7 @@ export default function Sessions() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [detailsSession, setDetailsSession] = useState<any>(null);
   const [financeSession, setFinanceSession] = useState<any>(null);
-  const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
+  const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null } | null>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
@@ -118,7 +118,21 @@ export default function Sessions() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       toast({ title: "Recurring Sessions Deleted", description: data.message });
-      setDeleteRecurringId(null);
+      setDeleteSession(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteSingleSessionMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("DELETE", `/api/sessions/${sessionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Session Deleted", description: "The session has been deleted." });
+      setDeleteSession(null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -446,17 +460,14 @@ export default function Sessions() {
                           Finances
                         </Button>
                         <EditSessionDialog session={session} venues={[]} />
-                        {(session as any).recurringEventId && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => setDeleteRecurringId((session as any).recurringEventId)}
-                            data-testid={`button-delete-recurring-${session.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete All
-                          </Button>
-                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null })}
+                          data-testid={`button-delete-session-${session.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                         <Button size="sm" onClick={() => setLocation(`/sessions/${session.id}`)} data-testid={`button-run-session-${session.id}`}>
                           <Activity className="h-4 w-4 mr-1" />
                           Run Session
@@ -500,25 +511,38 @@ export default function Sessions() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteRecurringId} onOpenChange={(open) => { if (!open) setDeleteRecurringId(null); }}>
+      <Dialog open={!!deleteSession} onOpenChange={(open) => { if (!open) setDeleteSession(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete All Recurring Sessions</DialogTitle>
+            <DialogTitle>Delete Session</DialogTitle>
             <DialogDescription>
-              This will permanently delete all sessions linked to this recurring event, including their signups and match data. This cannot be undone.
+              {deleteSession?.recurringEventId
+                ? "This session is part of a recurring series. Would you like to delete just this session, or all sessions in the series?"
+                : "Are you sure you want to delete this session? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteRecurringId(null)}>Cancel</Button>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteSession(null)} data-testid="button-cancel-delete">Cancel</Button>
             <Button
               variant="destructive"
-              onClick={() => deleteRecurringId && deleteRecurringMutation.mutate(deleteRecurringId)}
-              disabled={deleteRecurringMutation.isPending}
-              data-testid="button-confirm-delete-recurring"
+              onClick={() => deleteSession && deleteSingleSessionMutation.mutate(deleteSession.id)}
+              disabled={deleteSingleSessionMutation.isPending || deleteRecurringMutation.isPending}
+              data-testid="button-delete-this-session"
             >
-              {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete All Recurrences
+              {deleteSingleSessionMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {deleteSession?.recurringEventId ? "Delete This Session Only" : "Delete Session"}
             </Button>
+            {deleteSession?.recurringEventId && (
+              <Button
+                variant="destructive"
+                onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate(deleteSession.recurringEventId)}
+                disabled={deleteRecurringMutation.isPending || deleteSingleSessionMutation.isPending}
+                data-testid="button-delete-all-recurring"
+              >
+                {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Delete Entire Series
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
