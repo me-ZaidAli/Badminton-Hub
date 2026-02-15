@@ -3879,6 +3879,115 @@ export async function registerRoutes(
     }
   });
 
+  // === Merge duplicate accounts (case-insensitive email duplicates) ===
+  app.post("/api/admin/merge-duplicate-accounts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const dryRun = req.query.dryRun === "true";
+
+    try {
+      const duplicates = await db.execute(sql`
+        SELECT LOWER(email) as normalized_email, 
+               array_agg(id ORDER BY created_at ASC) as user_ids
+        FROM users 
+        GROUP BY LOWER(email) 
+        HAVING COUNT(*) > 1
+      `);
+
+      if (!duplicates.rows || duplicates.rows.length === 0) {
+        return res.json({ message: "No duplicate accounts found", details: [] });
+      }
+
+      if (dryRun) {
+        const preview = (duplicates.rows || []).map((row: any) => ({
+          email: row.normalized_email,
+          userIds: row.user_ids,
+          keepId: row.user_ids[0],
+          removeIds: row.user_ids.slice(1),
+        }));
+        return res.json({ message: `Found ${preview.length} duplicate email groups`, dryRun: true, details: preview });
+      }
+
+      const merged: string[] = [];
+
+      await db.execute(sql`BEGIN`);
+      try {
+        for (const row of (duplicates.rows || [])) {
+          const userIds = row.user_ids as number[];
+          const keepId = userIds[0];
+          const removeIds = userIds.slice(1);
+
+          for (const removeId of removeIds) {
+            const removeProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, removeId));
+            const keepProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, keepId));
+            const keepClubIds = new Set(keepProfiles.map(p => p.clubId));
+
+            for (const rp of removeProfiles) {
+              if (keepClubIds.has(rp.clubId)) {
+                const keepProfile = keepProfiles.find(p => p.clubId === rp.clubId)!;
+                const betterRole = rp.clubRole === "ADMIN" || rp.clubRole === "OWNER" ? rp.clubRole : keepProfile.clubRole;
+                const betterStatus = rp.membershipStatus === "APPROVED" ? "APPROVED" : keepProfile.membershipStatus;
+                await db.update(playerProfiles).set({ 
+                  clubRole: betterRole, 
+                  membershipStatus: betterStatus 
+                }).where(eq(playerProfiles.id, keepProfile.id));
+
+                await db.execute(sql`UPDATE session_signups SET player_id = ${keepProfile.id} WHERE player_id = ${rp.id} AND session_id NOT IN (SELECT session_id FROM session_signups WHERE player_id = ${keepProfile.id})`);
+                await db.execute(sql`DELETE FROM session_signups WHERE player_id = ${rp.id}`);
+                await db.execute(sql`UPDATE matches SET team_a_player_1_id = ${keepProfile.id} WHERE team_a_player_1_id = ${rp.id}`);
+                await db.execute(sql`UPDATE matches SET team_a_player_2_id = ${keepProfile.id} WHERE team_a_player_2_id = ${rp.id}`);
+                await db.execute(sql`UPDATE matches SET team_b_player_1_id = ${keepProfile.id} WHERE team_b_player_1_id = ${rp.id}`);
+                await db.execute(sql`UPDATE matches SET team_b_player_2_id = ${keepProfile.id} WHERE team_b_player_2_id = ${rp.id}`);
+                await db.execute(sql`UPDATE credit_ledger SET player_profile_id = ${keepProfile.id} WHERE player_profile_id = ${rp.id}`);
+                await db.execute(sql`UPDATE tournament_teams SET player1_id = ${keepProfile.id} WHERE player1_id = ${rp.id}`);
+                await db.execute(sql`UPDATE tournament_teams SET player2_id = ${keepProfile.id} WHERE player2_id = ${rp.id}`);
+
+                await db.delete(playerProfiles).where(eq(playerProfiles.id, rp.id));
+              } else {
+                await db.update(playerProfiles).set({ userId: keepId }).where(eq(playerProfiles.id, rp.id));
+              }
+            }
+
+            await db.execute(sql`UPDATE messages SET sender_id = ${keepId} WHERE sender_id = ${removeId}`);
+            await db.execute(sql`UPDATE messages SET recipient_id = ${keepId} WHERE recipient_id = ${removeId}`);
+            await db.execute(sql`UPDATE club_memberships SET user_id = ${keepId} WHERE user_id = ${removeId} AND club_id NOT IN (SELECT club_id FROM club_memberships WHERE user_id = ${keepId})`);
+            await db.execute(sql`DELETE FROM club_memberships WHERE user_id = ${removeId}`);
+            await db.execute(sql`UPDATE membership_requests SET user_id = ${keepId} WHERE user_id = ${removeId} AND club_id NOT IN (SELECT club_id FROM membership_requests WHERE user_id = ${keepId})`);
+            await db.execute(sql`DELETE FROM membership_requests WHERE user_id = ${removeId}`);
+            await db.delete(notifications).where(eq(notifications.userId, removeId));
+            await db.execute(sql`DELETE FROM policy_acceptances WHERE user_id = ${removeId}`);
+            await db.execute(sql`DELETE FROM reviews WHERE user_id = ${removeId}`);
+            await db.execute(sql`DELETE FROM coaches WHERE user_id = ${removeId}`);
+            await db.execute(sql`DELETE FROM coach_seeker_memberships WHERE user_id = ${removeId}`);
+            await db.execute(sql`DELETE FROM announcements WHERE author_id = ${removeId}`);
+            await db.execute(sql`UPDATE contact_messages SET sender_user_id = NULL WHERE sender_user_id = ${removeId}`);
+            await db.execute(sql`UPDATE sessions SET created_by = ${keepId} WHERE created_by = ${removeId}`);
+            await db.execute(sql`UPDATE clubs SET owner_id = ${keepId} WHERE owner_id = ${removeId}`);
+            await db.execute(sql`UPDATE tournaments SET created_by = ${keepId} WHERE created_by = ${removeId}`);
+            await db.execute(sql`UPDATE matches SET score_entered_by_user_id = ${keepId} WHERE score_entered_by_user_id = ${removeId}`);
+            await db.execute(sql`UPDATE matches SET score_updated_by_user_id = ${keepId} WHERE score_updated_by_user_id = ${removeId}`);
+            await db.delete(users).where(eq(users.id, removeId));
+
+            merged.push(`Merged user ${removeId} into ${keepId} (${row.normalized_email})`);
+          }
+        }
+
+        await db.execute(sql`UPDATE users SET email = LOWER(email) WHERE email != LOWER(email)`);
+        await db.execute(sql`COMMIT`);
+      } catch (txErr) {
+        await db.execute(sql`ROLLBACK`);
+        throw txErr;
+      }
+
+      console.log(`[ADMIN] Merged duplicate accounts:`, merged);
+      res.json({ message: `Merged ${merged.length} duplicate accounts`, details: merged });
+    } catch (err: any) {
+      console.error("Error merging duplicates:", err);
+      res.status(500).json({ message: err.message || "Failed to merge duplicates" });
+    }
+  });
+
   // === Allocate player to additional clubs ===
   app.post("/api/admin/players/:userId/allocate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

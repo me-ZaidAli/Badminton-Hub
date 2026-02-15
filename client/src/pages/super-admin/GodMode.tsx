@@ -929,6 +929,21 @@ export default function GodMode() {
 
   const selectedClub = clubs?.find(c => c.id === clubId);
 
+  const mergeDuplicatesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/merge-duplicate-accounts");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Duplicates Merged", description: data.message || "Done" });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/memberships"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   return (
     <div className="space-y-6" data-testid="god-mode-page">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -966,6 +981,18 @@ export default function GodMode() {
                 </Card>
               </Link>
             ))}
+          </div>
+          <div className="mt-4 pt-3 border-t">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => mergeDuplicatesMutation.mutate()} 
+              disabled={mergeDuplicatesMutation.isPending}
+              data-testid="button-merge-duplicates"
+            >
+              {mergeDuplicatesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
+              Merge Duplicate Accounts
+            </Button>
           </div>
         </CardContent>
       </Card>

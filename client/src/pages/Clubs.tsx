@@ -1518,19 +1518,28 @@ export default function Clubs() {
   const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const isOwnerRole = user?.role === "OWNER";
   const isAdminRole = user?.role === "ADMIN";
-  const isRegularPlayer = user && !isOwnerRole && !isAdminRole;
 
-  const { data: myAdminClubs } = useMyAdminClubs(!!user && (isOwnerRole || isAdminRole));
+  const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
   const { data: memberships } = useQuery<Membership[]>({
     queryKey: ["/api/user/memberships"],
     enabled: !!user,
   });
 
+  const myAdminClubIds = useMemo(() => {
+    if (!myAdminClubs) return new Set<number>();
+    return new Set(myAdminClubs.map(c => c.id));
+  }, [myAdminClubs]);
+
+  const hasClubAdminAccess = isOwnerRole || isAdminRole || myAdminClubIds.size > 0;
+  const isRegularPlayer = user && !hasClubAdminAccess;
+
   const myClubIds = useMemo(() => {
     if (!memberships) return new Set<number>();
-    return new Set(memberships.filter(m => m.membershipStatus === "APPROVED").map(m => m.clubId));
-  }, [memberships]);
+    const ids = new Set(memberships.filter(m => m.membershipStatus === "APPROVED").map(m => m.clubId));
+    for (const id of myAdminClubIds) ids.add(id);
+    return ids;
+  }, [memberships, myAdminClubIds]);
 
   const joinMutation = useMutation({
     mutationFn: async (data: { clubId: number }) => {
@@ -1607,9 +1616,7 @@ export default function Clubs() {
   const canManageMembers = (clubId: number) => {
     if (!user) return false;
     if (isOwnerRole) return true;
-    if (isAdminRole && myAdminClubs) {
-      return myAdminClubs.some((c: any) => c.id === clubId);
-    }
+    if (myAdminClubIds.has(clubId)) return true;
     return false;
   };
 
