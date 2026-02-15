@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Info, Clock, MapPin, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -110,6 +110,7 @@ export default function SessionDetail() {
   const [guestGender, setGuestGender] = useState("MALE");
   const [guestCategory, setGuestCategory] = useState("C3");
 
+  const [sessionDetailsOpen, setSessionDetailsOpen] = useState(false);
   const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -789,7 +790,153 @@ export default function SessionDetail() {
             </DialogContent>
           </Dialog>
 
-          <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
+          <Dialog open={sessionDetailsOpen} onOpenChange={setSessionDetailsOpen}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl">{session.title}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-sm" data-testid="text-session-detail-date">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>{format(new Date(session.date), "EEEE, MMMM do yyyy")}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm" data-testid="text-session-detail-time">
+                    <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>{session.startTime} ({session.durationMinutes} mins)</span>
+                  </div>
+                  {(() => {
+                    const venue = venues?.find(v => v.id === session.venueId);
+                    if (!venue) return null;
+                    return (
+                      <div className="flex items-center gap-3 text-sm" data-testid="text-session-detail-venue">
+                        <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span>{venue.name}{venue.city ? `, ${venue.city}` : ""}{venue.postcode ? ` ${venue.postcode}` : ""}</span>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center gap-3 text-sm" data-testid="text-session-detail-capacity">
+                    <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>{signups?.filter(s => (s as any).signupStatus === "CONFIRMED").length || 0} / {session.maxPlayers} players</span>
+                  </div>
+                  {session.sessionFee != null && session.sessionFee > 0 && (
+                    <div className="flex items-center gap-3 text-sm" data-testid="text-session-detail-fee">
+                      <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline">{session.matchMode}</Badge>
+                    <Badge variant="outline">{session.courtsAvailable} Courts</Badge>
+                    {session.status && <Badge variant={session.status === "LIVE" ? "default" : "secondary"}>{session.status}</Badge>}
+                  </div>
+                </div>
+
+                <Tabs defaultValue="confirmed" className="w-full">
+                  <TabsList className="w-full grid grid-cols-4">
+                    <TabsTrigger value="confirmed" data-testid="tab-confirmed">
+                      Confirmed ({signups?.filter(s => (s as any).signupStatus === "CONFIRMED").length || 0})
+                    </TabsTrigger>
+                    <TabsTrigger value="waiting" data-testid="tab-waiting">
+                      Waiting ({signups?.filter(s => (s as any).signupStatus === "WAITING").length || 0})
+                    </TabsTrigger>
+                    <TabsTrigger value="invited" data-testid="tab-invited">
+                      Invited ({signups?.filter(s => (s as any).signupStatus === "INVITED").length || 0})
+                    </TabsTrigger>
+                    <TabsTrigger value="declined" data-testid="tab-declined">
+                      Declined ({signups?.filter(s => (s as any).signupStatus === "NOT_ATTENDING").length || 0})
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="confirmed" className="mt-3">
+                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                      {signups?.filter(s => (s as any).signupStatus === "CONFIRMED").map((s, i) => (
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-md hover-elevate" data-testid={`confirmed-player-${s.id}`}>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(s.player?.user as any)?.profilePictureUrl} />
+                            <AvatarFallback className="text-xs">{s.player?.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{s.player?.user?.fullName || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">{(s.player as any)?.grade || (s.player as any)?.category || ""}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">#{i + 1}</span>
+                        </div>
+                      ))}
+                      {signups?.filter(s => (s as any).signupStatus === "CONFIRMED").length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="waiting" className="mt-3">
+                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                      {signups?.filter(s => (s as any).signupStatus === "WAITING").map((s, i) => (
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-md hover-elevate" data-testid={`waiting-player-${s.id}`}>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(s.player?.user as any)?.profilePictureUrl} />
+                            <AvatarFallback className="text-xs">{s.player?.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{s.player?.user?.fullName || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">Position #{(s as any).waitingListPosition || i + 1}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {signups?.filter(s => (s as any).signupStatus === "WAITING").length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No players on waiting list</p>
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="invited" className="mt-3">
+                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                      {signups?.filter(s => (s as any).signupStatus === "INVITED").map((s) => (
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-md hover-elevate" data-testid={`invited-player-${s.id}`}>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(s.player?.user as any)?.profilePictureUrl} />
+                            <AvatarFallback className="text-xs">{s.player?.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{s.player?.user?.fullName || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">{(s.player as any)?.grade || (s.player as any)?.category || ""}</p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">Pending</Badge>
+                        </div>
+                      ))}
+                      {signups?.filter(s => (s as any).signupStatus === "INVITED").length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No pending invitations</p>
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="declined" className="mt-3">
+                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                      {signups?.filter(s => (s as any).signupStatus === "NOT_ATTENDING").map((s) => (
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-md hover-elevate" data-testid={`declined-player-${s.id}`}>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(s.player?.user as any)?.profilePictureUrl} />
+                            <AvatarFallback className="text-xs">{s.player?.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{s.player?.user?.fullName || "Unknown"}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {signups?.filter(s => (s as any).signupStatus === "NOT_ATTENDING").length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No declined players</p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <h1
+            className="text-4xl font-display font-bold mb-2 inline-flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => setSessionDetailsOpen(true)}
+            data-testid="button-session-title"
+          >
+            {session.title}
+            <Info className="h-5 w-5 text-muted-foreground" />
+          </h1>
           <p className="text-xl text-muted-foreground">
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
             {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Shuttle Tubes`}
