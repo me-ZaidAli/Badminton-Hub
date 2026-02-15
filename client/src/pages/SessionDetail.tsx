@@ -2066,7 +2066,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                         <Button 
                           size="icon" 
                           variant="outline" 
-                          onClick={() => setCourtsToUse(Math.max(1, courtsToUse - 1))}
+                          onClick={() => {
+                            const newVal = Math.max(1, courtsToUse - 1);
+                            setCourtsToUse(newVal);
+                            updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                          }}
                           disabled={courtsToUse <= 1}
                           data-testid="button-decrease-courts"
                         >
@@ -2078,7 +2082,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                         <Button 
                           size="icon" 
                           variant="outline" 
-                          onClick={() => setCourtsToUse(Math.min(10, courtsToUse + 1))}
+                          onClick={() => {
+                            const newVal = Math.min(10, courtsToUse + 1);
+                            setCourtsToUse(newVal);
+                            updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                          }}
                           disabled={courtsToUse >= 10}
                           data-testid="button-increase-courts"
                         >
