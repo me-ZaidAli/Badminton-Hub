@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -1291,6 +1291,125 @@ export async function registerRoutes(
       }
       throw err;
     }
+  });
+
+  app.post("/api/recurring-events", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const recurringEventInput = insertRecurringEventSchema.parse(req.body.recurringEvent);
+      const sessionTemplate = insertSessionSchema.parse(req.body.sessionTemplate);
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, recurringEventInput.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      if (new Date(recurringEventInput.endDate) < new Date(recurringEventInput.startDate)) {
+        return res.status(400).json({ message: "End date must be after start date" });
+      }
+
+      const MAX_OCCURRENCES = 52;
+      let countCheck = 0;
+      const checkDate = new Date(recurringEventInput.startDate);
+      const checkEnd = new Date(recurringEventInput.endDate);
+      while (checkDate <= checkEnd && countCheck <= MAX_OCCURRENCES) {
+        countCheck++;
+        if (recurringEventInput.frequency === "DAILY") checkDate.setDate(checkDate.getDate() + 1);
+        else if (recurringEventInput.frequency === "WEEKLY") checkDate.setDate(checkDate.getDate() + 7);
+        else if (recurringEventInput.frequency === "BIWEEKLY") checkDate.setDate(checkDate.getDate() + 14);
+        else checkDate.setMonth(checkDate.getMonth() + 1);
+      }
+      if (countCheck > MAX_OCCURRENCES) {
+        return res.status(400).json({ message: `Too many sessions would be generated (max ${MAX_OCCURRENCES}). Please shorten the date range.` });
+      }
+
+      const [recurringEvent] = await db.insert(recurringEvents).values({
+        ...recurringEventInput,
+        createdBy: req.user!.id,
+      }).returning();
+
+      const generatedSessions: any[] = [];
+      const startDate = new Date(recurringEventInput.startDate);
+      const endDate = new Date(recurringEventInput.endDate);
+      let current = new Date(startDate);
+
+      while (current <= endDate) {
+        const session = await storage.createSession({
+          ...sessionTemplate,
+          date: new Date(current),
+          recurringEventId: recurringEvent.id,
+          createdBy: req.user!.id,
+        });
+        generatedSessions.push(session);
+
+        if (recurringEventInput.frequency === "DAILY") {
+          current.setDate(current.getDate() + 1);
+        } else if (recurringEventInput.frequency === "WEEKLY") {
+          current.setDate(current.getDate() + 7);
+        } else if (recurringEventInput.frequency === "BIWEEKLY") {
+          current.setDate(current.getDate() + 14);
+        } else if (recurringEventInput.frequency === "MONTHLY") {
+          current.setMonth(current.getMonth() + 1);
+        }
+      }
+
+      const club = await storage.getClub(recurringEventInput.clubId);
+      const clubName = club?.name || "your club";
+      try {
+        const clubMembers = await storage.getClubMembers(recurringEventInput.clubId);
+        const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
+        for (const session of generatedSessions) {
+          for (const member of approvedMembers) {
+            if (member.userId === req.user!.id) continue;
+            try {
+              await storage.createSessionSignupEnhanced({
+                sessionId: session.id,
+                playerId: member.id,
+                fee: session.sessionFee || club?.sessionFee || 0,
+                signupStatus: "INVITED",
+                signedUpByUserId: req.user!.id,
+              });
+            } catch (signupErr) {
+              continue;
+            }
+          }
+        }
+        for (const member of approvedMembers) {
+          if (member.userId === req.user!.id) continue;
+          await storage.createNotification({
+            userId: member.userId,
+            type: "SESSION_INVITE",
+            title: "New Recurring Sessions",
+            message: `${generatedSessions.length} recurring sessions for "${recurringEvent.title}" have been created at ${clubName}.`,
+            linkUrl: `/sessions`,
+          });
+        }
+      } catch (inviteErr) {
+        console.error("[RECURRING EVENT] Failed to send invitations:", inviteErr);
+      }
+
+      res.status(201).json({ recurringEvent, sessions: generatedSessions });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("[RECURRING EVENT] Error:", err);
+      res.status(500).json({ message: "Failed to create recurring event" });
+    }
+  });
+
+  app.get("/api/recurring-events", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+    if (clubId) {
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const result = await db.select().from(recurringEvents).where(eq(recurringEvents.clubId, clubId));
+      return res.json(result);
+    }
+    if (req.user!.role !== "OWNER") {
+      return res.json([]);
+    }
+    const result = await db.select().from(recurringEvents);
+    res.json(result);
   });
 
   app.get(api.sessions.get.path, async (req, res) => {

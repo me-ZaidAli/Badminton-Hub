@@ -15,8 +15,8 @@ import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info } from "lucide-react";
+import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -205,7 +205,7 @@ export default function Sessions() {
             >
               <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
             </Button>
-            <CreateSessionDialog sessionClubs={sessionClubs || []} />
+            <EventTypeChooser sessionClubs={sessionClubs || []} />
           </div>
         )}
       />
@@ -487,8 +487,266 @@ export default function Sessions() {
   );
 }
 
-function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; name: string }[] }) {
-  const [open, setOpen] = useState(false);
+function EventTypeChooser({ sessionClubs }: { sessionClubs: { id: number; name: string }[] }) {
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [eventType, setEventType] = useState<"single" | "recurring" | null>(null);
+
+  return (
+    <>
+      <Dialog open={chooserOpen && !eventType} onOpenChange={(open) => { setChooserOpen(open); if (!open) setEventType(null); }}>
+        <DialogTrigger asChild>
+          <Button className="shadow-lg shadow-primary/25" data-testid="button-new-session">
+            <Plus className="h-4 w-4 mr-2" /> New Session
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader>
+            <DialogTitle>What would you like to create?</DialogTitle>
+            <DialogDescription>Choose the type of event</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <button
+              onClick={() => { setEventType("single"); }}
+              className="flex items-center gap-4 p-4 rounded-md border hover-elevate cursor-pointer text-left"
+              data-testid="button-choose-single-event"
+            >
+              <div className="flex items-center justify-center h-10 w-10 rounded-md bg-primary/10 text-primary shrink-0">
+                <CalendarPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Event</p>
+                <p className="text-xs text-muted-foreground">Create a single session</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setEventType("recurring"); }}
+              className="flex items-center gap-4 p-4 rounded-md border hover-elevate cursor-pointer text-left"
+              data-testid="button-choose-recurring-event"
+            >
+              <div className="flex items-center justify-center h-10 w-10 rounded-md bg-primary/10 text-primary shrink-0">
+                <Repeat className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Recurring Event</p>
+                <p className="text-xs text-muted-foreground">Auto-generate sessions on a schedule</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {eventType === "single" && (
+        <CreateSessionDialog sessionClubs={sessionClubs} initialOpen onClose={() => { setEventType(null); setChooserOpen(false); }} />
+      )}
+      {eventType === "recurring" && (
+        <RecurringEventDialog sessionClubs={sessionClubs} initialOpen onClose={() => { setEventType(null); setChooserOpen(false); }} />
+      )}
+    </>
+  );
+}
+
+function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose: () => void }) {
+  const [open, setOpen] = useState(initialOpen ?? false);
+  const { toast } = useToast();
+
+  const recurringSchema = z.object({
+    clubId: z.number().min(1, "Select a club"),
+    title: z.string().min(1, "Title is required"),
+    frequency: z.enum(["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Use HH:MM format"),
+    durationMinutes: z.coerce.number().min(30).default(120),
+    maxPlayers: z.coerce.number().min(1).default(24),
+    courtsAvailable: z.coerce.number().min(1).default(4),
+    matchMode: z.enum(["COMPETITIVE", "SOCIAL", "TRAINING"]).default("SOCIAL"),
+    sessionFee: z.coerce.number().optional(),
+    allowedCategories: z.array(z.string()).default(["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]),
+    playersPerSide: z.coerce.number().min(1).max(2).default(2),
+    matchGenderType: z.enum(["MIXED", "FEMALE", "MALE"]).default("MIXED"),
+    numberOfSets: z.coerce.number().min(1).max(3).default(1),
+    defaultPointsToPlayTo: z.coerce.number().default(21),
+    isPrivate: z.boolean().default(false),
+    genderRestriction: z.enum(["ALL", "FEMALE_ONLY"]).default("ALL"),
+    sessionType: z.enum(["OPEN", "JUNIORS_ONLY"]).default("OPEN"),
+  }).refine((data) => data.endDate >= data.startDate, {
+    message: "End date must be after start date",
+    path: ["endDate"],
+  });
+
+  const form = useForm<z.infer<typeof recurringSchema>>({
+    resolver: zodResolver(recurringSchema),
+    defaultValues: {
+      clubId: sessionClubs.length > 0 ? sessionClubs[0].id : undefined,
+      title: "",
+      frequency: "WEEKLY",
+      startTime: "18:00",
+      durationMinutes: 120,
+      maxPlayers: 24,
+      courtsAvailable: 4,
+      matchMode: "SOCIAL",
+      allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
+      playersPerSide: 2,
+      matchGenderType: "MIXED",
+      numberOfSets: 1,
+      defaultPointsToPlayTo: 21,
+      isPrivate: false,
+      genderRestriction: "ALL",
+      sessionType: "OPEN",
+    }
+  });
+
+  const createRecurring = useMutation({
+    mutationFn: async (values: z.infer<typeof recurringSchema>) => {
+      const { clubId, title, frequency, startDate, endDate, ...sessionFields } = values;
+      const res = await apiRequest("POST", "/api/recurring-events", {
+        recurringEvent: { clubId, title, frequency, startDate, endDate },
+        sessionTemplate: {
+          clubId,
+          title,
+          date: startDate,
+          ...sessionFields,
+          sessionFee: sessionFields.sessionFee ? Math.round(sessionFields.sessionFee * 100) : undefined,
+        },
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Recurring event created", description: `${data.sessions.length} sessions generated.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setOpen(false);
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to create recurring event", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) onClose(); }}>
+      <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>Create Recurring Event</DialogTitle>
+          <DialogDescription>Sessions will be auto-generated based on the schedule</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((v) => createRecurring.mutate(v))} className="space-y-4">
+            <FormField control={form.control} name="clubId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Club</FormLabel>
+                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
+                  <FormControl><SelectTrigger data-testid="select-recurring-club"><SelectValue placeholder="Select club" /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {sessionClubs.map(club => (
+                      <SelectItem key={club.id} value={club.id.toString()}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="title" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Title</FormLabel>
+                <FormControl><Input placeholder="e.g. Weekly Club Night" {...field} data-testid="input-recurring-title" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="frequency" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Frequency</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl><SelectTrigger data-testid="select-recurring-frequency"><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    <SelectItem value="DAILY">Daily</SelectItem>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="BIWEEKLY">Every 2 Weeks</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="startDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Date</FormLabel>
+                  <FormControl><Input type="date" onChange={(e) => field.onChange(new Date(e.target.value))} data-testid="input-recurring-start-date" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="endDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Date</FormLabel>
+                  <FormControl><Input type="date" onChange={(e) => field.onChange(new Date(e.target.value))} data-testid="input-recurring-end-date" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="startTime" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Time</FormLabel>
+                  <FormControl><Input type="time" {...field} data-testid="input-recurring-start-time" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="durationMinutes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Duration (mins)</FormLabel>
+                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-duration" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="maxPlayers" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Players</FormLabel>
+                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-max-players" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="courtsAvailable" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Courts</FormLabel>
+                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-courts" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="sessionFee" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Session Fee (optional)</FormLabel>
+                <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-fee" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="matchMode" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Match Mode</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl><SelectTrigger data-testid="select-recurring-match-mode"><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    <SelectItem value="SOCIAL">Social</SelectItem>
+                    <SelectItem value="COMPETITIVE">Competitive</SelectItem>
+                    <SelectItem value="TRAINING">Training</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <Button type="submit" className="w-full" disabled={createRecurring.isPending} data-testid="button-create-recurring">
+              {createRecurring.isPending ? "Creating..." : "Create Recurring Event"}
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose?: () => void }) {
+  const [open, setOpen] = useState(initialOpen ?? false);
   const { mutate: create, isPending } = useCreateSession();
   
   const form = useForm<z.infer<typeof createSessionSchema>>({
@@ -532,17 +790,20 @@ function CreateSessionDialog({ sessionClubs }: { sessionClubs: { id: number; nam
       onSuccess: () => {
         setOpen(false);
         form.reset();
+        onClose?.();
       }
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="shadow-lg shadow-primary/25" data-testid="button-new-session">
-          <Plus className="h-4 w-4 mr-2" /> New Session
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) onClose?.(); }}>
+      {!initialOpen && (
+        <DialogTrigger asChild>
+          <Button className="shadow-lg shadow-primary/25" data-testid="button-new-session">
+            <Plus className="h-4 w-4 mr-2" /> New Session
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Create New Session</DialogTitle>

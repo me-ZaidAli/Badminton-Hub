@@ -37,6 +37,7 @@ export const clubMembershipStatusEnum = pgEnum("club_membership_status", ["PENDI
 export const membershipRequestStatusEnum = pgEnum("membership_request_status", ["PENDING", "APPROVED", "REJECTED"]);
 export const merchOrderStatusEnum = pgEnum("merch_order_status", ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]);
 export const inventoryMovementTypeEnum = pgEnum("inventory_movement_type", ["RECEIPT", "USAGE", "SALE", "ADJUSTMENT"]);
+export const recurrenceFrequencyEnum = pgEnum("recurrence_frequency", ["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -274,17 +275,29 @@ export const venues = pgTable("venues", {
 });
 
 // === SESSIONS ===
+export const recurringEvents = pgTable("recurring_events", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  title: text("title").notNull(),
+  frequency: recurrenceFrequencyEnum("frequency").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
-  venueId: integer("venue_id").references(() => venues.id), // Optional venue
+  venueId: integer("venue_id").references(() => venues.id),
   title: text("title").notNull(),
   date: timestamp("date").notNull(),
-  startTime: text("start_time").notNull(), // HH:mm
+  startTime: text("start_time").notNull(),
   durationMinutes: integer("duration_minutes").default(120).notNull(),
   maxPlayers: integer("max_players").notNull(),
   courtsAvailable: integer("courts_available").notNull(),
-  allowedCategories: jsonb("allowed_categories").$type<string[]>().notNull(), // ["A", "B"]
+  allowedCategories: jsonb("allowed_categories").$type<string[]>().notNull(),
   matchMode: matchModeEnum("match_mode").default("SOCIAL").notNull(),
   isPrivate: boolean("is_private").default(false).notNull(),
   genderRestriction: genderRestrictionEnum("gender_restriction").default("ALL").notNull(),
@@ -303,6 +316,7 @@ export const sessions = pgTable("sessions", {
   numberOfSets: integer("number_of_sets").default(1).notNull(),
   autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
   queueTargetSize: integer("queue_target_size").default(3),
+  recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
 });
 
 // === SESSION SIGNUPS ===
@@ -721,7 +735,12 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
 export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
 export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
-export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true }).extend({
+export const insertRecurringEventSchema = createInsertSchema(recurringEvents).omit({ id: true, createdBy: true, createdAt: true }).extend({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  frequency: z.enum(["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]),
+});
+export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true, recurringEventId: true }).extend({
   date: z.coerce.date(),
   playersPerSide: z.number().min(1).max(2).default(2),
   genderRestriction: z.enum(["ALL", "FEMALE_ONLY"]).default("ALL"),
@@ -812,6 +831,8 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;
 export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type RecurringEvent = typeof recurringEvents.$inferSelect;
+export type InsertRecurringEvent = z.infer<typeof insertRecurringEventSchema>;
 export type InsertTournament = z.infer<typeof insertTournamentSchema>;
 export type InsertTournamentCategory = z.infer<typeof insertTournamentCategorySchema>;
 export type InsertTournamentTeam = z.infer<typeof insertTournamentTeamSchema>;
