@@ -56,8 +56,9 @@ function getStatusBadge(status: string) {
   }
 }
 
-function getPaymentBadge(status: string) {
-  switch (status) {
+function getPaymentBadge(status: string | undefined | null) {
+  const normalized = (status || "UNPAID").toUpperCase();
+  switch (normalized) {
     case "PAID":
       return <Badge variant="default" className="bg-green-500 no-default-hover-elevate">Paid</Badge>;
     case "UNPAID":
@@ -65,7 +66,7 @@ function getPaymentBadge(status: string) {
     case "PARTIAL":
       return <Badge variant="secondary" className="no-default-hover-elevate">Partial</Badge>;
     default:
-      return <Badge variant="outline" className="no-default-hover-elevate">{status || "N/A"}</Badge>;
+      return <Badge variant="outline" className="no-default-hover-elevate">{status || "Unpaid"}</Badge>;
   }
 }
 
@@ -90,6 +91,7 @@ interface ClubMembership {
   startDate: string;
   endDate: string;
   paymentStatus: string;
+  paymentConfirmed?: boolean;
   fullName: string;
   planName: string;
 }
@@ -227,7 +229,10 @@ export default function MembershipBoard() {
   }, [requests, statusFilter, searchQuery]);
 
   const filteredMemberships = useMemo(() => {
-    let filtered = memberships;
+    let filtered = memberships.map((m) => ({
+      ...m,
+      paymentStatus: m.paymentStatus || (m.paymentConfirmed ? "PAID" : "UNPAID"),
+    }));
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
       filtered = filtered.filter((m) => m.fullName?.toLowerCase().includes(lower));
