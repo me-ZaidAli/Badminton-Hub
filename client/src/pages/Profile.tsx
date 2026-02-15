@@ -12,10 +12,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard, Eye, EyeOff, Users, Plus, Pencil, Trash2 } from "lucide-react";
+import { LogOut, User, Settings, Shield, Loader2, XCircle, ArrowLeft, MapPin, Phone, Calendar, AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard, Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast, CircleOff, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,78 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+
+const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
+  light: Sun,
+  dark: Moon,
+  sepia: Palette,
+  migraine: Eye,
+  "high-contrast": Contrast,
+  grayscale: CircleOff,
+};
+
+function DisplayAccessibilitySection() {
+  const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();
+
+  return (
+    <Card data-testid="card-display-accessibility">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="h-5 w-5" />
+          Display & Accessibility
+        </CardTitle>
+        <CardDescription>
+          Choose a display mode that works best for you. Your preference is saved and applied everywhere.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {DISPLAY_MODES.map((mode) => {
+            const Icon = MODE_ICONS[mode.value];
+            const isActive = displayMode === mode.value;
+            return (
+              <button
+                key={mode.value}
+                onClick={() => setDisplayMode(mode.value)}
+                className={`flex items-start gap-3 p-3 rounded-md border text-left transition-colors ${
+                  isActive
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover-elevate"
+                }`}
+                data-testid={`button-display-mode-${mode.value}`}
+              >
+                <Icon className={`h-5 w-5 mt-0.5 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                <div>
+                  <div className={`text-sm font-medium ${isActive ? "text-primary" : ""}`}>{mode.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{mode.description}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-muted-foreground shrink-0" />
+              <div>
+                <div className="text-sm font-medium">Reduced Motion</div>
+                <div className="text-xs text-muted-foreground">
+                  Disable animations and transitions independently of display mode
+                </div>
+              </div>
+            </div>
+            <Switch
+              checked={reducedMotion}
+              onCheckedChange={setReducedMotion}
+              data-testid="switch-reduced-motion"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Profile() {
   const [, navigate] = useLocation();
@@ -883,6 +956,8 @@ export default function Profile() {
           )}
         </CardContent>
       </Card>
+
+      <DisplayAccessibilitySection />
 
       <Card className="border-destructive/20">
         <CardHeader>

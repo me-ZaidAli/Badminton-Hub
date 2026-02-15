@@ -79,6 +79,165 @@
   --ring: 200 98% 45%;
 }
 
+.sepia {
+  --background: 36 33% 94%;
+  --foreground: 25 30% 18%;
+
+  --primary: 200 60% 38%;
+  --primary-foreground: 36 33% 96%;
+
+  --secondary: 160 50% 38%;
+  --secondary-foreground: 36 33% 96%;
+
+  --muted: 35 25% 88%;
+  --muted-foreground: 25 20% 45%;
+
+  --accent: 35 80% 50%;
+  --accent-foreground: 25 30% 18%;
+
+  --destructive: 0 65% 50%;
+  --destructive-foreground: 36 33% 96%;
+
+  --card: 36 30% 96%;
+  --card-foreground: 25 30% 18%;
+  --card-border: 35 25% 82%;
+
+  --popover: 36 30% 96%;
+  --popover-foreground: 25 30% 18%;
+  --popover-border: 35 25% 82%;
+
+  --sidebar-background: 36 30% 96%;
+
+  --border: 35 25% 82%;
+  --input: 35 25% 82%;
+  --ring: 200 60% 38%;
+}
+
+.migraine {
+  --background: 40 15% 92%;
+  --foreground: 220 10% 25%;
+
+  --primary: 210 35% 48%;
+  --primary-foreground: 40 15% 94%;
+
+  --secondary: 160 30% 42%;
+  --secondary-foreground: 40 15% 94%;
+
+  --muted: 38 12% 86%;
+  --muted-foreground: 220 8% 45%;
+
+  --accent: 35 45% 52%;
+  --accent-foreground: 220 10% 25%;
+
+  --destructive: 0 40% 48%;
+  --destructive-foreground: 40 15% 94%;
+
+  --card: 40 14% 94%;
+  --card-foreground: 220 10% 25%;
+  --card-border: 38 12% 82%;
+
+  --popover: 40 14% 94%;
+  --popover-foreground: 220 10% 25%;
+  --popover-border: 38 12% 82%;
+
+  --sidebar-background: 40 14% 94%;
+
+  --border: 38 12% 82%;
+  --input: 38 12% 82%;
+  --ring: 210 35% 48%;
+}
+
+.high-contrast {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+
+  --primary: 220 100% 35%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 150 100% 28%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 20%;
+
+  --accent: 40 100% 45%;
+  --accent-foreground: 0 0% 0%;
+
+  --destructive: 0 100% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --card-border: 0 0% 30%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --popover-border: 0 0% 30%;
+
+  --sidebar-background: 0 0% 100%;
+
+  --border: 0 0% 30%;
+  --input: 0 0% 30%;
+  --ring: 220 100% 35%;
+}
+
+.grayscale {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 12%;
+
+  --primary: 0 0% 30%;
+  --primary-foreground: 0 0% 98%;
+
+  --secondary: 0 0% 45%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted: 0 0% 93%;
+  --muted-foreground: 0 0% 45%;
+
+  --accent: 0 0% 55%;
+  --accent-foreground: 0 0% 12%;
+
+  --destructive: 0 0% 35%;
+  --destructive-foreground: 0 0% 98%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --card-border: 0 0% 82%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 12%;
+  --popover-border: 0 0% 82%;
+
+  --sidebar-background: 0 0% 100%;
+
+  --border: 0 0% 82%;
+  --input: 0 0% 82%;
+  --ring: 0 0% 30%;
+}
+
+.grayscale img,
+.grayscale video,
+.grayscale svg {
+  filter: grayscale(100%);
+}
+
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after,
+.migraine *,
+.migraine *::before,
+.migraine *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+.reduced-motion .hover-card-effect,
+.migraine .hover-card-effect {
+  transform: none !important;
+}
+
 @layer base {
   * {
     @apply border-border;

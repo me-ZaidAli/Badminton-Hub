@@ -553,6 +553,8 @@ export async function registerRoutes(
       if (continent !== undefined) updates.continent = continent || null;
       if (nickname !== undefined) updates.nickname = nickname ? nickname.trim() : null;
       if (showPublicName !== undefined) updates.showPublicName = !!showPublicName;
+      if (req.body.displayMode !== undefined) updates.displayMode = req.body.displayMode;
+      if (req.body.reducedMotion !== undefined) updates.reducedMotion = !!req.body.reducedMotion;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid fields to update" });
@@ -563,6 +565,27 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating user profile:", err);
       res.status(500).json({ message: err.message || "Failed to update profile" });
+    }
+  });
+
+  app.patch("/api/user/display-preferences", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const validModes = ["light", "dark", "sepia", "migraine", "high-contrast", "grayscale"];
+      const updates: any = {};
+      if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
+        updates.displayMode = req.body.displayMode;
+      }
+      if (req.body.reducedMotion !== undefined) {
+        updates.reducedMotion = !!req.body.reducedMotion;
+      }
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid preferences to update" });
+      }
+      const updated = await storage.updateUser(req.user!.id, updates);
+      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update display preferences" });
     }
   });
 

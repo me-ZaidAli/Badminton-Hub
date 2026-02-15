@@ -9,7 +9,8 @@ import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
+import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -410,13 +411,37 @@ function Router() {
   );
 }
 
-function App() {
+function ThemeSync() {
+  const { data: user } = useUser();
+  const { syncFromUser } = useTheme();
+
+  useEffect(() => {
+    if (user && user.displayMode) {
+      syncFromUser(user.displayMode as any, user.reducedMotion ?? false, user.id);
+    }
+  }, [user?.id, user?.displayMode, user?.reducedMotion]);
+
+  return null;
+}
+
+function ThemeWrapper() {
+  const themeCtx = useThemeProvider();
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <ThemeContext.Provider value={themeCtx}>
       <TooltipProvider>
+        <ThemeSync />
         <Toaster />
         <Router />
       </TooltipProvider>
+    </ThemeContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeWrapper />
     </QueryClientProvider>
   );
 }
