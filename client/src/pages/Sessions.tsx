@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -370,11 +370,12 @@ export default function Sessions() {
                 </div>
                 
                 <h3
-                  className="text-xl font-bold mb-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  className="text-xl font-bold mb-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-wrap"
                   onClick={() => setDetailsSession(session)}
                   data-testid={`button-session-title-${session.id}`}
                 >
                   {session.title}
+                  <Info className="h-4 w-4 text-muted-foreground shrink-0" />
                 </h3>
                 
                 <div className="space-y-2 text-sm text-muted-foreground mb-6">

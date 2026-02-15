@@ -4,14 +4,15 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, ArrowUp, PoundSterling, Loader2, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, ArrowUp, PoundSterling, Loader2, LogIn, LogOut, UserPlus, MapPin, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 
 interface SessionDetailsModalProps {
@@ -21,10 +22,20 @@ interface SessionDetailsModalProps {
   isAdmin: boolean;
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: SessionDetailsModalProps) {
   const { toast } = useToast();
   const { data: user } = useUser();
-  const [activeTab, setActiveTab] = useState("confirmed");
+  const [expandedSection, setExpandedSection] = useState<string | null>("confirmed");
 
   const { data: manageData, isLoading } = useQuery<any>({
     queryKey: ["/api/sessions", session.id, "manage-players"],
@@ -114,134 +125,166 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     return profile?.grade || profile?.category || null;
   };
 
-  const renderPlayerRow = (signup: any, showActions: boolean) => (
-    <div key={signup.id} className="py-2 px-3 rounded-md border border-border/50">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate text-sm" data-testid={`text-player-name-${signup.id}`}>{getPlayerName(signup)}</span>
-          {getPlayerGrade(signup) && (
-            <Badge variant="outline" className="text-xs shrink-0">{getPlayerGrade(signup)}</Badge>
-          )}
-          {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
-            <Badge variant="secondary" className="text-xs shrink-0">#{signup.waitingListPosition}</Badge>
-          )}
-          {getPlayerUserId(signup) === user?.id && (
-            <Badge variant="secondary" className="text-xs shrink-0">You</Badge>
-          )}
+  const toggleSection = (section: string) => {
+    setExpandedSection(expandedSection === section ? null : section);
+  };
+
+  const renderResponseSummary = () => (
+    <div className="flex items-center justify-center gap-6 py-3">
+      <button
+        onClick={() => toggleSection("confirmed")}
+        className="flex flex-col items-center gap-1"
+        data-testid="summary-confirmed"
+      >
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-lg">
+          {confirmed.length}
         </div>
-      </div>
-      {showActions && isAdmin && (
-        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-          {signup.signupStatus === "WAITING" && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-promote-${signup.id}`}
-              >
-                <ArrowUp className="h-3 w-3 mr-1" />
-                Confirm
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-invite-waiting-${signup.id}`}
-              >
-                <Mail className="h-3 w-3 mr-1" />
-                Invite
-              </Button>
-            </>
-          )}
-          {signup.signupStatus === "INVITED" && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-confirm-invited-${signup.id}`}
-              >
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Confirm
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-decline-invited-${signup.id}`}
-              >
-                <XCircle className="h-3 w-3 mr-1" />
-                Decline
-              </Button>
-            </>
-          )}
-          {(signup.signupStatus === "CONFIRMED" || !signup.signupStatus) && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "WAITING" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-to-waiting-${signup.id}`}
-              >
-                <Clock className="h-3 w-3 mr-1" />
-                Wait
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-invite-confirmed-${signup.id}`}
-              >
-                <Mail className="h-3 w-3 mr-1" />
-                Invite
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-not-attending-${signup.id}`}
-              >
-                <XCircle className="h-3 w-3 mr-1" />
-                Out
-              </Button>
-            </>
-          )}
-          {signup.signupStatus === "NOT_ATTENDING" && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-reconfirm-${signup.id}`}
-              >
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Confirm
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })}
-                disabled={statusMutation.isPending}
-                data-testid={`button-reinvite-${signup.id}`}
-              >
-                <Mail className="h-3 w-3 mr-1" />
-                Invite
-              </Button>
-            </>
-          )}
+        <span className="text-xs text-muted-foreground">Going</span>
+      </button>
+      <button
+        onClick={() => toggleSection("waiting")}
+        className="flex flex-col items-center gap-1"
+        data-testid="summary-waiting"
+      >
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-bold text-lg">
+          {waiting.length}
         </div>
-      )}
+        <span className="text-xs text-muted-foreground">Waiting</span>
+      </button>
+      <button
+        onClick={() => toggleSection("invited")}
+        className="flex flex-col items-center gap-1"
+        data-testid="summary-invited"
+      >
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-lg">
+          {invited.length}
+        </div>
+        <span className="text-xs text-muted-foreground">Invited</span>
+      </button>
+      <button
+        onClick={() => toggleSection("notAttending")}
+        className="flex flex-col items-center gap-1"
+        data-testid="summary-not-attending"
+      >
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted text-muted-foreground font-bold text-lg">
+          {notAttending.length}
+        </div>
+        <span className="text-xs text-muted-foreground">Out</span>
+      </button>
     </div>
   );
+
+  const renderPlayerAvatar = (signup: any) => {
+    const name = getPlayerName(signup);
+    const grade = getPlayerGrade(signup);
+    const isMe = getPlayerUserId(signup) === user?.id;
+
+    return (
+      <div key={signup.id} className="flex items-center gap-3 py-2.5" data-testid={`player-row-${signup.id}`}>
+        <Avatar className={`h-9 w-9 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
+          <AvatarFallback className="text-xs font-medium bg-muted">
+            {getInitials(name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
+            {isMe && <Badge variant="secondary" className="text-xs shrink-0">You</Badge>}
+            {grade && <Badge variant="outline" className="text-xs shrink-0">{grade}</Badge>}
+            {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
+              <Badge variant="secondary" className="text-xs shrink-0">#{signup.waitingListPosition}</Badge>
+            )}
+          </div>
+        </div>
+        {isAdmin && renderAdminActions(signup)}
+      </div>
+    );
+  };
+
+  const renderAdminActions = (signup: any) => {
+    const status = signup.signupStatus;
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        {status === "WAITING" && (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-promote-${signup.id}`}>
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-invite-waiting-${signup.id}`}>
+              <Mail className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-remove-waiting-${signup.id}`}>
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        {status === "INVITED" && (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-confirm-invited-${signup.id}`}>
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-decline-invited-${signup.id}`}>
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        {(status === "CONFIRMED" || !status) && (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "WAITING" })} disabled={statusMutation.isPending} data-testid={`button-to-waiting-${signup.id}`}>
+              <Clock className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-invite-confirmed-${signup.id}`}>
+              <Mail className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })} disabled={statusMutation.isPending} data-testid={`button-not-attending-${signup.id}`}>
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        {status === "NOT_ATTENDING" && (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })} disabled={statusMutation.isPending} data-testid={`button-reconfirm-${signup.id}`}>
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })} disabled={statusMutation.isPending} data-testid={`button-reinvite-${signup.id}`}>
+              <Mail className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderSection = (title: string, key: string, players: any[], color: string) => {
+    const isExpanded = expandedSection === key;
+    return (
+      <div key={key} className="border-b border-border/50 last:border-b-0">
+        <button
+          onClick={() => toggleSection(key)}
+          className="flex items-center justify-between w-full py-3 px-1 text-left"
+          data-testid={`section-toggle-${key}`}
+        >
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+            <span className="font-medium text-sm">{title}</span>
+            <span className="text-sm text-muted-foreground">({players.length})</span>
+          </div>
+          {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {isExpanded && (
+          <div className="pb-3 px-1">
+            {players.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No players</p>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {players.map((s: any) => renderPlayerAvatar(s))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderPlayerActionBar = () => {
     if (!user) return null;
@@ -249,215 +292,168 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
     if (myStatus === "CONFIRMED") {
       return (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium">You are confirmed for this session</span>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => playerStatusMutation.mutate({ action: "cancel" })}
-                disabled={isPending}
-                data-testid="button-player-cancel"
-              >
-                {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogOut className="h-3 w-3 mr-1" />}
-                Cancel Attendance
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+            <span className="text-sm font-medium truncate">You're going</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => playerStatusMutation.mutate({ action: "cancel" })}
+            disabled={isPending}
+            data-testid="button-player-cancel"
+          >
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogOut className="h-3 w-3 mr-1" />}
+            Cancel
+          </Button>
+        </div>
       );
     }
 
     if (myStatus === "WAITING") {
       return (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-yellow-600" />
-                <span className="text-sm font-medium">You are on the waiting list</span>
-                {mySignup?.waitingListPosition && (
-                  <Badge variant="secondary" className="text-xs">Position #{mySignup.waitingListPosition}</Badge>
-                )}
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => playerStatusMutation.mutate({ action: "decline" })}
-                disabled={isPending}
-                data-testid="button-player-leave-waiting"
-              >
-                {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                Leave Waiting List
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="h-4 w-4 text-yellow-600 shrink-0" />
+            <span className="text-sm font-medium truncate">On waiting list</span>
+            {mySignup?.waitingListPosition && (
+              <Badge variant="secondary" className="text-xs">#{mySignup.waitingListPosition}</Badge>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => playerStatusMutation.mutate({ action: "decline" })}
+            disabled={isPending}
+            data-testid="button-player-leave-waiting"
+          >
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+            Leave
+          </Button>
+        </div>
       );
     }
 
     if (myStatus === "INVITED") {
       return (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium">You have been invited</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => playerStatusMutation.mutate({ action: "accept" })}
-                  disabled={isPending}
-                  data-testid="button-player-accept"
-                >
-                  {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
-                  {isFull ? "Join Waiting List" : "Accept"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => playerStatusMutation.mutate({ action: "decline" })}
-                  disabled={isPending}
-                  data-testid="button-player-decline"
-                >
-                  {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                  Decline
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <Mail className="h-4 w-4 text-blue-500 shrink-0" />
+            <span className="text-sm font-medium truncate">You're invited</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => playerStatusMutation.mutate({ action: "accept" })}
+              disabled={isPending}
+              data-testid="button-player-accept"
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
+              {isFull ? "Wait" : "Accept"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => playerStatusMutation.mutate({ action: "decline" })}
+              disabled={isPending}
+              data-testid="button-player-decline"
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+              No
+            </Button>
+          </div>
+        </div>
       );
     }
 
     if (myStatus === "NOT_ATTENDING") {
       return (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">You are not attending</span>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => playerStatusMutation.mutate({ action: "accept" })}
-                disabled={isPending}
-                data-testid="button-player-rejoin"
-              >
-                {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogIn className="h-3 w-3 mr-1" />}
-                {isFull ? "Join Waiting List" : "Re-join Session"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 border border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium truncate">Not attending</span>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => playerStatusMutation.mutate({ action: "accept" })}
+            disabled={isPending}
+            data-testid="button-player-rejoin"
+          >
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogIn className="h-3 w-3 mr-1" />}
+            {isFull ? "Wait" : "Re-join"}
+          </Button>
+        </div>
       );
     }
 
     return (
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">You have not responded to this session yet</span>
-            <Button
-              size="sm"
-              onClick={() => playerStatusMutation.mutate({ action: "join" })}
-              disabled={isPending}
-              data-testid="button-player-join"
-            >
-              {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <UserPlus className="h-3 w-3 mr-1" />}
-              {isFull ? "Join Waiting List" : "Join Session"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/30 border border-border">
+        <span className="text-sm text-muted-foreground">Not responded yet</span>
+        <Button
+          size="sm"
+          onClick={() => playerStatusMutation.mutate({ action: "join" })}
+          disabled={isPending}
+          data-testid="button-player-join"
+        >
+          {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <UserPlus className="h-3 w-3 mr-1" />}
+          {isFull ? "Wait" : "Join"}
+        </Button>
+      </div>
     );
   };
 
+  const drawerContent = (
+    <div className="px-4 pb-6 overflow-y-auto max-h-[70vh]">
+      <div className="text-center mb-4">
+        <h2 className="text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
+        <div className="flex items-center justify-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5" />
+            {format(new Date(session.date), "EEE, MMM d")}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            {session.startTime}
+          </span>
+          <span className="flex items-center gap-1">
+            <Users className="h-3.5 w-3.5" />
+            {confirmed.length}/{session.maxPlayers || "~"}
+          </span>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {renderResponseSummary()}
+
+          {renderPlayerActionBar()}
+
+          <div className="mt-3">
+            {renderSection("Going", "confirmed", confirmed, "bg-green-500")}
+            {renderSection("Waiting", "waiting", waiting, "bg-yellow-500")}
+            {renderSection("Invited", "invited", invited, "bg-blue-500")}
+            {renderSection("Not attending", "notAttending", notAttending, "bg-muted-foreground")}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl" data-testid="text-session-details-title">
-            {session.title}
-          </DialogTitle>
-          <DialogDescription asChild>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
-              <span>{format(new Date(session.date), "EEE, MMM d, yyyy")}</span>
-              <span className="hidden sm:inline">&middot;</span>
-              <span>{session.startTime}</span>
-              <span className="hidden sm:inline">&middot;</span>
-              <span>{confirmed.length}/{session.maxPlayers || "~"} confirmed</span>
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {renderPlayerActionBar()}
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
-                <TabsTrigger value="confirmed" className="text-xs px-2" data-testid="tab-confirmed">
-                  In ({confirmed.length})
-                </TabsTrigger>
-                <TabsTrigger value="waiting" className="text-xs px-2" data-testid="tab-waiting">
-                  Wait ({waiting.length})
-                </TabsTrigger>
-                <TabsTrigger value="invited" className="text-xs px-2" data-testid="tab-invited">
-                  Invited ({invited.length})
-                </TabsTrigger>
-                <TabsTrigger value="notAttending" className="text-xs px-2" data-testid="tab-not-attending">
-                  Out ({notAttending.length})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="confirmed" className="space-y-2 mt-4">
-                {confirmed.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No confirmed players yet</p>
-                ) : (
-                  confirmed.map((s: any) => renderPlayerRow(s, true))
-                )}
-              </TabsContent>
-
-              <TabsContent value="waiting" className="space-y-2 mt-4">
-                {waiting.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No players on waiting list</p>
-                ) : (
-                  waiting.map((s: any) => renderPlayerRow(s, true))
-                )}
-              </TabsContent>
-
-              <TabsContent value="invited" className="space-y-2 mt-4">
-                {invited.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No invited players</p>
-                ) : (
-                  invited.map((s: any) => renderPlayerRow(s, true))
-                )}
-              </TabsContent>
-
-              <TabsContent value="notAttending" className="space-y-2 mt-4">
-                {notAttending.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No players marked as not attending</p>
-                ) : (
-                  notAttending.map((s: any) => renderPlayerRow(s, true))
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent>
+        <DrawerHeader className="sr-only">
+          <DrawerTitle>{session.title}</DrawerTitle>
+          <DrawerDescription>Session details and player responses</DrawerDescription>
+        </DrawerHeader>
+        {drawerContent}
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -555,132 +551,77 @@ export function SessionFinanceModal({ session, open, onOpenChange }: SessionFina
                 </Card>
                 <Card>
                   <CardContent className="p-3 text-center">
-                    <div className="text-2xl font-bold text-green-600" data-testid="text-finance-collected">
-                      £{((summary.totalCollected || 0) / 100).toFixed(2)}
+                    <div className="text-2xl font-bold" data-testid="text-finance-revenue">
+                      {summary.totalRevenue != null ? `£${(summary.totalRevenue / 100).toFixed(2)}` : "—"}
                     </div>
-                    <div className="text-xs text-muted-foreground">Collected</div>
+                    <div className="text-xs text-muted-foreground">Revenue</div>
                   </CardContent>
                 </Card>
               </div>
             )}
 
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">Confirmed Players</h4>
-              {confirmed.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>
-              ) : (
-                confirmed.map((signup: any) => (
-                  <FinancePlayerRow
-                    key={signup.id}
-                    signup={signup}
-                    playerName={getPlayerName(signup)}
-                    onTogglePayment={() => togglePaymentStatus(signup)}
-                    onUpdateMethod={(method) => updatePaymentMethod(signup.id, method)}
-                    onUpdateNotes={(notes) => updatePaymentNotes(signup.id, notes)}
-                    isPending={paymentMutation.isPending}
-                  />
-                ))
-              )}
+            <div className="space-y-3">
+              {confirmed.map((signup: any) => (
+                <Card key={signup.id}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{getInitials(getPlayerName(signup))}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-sm truncate" data-testid={`text-finance-player-${signup.id}`}>{getPlayerName(signup)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant={signup.paymentStatus === "PAID" ? "default" : "outline"}
+                          onClick={() => togglePaymentStatus(signup)}
+                          disabled={paymentMutation.isPending}
+                          data-testid={`button-toggle-payment-${signup.id}`}
+                        >
+                          {signup.paymentStatus === "PAID" ? (
+                            <><CheckCircle className="h-3 w-3 mr-1" /> Paid</>
+                          ) : (
+                            <><XCircle className="h-3 w-3 mr-1" /> Unpaid</>
+                          )}
+                        </Button>
+                        <Select
+                          value={signup.paymentMethod || ""}
+                          onValueChange={(val) => updatePaymentMethod(signup.id, val)}
+                        >
+                          <SelectTrigger className="w-[110px]" data-testid={`select-payment-method-${signup.id}`}>
+                            <SelectValue placeholder="Method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Cash">Cash</SelectItem>
+                            <SelectItem value="Online">Online</SelectItem>
+                            <SelectItem value="Card">Card</SelectItem>
+                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                            <SelectItem value="Membership Credit">Membership</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <Input
+                        placeholder="Payment notes..."
+                        defaultValue={signup.paymentNotes || ""}
+                        onBlur={(e) => {
+                          if (e.target.value !== (signup.paymentNotes || "")) {
+                            updatePaymentNotes(signup.id, e.target.value);
+                          }
+                        }}
+                        className="text-sm"
+                        data-testid={`input-payment-notes-${signup.id}`}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FinancePlayerRow({
-  signup,
-  playerName,
-  onTogglePayment,
-  onUpdateMethod,
-  onUpdateNotes,
-  isPending,
-}: {
-  signup: any;
-  playerName: string;
-  onTogglePayment: () => void;
-  onUpdateMethod: (method: string) => void;
-  onUpdateNotes: (notes: string) => void;
-  isPending: boolean;
-}) {
-  const [showNotes, setShowNotes] = useState(false);
-  const [notes, setNotes] = useState(signup.paymentNotes || "");
-
-  return (
-    <div className="border border-border/50 rounded-md p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate" data-testid={`text-finance-player-${signup.id}`}>{playerName}</span>
-          <Badge variant="outline" className="text-xs shrink-0">
-            £{((signup.fee || 0) / 100).toFixed(2)}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            size="sm"
-            variant={signup.paymentStatus === "PAID" ? "default" : "outline"}
-            onClick={onTogglePayment}
-            disabled={isPending}
-            data-testid={`button-toggle-payment-${signup.id}`}
-          >
-            {signup.paymentStatus === "PAID" ? (
-              <><CheckCircle className="h-3 w-3 mr-1" /> Paid</>
-            ) : (
-              <><XCircle className="h-3 w-3 mr-1" /> Unpaid</>
-            )}
-          </Button>
-          <Select
-            value={signup.paymentMethod || "NONE"}
-            onValueChange={onUpdateMethod}
-          >
-            <SelectTrigger className="w-[120px]" data-testid={`select-payment-method-${signup.id}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="NONE">No Method</SelectItem>
-              <SelectItem value="CASH">Cash</SelectItem>
-              <SelectItem value="ONLINE">Online</SelectItem>
-              <SelectItem value="CARD">Card</SelectItem>
-              <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-              <SelectItem value="MEMBERSHIP_CREDIT">Credit</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-xs"
-          onClick={() => setShowNotes(!showNotes)}
-          data-testid={`button-toggle-notes-${signup.id}`}
-        >
-          {signup.paymentNotes ? "Edit Note" : "Add Note"}
-        </Button>
-        {signup.paymentNotes && !showNotes && (
-          <span className="text-xs text-muted-foreground truncate">{signup.paymentNotes}</span>
-        )}
-      </div>
-      {showNotes && (
-        <div className="flex gap-2">
-          <Input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Payment notes..."
-            className="text-sm"
-            data-testid={`input-payment-notes-${signup.id}`}
-          />
-          <Button
-            size="sm"
-            onClick={() => { onUpdateNotes(notes); setShowNotes(false); }}
-            disabled={isPending}
-            data-testid={`button-save-notes-${signup.id}`}
-          >
-            Save
-          </Button>
-        </div>
-      )}
-    </div>
   );
 }
