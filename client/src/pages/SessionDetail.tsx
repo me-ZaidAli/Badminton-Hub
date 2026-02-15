@@ -1002,6 +1002,7 @@ export default function SessionDetail() {
         defaultPointsToPlayTo={(session as any).defaultPointsToPlayTo || 21}
         sessionStatus={session.status || "UPCOMING"}
         autoGenerateActive={(session as any).autoGenerateActive || false}
+        savedQueueTargetSize={(session as any).queueTargetSize ?? 3}
       />
 
       <div className="space-y-6">
@@ -1674,7 +1675,7 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3 }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
@@ -1687,6 +1688,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   defaultPointsToPlayTo?: number;
   sessionStatus: string;
   autoGenerateActive: boolean;
+  savedQueueTargetSize?: number;
 }) {
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
@@ -1709,7 +1711,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
-  const [queueTargetSize, setQueueTargetSize] = useState(3);
+  const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
   const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
@@ -1914,6 +1916,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
 
   const handleQueueTargetSizeChange = (newSize: number) => {
     setQueueTargetSize(newSize);
+    updateSession({ sessionId, updates: { queueTargetSize: newSize } });
     const currentQueuedCount = typedMatches.filter(m => m.status === "QUEUED").length;
     if (currentQueuedCount > newSize) {
       trimQueue({ sessionId, targetSize: newSize });

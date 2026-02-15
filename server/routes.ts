@@ -1975,7 +1975,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -2004,6 +2004,7 @@ export async function registerRoutes(
       if (sessionFee !== undefined) updates.sessionFee = sessionFee !== null ? Number(sessionFee) : null;
       if (shuttlecockType !== undefined) updates.shuttlecockType = shuttlecockType || null;
       if (defaultPointsToPlayTo !== undefined) updates.defaultPointsToPlayTo = Number(defaultPointsToPlayTo);
+      if (queueTargetSize !== undefined) updates.queueTargetSize = Number(queueTargetSize);
       if (venueId !== undefined) updates.venueId = venueId !== null ? Number(venueId) : null;
       if (courtNames !== undefined) {
         if (!Array.isArray(courtNames) || !courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
