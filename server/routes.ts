@@ -1911,10 +1911,10 @@ export async function registerRoutes(
       waitingListPosition: newWaitingPosition,
     });
 
-    if (isLeavingConfirmed) {
+    if (isLeavingConfirmed && signupStatus !== "WAITING") {
       const refreshedSignups = await storage.getSessionSignups(sessionId);
       const confirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
-      if (confirmedCount < session.maxPlayers) {
+      if (!session.maxPlayers || confirmedCount < session.maxPlayers) {
         const waitingPlayers = refreshedSignups
           .filter((s: any) => s.signupStatus === "WAITING")
           .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
