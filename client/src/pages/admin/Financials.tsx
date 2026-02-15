@@ -1903,7 +1903,7 @@ export default function Financials() {
             })
           )}
         </div>
-      ) : (
+      ) : viewMode === "credits" ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
@@ -2043,6 +2043,135 @@ export default function Financials() {
                 </Card>
               );
             })
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Membership Payments
+          </h2>
+
+          {!dashboardData ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mt-2">Loading membership data...</p>
+              </CardContent>
+            </Card>
+          ) : !dashboardData.membershipMembers || dashboardData.membershipMembers.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-memberships">
+                No memberships found for the selected filters.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Fee</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Alert</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboardData.membershipMembers
+                    .sort((a, b) => {
+                      if (a.isOverdue && !b.isOverdue) return -1;
+                      if (!a.isOverdue && b.isOverdue) return 1;
+                      if (a.paymentStatus === "UNPAID" && b.paymentStatus !== "UNPAID") return -1;
+                      if (a.paymentStatus !== "UNPAID" && b.paymentStatus === "UNPAID") return 1;
+                      return (a.fullName || "").localeCompare(b.fullName || "");
+                    })
+                    .map((member) => {
+                      const dueDate = member.endDate ? new Date(member.endDate) : null;
+                      const now = new Date();
+                      const isOverdue = member.paymentStatus === "UNPAID" && dueDate && dueDate < now;
+                      const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+                      return (
+                        <TableRow
+                          key={member.id}
+                          className={isOverdue ? "bg-red-50 dark:bg-red-950/20" : ""}
+                          data-testid={`row-membership-${member.id}`}
+                        >
+                          <TableCell>
+                            <div>
+                              <p className="font-medium" data-testid={`text-membership-name-${member.id}`}>{member.fullName || "Unknown"}</p>
+                              <p className="text-xs text-muted-foreground">{member.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell data-testid={`text-membership-plan-${member.id}`}>
+                            {member.planName || "N/A"}
+                          </TableCell>
+                          <TableCell className="font-medium" data-testid={`text-membership-fee-${member.id}`}>
+                            {"\u00A3"}{formatPounds(member.planPrice)}
+                          </TableCell>
+                          <TableCell>
+                            {member.status === "ACTIVE" ? (
+                              <Badge variant="default" className="bg-green-500 no-default-hover-elevate" data-testid={`badge-membership-status-${member.id}`}>Active</Badge>
+                            ) : member.status === "PENDING" ? (
+                              <Badge variant="secondary" className="no-default-hover-elevate" data-testid={`badge-membership-status-${member.id}`}>Pending</Badge>
+                            ) : member.status === "EXPIRED" ? (
+                              <Badge variant="outline" className="text-muted-foreground no-default-hover-elevate" data-testid={`badge-membership-status-${member.id}`}>Expired</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="no-default-hover-elevate" data-testid={`badge-membership-status-${member.id}`}>{member.status}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {member.paymentStatus === "PAID" ? (
+                              <Badge variant="default" className="no-default-hover-elevate" data-testid={`badge-membership-payment-${member.id}`}>
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Paid
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="no-default-hover-elevate" data-testid={`badge-membership-payment-${member.id}`}>
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Unpaid
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm" data-testid={`text-membership-start-${member.id}`}>
+                            {member.startDate ? format(new Date(member.startDate), "dd MMM yyyy") : "N/A"}
+                          </TableCell>
+                          <TableCell data-testid={`text-membership-due-${member.id}`}>
+                            <div>
+                              <span className={`text-sm ${isOverdue ? "text-red-600 font-semibold" : daysUntilDue !== null && daysUntilDue <= 30 ? "text-amber-600 font-medium" : ""}`}>
+                                {dueDate ? format(dueDate, "dd MMM yyyy") : "N/A"}
+                              </span>
+                              {daysUntilDue !== null && (
+                                <span className={`block text-xs ${daysUntilDue <= 0 ? "text-red-600" : daysUntilDue <= 30 ? "text-amber-600" : "text-muted-foreground"}`}>
+                                  {daysUntilDue <= 0 ? `${Math.abs(daysUntilDue)} days overdue` : `${daysUntilDue} days left`}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {isOverdue && (
+                              <div className="flex items-center gap-1 text-red-600" data-testid={`alert-membership-overdue-${member.id}`}>
+                                <AlertTriangle className="h-4 w-4" />
+                                <span className="text-xs font-semibold">OVERDUE</span>
+                              </div>
+                            )}
+                            {!isOverdue && member.paymentStatus === "UNPAID" && daysUntilDue !== null && daysUntilDue <= 30 && (
+                              <div className="flex items-center gap-1 text-amber-600" data-testid={`alert-membership-due-soon-${member.id}`}>
+                                <Clock className="h-4 w-4" />
+                                <span className="text-xs font-medium">Due Soon</span>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       )}
