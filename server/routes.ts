@@ -14,6 +14,7 @@ import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
+import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -526,6 +527,8 @@ export async function registerRoutes(
         category: "A",
         membershipId: null
       });
+
+      try { await ensureAllOwnersInClub(club.id); } catch (e) { console.error("[SYNC] Error syncing owners to new club:", e); }
 
       res.status(201).json(club);
     } catch (err: any) {
@@ -4283,22 +4286,25 @@ export async function registerRoutes(
       
       const updated = await storage.updateClubStatus(clubId, status);
 
-      if (status === "APPROVED" && adminUserId) {
-        const uid = parseInt(adminUserId);
-        const existingProfiles = await storage.getClubMembers(clubId);
-        const existingProfile = existingProfiles.find((p: any) => p.userId === uid);
-        if (existingProfile) {
-          await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: "ADMIN", membershipStatus: "APPROVED" });
-        } else {
-          await storage.createPlayerProfile({
-            userId: uid,
-            clubId,
-            clubRole: "ADMIN" as any,
-            membershipStatus: "APPROVED" as any,
-            playerStatus: "ACTIVE" as any,
-          });
+      if (status === "APPROVED") {
+        if (adminUserId) {
+          const uid = parseInt(adminUserId);
+          const existingProfiles = await storage.getClubMembers(clubId);
+          const existingProfile = existingProfiles.find((p: any) => p.userId === uid);
+          if (existingProfile) {
+            await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: "ADMIN", membershipStatus: "APPROVED" });
+          } else {
+            await storage.createPlayerProfile({
+              userId: uid,
+              clubId,
+              clubRole: "ADMIN" as any,
+              membershipStatus: "APPROVED" as any,
+              playerStatus: "ACTIVE" as any,
+            });
+          }
+          await storage.updateClub(clubId, { ownerId: uid });
         }
-        await storage.updateClub(clubId, { ownerId: uid });
+        try { await ensureAllOwnersInClub(clubId); } catch (e) { console.error("[SYNC] Error syncing owners to approved club:", e); }
       }
 
       res.json(updated);

@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { User, users } from "@shared/schema";
 import { eq, isNotNull, gt, and } from "drizzle-orm";
 import { db } from "./db";
+import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
 
 const scryptAsync = promisify(scrypt);
 
@@ -414,8 +415,11 @@ export function setupAuth(app: Express) {
       if (!user) {
         return res.status(401).json({ message: info?.message || "Invalid credentials" });
       }
-      req.login(user, (loginErr) => {
+      req.login(user, async (loginErr) => {
         if (loginErr) return next(loginErr);
+        if (user.role === "OWNER") {
+          try { await ensureOwnerProfilesInAllClubs(user.id); } catch (e) { console.error("[SYNC] Error syncing owner profiles on login:", e); }
+        }
         res.status(200).json(user);
       });
     })(req, res, next);
