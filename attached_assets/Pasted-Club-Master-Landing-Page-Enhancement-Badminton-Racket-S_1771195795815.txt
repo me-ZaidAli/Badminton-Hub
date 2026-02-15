@@ -1,0 +1,137 @@
+Club Master Landing Page Enhancement (Badminton & Racket Sports)
+
+Enhance the current landing page for Club Master with a modern, professional layout focused on badminton and racket sports clubs. The design should feel clean, sporty, and trustworthy, suitable for clubs, organisers, and players.
+
+Overall Style
+
+Clean, modern UI
+
+Sports-focused but professional (not playful)
+
+Easy to scan, strong hierarchy
+
+Mobile-first and responsive
+
+Neutral colour palette with energetic accents
+
+Hero Section
+
+Headline:
+Run Your Badminton Club Smarter
+
+Subheading:
+All-in-one session, member, venue, and payment management built specifically for badminton and racket sports.
+
+Primary CTA:
+Get Started
+Secondary CTA:
+See How It Works
+
+Hero Images
+4
+Section: Built for Players
+
+Title: Designed for Players
+Content:
+
+Join or cancel sessions independently
+
+Automatically join waiting lists when sessions are full
+
+Receive session invitations and updates in real time
+
+Clear visibility of attendance and payment status
+
+Visuals:
+
+Section: Built for Organisers
+
+Title: Built for Organisers
+Content:
+
+Live view of confirmed players, waiting lists, and invitations
+
+Automatic waiting list promotion
+
+Integrated payment tracking per session
+
+No spreadsheets or manual follow-ups
+
+Visuals:
+
+Section: Smart Session Management
+
+Title: Smart Session & Attendance Management
+Content:
+
+Player-controlled participation statuses
+
+Invited, Confirmed, Waiting List, and Not Attending states
+
+Automatic notifications when sessions are created
+
+Full session overview in one click
+
+Visuals:
+
+Section: Payments & Transparency
+
+Title: Simple, Transparent Payments
+Content:
+
+Session-level finance panel
+
+Track paid and unpaid players
+
+Record payment methods and notes
+
+Admin override for full control
+
+Visuals:
+
+Section: Venues & Courts
+
+Title: Manage Venues and Courts with Ease
+Content:
+
+Centralised venue management
+
+Court capacity per session
+
+Reusable venues across sessions
+
+Visuals:
+
+Section: Admin & Governance
+
+Title: Powerful Admin Control
+Content:
+
+Full control over members, sessions, and venues
+
+Edit everything via simple pop-ups
+
+Super Admin “God Mode” with unrestricted access
+
+Seamlessly manage single or multiple clubs
+
+Visuals:
+
+Closing Section
+
+Headline: Built for How Badminton Clubs Really Operate
+Text:
+From grassroots clubs to multi-venue operations, Club Master helps you fill courts fairly, reduce admin workload, and keep players informed.
+
+CTA Button:
+Start Managing Your Club Today
+
+Technical Notes
+
+Optimise all images for fast loading
+
+Use authentic badminton imagery (indoor courts, real players)
+
+Avoid stock images that feel corporate or generic
+
+Maintain consistent spacing and typography throughout
