@@ -127,6 +127,7 @@ export const membershipPlans = pgTable("membership_plans", {
   name: text("name").notNull(),
   annualPrice: integer("annual_price").notNull(),
   defaultSessionFee: integer("default_session_fee").notNull(),
+  defaultDurationDays: integer("default_duration_days").default(365).notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
