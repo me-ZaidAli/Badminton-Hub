@@ -362,7 +362,7 @@ export function MatchQueue({
                               key={court}
                               size="sm"
                               onClick={() => onAssignToCourt(match.id, court)}
-                              className="gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md"
+                              className="gap-1.5 bg-green-600 text-white font-semibold shadow-md"
                               data-testid={`button-assign-${match.id}-court-${court}`}
                             >
                               <Play className="w-3.5 h-3.5" />
@@ -472,13 +472,63 @@ export function MatchQueue({
                     </div>
 
                     {/* --- DESKTOP/TABLET LAYOUT (>= sm) --- */}
-                    <div className="hidden sm:flex items-start gap-3">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0 mt-1">
-                        {index + 1}
-                      </div>
+                    <div className="hidden sm:block">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0">
+                          {index + 1}
+                        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5">
+                            <PlayerBadge
+                              player={match.teamAPlayer1}
+                              position="teamAPlayer1Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                            />
+                            {match.teamAPlayer2 && (
+                              <>
+                                <span className="text-muted-foreground text-xs">&</span>
+                                <PlayerBadge
+                                  player={match.teamAPlayer2}
+                                  position="teamAPlayer2Id"
+                                  matchId={match.id}
+                                  availablePlayers={availablePlayers}
+                                  isOrganiser={isOrganiser}
+                                  onSwap={onSwapPlayer}
+                                />
+                              </>
+                            )}
+                          </div>
+
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted shrink-0">vs</span>
+
+                          <div className="flex items-center gap-1.5 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 px-2.5 py-1.5">
+                            <PlayerBadge
+                              player={match.teamBPlayer1}
+                              position="teamBPlayer1Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                            />
+                            {match.teamBPlayer2 && (
+                              <>
+                                <span className="text-muted-foreground text-xs">&</span>
+                                <PlayerBadge
+                                  player={match.teamBPlayer2}
+                                  position="teamBPlayer2Id"
+                                  matchId={match.id}
+                                  availablePlayers={availablePlayers}
+                                  isOrganiser={isOrganiser}
+                                  onSwap={onSwapPlayer}
+                                />
+                              </>
+                            )}
+                          </div>
+
                           <EditableTarget
                             matchId={match.id}
                             value={matchTarget}
@@ -491,157 +541,102 @@ export function MatchQueue({
                             </Badge>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-1 mb-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3 py-2">
-                          <PlayerBadge
-                            player={match.teamAPlayer1}
-                            position="teamAPlayer1Id"
-                            matchId={match.id}
-                            availablePlayers={availablePlayers}
-                            isOrganiser={isOrganiser}
-                            onSwap={onSwapPlayer}
-                          />
-                          {match.teamAPlayer2 && (
-                            <>
-                              <span className="text-muted-foreground">&</span>
-                              <PlayerBadge
-                                player={match.teamAPlayer2}
-                                position="teamAPlayer2Id"
-                                matchId={match.id}
-                                availablePlayers={availablePlayers}
-                                isOrganiser={isOrganiser}
-                                onSwap={onSwapPlayer}
-                              />
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 my-1">
-                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted">vs</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 px-3 py-2">
-                          <PlayerBadge
-                            player={match.teamBPlayer1}
-                            position="teamBPlayer1Id"
-                            matchId={match.id}
-                            availablePlayers={availablePlayers}
-                            isOrganiser={isOrganiser}
-                            onSwap={onSwapPlayer}
-                          />
-                          {match.teamBPlayer2 && (
-                            <>
-                              <span className="text-muted-foreground">&</span>
-                              <PlayerBadge
-                                player={match.teamBPlayer2}
-                                position="teamBPlayer2Id"
-                                matchId={match.id}
-                                availablePlayers={availablePlayers}
-                                isOrganiser={isOrganiser}
-                                onSwap={onSwapPlayer}
-                              />
-                            </>
-                          )}
-                        </div>
                       </div>
 
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        {isOrganiser && availableCourts.length > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            {availableCourts.map(court => (
-                              <Button
-                                key={court}
-                                size="sm"
-                                onClick={() => onAssignToCourt(match.id, court)}
-                                className="gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md"
-                                data-testid={`button-assign-${match.id}-court-${court}`}
-                              >
-                                <Play className="w-3.5 h-3.5" />
-                                Court {court}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                        {isOrganiser && (
-                          <div className="flex items-center gap-1 flex-wrap">
+                      {isOrganiser && (
+                        <div className="flex items-center gap-1.5 mt-2 ml-11 flex-wrap">
+                          {availableCourts.length > 0 && availableCourts.map(court => (
                             <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "female_only")}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-female-desktop-${match.id}`}
-                              title="Female only"
-                              className="text-pink-500"
+                              key={court}
+                              size="sm"
+                              onClick={() => onAssignToCourt(match.id, court)}
+                              className="gap-1 bg-green-600 text-white font-semibold shadow-md"
+                              data-testid={`button-assign-${match.id}-court-${court}`}
                             >
-                              <IoFemale className="w-4 h-4" />
+                              <Play className="w-3 h-3" />
+                              Court {court}
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "male_only")}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-male-desktop-${match.id}`}
-                              title="Male only"
-                              className="text-blue-500"
-                            >
-                              <IoMale className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "mixed")}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
-                              title="Mixed (male + female pair)"
-                              className="text-purple-500"
-                            >
-                              <IoMaleFemale className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "high_grade")}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-high-desktop-${match.id}`}
-                              title="High grade (A/B)"
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id, "low_grade")}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-low-desktop-${match.id}`}
-                              title="Low grade (C/D)"
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleFilteredReshuffle(match.id)}
-                              disabled={isReshuffling}
-                              data-testid={`button-reshuffle-random-desktop-${match.id}`}
-                              title="Random reshuffle"
-                            >
-                              <Shuffle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeleteConfirm(match)}
-                              data-testid={`button-delete-queued-desktop-${match.id}`}
-                              title="Remove match"
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          </div>
-                        )}
-                        {reshuffleErrors[match.id] && (
-                          <div className="flex items-center gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-desktop-${match.id}`}>
-                            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span>{reshuffleErrors[match.id]}</span>
-                          </div>
-                        )}
-                      </div>
+                          ))}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id, "female_only")}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-female-desktop-${match.id}`}
+                            title="Female only"
+                            className="text-pink-500"
+                          >
+                            <IoFemale className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id, "male_only")}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-male-desktop-${match.id}`}
+                            title="Male only"
+                            className="text-blue-500"
+                          >
+                            <IoMale className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id, "mixed")}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
+                            title="Mixed (male + female pair)"
+                            className="text-purple-500"
+                          >
+                            <IoMaleFemale className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id, "high_grade")}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-high-desktop-${match.id}`}
+                            title="High grade (A/B)"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id, "low_grade")}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-low-desktop-${match.id}`}
+                            title="Low grade (C/D)"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleFilteredReshuffle(match.id)}
+                            disabled={isReshuffling}
+                            data-testid={`button-reshuffle-random-desktop-${match.id}`}
+                            title="Random reshuffle"
+                          >
+                            <Shuffle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setDeleteConfirm(match)}
+                            data-testid={`button-delete-queued-desktop-${match.id}`}
+                            title="Remove match"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      )}
+                      {reshuffleErrors[match.id] && (
+                        <div className="flex items-center gap-1.5 mt-2 ml-11 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-desktop-${match.id}`}>
+                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{reshuffleErrors[match.id]}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

@@ -1706,7 +1706,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
   const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
 
-  const [courtsToUse, setCourtsToUse] = useState(Math.min(courtsAvailable, 4));
+  const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
   const [queueTargetSize, setQueueTargetSize] = useState(3);
