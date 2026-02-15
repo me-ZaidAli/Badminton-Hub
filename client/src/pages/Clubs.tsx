@@ -1535,10 +1535,6 @@ export default function Clubs() {
   const joinMutation = useMutation({
     mutationFn: async (data: { clubId: number }) => {
       const res = await apiRequest("POST", "/api/clubs/join", data);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to join club");
-      }
       return res.json();
     },
     onSuccess: () => {
