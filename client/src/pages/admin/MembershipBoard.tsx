@@ -159,6 +159,7 @@ export default function MembershipBoard() {
   const [addMemberUserId, setAddMemberUserId] = useState<string>("");
   const [addMemberPlanId, setAddMemberPlanId] = useState<string>("");
   const [addMemberStartDate, setAddMemberStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [addMemberDurationDays, setAddMemberDurationDays] = useState<string>("365");
   const [addMemberPaymentStatus, setAddMemberPaymentStatus] = useState<string>("UNPAID");
   const [addMemberSearch, setAddMemberSearch] = useState("");
 
@@ -201,11 +202,12 @@ export default function MembershipBoard() {
 
   const addMembershipExpiryDate = useMemo(() => {
     if (!addMemberStartDate) return "";
+    const days = parseInt(addMemberDurationDays) || 365;
     const start = new Date(addMemberStartDate);
     const end = new Date(start);
-    end.setDate(end.getDate() + 365);
+    end.setDate(end.getDate() + days);
     return format(end, "yyyy-MM-dd");
-  }, [addMemberStartDate]);
+  }, [addMemberStartDate, addMemberDurationDays]);
 
   const filteredClubMembers = useMemo(() => {
     if (!addMemberSearch) return clubMembers;
@@ -385,7 +387,7 @@ export default function MembershipBoard() {
   });
 
   const addMembershipMutation = useMutation({
-    mutationFn: async (data: { userId: number; planId: number; startDate: string; paymentStatus: string }) => {
+    mutationFn: async (data: { userId: number; planId: number; startDate: string; durationDays: number; paymentStatus: string }) => {
       const res = await apiRequest("POST", `/api/clubs/${clubId}/memberships/add`, data);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ message: "Failed to add membership" }));
@@ -399,6 +401,7 @@ export default function MembershipBoard() {
       setAddMemberUserId("");
       setAddMemberPlanId("");
       setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
+      setAddMemberDurationDays("365");
       setAddMemberPaymentStatus("UNPAID");
       setAddMemberSearch("");
       toast({ title: "Membership Added", description: "The membership has been created successfully." });
@@ -755,6 +758,7 @@ export default function MembershipBoard() {
                     setAddMemberUserId("");
                     setAddMemberPlanId(plans.length > 0 ? plans[0].id.toString() : "");
                     setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
+                    setAddMemberDurationDays("365");
                     setAddMemberPaymentStatus("UNPAID");
                     setAddMemberSearch("");
                     setAddMembershipDialog(true);
@@ -1361,13 +1365,44 @@ export default function MembershipBoard() {
             </div>
 
             <div className="space-y-2">
-              <Label>Expiry Date (auto-calculated)</Label>
+              <Label>Duration</Label>
+              <div className="flex items-center gap-2">
+                <Select value={addMemberDurationDays} onValueChange={setAddMemberDurationDays}>
+                  <SelectTrigger className="flex-1" data-testid="select-add-member-duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 days (1 month)</SelectItem>
+                    <SelectItem value="60">60 days (2 months)</SelectItem>
+                    <SelectItem value="90">90 days (3 months)</SelectItem>
+                    <SelectItem value="180">180 days (6 months)</SelectItem>
+                    <SelectItem value="365">365 days (1 year)</SelectItem>
+                    <SelectItem value="custom">Custom...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!["30", "60", "90", "180", "365"].includes(addMemberDurationDays) && (
+                  <Input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    className="w-24"
+                    placeholder="Days"
+                    value={addMemberDurationDays === "custom" ? "" : addMemberDurationDays}
+                    onChange={(e) => setAddMemberDurationDays(e.target.value || "custom")}
+                    data-testid="input-add-member-custom-duration"
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>End Date</Label>
               <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium" data-testid="text-add-member-expiry">
                   {addMembershipExpiryDate ? format(new Date(addMembershipExpiryDate), "dd MMM yyyy") : "Select a start date"}
                 </span>
-                <span className="text-xs text-muted-foreground ml-auto">365 days</span>
+                <span className="text-xs text-muted-foreground ml-auto">{parseInt(addMemberDurationDays) || 0} days</span>
               </div>
             </div>
 
@@ -1406,6 +1441,7 @@ export default function MembershipBoard() {
                   userId: Number(addMemberUserId),
                   planId: Number(addMemberPlanId),
                   startDate: addMemberStartDate,
+                  durationDays: parseInt(addMemberDurationDays) || 365,
                   paymentStatus: addMemberPaymentStatus,
                 });
               }}

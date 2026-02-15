@@ -8147,6 +8147,7 @@ export async function registerRoutes(
         userId: z.number().int(),
         planId: z.number().int(),
         startDate: z.string(),
+        durationDays: z.number().int().min(1).max(3650).default(365),
         paymentStatus: z.enum(["PAID", "UNPAID"]).default("UNPAID"),
       }).parse(req.body);
 
@@ -8169,9 +8170,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "User already has an active membership for this club" });
       }
 
+      const duration = body.durationDays;
       const start = new Date(body.startDate);
       const end = new Date(start);
-      end.setDate(end.getDate() + 365);
+      end.setDate(end.getDate() + duration);
 
       const [newMembership] = await db.insert(clubMemberships).values({
         userId: body.userId,
@@ -8179,7 +8181,7 @@ export async function registerRoutes(
         planId: body.planId,
         startDate: start,
         endDate: end,
-        totalDays: 365,
+        totalDays: duration,
         status: "ACTIVE",
         paymentConfirmed: body.paymentStatus === "PAID",
       }).returning();
