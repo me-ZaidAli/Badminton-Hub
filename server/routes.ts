@@ -1879,20 +1879,38 @@ export async function registerRoutes(
     const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
-    const { signupStatus, waitingListPosition } = req.body;
+    let { signupStatus } = req.body;
 
-    // Get existing signup to check if moving away from CONFIRMED
     const allSignups = await storage.getSessionSignups(sessionId);
     const existingSignup = allSignups.find((s: any) => s.id === signupId);
-    const wasConfirmed = existingSignup && (!existingSignup.signupStatus || existingSignup.signupStatus === "CONFIRMED");
+    if (!existingSignup) return res.status(404).json({ message: "Signup not found" });
+
+    const wasConfirmed = !existingSignup.signupStatus || existingSignup.signupStatus === "CONFIRMED";
     const isLeavingConfirmed = wasConfirmed && signupStatus !== "CONFIRMED";
+
+    let newWaitingPosition: number | null = null;
+
+    if (signupStatus === "WAITING") {
+      const waitingPlayers = allSignups.filter((s: any) => s.signupStatus === "WAITING");
+      const maxPos = waitingPlayers.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+      newWaitingPosition = maxPos + 1;
+    }
+
+    if (signupStatus === "CONFIRMED") {
+      const confirmedCount = allSignups.filter((s: any) => (!s.signupStatus || s.signupStatus === "CONFIRMED") && s.id !== signupId).length;
+      if (session.maxPlayers && confirmedCount >= session.maxPlayers) {
+        signupStatus = "WAITING";
+        const waitingPlayers = allSignups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingPlayers.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        newWaitingPosition = maxPos + 1;
+      }
+    }
 
     const updated = await storage.updateSessionSignupStatus(signupId, {
       signupStatus,
-      waitingListPosition: waitingListPosition !== undefined ? waitingListPosition : null,
+      waitingListPosition: newWaitingPosition,
     });
 
-    // Auto-promote from waiting list if a confirmed player was moved away
     if (isLeavingConfirmed) {
       const refreshedSignups = await storage.getSessionSignups(sessionId);
       const confirmedCount = refreshedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
@@ -1909,7 +1927,7 @@ export async function registerRoutes(
       }
     }
 
-    res.json(updated);
+    res.json({ ...updated, actualStatus: signupStatus });
   });
 
   app.delete("/api/sessions/:sessionId/signups/:signupId", async (req, res) => {
@@ -1951,6 +1969,45 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing signup:", error);
       res.status(500).json({ message: "Failed to remove player" });
+    }
+  });
+
+  // Admin: Add club member to session waiting list
+  app.post("/api/sessions/:sessionId/add-to-waiting-list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { playerId } = req.body;
+    if (!playerId) return res.status(400).json({ message: "playerId is required" });
+
+    try {
+      const allSignups = await storage.getSessionSignups(sessionId);
+      const existingSignup = allSignups.find((s: any) => s.playerId === playerId);
+      if (existingSignup) {
+        return res.status(400).json({ message: "Player is already signed up for this session" });
+      }
+
+      const waitingPlayers = allSignups.filter((s: any) => s.signupStatus === "WAITING");
+      const maxPos = waitingPlayers.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+
+      const signup = await storage.createSessionSignupEnhanced({
+        sessionId,
+        playerId,
+        fee: session.sessionFee || 0,
+        signupStatus: "WAITING",
+        waitingListPosition: maxPos + 1,
+        signedUpByUserId: req.user!.id,
+      });
+
+      res.json(signup);
+    } catch (error) {
+      console.error("Error adding player to waiting list:", error);
+      res.status(500).json({ message: "Failed to add player to waiting list" });
     }
   });
 

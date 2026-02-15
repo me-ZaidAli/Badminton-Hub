@@ -38,6 +38,8 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   const [expandedSection, setExpandedSection] = useState<string | null>("confirmed");
   const [messageTarget, setMessageTarget] = useState<{ userId: number; name: string } | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [addPlayerSearch, setAddPlayerSearch] = useState("");
 
   const { data: manageData, isLoading } = useQuery<any>({
     queryKey: ["/api/sessions", session.id, "manage-players"],
@@ -59,15 +61,47 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     enabled: open && !isAdmin,
   });
 
+  const { data: clubMembers } = useQuery<any[]>({
+    queryKey: ["/api/clubs", session.clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${session.clubId}/members`);
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+    enabled: open && isAdmin && showAddPlayer,
+  });
+
   const statusMutation = useMutation({
     mutationFn: async ({ signupId, signupStatus }: { signupId: number; signupStatus: string }) => {
-      await apiRequest("PATCH", `/api/sessions/${session.id}/signups/${signupId}/status`, { signupStatus });
+      const res = await apiRequest("PATCH", `/api/sessions/${session.id}/signups/${signupId}/status`, { signupStatus });
+      try { return await res.json(); } catch { return {}; }
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      if (data?.actualStatus === "WAITING") {
+        toast({ title: "Moved to waiting list", description: "Session is full - player added to waiting list instead" });
+      } else {
+        toast({ title: "Player status updated" });
+      }
+    },
+  });
+
+  const addToWaitingListMutation = useMutation({
+    mutationFn: async (playerId: number) => {
+      await apiRequest("POST", `/api/sessions/${session.id}/add-to-waiting-list`, { playerId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      toast({ title: "Player status updated" });
+      toast({ title: "Player added to waiting list" });
+      setShowAddPlayer(false);
+      setAddPlayerSearch("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Could not add player", description: err.message || "Player may already be signed up", variant: "destructive" });
     },
   });
 
@@ -456,6 +490,71 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     );
   };
 
+  const renderAddPlayerDialog = () => {
+    if (!showAddPlayer) return null;
+
+    const allSignupPlayerIds = new Set(allSignups.map((s: any) => s.playerId));
+    const availableMembers = (clubMembers || [])
+      .filter((m: any) => !allSignupPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
+      .filter((m: any) => {
+        if (!addPlayerSearch.trim()) return true;
+        const name = m.user?.fullName?.toLowerCase() || "";
+        return name.includes(addPlayerSearch.toLowerCase());
+      })
+      .sort((a: any, b: any) => (a.user?.fullName || "").localeCompare(b.user?.fullName || ""));
+
+    return (
+      <Dialog open={showAddPlayer} onOpenChange={(open) => { if (!open) { setShowAddPlayer(false); setAddPlayerSearch(""); } }}>
+        <DialogContent className="sm:max-w-[400px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Add to Waiting List
+            </DialogTitle>
+            <DialogDescription>Select a club member to add to the waiting list</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Search members..."
+              value={addPlayerSearch}
+              onChange={(e) => setAddPlayerSearch(e.target.value)}
+              data-testid="input-search-add-player"
+            />
+            <div className="max-h-[300px] overflow-y-auto space-y-1">
+              {availableMembers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {clubMembers ? "No available members found" : "Loading..."}
+                </p>
+              ) : (
+                availableMembers.map((member: any) => (
+                  <button
+                    key={member.id}
+                    onClick={() => addToWaitingListMutation.mutate(member.id)}
+                    disabled={addToWaitingListMutation.isPending}
+                    className="flex items-center gap-2 w-full p-2 rounded-md text-left hover-elevate"
+                    data-testid={`button-add-member-${member.id}`}
+                  >
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarFallback className="text-xs font-medium bg-muted">
+                        {getInitials(member.user?.fullName || "?")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate block">{member.user?.fullName || "Unknown"}</span>
+                      {member.grade && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{member.grade}</Badge>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderQuickMessageDialog = () => {
     if (!messageTarget) return null;
     return (
@@ -541,6 +640,21 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             {renderSection("Invited", "invited", invited, "bg-blue-500")}
             {renderSection("Not attending", "notAttending", notAttending, "bg-muted-foreground")}
           </div>
+
+          {isAdmin && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setShowAddPlayer(true)}
+                data-testid="button-open-add-player"
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                Add player to waiting list
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -558,6 +672,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
         </DrawerContent>
       </Drawer>
       {renderQuickMessageDialog()}
+      {renderAddPlayerDialog()}
     </>
   );
 }
