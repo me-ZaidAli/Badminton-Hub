@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, ArrowUp, PoundSterling, Loader2, LogIn, LogOut, UserPlus, MapPin, Calendar, ChevronDown, ChevronUp, MessageSquare, Trash2, Ban, Send } from "lucide-react";
+import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell } from "lucide-react";
 import { format } from "date-fns";
 
 interface SessionDetailsModalProps {
@@ -40,6 +40,9 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   const [messageText, setMessageText] = useState("");
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [addPlayerSearch, setAddPlayerSearch] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [showPaymentReminder, setShowPaymentReminder] = useState(false);
+  const [reminderText, setReminderText] = useState("");
 
   const { data: manageData, isLoading } = useQuery<any>({
     queryKey: ["/api/sessions", session.id, "manage-players"],
@@ -85,6 +88,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
       } else {
         toast({ title: "Player status updated" });
       }
+      setSelectedPlayer(null);
     },
   });
 
@@ -114,6 +118,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       toast({ title: "Player removed from session" });
+      setSelectedPlayer(null);
     },
     onError: () => {
       toast({ title: "Failed to remove player", variant: "destructive" });
@@ -130,20 +135,29 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
       toast({ title: "Message sent" });
       setMessageTarget(null);
       setMessageText("");
+      setShowPaymentReminder(false);
+      setReminderText("");
     },
     onError: () => {
       toast({ title: "Failed to send message", variant: "destructive" });
     },
   });
 
+  const paymentMutation = useMutation({
+    mutationFn: async ({ signupId, updates }: { signupId: number; updates: any }) => {
+      await apiRequest("PATCH", `/api/sessions/${session.id}/signups/${signupId}/payment-override`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      toast({ title: "Payment updated" });
+    },
+  });
+
   const playerStatusMutation = useMutation({
     mutationFn: async ({ action }: { action: string }) => {
       const res = await apiRequest("POST", `/api/sessions/${session.id}/player-status`, { action });
-      try {
-        return await res.json();
-      } catch {
-        return {};
-      }
+      try { return await res.json(); } catch { return {}; }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
@@ -211,58 +225,62 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     sendMessageMutation.mutate({ recipientId: messageTarget.userId, body: messageText.trim() });
   };
 
+  const openPaymentReminder = (signup: any) => {
+    const userId = getPlayerUserId(signup);
+    const name = getPlayerName(signup);
+    if (!userId) return;
+    const sessionDate = format(new Date(session.date), "EEE, MMM d");
+    const feeText = session.sessionFee ? `${"\u00A3"}${(session.sessionFee / 100).toFixed(2)}` : "the session fee";
+    const template = `Hi ${name.split(" ")[0]},\n\nThis is a friendly reminder that your payment of ${feeText} for the session "${session.title}" on ${sessionDate} is still outstanding.\n\nPlease make the payment at your earliest convenience.\n\nThank you!`;
+    setMessageTarget({ userId, name });
+    setReminderText(template);
+    setShowPaymentReminder(true);
+  };
+
+  const handleSendReminder = () => {
+    if (!messageTarget || !reminderText.trim()) return;
+    sendMessageMutation.mutate({ recipientId: messageTarget.userId, body: reminderText.trim() });
+  };
+
   const renderResponseSummary = () => (
-    <div className="flex items-center justify-center gap-6 py-3">
-      <button
-        onClick={() => toggleSection("confirmed")}
-        className="flex flex-col items-center gap-1"
-        data-testid="summary-confirmed"
-      >
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-lg">
+    <div className="flex items-center justify-center gap-4 sm:gap-6 py-3">
+      <button onClick={() => toggleSection("confirmed")} className="flex flex-col items-center gap-1" data-testid="summary-confirmed">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-base sm:text-lg">
           {confirmed.length}
         </div>
-        <span className="text-xs text-muted-foreground">Going</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground">Going</span>
       </button>
-      <button
-        onClick={() => toggleSection("waiting")}
-        className="flex flex-col items-center gap-1"
-        data-testid="summary-waiting"
-      >
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-bold text-lg">
+      <button onClick={() => toggleSection("waiting")} className="flex flex-col items-center gap-1" data-testid="summary-waiting">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-bold text-base sm:text-lg">
           {waiting.length}
         </div>
-        <span className="text-xs text-muted-foreground">Waiting</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground">Waiting</span>
       </button>
-      <button
-        onClick={() => toggleSection("invited")}
-        className="flex flex-col items-center gap-1"
-        data-testid="summary-invited"
-      >
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-lg">
+      <button onClick={() => toggleSection("invited")} className="flex flex-col items-center gap-1" data-testid="summary-invited">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-base sm:text-lg">
           {invited.length}
         </div>
-        <span className="text-xs text-muted-foreground">Invited</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground">Invited</span>
       </button>
-      <button
-        onClick={() => toggleSection("notAttending")}
-        className="flex flex-col items-center gap-1"
-        data-testid="summary-not-attending"
-      >
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted text-muted-foreground font-bold text-lg">
+      <button onClick={() => toggleSection("notAttending")} className="flex flex-col items-center gap-1" data-testid="summary-not-attending">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted text-muted-foreground font-bold text-base sm:text-lg">
           {notAttending.length}
         </div>
-        <span className="text-xs text-muted-foreground">Out</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground">Out</span>
       </button>
     </div>
   );
 
-  const renderPlayerAvatar = (signup: any) => {
+  const renderPlayerRow = (signup: any) => {
     const name = getPlayerName(signup);
     const grade = getPlayerGrade(signup);
     const isMe = getPlayerUserId(signup) === user?.id;
+    const isPaid = signup.paymentStatus === "PAID";
+    const isConfirmedStatus = !signup.signupStatus || signup.signupStatus === "CONFIRMED";
+    const showPayment = isAdmin && isConfirmedStatus;
 
-    return (
-      <div key={signup.id} className="flex items-center gap-2 py-2" data-testid={`player-row-${signup.id}`}>
+    const rowContent = (
+      <>
         <Avatar className={`h-8 w-8 shrink-0 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
           <AvatarFallback className="text-xs font-medium bg-muted">
             {getInitials(name)}
@@ -270,7 +288,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-medium text-sm truncate max-w-[120px]" data-testid={`text-player-name-${signup.id}`}>{name}</span>
+            <span className="font-medium text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
             {isMe && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">You</Badge>}
             {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{grade}</Badge>}
             {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
@@ -278,66 +296,37 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             )}
           </div>
         </div>
-        {isAdmin && renderAdminActions(signup)}
-      </div>
+        {showPayment && (
+          <div className="shrink-0" data-testid={`payment-icon-${signup.id}`}>
+            {isPaid ? (
+              <PoundSterling className="h-4 w-4 text-green-500" />
+            ) : (
+              <PoundSterling className="h-4 w-4 text-red-500" />
+            )}
+          </div>
+        )}
+        {isAdmin && (
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+      </>
     );
-  };
 
-  const renderAdminActions = (signup: any) => {
-    const status = signup.signupStatus;
-    const isPending = statusMutation.isPending || removeMutation.isPending;
-    const playerUserId = getPlayerUserId(signup);
-    const isConfirmed = status === "CONFIRMED" || !status;
+    if (isAdmin) {
+      return (
+        <button
+          key={signup.id}
+          className="flex items-center gap-2 py-2.5 px-1 w-full text-left rounded-md hover-elevate"
+          onClick={() => setSelectedPlayer(signup)}
+          data-testid={`player-row-${signup.id}`}
+        >
+          {rowContent}
+        </button>
+      );
+    }
 
     return (
-      <div className="flex items-center shrink-0">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: isConfirmed ? "WAITING" : "CONFIRMED" })}
-          disabled={isPending}
-          title={isConfirmed ? "Move to waiting list" : "Confirm player"}
-          data-testid={`button-status-toggle-${signup.id}`}
-        >
-          {isConfirmed ? <Clock className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-        </Button>
-
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          onClick={() => playerUserId ? openQuickMessage(signup) : undefined}
-          disabled={!playerUserId}
-          title="Send message"
-          data-testid={`button-message-${signup.id}`}
-        >
-          <MessageSquare className="h-3.5 w-3.5" />
-        </Button>
-
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          onClick={() => removeMutation.mutate(signup.id)}
-          disabled={isPending}
-          title="Remove from session"
-          data-testid={`button-remove-${signup.id}`}
-        >
-          <UserMinus className="h-3.5 w-3.5" />
-        </Button>
-
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
-          disabled={isPending || status === "NOT_ATTENDING"}
-          title="Mark as declined"
-          data-testid={`button-decline-${signup.id}`}
-        >
-          <Ban className="h-3.5 w-3.5" />
-        </Button>
+      <div key={signup.id} className="flex items-center gap-2 py-2.5 px-1" data-testid={`player-row-${signup.id}`}>
+        {rowContent}
       </div>
     );
   };
@@ -348,7 +337,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
       <div key={key} className="border-b border-border/50 last:border-b-0">
         <button
           onClick={() => toggleSection(key)}
-          className="flex items-center justify-between w-full py-3 px-1 text-left"
+          className="flex items-center justify-between gap-2 w-full py-3 px-1 text-left"
           data-testid={`section-toggle-${key}`}
         >
           <div className="flex items-center gap-2">
@@ -359,12 +348,12 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </button>
         {isExpanded && (
-          <div className="pb-3 px-1">
+          <div className="pb-2 px-1">
             {players.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">No players</p>
             ) : (
-              <div className="divide-y divide-border/30">
-                {players.map((s: any) => renderPlayerAvatar(s))}
+              <div className="space-y-0.5">
+                {players.map((s: any) => renderPlayerRow(s))}
               </div>
             )}
           </div>
@@ -384,13 +373,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
             <span className="text-sm font-medium truncate">You're going</span>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => playerStatusMutation.mutate({ action: "cancel" })}
-            disabled={isPending}
-            data-testid="button-player-cancel"
-          >
+          <Button size="sm" variant="outline" onClick={() => playerStatusMutation.mutate({ action: "cancel" })} disabled={isPending} data-testid="button-player-cancel">
             {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogOut className="h-3 w-3 mr-1" />}
             Cancel
           </Button>
@@ -408,13 +391,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
               <Badge variant="secondary" className="text-xs">#{mySignup.waitingListPosition}</Badge>
             )}
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => playerStatusMutation.mutate({ action: "decline" })}
-            disabled={isPending}
-            data-testid="button-player-leave-waiting"
-          >
+          <Button size="sm" variant="outline" onClick={() => playerStatusMutation.mutate({ action: "decline" })} disabled={isPending} data-testid="button-player-leave-waiting">
             {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
             Leave
           </Button>
@@ -430,22 +407,11 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             <span className="text-sm font-medium truncate">You're invited</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              onClick={() => playerStatusMutation.mutate({ action: "accept" })}
-              disabled={isPending}
-              data-testid="button-player-accept"
-            >
+            <Button size="sm" onClick={() => playerStatusMutation.mutate({ action: "accept" })} disabled={isPending} data-testid="button-player-accept">
               {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
               {isFull ? "Wait" : "Accept"}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => playerStatusMutation.mutate({ action: "decline" })}
-              disabled={isPending}
-              data-testid="button-player-decline"
-            >
+            <Button size="sm" variant="outline" onClick={() => playerStatusMutation.mutate({ action: "decline" })} disabled={isPending} data-testid="button-player-decline">
               {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
               No
             </Button>
@@ -461,12 +427,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm font-medium truncate">Not attending</span>
           </div>
-          <Button
-            size="sm"
-            onClick={() => playerStatusMutation.mutate({ action: "accept" })}
-            disabled={isPending}
-            data-testid="button-player-rejoin"
-          >
+          <Button size="sm" onClick={() => playerStatusMutation.mutate({ action: "accept" })} disabled={isPending} data-testid="button-player-rejoin">
             {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <LogIn className="h-3 w-3 mr-1" />}
             {isFull ? "Wait" : "Re-join"}
           </Button>
@@ -477,12 +438,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     return (
       <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/30 border border-border">
         <span className="text-sm text-muted-foreground">Not responded yet</span>
-        <Button
-          size="sm"
-          onClick={() => playerStatusMutation.mutate({ action: "join" })}
-          disabled={isPending}
-          data-testid="button-player-join"
-        >
+        <Button size="sm" onClick={() => playerStatusMutation.mutate({ action: "join" })} disabled={isPending} data-testid="button-player-join">
           {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <UserPlus className="h-3 w-3 mr-1" />}
           {isFull ? "Wait" : "Join"}
         </Button>
@@ -490,9 +446,168 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     );
   };
 
+  const renderPlayerOptionsDialog = () => {
+    if (!selectedPlayer) return null;
+    const signup = selectedPlayer;
+    const name = getPlayerName(signup);
+    const grade = getPlayerGrade(signup);
+    const status = signup.signupStatus;
+    const isConfirmed = status === "CONFIRMED" || !status;
+    const isPaid = signup.paymentStatus === "PAID";
+    const playerUserId = getPlayerUserId(signup);
+    const isPending = statusMutation.isPending || removeMutation.isPending || paymentMutation.isPending;
+
+    return (
+      <Dialog open={!!selectedPlayer} onOpenChange={(open) => { if (!open) setSelectedPlayer(null); }}>
+        <DialogContent className="sm:max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Player Options</DialogTitle>
+            <DialogDescription className="sr-only">Manage player actions</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-3 pb-3 border-b border-border/50">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="text-sm font-medium bg-muted">{getInitials(name)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate">{name}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{grade}</Badge>}
+                {isConfirmed && (
+                  <Badge variant={isPaid ? "default" : "destructive"} className="text-[10px] px-1.5 py-0">
+                    {isPaid ? "Paid" : "Unpaid"}
+                  </Badge>
+                )}
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {status === "WAITING" ? "Waiting" : status === "INVITED" ? "Invited" : status === "NOT_ATTENDING" ? "Not attending" : "Confirmed"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1 pt-1">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3"
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: isConfirmed ? "WAITING" : "CONFIRMED" })}
+              disabled={isPending}
+              data-testid={`option-status-toggle-${signup.id}`}
+            >
+              {isConfirmed ? <Clock className="h-4 w-4 text-yellow-500" /> : <CheckCircle className="h-4 w-4 text-green-500" />}
+              <span className="text-sm">{isConfirmed ? "Move to waiting list" : "Confirm player"}</span>
+            </Button>
+
+            {isConfirmed && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3"
+                onClick={() => {
+                  paymentMutation.mutate({
+                    signupId: signup.id,
+                    updates: { paymentStatus: isPaid ? "UNPAID" : "PAID" },
+                  });
+                  setSelectedPlayer({ ...signup, paymentStatus: isPaid ? "UNPAID" : "PAID" });
+                }}
+                disabled={isPending}
+                data-testid={`option-payment-toggle-${signup.id}`}
+              >
+                <PoundSterling className={`h-4 w-4 ${isPaid ? "text-red-500" : "text-green-500"}`} />
+                <span className="text-sm">{isPaid ? "Mark as unpaid" : "Mark as paid"}</span>
+              </Button>
+            )}
+
+            {isConfirmed && !isPaid && playerUserId && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3"
+                onClick={() => {
+                  openPaymentReminder(signup);
+                  setSelectedPlayer(null);
+                }}
+                data-testid={`option-remind-payment-${signup.id}`}
+              >
+                <Bell className="h-4 w-4 text-orange-500" />
+                <span className="text-sm">Send payment reminder</span>
+              </Button>
+            )}
+
+            {playerUserId && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3"
+                onClick={() => {
+                  openQuickMessage(signup);
+                  setSelectedPlayer(null);
+                }}
+                data-testid={`option-message-${signup.id}`}
+              >
+                <MessageSquare className="h-4 w-4 text-blue-500" />
+                <span className="text-sm">Send message</span>
+              </Button>
+            )}
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3"
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
+              disabled={isPending || status === "NOT_ATTENDING"}
+              data-testid={`option-decline-${signup.id}`}
+            >
+              <Ban className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">Mark as not attending</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-destructive"
+              onClick={() => removeMutation.mutate(signup.id)}
+              disabled={isPending}
+              data-testid={`option-remove-${signup.id}`}
+            >
+              <UserMinus className="h-4 w-4" />
+              <span className="text-sm">Remove from session</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  const renderPaymentReminderDialog = () => {
+    if (!showPaymentReminder || !messageTarget) return null;
+    return (
+      <Dialog open={showPaymentReminder} onOpenChange={(open) => { if (!open) { setShowPaymentReminder(false); setMessageTarget(null); setReminderText(""); } }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-orange-500" />
+              Payment Reminder
+            </DialogTitle>
+            <DialogDescription>Send a payment reminder to {messageTarget.name}. You can edit the message before sending.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={reminderText}
+              onChange={(e) => setReminderText(e.target.value)}
+              className="min-h-[160px] text-sm"
+              data-testid="input-reminder-message"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setShowPaymentReminder(false); setMessageTarget(null); setReminderText(""); }} data-testid="button-cancel-reminder">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSendReminder} disabled={!reminderText.trim() || sendMessageMutation.isPending} data-testid="button-send-reminder">
+                {sendMessageMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                Send Reminder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderAddPlayerDialog = () => {
     if (!showAddPlayer) return null;
-
     const allSignupPlayerIds = new Set(allSignups.map((s: any) => s.playerId));
     const availableMembers = (clubMembers || [])
       .filter((m: any) => !allSignupPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
@@ -556,7 +671,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   };
 
   const renderQuickMessageDialog = () => {
-    if (!messageTarget) return null;
+    if (!messageTarget || showPaymentReminder) return null;
     return (
       <Dialog open={!!messageTarget} onOpenChange={(open) => { if (!open) { setMessageTarget(null); setMessageText(""); } }}>
         <DialogContent className="sm:max-w-[400px]">
@@ -576,25 +691,11 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
               data-testid="input-quick-message"
             />
             <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setMessageTarget(null); setMessageText(""); }}
-                data-testid="button-cancel-message"
-              >
+              <Button variant="outline" size="sm" onClick={() => { setMessageTarget(null); setMessageText(""); }} data-testid="button-cancel-message">
                 Cancel
               </Button>
-              <Button
-                size="sm"
-                onClick={handleSendMessage}
-                disabled={!messageText.trim() || sendMessageMutation.isPending}
-                data-testid="button-send-message"
-              >
-                {sendMessageMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <Send className="h-3 w-3 mr-1" />
-                )}
+              <Button size="sm" onClick={handleSendMessage} disabled={!messageText.trim() || sendMessageMutation.isPending} data-testid="button-send-message">
+                {sendMessageMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
                 Send
               </Button>
             </div>
@@ -605,20 +706,20 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   };
 
   const drawerContent = (
-    <div className="px-4 pb-6 overflow-y-auto max-h-[70vh]">
-      <div className="text-center mb-4">
-        <h2 className="text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
-        <div className="flex items-center justify-center gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
+    <div className="px-3 sm:px-4 pb-6 overflow-y-auto max-h-[75vh]">
+      <div className="text-center mb-3">
+        <h2 className="text-lg sm:text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
+        <div className="flex items-center justify-center gap-3 mt-1.5 text-xs sm:text-sm text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" />
+            <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             {format(new Date(session.date), "EEE, MMM d")}
           </span>
           <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
+            <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             {session.startTime}
           </span>
           <span className="flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
+            <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             {confirmed.length}/{session.maxPlayers || "~"}
           </span>
         </div>
@@ -629,12 +730,10 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {renderResponseSummary()}
-
           {renderPlayerActionBar()}
-
-          <div className="mt-3">
+          <div className="mt-2">
             {renderSection("Going", "confirmed", confirmed, "bg-green-500")}
             {renderSection("Waiting", "waiting", waiting, "bg-yellow-500")}
             {renderSection("Invited", "invited", invited, "bg-blue-500")}
@@ -642,7 +741,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           </div>
 
           {isAdmin && (
-            <div className="mt-3 pt-3 border-t border-border/50">
+            <div className="mt-2 pt-2 border-t border-border/50">
               <Button
                 variant="outline"
                 size="sm"
@@ -671,7 +770,9 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           {drawerContent}
         </DrawerContent>
       </Drawer>
+      {renderPlayerOptionsDialog()}
       {renderQuickMessageDialog()}
+      {renderPaymentReminderDialog()}
       {renderAddPlayerDialog()}
     </>
   );
