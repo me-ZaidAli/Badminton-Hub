@@ -7569,6 +7569,7 @@ export async function registerRoutes(
         name: z.string().min(1),
         annualPrice: z.number().int().min(0),
         defaultSessionFee: z.number().int().min(0),
+        defaultDurationDays: z.number().int().min(1).max(3650).optional().default(365),
         isDefault: z.boolean().optional().default(false),
       }).parse(req.body);
 
@@ -7581,6 +7582,7 @@ export async function registerRoutes(
         name: body.name,
         annualPrice: body.annualPrice,
         defaultSessionFee: body.defaultSessionFee,
+        defaultDurationDays: body.defaultDurationDays,
         isDefault: body.isDefault,
       }).returning();
       res.status(201).json(plan);
@@ -7606,6 +7608,7 @@ export async function registerRoutes(
         name: z.string().min(1).optional(),
         annualPrice: z.number().int().min(0).optional(),
         defaultSessionFee: z.number().int().min(0).optional(),
+        defaultDurationDays: z.number().int().min(1).max(3650).optional(),
         isDefault: z.boolean().optional(),
       }).parse(req.body);
 

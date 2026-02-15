@@ -102,6 +102,7 @@ interface MembershipPlan {
   name: string;
   annualPrice: number;
   defaultSessionFee: number;
+  defaultDurationDays: number;
   isDefault: boolean;
 }
 
@@ -140,12 +141,14 @@ export default function MembershipBoard() {
   const [planName, setPlanName] = useState("");
   const [planPrice, setPlanPrice] = useState("");
   const [planSessionFee, setPlanSessionFee] = useState("");
+  const [planDurationDays, setPlanDurationDays] = useState<string>("365");
   const [planIsDefault, setPlanIsDefault] = useState(false);
 
   const [editPlanDialog, setEditPlanDialog] = useState<MembershipPlan | null>(null);
   const [editPlanName, setEditPlanName] = useState("");
   const [editPlanPrice, setEditPlanPrice] = useState("");
   const [editPlanSessionFee, setEditPlanSessionFee] = useState("");
+  const [editPlanDurationDays, setEditPlanDurationDays] = useState<string>("365");
   const [editPlanIsDefault, setEditPlanIsDefault] = useState(false);
 
   const [editMembershipDialog, setEditMembershipDialog] = useState<ClubMembership | null>(null);
@@ -527,7 +530,8 @@ export default function MembershipBoard() {
       toast({ title: "Validation Error", description: "Please fill in all required fields.", variant: "destructive" });
       return;
     }
-    createPlanMutation.mutate({ name: planName.trim(), annualPrice, defaultSessionFee, isDefault: planIsDefault });
+    const durationDays = parseInt(planDurationDays) || 365;
+    createPlanMutation.mutate({ name: planName.trim(), annualPrice, defaultSessionFee, defaultDurationDays: durationDays, isDefault: planIsDefault });
   };
 
   const handleEditPlan = () => {
@@ -538,13 +542,15 @@ export default function MembershipBoard() {
       toast({ title: "Validation Error", description: "Please fill in all required fields.", variant: "destructive" });
       return;
     }
-    editPlanMutation.mutate({ id: editPlanDialog.id, name: editPlanName.trim(), annualPrice, defaultSessionFee, isDefault: editPlanIsDefault });
+    const durationDays = parseInt(editPlanDurationDays) || 365;
+    editPlanMutation.mutate({ id: editPlanDialog.id, name: editPlanName.trim(), annualPrice, defaultSessionFee, defaultDurationDays: durationDays, isDefault: editPlanIsDefault });
   };
 
   const openEditPlan = (plan: MembershipPlan) => {
     setEditPlanName(plan.name);
     setEditPlanPrice(formatPounds(plan.annualPrice));
     setEditPlanSessionFee(formatPounds(plan.defaultSessionFee));
+    setEditPlanDurationDays(String(plan.defaultDurationDays || 365));
     setEditPlanIsDefault(plan.isDefault);
     setEditPlanDialog(plan);
   };
@@ -957,6 +963,7 @@ export default function MembershipBoard() {
                           <TableHead>Name</TableHead>
                           <TableHead>Annual Price</TableHead>
                           <TableHead>Session Fee</TableHead>
+                          <TableHead>Duration</TableHead>
                           <TableHead>Default</TableHead>
                           <TableHead className="w-[120px]">Actions</TableHead>
                         </TableRow>
@@ -969,6 +976,7 @@ export default function MembershipBoard() {
                             </TableCell>
                             <TableCell data-testid={`text-plan-price-${plan.id}`}>£{formatPounds(plan.annualPrice)}</TableCell>
                             <TableCell data-testid={`text-plan-fee-${plan.id}`}>£{formatPounds(plan.defaultSessionFee)}</TableCell>
+                            <TableCell data-testid={`text-plan-duration-${plan.id}`}>{plan.defaultDurationDays || 365} days</TableCell>
                             <TableCell>
                               {plan.isDefault ? (
                                 <Badge variant="default" className="bg-green-500 no-default-hover-elevate">Default</Badge>
@@ -1203,6 +1211,36 @@ export default function MembershipBoard() {
                 data-testid="input-plan-session-fee"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Default Duration</Label>
+              <div className="flex items-center gap-2">
+                <Select value={["30","60","90","180","365"].includes(planDurationDays) ? planDurationDays : "custom"} onValueChange={(v) => setPlanDurationDays(v === "custom" ? "custom" : v)}>
+                  <SelectTrigger className="flex-1" data-testid="select-plan-duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 days (1 month)</SelectItem>
+                    <SelectItem value="60">60 days (2 months)</SelectItem>
+                    <SelectItem value="90">90 days (3 months)</SelectItem>
+                    <SelectItem value="180">180 days (6 months)</SelectItem>
+                    <SelectItem value="365">365 days (1 year)</SelectItem>
+                    <SelectItem value="custom">Custom...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!["30","60","90","180","365"].includes(planDurationDays) && (
+                  <Input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    className="w-24"
+                    placeholder="Days"
+                    value={planDurationDays === "custom" ? "" : planDurationDays}
+                    onChange={(e) => setPlanDurationDays(e.target.value || "custom")}
+                    data-testid="input-plan-custom-duration"
+                  />
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Switch
                 id="plan-default"
@@ -1265,6 +1303,36 @@ export default function MembershipBoard() {
                 onChange={(e) => setEditPlanSessionFee(e.target.value)}
                 data-testid="input-edit-plan-session-fee"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Default Duration</Label>
+              <div className="flex items-center gap-2">
+                <Select value={["30","60","90","180","365"].includes(editPlanDurationDays) ? editPlanDurationDays : "custom"} onValueChange={(v) => setEditPlanDurationDays(v === "custom" ? "custom" : v)}>
+                  <SelectTrigger className="flex-1" data-testid="select-edit-plan-duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 days (1 month)</SelectItem>
+                    <SelectItem value="60">60 days (2 months)</SelectItem>
+                    <SelectItem value="90">90 days (3 months)</SelectItem>
+                    <SelectItem value="180">180 days (6 months)</SelectItem>
+                    <SelectItem value="365">365 days (1 year)</SelectItem>
+                    <SelectItem value="custom">Custom...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!["30","60","90","180","365"].includes(editPlanDurationDays) && (
+                  <Input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    className="w-24"
+                    placeholder="Days"
+                    value={editPlanDurationDays === "custom" ? "" : editPlanDurationDays}
+                    onChange={(e) => setEditPlanDurationDays(e.target.value || "custom")}
+                    data-testid="input-edit-plan-custom-duration"
+                  />
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Switch
@@ -1339,7 +1407,13 @@ export default function MembershipBoard() {
 
             <div className="space-y-2">
               <Label htmlFor="add-member-plan">Membership Plan</Label>
-              <Select value={addMemberPlanId} onValueChange={setAddMemberPlanId}>
+              <Select value={addMemberPlanId} onValueChange={(val) => {
+                setAddMemberPlanId(val);
+                const selectedPlan = plans.find((p) => p.id.toString() === val);
+                if (selectedPlan?.defaultDurationDays) {
+                  setAddMemberDurationDays(String(selectedPlan.defaultDurationDays));
+                }
+              }}>
                 <SelectTrigger data-testid="select-add-member-plan">
                   <SelectValue placeholder="Select a plan..." />
                 </SelectTrigger>
@@ -1541,6 +1615,26 @@ export default function MembershipBoard() {
                   />
                 </div>
               </div>
+              {editMembershipStartDate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    const selectedPlan = plans.find((p) => p.id.toString() === editMembershipPlanId);
+                    const duration = selectedPlan?.defaultDurationDays || 365;
+                    const start = new Date(editMembershipStartDate);
+                    start.setDate(start.getDate() + duration);
+                    setEditMembershipEndDate(format(start, "yyyy-MM-dd"));
+                  }}
+                  data-testid="button-recalculate-end-date"
+                >
+                  Recalculate end date from plan duration ({(() => {
+                    const selectedPlan = plans.find((p) => p.id.toString() === editMembershipPlanId);
+                    return selectedPlan?.defaultDurationDays || 365;
+                  })()} days)
+                </Button>
+              )}
             </div>
           )}
           <DialogFooter>
