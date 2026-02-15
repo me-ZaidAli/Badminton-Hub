@@ -1302,36 +1302,54 @@ export async function registerRoutes(
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, recurringEventInput.clubId);
       if (!canAccess) return res.sendStatus(403);
 
-      if (new Date(recurringEventInput.endDate) < new Date(recurringEventInput.startDate)) {
-        return res.status(400).json({ message: "End date must be after start date" });
+      const isNeverEnd = recurringEventInput.neverEnd === true;
+
+      if (!isNeverEnd && recurringEventInput.endDate) {
+        if (new Date(recurringEventInput.endDate) < new Date(recurringEventInput.startDate)) {
+          return res.status(400).json({ message: "End date must be after start date" });
+        }
+      }
+
+      if (!isNeverEnd && !recurringEventInput.endDate) {
+        return res.status(400).json({ message: "End date is required unless 'Never End' is selected" });
       }
 
       const MAX_OCCURRENCES = 52;
-      let countCheck = 0;
-      const checkDate = new Date(recurringEventInput.startDate);
-      const checkEnd = new Date(recurringEventInput.endDate);
-      while (checkDate <= checkEnd && countCheck <= MAX_OCCURRENCES) {
-        countCheck++;
-        if (recurringEventInput.frequency === "DAILY") checkDate.setDate(checkDate.getDate() + 1);
-        else if (recurringEventInput.frequency === "WEEKLY") checkDate.setDate(checkDate.getDate() + 7);
-        else if (recurringEventInput.frequency === "BIWEEKLY") checkDate.setDate(checkDate.getDate() + 14);
-        else checkDate.setMonth(checkDate.getMonth() + 1);
-      }
-      if (countCheck > MAX_OCCURRENCES) {
-        return res.status(400).json({ message: `Too many sessions would be generated (max ${MAX_OCCURRENCES}). Please shorten the date range.` });
+      let useOccurrenceLimit = isNeverEnd;
+      let effectiveEndDate: Date | null = null;
+
+      if (isNeverEnd) {
+        useOccurrenceLimit = true;
+      } else {
+        effectiveEndDate = new Date(recurringEventInput.endDate!);
+        let countCheck = 0;
+        const checkDate = new Date(recurringEventInput.startDate);
+        while (checkDate <= effectiveEndDate) {
+          countCheck++;
+          if (countCheck > MAX_OCCURRENCES) {
+            return res.status(400).json({ message: `Too many sessions would be generated (max ${MAX_OCCURRENCES}). Please shorten the date range.` });
+          }
+          if (recurringEventInput.frequency === "DAILY") checkDate.setDate(checkDate.getDate() + 1);
+          else if (recurringEventInput.frequency === "WEEKLY") checkDate.setDate(checkDate.getDate() + 7);
+          else if (recurringEventInput.frequency === "BIWEEKLY") checkDate.setDate(checkDate.getDate() + 14);
+          else checkDate.setMonth(checkDate.getMonth() + 1);
+        }
       }
 
       const [recurringEvent] = await db.insert(recurringEvents).values({
         ...recurringEventInput,
+        endDate: isNeverEnd ? null : recurringEventInput.endDate,
         createdBy: req.user!.id,
       }).returning();
 
       const generatedSessions: any[] = [];
       const startDate = new Date(recurringEventInput.startDate);
-      const endDate = new Date(recurringEventInput.endDate);
       let current = new Date(startDate);
+      let occurrenceCount = 0;
 
-      while (current <= endDate) {
+      while (true) {
+        if (useOccurrenceLimit && occurrenceCount >= MAX_OCCURRENCES) break;
+        if (effectiveEndDate && current > effectiveEndDate) break;
         const session = await storage.createSession({
           ...sessionTemplate,
           date: new Date(current),
@@ -1339,6 +1357,7 @@ export async function registerRoutes(
           createdBy: req.user!.id,
         });
         generatedSessions.push(session);
+        occurrenceCount++;
 
         if (recurringEventInput.frequency === "DAILY") {
           current.setDate(current.getDate() + 1);
@@ -1410,6 +1429,28 @@ export async function registerRoutes(
     }
     const result = await db.select().from(recurringEvents);
     res.json(result);
+  });
+
+  app.delete("/api/recurring-events/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const recurringEventId = Number(req.params.id);
+    const [event] = await db.select().from(recurringEvents).where(eq(recurringEvents.id, recurringEventId));
+    if (!event) return res.status(404).json({ message: "Recurring event not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, event.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const linkedSessions = await db.select().from(sessions).where(eq(sessions.recurringEventId, recurringEventId));
+
+    for (const session of linkedSessions) {
+      await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, session.id));
+      await db.delete(matches).where(eq(matches.sessionId, session.id));
+      await db.delete(sessions).where(eq(sessions.id, session.id));
+    }
+
+    await db.delete(recurringEvents).where(eq(recurringEvents.id, recurringEventId));
+
+    res.json({ deleted: linkedSessions.length, message: `Deleted ${linkedSessions.length} recurring sessions` });
   });
 
   app.get(api.sessions.get.path, async (req, res) => {

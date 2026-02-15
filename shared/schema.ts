@@ -281,7 +281,8 @@ export const recurringEvents = pgTable("recurring_events", {
   title: text("title").notNull(),
   frequency: recurrenceFrequencyEnum("frequency").notNull(),
   startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
+  endDate: timestamp("end_date"),
+  neverEnd: boolean("never_end").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -737,7 +738,8 @@ export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit
 export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
 export const insertRecurringEventSchema = createInsertSchema(recurringEvents).omit({ id: true, createdBy: true, createdAt: true }).extend({
   startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
+  endDate: z.coerce.date().optional().nullable(),
+  neverEnd: z.boolean().default(false),
   frequency: z.enum(["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]),
 });
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdBy: true, status: true, recurringEventId: true }).extend({

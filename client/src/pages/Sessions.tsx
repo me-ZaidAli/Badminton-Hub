@@ -66,6 +66,7 @@ export default function Sessions() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [detailsSession, setDetailsSession] = useState<any>(null);
   const [financeSession, setFinanceSession] = useState<any>(null);
+  const [deleteRecurringId, setDeleteRecurringId] = useState<number | null>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
@@ -103,6 +104,21 @@ export default function Sessions() {
       toast({ title: "Sessions Deleted", description: `${selectedIds.size} sessions deleted.` });
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteRecurringMutation = useMutation({
+    mutationFn: async (recurringEventId: number) => {
+      const res = await apiRequest("DELETE", `/api/recurring-events/${recurringEventId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Recurring Sessions Deleted", description: data.message });
+      setDeleteRecurringId(null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -363,6 +379,12 @@ export default function Sessions() {
                     {session.isPrivate && (
                       <Badge variant="outline">Private</Badge>
                     )}
+                    {(session as any).recurringEventId && (
+                      <Badge variant="outline" className="text-xs">
+                        <Repeat className="h-3 w-3 mr-1" />
+                        Recurring
+                      </Badge>
+                    )}
                   </div>
                   <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
                     {session.startTime}
@@ -424,6 +446,17 @@ export default function Sessions() {
                           Finances
                         </Button>
                         <EditSessionDialog session={session} venues={[]} />
+                        {(session as any).recurringEventId && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setDeleteRecurringId((session as any).recurringEventId)}
+                            data-testid={`button-delete-recurring-${session.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete All
+                          </Button>
+                        )}
                         <Button size="sm" onClick={() => setLocation(`/sessions/${session.id}`)} data-testid={`button-run-session-${session.id}`}>
                           <Activity className="h-4 w-4 mr-1" />
                           Run Session
@@ -462,6 +495,29 @@ export default function Sessions() {
             >
               {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Delete {selectedIds.size} Sessions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteRecurringId} onOpenChange={(open) => { if (!open) setDeleteRecurringId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete All Recurring Sessions</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all sessions linked to this recurring event, including their signups and match data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteRecurringId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteRecurringId && deleteRecurringMutation.mutate(deleteRecurringId)}
+              disabled={deleteRecurringMutation.isPending}
+              data-testid="button-confirm-delete-recurring"
+            >
+              {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete All Recurrences
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -553,7 +609,8 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
     title: z.string().min(1, "Title is required"),
     frequency: z.enum(["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]),
     startDate: z.coerce.date(),
-    endDate: z.coerce.date(),
+    endDate: z.coerce.date().optional().nullable(),
+    neverEnd: z.boolean().default(false),
     startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Use HH:MM format"),
     durationMinutes: z.coerce.number().min(30).default(120),
     maxPlayers: z.coerce.number().min(1).default(24),
@@ -568,8 +625,11 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
     isPrivate: z.boolean().default(false),
     genderRestriction: z.enum(["ALL", "FEMALE_ONLY"]).default("ALL"),
     sessionType: z.enum(["OPEN", "JUNIORS_ONLY"]).default("OPEN"),
-  }).refine((data) => data.endDate >= data.startDate, {
+  }).refine((data) => data.neverEnd || (data.endDate && data.endDate >= data.startDate), {
     message: "End date must be after start date",
+    path: ["endDate"],
+  }).refine((data) => data.neverEnd || data.endDate, {
+    message: "End date is required unless 'Never End' is selected",
     path: ["endDate"],
   });
 
@@ -579,6 +639,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
       clubId: sessionClubs.length > 0 ? sessionClubs[0].id : undefined,
       title: "",
       frequency: "WEEKLY",
+      neverEnd: false,
       startTime: "18:00",
       durationMinutes: 120,
       maxPlayers: 24,
@@ -595,11 +656,13 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
     }
   });
 
+  const watchNeverEnd = form.watch("neverEnd");
+
   const createRecurring = useMutation({
     mutationFn: async (values: z.infer<typeof recurringSchema>) => {
-      const { clubId, title, frequency, startDate, endDate, ...sessionFields } = values;
+      const { clubId, title, frequency, startDate, endDate, neverEnd, ...sessionFields } = values;
       const res = await apiRequest("POST", "/api/recurring-events", {
-        recurringEvent: { clubId, title, frequency, startDate, endDate },
+        recurringEvent: { clubId, title, frequency, startDate, endDate: neverEnd ? null : endDate, neverEnd },
         sessionTemplate: {
           clubId,
           title,
@@ -666,14 +729,23 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
                 <FormMessage />
               </FormItem>
             )} />
-            <div className="grid grid-cols-2 gap-3">
-              <FormField control={form.control} name="startDate" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start Date</FormLabel>
-                  <FormControl><Input type="date" onChange={(e) => field.onChange(new Date(e.target.value))} data-testid="input-recurring-start-date" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+            <FormField control={form.control} name="startDate" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Start Date</FormLabel>
+                <FormControl><Input type="date" onChange={(e) => field.onChange(new Date(e.target.value))} data-testid="input-recurring-start-date" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="neverEnd" render={({ field }) => (
+              <FormItem className="flex items-center gap-3">
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={(checked) => { field.onChange(checked); if (checked) form.setValue("endDate", null); }} data-testid="switch-never-end" />
+                </FormControl>
+                <FormLabel className="!mt-0">Never End</FormLabel>
+                <FormDescription className="!mt-0 text-xs">Auto-generates up to 52 sessions</FormDescription>
+              </FormItem>
+            )} />
+            {!watchNeverEnd && (
               <FormField control={form.control} name="endDate" render={({ field }) => (
                 <FormItem>
                   <FormLabel>End Date</FormLabel>
@@ -681,7 +753,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
                   <FormMessage />
                 </FormItem>
               )} />
-            </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <FormField control={form.control} name="startTime" render={({ field }) => (
                 <FormItem>
