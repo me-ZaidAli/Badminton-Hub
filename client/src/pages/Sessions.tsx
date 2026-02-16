@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -465,6 +465,19 @@ export default function Sessions() {
     },
   });
 
+  const publishNowMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("PATCH", `/api/sessions/${sessionId}`, { publishAt: null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Published", description: "Session is now open for signups." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
@@ -726,10 +739,26 @@ export default function Sessions() {
                       </Badge>
                     )}
                     {(session as any).publishAt && new Date((session as any).publishAt) > new Date() && (
-                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Opens {format(new Date((session as any).publishAt), "MMM d")}
-                      </Badge>
+                      <>
+                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Opens {format(new Date((session as any).publishAt), "MMM d")}
+                        </Badge>
+                        {managedClubIds.has(session.clubId) && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs cursor-pointer bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              publishNowMutation.mutate(session.id);
+                            }}
+                            data-testid={`button-publish-now-${session.id}`}
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            Publish Now
+                          </Badge>
+                        )}
+                      </>
                     )}
                   </div>
                   <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">

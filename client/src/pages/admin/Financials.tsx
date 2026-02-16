@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,8 @@ import {
   Building2,
   ArrowDownAZ,
   AlertTriangle,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -158,6 +160,9 @@ export default function Financials() {
     sessionId: number;
     sessionTitle: string;
   } | null>(null);
+
+  const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
 
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
@@ -515,12 +520,44 @@ export default function Financials() {
     },
   });
 
+  const bulkDeleteSessions = useMutation({
+    mutationFn: async (sessionIds: number[]) => {
+      await apiRequest("DELETE", `/api/sessions`, { sessionIds });
+    },
+    onSuccess: (_data, sessionIds) => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/admin/financial-summary") || (q.queryKey[0] as string).startsWith("/api/admin/financial-dashboard")) });
+      toast({ title: "Sessions Deleted", description: `${sessionIds.length} session(s) have been removed.` });
+      setSelectedSessions(new Set());
+      setBulkDeleteDialog(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete sessions.", variant: "destructive" });
+    },
+  });
+
+  const toggleSessionSelect = useCallback((sessionId: number) => {
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setSelectedSessions(new Set());
+  }, [selectedClubId, sessionType, matchMode, searchQuery]);
+
   const handleClearFilters = useCallback(() => {
     setSelectedClubId("all");
     setSessionType("all");
     setMatchMode("all");
     setSearchQuery("");
     setPaymentFilter("all");
+    setSelectedSessions(new Set());
   }, []);
 
   const handleTogglePayment = (entry: FinancialEntry) => {
@@ -1460,25 +1497,64 @@ export default function Financials() {
 
       {viewMode === "session" ? (
         <div className="space-y-3">
-          <div className="flex items-center gap-1 border-b pb-2" data-testid="tabs-session-time">
-            <Button
-              size="sm"
-              variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
-              onClick={() => setSessionTimeTab("upcoming")}
-              data-testid="button-upcoming-sessions"
-            >
-              <Calendar className="h-4 w-4 mr-1" />
-              Upcoming ({Object.keys(upcomingSessionGroups).length})
-            </Button>
-            <Button
-              size="sm"
-              variant={sessionTimeTab === "past" ? "default" : "outline"}
-              onClick={() => setSessionTimeTab("past")}
-              data-testid="button-past-sessions"
-            >
-              <History className="h-4 w-4 mr-1" />
-              Past ({Object.keys(pastSessionGroups).length})
-            </Button>
+          <div className="flex items-center justify-between gap-2 border-b pb-2 flex-wrap" data-testid="tabs-session-time">
+            <div className="flex items-center gap-1 flex-wrap">
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("upcoming"); setSelectedSessions(new Set()); }}
+                data-testid="button-upcoming-sessions"
+              >
+                <Calendar className="h-4 w-4 mr-1" />
+                Upcoming ({Object.keys(upcomingSessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "past" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("past"); setSelectedSessions(new Set()); }}
+                data-testid="button-past-sessions"
+              >
+                <History className="h-4 w-4 mr-1" />
+                Past ({Object.keys(pastSessionGroups).length})
+              </Button>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {Object.keys(activeSessionGroups).length > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const allIds = Object.keys(activeSessionGroups).map(Number);
+                      if (selectedSessions.size === allIds.length) {
+                        setSelectedSessions(new Set());
+                      } else {
+                        setSelectedSessions(new Set(allIds));
+                      }
+                    }}
+                    data-testid="button-select-all-sessions"
+                  >
+                    {selectedSessions.size === Object.keys(activeSessionGroups).length && selectedSessions.size > 0 ? (
+                      <CheckSquare className="h-4 w-4 mr-1" />
+                    ) : (
+                      <Square className="h-4 w-4 mr-1" />
+                    )}
+                    {selectedSessions.size > 0 ? `${selectedSessions.size} selected` : "Select All"}
+                  </Button>
+                  {selectedSessions.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setBulkDeleteDialog(true)}
+                      data-testid="button-bulk-delete-sessions"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete ({selectedSessions.size})
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           {Object.keys(activeSessionGroups).length === 0 ? (
@@ -1506,6 +1582,22 @@ export default function Financials() {
                   >
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                       <div className="flex items-center gap-3 flex-wrap">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSessionSelect(sessionId);
+                          }}
+                          data-testid={`button-select-session-${sessionId}`}
+                        >
+                          {selectedSessions.has(sessionId) ? (
+                            <CheckSquare className="h-5 w-5 text-primary" />
+                          ) : (
+                            <Square className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </Button>
                         {isExpanded ? (
                           <ChevronDown className="h-5 w-5 text-muted-foreground" />
                         ) : (
@@ -2619,6 +2711,33 @@ export default function Financials() {
             >
               {deleteSession.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
               Delete Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteDialog} onOpenChange={(open) => { if (!open) setBulkDeleteDialog(false); }}>
+        <DialogContent data-testid="dialog-bulk-delete-sessions">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedSessions.size} Session{selectedSessions.size !== 1 ? "s" : ""}</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedSessions.size} selected session{selectedSessions.size !== 1 ? "s" : ""}? This will permanently remove the sessions and all associated signups, matches, and financial records. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteDialog(false)} data-testid="button-cancel-bulk-delete">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                bulkDeleteSessions.mutate(Array.from(selectedSessions));
+              }}
+              disabled={bulkDeleteSessions.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteSessions.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete {selectedSessions.size} Session{selectedSessions.size !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

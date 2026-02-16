@@ -174,6 +174,21 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     },
   });
 
+  const publishNowMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/sessions/${session.id}`, { publishAt: null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "manage-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      toast({ title: "Published", description: "Session is now open for signups." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to publish session.", variant: "destructive" });
+    },
+  });
+
   const allSignups = isAdmin ? [
     ...(manageData?.confirmed || []),
     ...(manageData?.waiting || []),
@@ -374,6 +389,27 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             <Clock className="h-4 w-4 text-amber-600 shrink-0" />
             <span className="text-sm font-medium truncate">Signups open {format(new Date(session.publishAt), "d MMM")}</span>
           </div>
+        </div>
+      );
+    }
+    if (isNotPublished && isAdmin) {
+      return (
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-sm font-medium truncate">Signups open {format(new Date(session.publishAt), "d MMM")}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
+            onClick={() => publishNowMutation.mutate()}
+            disabled={publishNowMutation.isPending}
+            data-testid="button-publish-now-modal"
+          >
+            {publishNowMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+            Publish Now
+          </Button>
         </div>
       );
     }

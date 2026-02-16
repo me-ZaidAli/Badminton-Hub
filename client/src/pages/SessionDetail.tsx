@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -178,6 +178,20 @@ export default function SessionDetail() {
       return res.json();
     },
     onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); toast({ title: "Player promoted from waiting list" }); },
+  });
+
+  const publishNowMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/sessions/${id}`, { publishAt: null });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id] });
+      toast({ title: "Published", description: "Session is now open for signups." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to publish session.", variant: "destructive" });
+    },
   });
 
   const [pairDialogOpen, setPairDialogOpen] = useState(false);
@@ -904,6 +918,26 @@ export default function SessionDetail() {
                 <p className="text-xs text-muted-foreground text-center" data-testid="text-publish-date">
                   Signups open on {format(new Date((session as any).publishAt), "EEE, d MMM yyyy")}
                 </p>
+              </div>
+            ) : (session as any).publishAt && new Date((session as any).publishAt) > new Date() && isOrganiser ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-sm font-medium truncate">Signups open {format(new Date((session as any).publishAt), "d MMM")}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
+                    onClick={() => publishNowMutation.mutate()}
+                    disabled={publishNowMutation.isPending}
+                    data-testid="button-publish-now"
+                  >
+                    {publishNowMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Send className="w-3 h-3 mr-1" />}
+                    Publish Now
+                  </Button>
+                </div>
               </div>
             ) : isSignedUp ? (
               <Button 

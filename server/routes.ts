@@ -2372,7 +2372,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -2416,6 +2416,7 @@ export async function registerRoutes(
         }
         updates.allowedCategories = allowedCategories;
       }
+      if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
 
       const updated = await storage.updateSession(sessionId, updates);
       res.json(updated);
