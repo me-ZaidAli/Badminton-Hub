@@ -1258,7 +1258,8 @@ export async function registerRoutes(
   app.post(api.sessions.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const input = api.sessions.create.input.parse(req.body);
+      const { inviteePlayerIds, ...bodyWithoutInvitees } = req.body;
+      const input = api.sessions.create.input.parse(bodyWithoutInvitees);
       
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, input.clubId);
       if (!canAccess) {
@@ -1278,9 +1279,14 @@ export async function registerRoutes(
         const existingSignups = await storage.getSessionSignups(session.id);
         const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
         
+        const selectedPlayerIds: Set<number> | null = inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0
+          ? new Set(inviteePlayerIds as number[])
+          : null;
+        
         for (const member of approvedMembers) {
           if (member.userId === req.user!.id) continue;
           if (existingPlayerIds.has(member.id)) continue;
+          if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
           
           try {
             await storage.createSessionSignupEnhanced({
@@ -1299,8 +1305,8 @@ export async function registerRoutes(
             userId: member.userId,
             type: "SESSION_INVITE",
             title: "New Session Available",
-            message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}.`,
-            linkUrl: `/sessions`,
+            message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}. Sign up now to confirm your spot!`,
+            linkUrl: `/sessions/${session.id}`,
           });
         }
       } catch (inviteErr) {
@@ -1321,6 +1327,7 @@ export async function registerRoutes(
     try {
       const recurringEventInput = insertRecurringEventSchema.parse(req.body.recurringEvent);
       const sessionTemplate = insertSessionSchema.parse(req.body.sessionTemplate);
+      const inviteePlayerIds: number[] | undefined = req.body.inviteePlayerIds;
 
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, recurringEventInput.clubId);
       if (!canAccess) return res.sendStatus(403);
@@ -1398,9 +1405,14 @@ export async function registerRoutes(
       try {
         const clubMembers = await storage.getClubMembers(recurringEventInput.clubId);
         const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
+        const selectedPlayerIds: Set<number> | null = inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0
+          ? new Set(inviteePlayerIds)
+          : null;
+        
         for (const session of generatedSessions) {
           for (const member of approvedMembers) {
             if (member.userId === req.user!.id) continue;
+            if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
             try {
               await storage.createSessionSignupEnhanced({
                 sessionId: session.id,
@@ -1416,11 +1428,12 @@ export async function registerRoutes(
         }
         for (const member of approvedMembers) {
           if (member.userId === req.user!.id) continue;
+          if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
           await storage.createNotification({
             userId: member.userId,
             type: "SESSION_INVITE",
             title: "New Recurring Sessions",
-            message: `${generatedSessions.length} recurring sessions for "${recurringEvent.title}" have been created at ${clubName}.`,
+            message: `${generatedSessions.length} recurring sessions for "${recurringEvent.title}" have been created at ${clubName}. Sign up now to confirm your spot!`,
             linkUrl: `/sessions`,
           });
         }
@@ -2191,6 +2204,82 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error adding player to waiting list:", error);
       res.status(500).json({ message: "Failed to add player to waiting list" });
+    }
+  });
+
+  // Update session invitees - add/remove INVITED signups
+  app.patch("/api/sessions/:sessionId/invitees", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { inviteePlayerIds } = req.body;
+    if (!Array.isArray(inviteePlayerIds)) {
+      return res.status(400).json({ message: "inviteePlayerIds must be an array" });
+    }
+
+    try {
+      const currentSignups = await storage.getSessionSignups(sessionId);
+      const currentInvited = currentSignups.filter((s: any) => s.signupStatus === "INVITED");
+      const currentInvitedIds = new Set(currentInvited.map((s: any) => s.playerId));
+      const desiredInvitedIds = new Set(inviteePlayerIds as number[]);
+      
+      const club = await storage.getClub(session.clubId);
+      const clubName = club?.name || "your club";
+      const fee = session.sessionFee || club?.sessionFee || 0;
+
+      // Remove invitations for players no longer in the list
+      for (const signup of currentInvited) {
+        if (!desiredInvitedIds.has(signup.playerId)) {
+          await db.delete(sessionSignups).where(eq(sessionSignups.id, signup.id));
+        }
+      }
+
+      // Add new invitations for players not already invited/confirmed
+      const allSignupPlayerIds = new Set(currentSignups.map((s: any) => s.playerId));
+      const newInvitees: number[] = [];
+      for (const playerId of inviteePlayerIds) {
+        if (!allSignupPlayerIds.has(playerId)) {
+          try {
+            await storage.createSessionSignupEnhanced({
+              sessionId,
+              playerId,
+              fee,
+              signupStatus: "INVITED",
+              signedUpByUserId: req.user!.id,
+            });
+            newInvitees.push(playerId);
+          } catch (signupErr) {
+            continue;
+          }
+        }
+      }
+
+      // Send notifications to newly invited players
+      if (newInvitees.length > 0) {
+        const clubMembers = await storage.getClubMembers(session.clubId);
+        for (const playerId of newInvitees) {
+          const member = clubMembers.find(m => m.id === playerId);
+          if (member && member.userId !== req.user!.id) {
+            await storage.createNotification({
+              userId: member.userId,
+              type: "SESSION_INVITE",
+              title: "Session Invitation",
+              message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(session.date).toLocaleDateString()}. Sign up now to confirm your spot!`,
+              linkUrl: `/sessions/${session.id}`,
+            });
+          }
+        }
+      }
+
+      res.json({ message: "Invitees updated successfully", added: newInvitees.length, removed: currentInvited.filter((s: any) => !desiredInvitedIds.has(s.playerId)).length });
+    } catch (error) {
+      console.error("[UPDATE INVITEES] Error:", error);
+      res.status(500).json({ message: "Failed to update invitees" });
     }
   });
 

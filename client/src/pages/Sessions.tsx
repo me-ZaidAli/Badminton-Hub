@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -50,6 +50,257 @@ const createSessionSchema = insertSessionSchema.extend({
   date: z.coerce.date(),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Use HH:MM format"),
 });
+
+type ClubPlayer = {
+  id: number;
+  userId: number;
+  clubId: number;
+  membershipStatus: string;
+  category?: string | null;
+  grade?: string | null;
+  gender?: string | null;
+  user: { id: number; fullName: string; email: string };
+};
+
+function InvitePlayersModal({
+  clubId,
+  selectedPlayerIds,
+  onSelectionChange,
+}: {
+  clubId: number | undefined;
+  selectedPlayerIds: Set<number>;
+  onSelectionChange: (ids: Set<number>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [localSelected, setLocalSelected] = useState<Set<number>>(new Set(selectedPlayerIds));
+
+  const { data: clubPlayers, isLoading } = useQuery<ClubPlayer[]>({
+    queryKey: ["/api/admin/clubs", clubId, "players"],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/clubs/${clubId}/players`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!clubId && open,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setLocalSelected(new Set(selectedPlayerIds));
+    }
+  }, [open, selectedPlayerIds]);
+
+  const approvedPlayers = useMemo(() => {
+    return (clubPlayers || []).filter(p => p.membershipStatus === "APPROVED");
+  }, [clubPlayers]);
+
+  const filteredPlayers = useMemo(() => {
+    let filtered = approvedPlayers;
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(p => {
+        const playerGrade = p.grade || p.category || "C3";
+        return playerGrade === categoryFilter;
+      });
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.user.fullName.toLowerCase().includes(q) ||
+        p.user.email.toLowerCase().includes(q)
+      );
+    }
+    return filtered.sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+  }, [approvedPlayers, categoryFilter, searchQuery]);
+
+  const togglePlayer = (playerId: number) => {
+    const next = new Set(localSelected);
+    if (next.has(playerId)) {
+      next.delete(playerId);
+    } else {
+      next.add(playerId);
+    }
+    setLocalSelected(next);
+  };
+
+  const selectAllVisible = () => {
+    const next = new Set(localSelected);
+    filteredPlayers.forEach(p => next.add(p.id));
+    setLocalSelected(next);
+  };
+
+  const deselectAllVisible = () => {
+    const next = new Set(localSelected);
+    filteredPlayers.forEach(p => next.delete(p.id));
+    setLocalSelected(next);
+  };
+
+  const selectByCategory = (cat: string) => {
+    const next = new Set(localSelected);
+    approvedPlayers.forEach(p => {
+      const playerGrade = p.grade || p.category || "C3";
+      if (playerGrade === cat) next.add(p.id);
+    });
+    setLocalSelected(next);
+  };
+
+  const handleConfirm = () => {
+    onSelectionChange(localSelected);
+    setOpen(false);
+  };
+
+  const allVisibleSelected = filteredPlayers.length > 0 && filteredPlayers.every(p => localSelected.has(p.id));
+
+  return (
+    <>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <Label className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            Invitees ({selectedPlayerIds.size} selected)
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOpen(true)}
+            disabled={!clubId}
+            data-testid="button-manage-invitees"
+          >
+            <Users className="h-4 w-4 mr-1" />
+            {selectedPlayerIds.size > 0 ? "Edit Invitees" : "Select Players"}
+          </Button>
+        </div>
+        {selectedPlayerIds.size > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {selectedPlayerIds.size} player{selectedPlayerIds.size !== 1 ? "s" : ""} will be invited to this session
+          </p>
+        )}
+        {selectedPlayerIds.size === 0 && (
+          <p className="text-xs text-muted-foreground">
+            All approved club members will be invited by default
+          </p>
+        )}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Select Invitees</DialogTitle>
+            <DialogDescription>Choose which players to invite to this session</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-invitee-search"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[160px]" data-testid="select-invitee-category-filter">
+                  <Filter className="h-4 w-4 mr-1" />
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {CATEGORIES.map(c => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={allVisibleSelected ? deselectAllVisible : selectAllVisible}
+                data-testid="button-toggle-all-invitees"
+              >
+                <CheckSquare className="h-4 w-4 mr-1" />
+                {allVisibleSelected ? "Deselect All" : "Select All"}
+              </Button>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {CATEGORIES.map(c => {
+                const count = approvedPlayers.filter(p => (p.grade || p.category || "C3") === c.value).length;
+                if (count === 0) return null;
+                return (
+                  <Button
+                    key={c.value}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => selectByCategory(c.value)}
+                    className="text-xs"
+                    data-testid={`button-invite-category-${c.value}`}
+                  >
+                    +{c.value} ({count})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto border rounded-md min-h-[200px] max-h-[40vh]">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredPlayers.length === 0 ? (
+              <div className="flex items-center justify-center h-full p-4 text-muted-foreground text-sm">
+                {searchQuery || categoryFilter !== "all" ? "No players match the filter" : "No approved players in this club"}
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredPlayers.map(player => {
+                  const grade = player.grade || player.category || "C3";
+                  const isSelected = localSelected.has(player.id);
+                  return (
+                    <div
+                      key={player.id}
+                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover-elevate ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={() => togglePlayer(player.id)}
+                      data-testid={`invitee-player-${player.id}`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => togglePlayer(player.id)}
+                        data-testid={`checkbox-invitee-${player.id}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{player.user.fullName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{player.user.email}</p>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">{grade}</Badge>
+                      {player.gender && (
+                        <Badge variant="outline" className="text-xs">{player.gender === "MALE" ? "M" : player.gender === "FEMALE" ? "F" : player.gender}</Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">{localSelected.size} selected</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} data-testid="button-cancel-invitees">
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleConfirm} data-testid="button-confirm-invitees">
+                Confirm Selection
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function Sessions() {
   const { data: user } = useUser();
@@ -627,6 +878,7 @@ function EventTypeChooser({ sessionClubs }: { sessionClubs: { id: number; name: 
 function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose: () => void }) {
   const [open, setOpen] = useState(initialOpen ?? false);
   const { toast } = useToast();
+  const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
 
   const recurringSchema = z.object({
     clubId: z.number().min(1, "Select a club"),
@@ -681,6 +933,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
   });
 
   const watchNeverEnd = form.watch("neverEnd");
+  const watchRecurringClubId = form.watch("clubId");
 
   const createRecurring = useMutation({
     mutationFn: async (values: z.infer<typeof recurringSchema>) => {
@@ -694,6 +947,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
           ...sessionFields,
           sessionFee: sessionFields.sessionFee ? Math.round(sessionFields.sessionFee * 100) : undefined,
         },
+        inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
       });
       return res.json();
     },
@@ -831,6 +1085,11 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
                 <FormMessage />
               </FormItem>
             )} />
+            <InvitePlayersModal
+              clubId={watchRecurringClubId}
+              selectedPlayerIds={selectedInvitees}
+              onSelectionChange={setSelectedInvitees}
+            />
             <Button type="submit" className="w-full" disabled={createRecurring.isPending} data-testid="button-create-recurring">
               {createRecurring.isPending ? "Creating..." : "Create Recurring Event"}
             </Button>
@@ -844,6 +1103,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
 function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose?: () => void }) {
   const [open, setOpen] = useState(initialOpen ?? false);
   const { mutate: create, isPending } = useCreateSession();
+  const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
   
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
@@ -882,10 +1142,15 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   }, [sessionClubs, form]);
 
   function onSubmit(values: z.infer<typeof createSessionSchema>) {
-    create(values, {
+    const payload = {
+      ...values,
+      inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
+    };
+    create(payload as any, {
       onSuccess: () => {
         setOpen(false);
         form.reset();
+        setSelectedInvitees(new Set());
         onClose?.();
       }
     });
@@ -1381,6 +1646,11 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
                 </FormItem>
               )}
             />
+            <InvitePlayersModal
+              clubId={watchClubId}
+              selectedPlayerIds={selectedInvitees}
+              onSelectionChange={setSelectedInvitees}
+            />
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-create-session">
               {isPending ? "Creating..." : "Create Session"}
             </Button>
@@ -1395,6 +1665,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   const [open, setOpen] = useState(false);
   const { mutate: updateSession, isPending } = useUpdateSession();
   const { data: venues } = useVenues(session.clubId || null);
+  const { toast } = useToast();
 
   const [editTitle, setEditTitle] = useState("");
   const [editDate, setEditDate] = useState("");
@@ -1411,6 +1682,8 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   const [editJuniorAgeGroups, setEditJuniorAgeGroups] = useState<string[]>([]);
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editSessionFee, setEditSessionFee] = useState("");
+  const [editInvitees, setEditInvitees] = useState<Set<number>>(new Set());
+  const [inviteesLoaded, setInviteesLoaded] = useState(false);
   const [editShuttlecockType, setEditShuttlecockType] = useState("");
   const [editDefaultPoints, setEditDefaultPoints] = useState(21);
   const [editVenueId, setEditVenueId] = useState<number | null>(null);
@@ -1418,7 +1691,21 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
 
-  const initializeForm = () => {
+  const updateInviteesMutation = useMutation({
+    mutationFn: async (inviteePlayerIds: number[]) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${session.id}/invitees`, { inviteePlayerIds });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id, "signups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update invitees", variant: "destructive" });
+    },
+  });
+
+  const initializeForm = async () => {
     setEditTitle(session.title || "");
     setEditDate(session.date ? format(new Date(session.date), "yyyy-MM-dd") : "");
     setEditStartTime(session.startTime || "18:00");
@@ -1440,6 +1727,20 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     setEditLiveStreamUrl(session.liveStreamUrl || "");
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
     setEditNumberOfSets(session.numberOfSets || 1);
+    
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/signups`);
+      if (res.ok) {
+        const signups = await res.json();
+        const invitedIds = new Set<number>(
+          signups.filter((s: any) => s.signupStatus === "INVITED").map((s: any) => s.playerId)
+        );
+        setEditInvitees(invitedIds);
+      }
+    } catch {
+      setEditInvitees(new Set());
+    }
+    setInviteesLoaded(true);
   };
 
   const handleSave = () => {
@@ -1469,7 +1770,12 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
         shuttleTubesUsed: editShuttleTubes,
       }
     }, {
-      onSuccess: () => setOpen(false)
+      onSuccess: () => {
+        if (inviteesLoaded) {
+          updateInviteesMutation.mutate(Array.from(editInvitees));
+        }
+        setOpen(false);
+      }
     });
   };
 
@@ -1790,6 +2096,11 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
             />
             <p className="text-xs text-muted-foreground mt-1">Optional link to any live streaming platform</p>
           </div>
+          <InvitePlayersModal
+            clubId={session.clubId}
+            selectedPlayerIds={editInvitees}
+            onSelectionChange={setEditInvitees}
+          />
           <Button
             className="w-full"
             onClick={handleSave}

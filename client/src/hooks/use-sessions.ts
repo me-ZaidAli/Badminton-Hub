@@ -86,6 +86,7 @@ export function useUpdateSession() {
       sessionFee?: number | null;
       shuttlecockType?: string | null;
       defaultPointsToPlayTo?: number;
+      numberOfSets?: number;
       venueId?: number | null;
       shuttleTubesUsed?: number;
       courtNames?: string[];
