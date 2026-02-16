@@ -52,6 +52,15 @@ export default function SessionDetail() {
   const { data: session, isLoading: isLoadingSession } = useSession(id);
   const { data: signups, isLoading: isLoadingSignups } = useSessionSignups(id);
   const { data: allPlayers } = usePlayers();
+  const { data: clubMembers } = useQuery({
+    queryKey: ["/api/clubs", session?.clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${session!.clubId}/members`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session?.clubId,
+  });
   const { mutate: join, isPending: isJoining } = useJoinSession();
   const { mutate: withdraw, isPending: isWithdrawing } = useWithdrawSession();
   const { toast } = useToast();
@@ -227,17 +236,15 @@ export default function SessionDetail() {
   })();
   
   const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
-  const availablePlayers = allPlayers
-    ?.flatMap(u => {
-      const clubProfile = session ? u.playerProfiles?.find((p: any) => p.clubId === session.clubId) : u.playerProfiles?.[0];
-      if (!clubProfile || signedUpPlayerIds.has(clubProfile.id)) return [];
-      return [{ 
-        id: clubProfile.id, 
-        fullName: u.fullName, 
-        gender: clubProfile.gender, 
-        category: clubProfile.category 
-      }];
-    }) || [];
+  const availablePlayers = (clubMembers || [])
+    .filter((m: any) => !signedUpPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
+    .map((m: any) => ({
+      id: m.id,
+      fullName: m.user?.fullName || m.fullName || "",
+      gender: m.gender,
+      category: m.category,
+      grade: m.grade,
+    }));
 
   const handleAddPlayer = (playerId: number) => {
     if (addingPlayerIds.has(playerId)) return;
