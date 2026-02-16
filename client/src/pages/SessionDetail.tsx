@@ -208,7 +208,9 @@ export default function SessionDetail() {
   });
 
   const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
-  const isSignedUp = signups?.some(s => s.playerId === userProfileForClub?.id);
+  const userSignup = signups?.find(s => s.playerId === userProfileForClub?.id);
+  const isSignedUp = userSignup && ((userSignup as any).signupStatus === "CONFIRMED" || !(userSignup as any).signupStatus);
+  const isInvited = userSignup && (userSignup as any).signupStatus === "INVITED";
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
@@ -294,6 +296,7 @@ export default function SessionDetail() {
     });
   };
 
+  const confirmedSignups = signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || [];
   const unpairedSignups = signups?.filter(s => !(s as any).pairGroupId) || [];
 
   const pairGroups = new Map<number, typeof signups>();
@@ -809,7 +812,7 @@ export default function SessionDetail() {
               <span className="text-muted-foreground">Capacity</span>
               {editingCapacity && isOrganiser ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-sm text-muted-foreground">{signups?.length} /</span>
+                  <span className="text-sm text-muted-foreground">{confirmedSignups.length} /</span>
                   <Input
                     type="number"
                     min={2}
@@ -852,7 +855,7 @@ export default function SessionDetail() {
                 </div>
               ) : (
                 <div className="flex items-center gap-1">
-                  <span className="font-bold">{signups?.length} / {session.maxPlayers}</span>
+                  <span className="font-bold">{confirmedSignups.length} / {session.maxPlayers}</span>
                   {isOrganiser && (
                     <Button
                       size="icon"
@@ -891,6 +894,20 @@ export default function SessionDetail() {
               >
                 {isWithdrawing ? "Withdrawing..." : "Withdraw"}
               </Button>
+            ) : isInvited ? (
+              <div className="space-y-2">
+                <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  You've been invited to this session
+                </Badge>
+                <Button 
+                  className="w-full shadow-lg shadow-primary/25" 
+                  onClick={() => join(id)}
+                  disabled={isJoining || confirmedSignups.length >= session.maxPlayers}
+                  data-testid="button-accept-invitation"
+                >
+                  {isJoining ? "Joining..." : "Accept & Join"}
+                </Button>
+              </div>
             ) : session.isPrivate ? (
               <Badge variant="secondary" className="w-full justify-center py-2 text-base">
                 Private Session (Invite Only)
@@ -930,7 +947,7 @@ export default function SessionDetail() {
                     join(id);
                   }
                 }}
-                disabled={isJoining || (signups?.length || 0) >= session.maxPlayers}
+                disabled={isJoining || confirmedSignups.length >= session.maxPlayers}
                 data-testid="button-join-session"
               >
                 {isJoining ? "Joining..." : "Join Session"}
@@ -1009,7 +1026,7 @@ export default function SessionDetail() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-2xl font-display font-bold flex items-center gap-2">
             <Users className="w-6 h-6" />
-            Session Players ({signups?.length})
+            Session Players ({confirmedSignups.length})
           </h2>
           {isOrganiser && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -1140,7 +1157,7 @@ export default function SessionDetail() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {signups?.slice().sort((a, b) => {
+          {confirmedSignups.slice().sort((a, b) => {
             const aPaused = !!(a as any).isPaused;
             const bPaused = !!(b as any).isPaused;
             if (aPaused !== bPaused) return aPaused ? 1 : -1;
@@ -1791,7 +1808,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
     }
   }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatchForEffect?.pointsToPlayTo, defaultPointsToPlayTo]);
 
-  const attendingSignups = signups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
+  const attendingSignups = confirmedSignups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
   const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
   const minPlayersNeeded = playersPerSide * 2;
 
@@ -1833,7 +1850,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
     .filter(c => !occupiedCourts.has(c));
 
-  const availablePlayers = signups.map(s => ({
+  const availablePlayers = confirmedSignups.map(s => ({
     id: s.player?.id || s.playerId,
     fullName: s.player?.user?.fullName || "",
     category: s.player?.category,
