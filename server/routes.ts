@@ -934,7 +934,7 @@ export async function registerRoutes(
             genderRestriction: session.genderRestriction,
             status: session.status,
             liveStreamUrl: session.liveStreamUrl,
-            signupCount: signups.length,
+            signupCount: signups.filter((s: any) => s.signupStatus === "CONFIRMED").length,
             liveMatchCount: liveMatches.length,
             queuedMatchCount: queuedMatches.length,
             completedMatchCount: completedMatches.length,

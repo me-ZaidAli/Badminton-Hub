@@ -470,7 +470,7 @@ export class DatabaseStorage implements IStorage {
     const sessionsWithData = await Promise.all(allSessions.map(async (s) => {
       const countResult = await db.select({ count: sql<number>`count(*)` })
         .from(sessionSignups)
-        .where(eq(sessionSignups.sessionId, s.id));
+        .where(and(eq(sessionSignups.sessionId, s.id), eq(sessionSignups.signupStatus, "CONFIRMED")));
       
       let venue: Venue | undefined;
       if (s.venueId) {
@@ -492,7 +492,7 @@ export class DatabaseStorage implements IStorage {
     const sessionsWithData = await Promise.all(clubSessions.map(async (s) => {
       const countResult = await db.select({ count: sql<number>`count(*)` })
         .from(sessionSignups)
-        .where(eq(sessionSignups.sessionId, s.id));
+        .where(and(eq(sessionSignups.sessionId, s.id), eq(sessionSignups.signupStatus, "CONFIRMED")));
       
       let venue: Venue | undefined;
       if (s.venueId) {
