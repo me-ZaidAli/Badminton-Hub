@@ -320,6 +320,7 @@ export const sessions = pgTable("sessions", {
   autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
   queueTargetSize: integer("queue_target_size").default(3),
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
+  publishAt: timestamp("publish_at"),
 });
 
 // === SESSION SIGNUPS ===
@@ -752,6 +753,7 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   juniorAgeGroups: z.array(z.string()).optional().nullable(),
   matchGenderType: z.enum(["MIXED", "FEMALE", "MALE"]).default("MIXED"),
   numberOfSets: z.number().min(1).max(3).default(1),
+  publishAt: z.coerce.date().optional().nullable(),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });

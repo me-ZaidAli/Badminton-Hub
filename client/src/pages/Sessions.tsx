@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -50,6 +50,78 @@ const createSessionSchema = insertSessionSchema.extend({
   date: z.coerce.date(),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Use HH:MM format"),
 });
+
+function computePublishAt(sessionDate: Date | string | null | undefined, weeksBefore: number): Date | null {
+  if (!sessionDate) return null;
+  const d = new Date(sessionDate);
+  d.setDate(d.getDate() - weeksBefore * 7);
+  return d;
+}
+
+function ScheduledPublishSection({ sessionDate, scheduleEnabled, setScheduleEnabled, weeksBefore, setWeeksBefore }: {
+  sessionDate: Date | string | null | undefined;
+  scheduleEnabled: boolean;
+  setScheduleEnabled: (v: boolean) => void;
+  weeksBefore: number;
+  setWeeksBefore: (v: number) => void;
+}) {
+  const publishAt = scheduleEnabled && sessionDate ? computePublishAt(sessionDate, weeksBefore) : null;
+  const publishInPast = publishAt && publishAt <= new Date();
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Schedule Publishing
+        </Label>
+        <Switch
+          checked={scheduleEnabled}
+          onCheckedChange={setScheduleEnabled}
+          data-testid="switch-schedule-publish"
+        />
+      </div>
+      {scheduleEnabled && (
+        <div className="space-y-2 pl-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">Open signups</span>
+            <Input
+              type="number"
+              min={1}
+              max={52}
+              value={weeksBefore}
+              onChange={(e) => setWeeksBefore(Math.max(1, Math.min(52, parseInt(e.target.value) || 1)))}
+              className="w-20"
+              data-testid="input-publish-weeks"
+            />
+            <span className="text-sm text-muted-foreground">week{weeksBefore !== 1 ? "s" : ""} before</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 4].map(w => (
+              <Button
+                key={w}
+                type="button"
+                size="sm"
+                variant={weeksBefore === w ? "default" : "outline"}
+                onClick={() => setWeeksBefore(w)}
+                data-testid={`button-publish-preset-${w}`}
+              >
+                {w === 4 ? "1 month" : `${w} week${w > 1 ? "s" : ""}`}
+              </Button>
+            ))}
+          </div>
+          {publishAt && (
+            <p className="text-xs text-muted-foreground">
+              {publishInPast
+                ? "Signups will be open immediately (publish date is in the past)"
+                : `Signups open: ${format(publishAt, "EEE, d MMM yyyy")}`}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type ClubPlayer = {
   id: number;
@@ -653,6 +725,12 @@ export default function Sessions() {
                         Recurring
                       </Badge>
                     )}
+                    {(session as any).publishAt && new Date((session as any).publishAt) > new Date() && (
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Opens {format(new Date((session as any).publishAt), "MMM d")}
+                      </Badge>
+                    )}
                   </div>
                   <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
                     {session.startTime}
@@ -882,6 +960,8 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
   const [open, setOpen] = useState(initialOpen ?? false);
   const { toast } = useToast();
   const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
+  const [recurringScheduleEnabled, setRecurringScheduleEnabled] = useState(false);
+  const [recurringWeeksBefore, setRecurringWeeksBefore] = useState(1);
 
   const recurringSchema = z.object({
     clubId: z.number().min(1, "Select a club"),
@@ -951,6 +1031,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
           sessionFee: sessionFields.sessionFee ? Math.round(sessionFields.sessionFee * 100) : undefined,
         },
         inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
+        publishWeeksBefore: recurringScheduleEnabled ? recurringWeeksBefore : undefined,
       });
       return res.json();
     },
@@ -958,6 +1039,8 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
       toast({ title: "Recurring event created", description: `${data.sessions.length} sessions generated.` });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       setOpen(false);
+      setRecurringScheduleEnabled(false);
+      setRecurringWeeksBefore(1);
       onClose();
     },
     onError: (err: any) => {
@@ -1088,6 +1171,13 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
                 <FormMessage />
               </FormItem>
             )} />
+            <ScheduledPublishSection
+              sessionDate={form.watch("startDate")}
+              scheduleEnabled={recurringScheduleEnabled}
+              setScheduleEnabled={setRecurringScheduleEnabled}
+              weeksBefore={recurringWeeksBefore}
+              setWeeksBefore={setRecurringWeeksBefore}
+            />
             <InvitePlayersModal
               clubId={watchRecurringClubId}
               selectedPlayerIds={selectedInvitees}
@@ -1107,6 +1197,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   const [open, setOpen] = useState(initialOpen ?? false);
   const { mutate: create, isPending } = useCreateSession();
   const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [weeksBefore, setWeeksBefore] = useState(1);
   
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
@@ -1136,6 +1228,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   const watchClubId = form.watch("clubId");
   const watchSessionType = form.watch("sessionType");
   const watchGenderRestriction = form.watch("genderRestriction");
+  const watchDate = form.watch("date");
   const { data: venues } = useVenues(watchClubId || null);
 
   useEffect(() => {
@@ -1145,8 +1238,10 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   }, [sessionClubs, form]);
 
   function onSubmit(values: z.infer<typeof createSessionSchema>) {
+    const publishAt = scheduleEnabled ? computePublishAt(values.date, weeksBefore) : null;
     const payload = {
       ...values,
+      publishAt: publishAt?.toISOString() || null,
       inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
     };
     create(payload as any, {
@@ -1154,6 +1249,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
         setOpen(false);
         form.reset();
         setSelectedInvitees(new Set());
+        setScheduleEnabled(false);
+        setWeeksBefore(1);
         onClose?.();
       }
     });
@@ -1649,6 +1746,13 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
                 </FormItem>
               )}
             />
+            <ScheduledPublishSection
+              sessionDate={watchDate}
+              scheduleEnabled={scheduleEnabled}
+              setScheduleEnabled={setScheduleEnabled}
+              weeksBefore={weeksBefore}
+              setWeeksBefore={setWeeksBefore}
+            />
             <InvitePlayersModal
               clubId={watchClubId}
               selectedPlayerIds={selectedInvitees}
@@ -1693,6 +1797,8 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
+  const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
+  const [editWeeksBefore, setEditWeeksBefore] = useState(1);
 
   const updateInviteesMutation = useMutation({
     mutationFn: async (inviteePlayerIds: number[]) => {
@@ -1730,6 +1836,17 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     setEditLiveStreamUrl(session.liveStreamUrl || "");
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
     setEditNumberOfSets(session.numberOfSets || 1);
+    if (session.publishAt) {
+      setEditScheduleEnabled(true);
+      const sessionDate = new Date(session.date);
+      const pubDate = new Date(session.publishAt);
+      const diffMs = sessionDate.getTime() - pubDate.getTime();
+      const diffWeeks = Math.max(1, Math.round(diffMs / (7 * 24 * 60 * 60 * 1000)));
+      setEditWeeksBefore(diffWeeks);
+    } else {
+      setEditScheduleEnabled(false);
+      setEditWeeksBefore(1);
+    }
     
     try {
       const res = await fetch(`/api/sessions/${session.id}/signups`);
@@ -1747,6 +1864,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   };
 
   const handleSave = () => {
+    const publishAt = editScheduleEnabled ? computePublishAt(editDate, editWeeksBefore) : null;
     updateSession({
       sessionId: session.id,
       updates: {
@@ -1771,6 +1889,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
         venueId: editVenueId,
         liveStreamUrl: editLiveStreamUrl || "",
         shuttleTubesUsed: editShuttleTubes,
+        publishAt: publishAt?.toISOString() || null,
       }
     }, {
       onSuccess: () => {
@@ -2099,6 +2218,13 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
             />
             <p className="text-xs text-muted-foreground mt-1">Optional link to any live streaming platform</p>
           </div>
+          <ScheduledPublishSection
+            sessionDate={editDate}
+            scheduleEnabled={editScheduleEnabled}
+            setScheduleEnabled={setEditScheduleEnabled}
+            weeksBefore={editWeeksBefore}
+            setWeeksBefore={setEditWeeksBefore}
+          />
           <InvitePlayersModal
             clubId={session.clubId}
             selectedPlayerIds={editInvitees}

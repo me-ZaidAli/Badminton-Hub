@@ -366,6 +366,18 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     if (!user) return null;
     const isPending = playerStatusMutation.isPending;
 
+    const isNotPublished = session.publishAt && new Date(session.publishAt) > new Date();
+    if (isNotPublished && !isAdmin) {
+      return (
+        <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-sm font-medium truncate">Signups open {format(new Date(session.publishAt), "d MMM")}</span>
+          </div>
+        </div>
+      );
+    }
+
     if (myStatus === "CONFIRMED") {
       return (
         <div className="flex items-center justify-between gap-2 p-3 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40">

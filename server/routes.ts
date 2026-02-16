@@ -1376,14 +1376,23 @@ export async function registerRoutes(
       let current = new Date(startDate);
       let occurrenceCount = 0;
 
+      const publishWeeksBefore = req.body.publishWeeksBefore;
+
       while (true) {
         if (useOccurrenceLimit && occurrenceCount >= MAX_OCCURRENCES) break;
         if (effectiveEndDate && current > effectiveEndDate) break;
+        let computedPublishAt: Date | null = null;
+        if (publishWeeksBefore && publishWeeksBefore > 0) {
+          const pubDate = new Date(current);
+          pubDate.setDate(pubDate.getDate() - publishWeeksBefore * 7);
+          computedPublishAt = pubDate;
+        }
         const session = await storage.createSession({
           ...sessionTemplate,
           date: new Date(current),
           recurringEventId: recurringEvent.id,
           createdBy: req.user!.id,
+          publishAt: computedPublishAt,
         });
         generatedSessions.push(session);
         occurrenceCount++;
@@ -1678,6 +1687,12 @@ export async function registerRoutes(
     const { action } = req.body;
     if (!["accept", "decline", "cancel", "join", "wait"].includes(action)) {
       return res.status(400).json({ message: "Invalid action" });
+    }
+
+    if ((session as any).publishAt && new Date((session as any).publishAt) > new Date()) {
+      if (["accept", "join", "wait"].includes(action)) {
+        return res.status(403).json({ message: "Signups are not yet open for this session." });
+      }
     }
 
     const signups = await storage.getSessionSignups(sessionId);

@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -896,6 +896,15 @@ export default function SessionDetail() {
               <Badge variant="secondary" className="w-full justify-center py-2 text-base">
                 <CheckCircle className="w-4 h-4 mr-2" /> Session Completed
               </Badge>
+            ) : (session as any).publishAt && new Date((session as any).publishAt) > new Date() && !isOrganiser ? (
+              <div className="space-y-2">
+                <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                  <Clock className="w-4 h-4 mr-2" /> Signups Not Yet Open
+                </Badge>
+                <p className="text-xs text-muted-foreground text-center" data-testid="text-publish-date">
+                  Signups open on {format(new Date((session as any).publishAt), "EEE, d MMM yyyy")}
+                </p>
+              </div>
             ) : isSignedUp ? (
               <Button 
                 variant="destructive" 
