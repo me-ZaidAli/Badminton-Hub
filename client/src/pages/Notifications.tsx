@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
@@ -103,6 +103,23 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     },
   });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/notifications/mark-all-read");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
+  });
+
+  const hasMarkedAll = useRef(false);
+  useEffect(() => {
+    if (data && (data.unreadCount ?? 0) > 0 && !hasMarkedAll.current) {
+      hasMarkedAll.current = true;
+      markAllReadMutation.mutate();
+    }
+  }, [data]);
 
   const allNotifications = data?.notifications ?? [];
 

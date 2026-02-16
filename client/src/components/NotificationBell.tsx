@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,10 +42,23 @@ export function NotificationBell() {
     },
   });
 
-  if (!user) return null;
-
   const notifications = data?.notifications?.slice(0, 10) ?? [];
   const unreadCount = data?.unreadCount ?? 0;
+
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const hasTriggeredMarkAll = useRef(false);
+
+  useEffect(() => {
+    if (popoverOpen && unreadCount > 0 && !hasTriggeredMarkAll.current) {
+      hasTriggeredMarkAll.current = true;
+      markAllReadMutation.mutate();
+    }
+    if (!popoverOpen) {
+      hasTriggeredMarkAll.current = false;
+    }
+  }, [popoverOpen]);
+
+  if (!user) return null;
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.readAt) {
@@ -56,7 +70,7 @@ export function NotificationBell() {
   };
 
   return (
-    <Popover>
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
       <PopoverTrigger asChild>
         <Button
           size="icon"
