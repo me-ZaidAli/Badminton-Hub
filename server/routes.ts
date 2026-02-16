@@ -1271,46 +1271,45 @@ export async function registerRoutes(
         createdBy: req.user!.id 
       });
 
-      try {
-        const clubMembers = await storage.getClubMembers(input.clubId);
-        const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
-        const club = await storage.getClub(input.clubId);
-        const clubName = club?.name || "your club";
-        const existingSignups = await storage.getSessionSignups(session.id);
-        const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
-        
-        const selectedPlayerIds: Set<number> | null = inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0
-          ? new Set(inviteePlayerIds as number[])
-          : null;
-        
-        for (const member of approvedMembers) {
-          if (member.userId === req.user!.id) continue;
-          if (existingPlayerIds.has(member.id)) continue;
-          if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
+      if (inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0) {
+        try {
+          const clubMembers = await storage.getClubMembers(input.clubId);
+          const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
+          const club = await storage.getClub(input.clubId);
+          const clubName = club?.name || "your club";
+          const existingSignups = await storage.getSessionSignups(session.id);
+          const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
+          const selectedPlayerIds = new Set(inviteePlayerIds as number[]);
           
-          try {
-            await storage.createSessionSignupEnhanced({
-              sessionId: session.id,
-              playerId: member.id,
-              fee: session.sessionFee || club?.sessionFee || 0,
-              signupStatus: "INVITED",
-              signedUpByUserId: req.user!.id,
+          for (const member of approvedMembers) {
+            if (member.userId === req.user!.id) continue;
+            if (existingPlayerIds.has(member.id)) continue;
+            if (!selectedPlayerIds.has(member.id)) continue;
+            
+            try {
+              await storage.createSessionSignupEnhanced({
+                sessionId: session.id,
+                playerId: member.id,
+                fee: session.sessionFee || club?.sessionFee || 0,
+                signupStatus: "INVITED",
+                signedUpByUserId: req.user!.id,
+              });
+            } catch (signupErr) {
+              console.error(`[SESSION CREATE] Failed to create invite signup for member ${member.id}:`, signupErr);
+              continue;
+            }
+            
+            await storage.createNotification({
+              userId: member.userId,
+              type: "SESSION_INVITE",
+              title: "New Session Available",
+              message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}. Sign up now to confirm your spot!`,
+              linkUrl: `/sessions/${session.id}`,
             });
-          } catch (signupErr) {
-            console.error(`[SESSION CREATE] Failed to create invite signup for member ${member.id}:`, signupErr);
-            continue;
           }
-          
-          await storage.createNotification({
-            userId: member.userId,
-            type: "SESSION_INVITE",
-            title: "New Session Available",
-            message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}. Sign up now to confirm your spot!`,
-            linkUrl: `/sessions/${session.id}`,
-          });
+        } catch (inviteErr) {
+          console.error("[SESSION CREATE] Failed to send invitations:", inviteErr);
         }
-      } catch (inviteErr) {
-        console.error("[SESSION CREATE] Failed to send invitations:", inviteErr);
       }
 
       res.status(201).json(session);
@@ -1402,43 +1401,43 @@ export async function registerRoutes(
 
       const club = await storage.getClub(recurringEventInput.clubId);
       const clubName = club?.name || "your club";
-      try {
-        const clubMembers = await storage.getClubMembers(recurringEventInput.clubId);
-        const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
-        const selectedPlayerIds: Set<number> | null = inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0
-          ? new Set(inviteePlayerIds)
-          : null;
-        
-        for (const session of generatedSessions) {
-          for (const member of approvedMembers) {
-            if (member.userId === req.user!.id) continue;
-            if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
-            try {
-              await storage.createSessionSignupEnhanced({
-                sessionId: session.id,
-                playerId: member.id,
-                fee: session.sessionFee || club?.sessionFee || 0,
-                signupStatus: "INVITED",
-                signedUpByUserId: req.user!.id,
-              });
-            } catch (signupErr) {
-              continue;
+      if (inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0) {
+        try {
+          const clubMembers = await storage.getClubMembers(recurringEventInput.clubId);
+          const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
+          const selectedPlayerIds = new Set(inviteePlayerIds as number[]);
+          
+          for (const session of generatedSessions) {
+            for (const member of approvedMembers) {
+              if (member.userId === req.user!.id) continue;
+              if (!selectedPlayerIds.has(member.id)) continue;
+              try {
+                await storage.createSessionSignupEnhanced({
+                  sessionId: session.id,
+                  playerId: member.id,
+                  fee: session.sessionFee || club?.sessionFee || 0,
+                  signupStatus: "INVITED",
+                  signedUpByUserId: req.user!.id,
+                });
+              } catch (signupErr) {
+                continue;
+              }
             }
           }
+          for (const member of approvedMembers) {
+            if (member.userId === req.user!.id) continue;
+            if (!selectedPlayerIds.has(member.id)) continue;
+            await storage.createNotification({
+              userId: member.userId,
+              type: "SESSION_INVITE",
+              title: "New Recurring Sessions",
+              message: `${generatedSessions.length} recurring sessions for "${recurringEvent.title}" have been created at ${clubName}. Sign up now to confirm your spot!`,
+              linkUrl: `/sessions`,
+            });
+          }
+        } catch (inviteErr) {
+          console.error("[RECURRING EVENT] Failed to send invitations:", inviteErr);
         }
-        for (const member of approvedMembers) {
-          if (member.userId === req.user!.id) continue;
-          if (selectedPlayerIds && !selectedPlayerIds.has(member.id)) continue;
-          await storage.createNotification({
-            userId: member.userId,
-            type: "SESSION_INVITE",
-            title: "New Recurring Sessions",
-            message: `${generatedSessions.length} recurring sessions for "${recurringEvent.title}" have been created at ${clubName}. Sign up now to confirm your spot!`,
-            linkUrl: `/sessions`,
-          });
-        }
-      } catch (inviteErr) {
-        console.error("[RECURRING EVENT] Failed to send invitations:", inviteErr);
       }
 
       res.status(201).json({ recurringEvent, sessions: generatedSessions });
@@ -2613,7 +2612,15 @@ export async function registerRoutes(
 
       // Check if already signed up
       const signups = await storage.getSessionSignups(sessionId);
-      if (signups.some(s => s.playerId === playerId)) {
+      const existingSignup = signups.find(s => s.playerId === playerId);
+      if (existingSignup) {
+        if ((existingSignup as any).signupStatus === "INVITED") {
+          const updated = await storage.updateSessionSignupStatus(existingSignup.id, {
+            signupStatus: "CONFIRMED",
+            waitingListPosition: null,
+          });
+          return res.status(200).json(updated);
+        }
         return res.status(400).json({ message: "Player already in session" });
       }
 

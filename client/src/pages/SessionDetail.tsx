@@ -235,9 +235,13 @@ export default function SessionDetail() {
     return m?.membershipStatus === "APPROVED";
   })();
   
-  const signedUpPlayerIds = new Set(signups?.map(s => s.playerId) || []);
+  const confirmedOrWaitingPlayerIds = new Set(
+    (signups || [])
+      .filter((s: any) => s.signupStatus === "CONFIRMED" || s.signupStatus === "WAITING" || !s.signupStatus)
+      .map(s => s.playerId)
+  );
   const availablePlayers = (clubMembers || [])
-    .filter((m: any) => !signedUpPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
+    .filter((m: any) => !confirmedOrWaitingPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
     .map((m: any) => ({
       id: m.id,
       fullName: m.user?.fullName || m.fullName || "",
