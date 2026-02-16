@@ -1707,6 +1707,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
   autoGenerateActive: boolean;
   savedQueueTargetSize?: number;
 }) {
+  const confirmedSignups = signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || [];
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
   const { mutateAsync: completeMatch } = useCompleteMatch();
