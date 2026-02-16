@@ -317,7 +317,7 @@ export default function Sessions() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [detailsSession, setDetailsSession] = useState<any>(null);
   const [financeSession, setFinanceSession] = useState<any>(null);
-  const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null } | null>(null);
+  const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
@@ -362,8 +362,11 @@ export default function Sessions() {
   });
 
   const deleteRecurringMutation = useMutation({
-    mutationFn: async (recurringEventId: number) => {
-      const res = await apiRequest("DELETE", `/api/recurring-events/${recurringEventId}`);
+    mutationFn: async ({ recurringEventId, fromDate }: { recurringEventId: number; fromDate?: string }) => {
+      const url = fromDate
+        ? `/api/recurring-events/${recurringEventId}?fromDate=${encodeURIComponent(fromDate)}`
+        : `/api/recurring-events/${recurringEventId}`;
+      const res = await apiRequest("DELETE", url);
       return res.json();
     },
     onSuccess: (data) => {
@@ -714,7 +717,7 @@ export default function Sessions() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null })}
+                          onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date ? new Date(session.date).toISOString() : null })}
                           data-testid={`button-delete-session-${session.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -768,7 +771,7 @@ export default function Sessions() {
             <DialogTitle>Delete Session</DialogTitle>
             <DialogDescription>
               {deleteSession?.recurringEventId
-                ? "This session is part of a recurring series. Would you like to delete just this session, or all sessions in the series?"
+                ? "This session is part of a recurring series. Choose how to delete:"
                 : "Are you sure you want to delete this session? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
@@ -786,12 +789,12 @@ export default function Sessions() {
             {deleteSession?.recurringEventId && (
               <Button
                 variant="destructive"
-                onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate(deleteSession.recurringEventId)}
+                onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId, fromDate: deleteSession.date || undefined })}
                 disabled={deleteRecurringMutation.isPending || deleteSingleSessionMutation.isPending}
-                data-testid="button-delete-all-recurring"
+                data-testid="button-delete-future-recurring"
               >
                 {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Delete Entire Series
+                Delete This & Future Sessions
               </Button>
             )}
           </DialogFooter>

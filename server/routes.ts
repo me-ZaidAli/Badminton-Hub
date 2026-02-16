@@ -1475,17 +1475,26 @@ export async function registerRoutes(
     const canAccess = await canManageSessions(req.user!.id, req.user!.role, event.clubId);
     if (!canAccess) return res.sendStatus(403);
 
+    const fromDate = req.query.fromDate ? new Date(req.query.fromDate as string) : null;
+
     const linkedSessions = await db.select().from(sessions).where(eq(sessions.recurringEventId, recurringEventId));
 
-    for (const session of linkedSessions) {
+    const sessionsToDelete = fromDate
+      ? linkedSessions.filter(s => new Date(s.date) >= fromDate)
+      : linkedSessions;
+
+    for (const session of sessionsToDelete) {
       await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, session.id));
       await db.delete(matches).where(eq(matches.sessionId, session.id));
       await db.delete(sessions).where(eq(sessions.id, session.id));
     }
 
-    await db.delete(recurringEvents).where(eq(recurringEvents.id, recurringEventId));
+    const remainingSessions = linkedSessions.length - sessionsToDelete.length;
+    if (remainingSessions === 0) {
+      await db.delete(recurringEvents).where(eq(recurringEvents.id, recurringEventId));
+    }
 
-    res.json({ deleted: linkedSessions.length, message: `Deleted ${linkedSessions.length} recurring sessions` });
+    res.json({ deleted: sessionsToDelete.length, remaining: remainingSessions, message: `Deleted ${sessionsToDelete.length} session(s)` });
   });
 
   app.get(api.sessions.get.path, async (req, res) => {
