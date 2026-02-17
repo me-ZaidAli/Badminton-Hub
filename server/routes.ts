@@ -6666,6 +6666,118 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/my-session-history", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const userProfiles = await db
+        .select({ id: playerProfiles.id })
+        .from(playerProfiles)
+        .where(eq(playerProfiles.userId, user.id));
+
+      if (userProfiles.length === 0) {
+        return res.json([]);
+      }
+
+      const profileIds = userProfiles.map(p => p.id);
+      const signups = await db
+        .select({
+          signupId: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          signupStatus: sessionSignups.signupStatus,
+          paymentStatus: sessionSignups.paymentStatus,
+          paymentMethod: sessionSignups.paymentMethod,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          sessionStartTime: sessions.startTime,
+          sessionStatus: sessions.status,
+          clubId: sessions.clubId,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(
+          and(
+            inArray(sessionSignups.playerId, profileIds),
+            eq(sessionSignups.signupStatus, "CONFIRMED")
+          )
+        )
+        .orderBy(desc(sessions.date));
+
+      const clubIds = [...new Set(signups.map(s => s.clubId))];
+      const clubsData = clubIds.length > 0
+        ? await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, clubIds))
+        : [];
+      const clubMap = Object.fromEntries(clubsData.map(c => [c.id, c.name]));
+
+      const sessionIds = [...new Set(signups.map(s => s.sessionId))];
+      let userMatches: any[] = [];
+      if (sessionIds.length > 0) {
+        userMatches = await db
+          .select({
+            id: matches.id,
+            sessionId: matches.sessionId,
+            teamAPlayer1Id: matches.teamAPlayer1Id,
+            teamAPlayer2Id: matches.teamAPlayer2Id,
+            teamBPlayer1Id: matches.teamBPlayer1Id,
+            teamBPlayer2Id: matches.teamBPlayer2Id,
+            scoreA: matches.scoreA,
+            scoreB: matches.scoreB,
+            setsWonA: matches.setsWonA,
+            setsWonB: matches.setsWonB,
+            isCompleted: matches.isCompleted,
+          })
+          .from(matches)
+          .where(
+            and(
+              inArray(matches.sessionId, sessionIds),
+              eq(matches.isCompleted, true)
+            )
+          );
+      }
+
+      const profileIdSet = new Set(profileIds);
+      const sessionMatchMap = new Map<number, { won: number; lost: number; total: number }>();
+      for (const m of userMatches) {
+        const isTeamA = profileIdSet.has(m.teamAPlayer1Id) || (m.teamAPlayer2Id && profileIdSet.has(m.teamAPlayer2Id));
+        const isTeamB = profileIdSet.has(m.teamBPlayer1Id) || (m.teamBPlayer2Id && profileIdSet.has(m.teamBPlayer2Id));
+        if (!isTeamA && !isTeamB) continue;
+
+        const entry = sessionMatchMap.get(m.sessionId) || { won: 0, lost: 0, total: 0 };
+        entry.total++;
+        const aWon = m.setsWonA > m.setsWonB || (m.setsWonA === m.setsWonB && (m.scoreA || 0) > (m.scoreB || 0));
+        if ((isTeamA && aWon) || (isTeamB && !aWon)) {
+          entry.won++;
+        } else {
+          entry.lost++;
+        }
+        sessionMatchMap.set(m.sessionId, entry);
+      }
+
+      const result = signups.map(s => ({
+        sessionId: s.sessionId,
+        sessionTitle: s.sessionTitle,
+        sessionDate: s.sessionDate,
+        sessionStartTime: s.sessionStartTime,
+        sessionStatus: s.sessionStatus,
+        clubId: s.clubId,
+        clubName: clubMap[s.clubId] || `Club ${s.clubId}`,
+        fee: s.fee || 0,
+        paymentStatus: s.paymentStatus,
+        matchesWon: sessionMatchMap.get(s.sessionId)?.won || 0,
+        matchesLost: sessionMatchMap.get(s.sessionId)?.lost || 0,
+        matchesTotal: sessionMatchMap.get(s.sessionId)?.total || 0,
+      }));
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error fetching session history:", err);
+      res.status(500).json({ message: "Failed to fetch session history" });
+    }
+  });
+
   // === ADMIN: Global rankings (OWNER and ADMIN only) ===
   app.get("/api/admin/rankings", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

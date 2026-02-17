@@ -368,6 +368,211 @@ function PerformanceModal({ open, onClose, profiles }: {
   );
 }
 
+type SessionHistoryItem = {
+  sessionId: number; sessionTitle: string; sessionDate: string;
+  sessionStartTime: string; sessionStatus: string; clubId: number;
+  clubName: string; fee: number; paymentStatus: string;
+  matchesWon: number; matchesLost: number; matchesTotal: number;
+};
+
+function TotalSessionsModal({ open, onClose, sessions }: {
+  open: boolean; onClose: () => void; sessions: SessionHistoryItem[] | undefined;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto" data-testid="modal-total-sessions">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5" />
+            All Sessions
+          </DialogTitle>
+        </DialogHeader>
+        {!sessions || sessions.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No sessions attended yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {sessions.map((s, i) => (
+              <div key={`${s.sessionId}-${i}`} className="p-3 rounded-md bg-muted/50 space-y-1" data-testid={`session-item-${s.sessionId}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="font-medium text-sm">{s.sessionTitle}</p>
+                  <Badge variant="outline">{s.clubName}</Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground">
+                    {s.sessionDate ? format(new Date(s.sessionDate), "dd MMM yyyy") : "—"} at {s.sessionStartTime || "—"}
+                  </p>
+                  {s.matchesTotal > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-primary">{s.matchesWon}W</span>
+                      <span className="text-xs text-muted-foreground">/</span>
+                      <span className="text-xs font-medium text-destructive">{s.matchesLost}L</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SessionsThisMonthModal({ open, onClose, sessions }: {
+  open: boolean; onClose: () => void; sessions: SessionHistoryItem[] | undefined;
+}) {
+  const thisMonthSessions = useMemo(() => {
+    if (!sessions) return [];
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return sessions.filter(s => s.sessionDate && new Date(s.sessionDate) >= monthStart);
+  }, [sessions]);
+
+  const summary = useMemo(() => {
+    const totalMatches = thisMonthSessions.reduce((s, x) => s + x.matchesTotal, 0);
+    const totalWon = thisMonthSessions.reduce((s, x) => s + x.matchesWon, 0);
+    const totalLost = thisMonthSessions.reduce((s, x) => s + x.matchesLost, 0);
+    const totalFees = thisMonthSessions.reduce((s, x) => s + x.fee, 0);
+    return { totalMatches, totalWon, totalLost, totalFees };
+  }, [thisMonthSessions]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto" data-testid="modal-sessions-this-month">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Sessions This Month
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-md bg-muted/50 text-center">
+            <p className="text-2xl font-bold">{thisMonthSessions.length}</p>
+            <p className="text-xs text-muted-foreground">Sessions</p>
+          </div>
+          <div className="p-3 rounded-md bg-muted/50 text-center">
+            <p className="text-2xl font-bold">{summary.totalMatches}</p>
+            <p className="text-xs text-muted-foreground">Matches</p>
+          </div>
+          <div className="p-3 rounded-md bg-muted/50 text-center">
+            <p className="text-2xl font-bold text-primary">{summary.totalWon}</p>
+            <p className="text-xs text-muted-foreground">Won</p>
+          </div>
+          <div className="p-3 rounded-md bg-muted/50 text-center">
+            <p className="text-2xl font-bold text-destructive">{summary.totalLost}</p>
+            <p className="text-xs text-muted-foreground">Lost</p>
+          </div>
+        </div>
+        <div className="p-3 rounded-md bg-muted/50 text-center">
+          <p className="text-2xl font-bold">£{(summary.totalFees / 100).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground">Total Spent This Month</p>
+        </div>
+        {thisMonthSessions.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <p className="text-sm font-medium text-muted-foreground">Session List</p>
+            {thisMonthSessions.map((s, i) => (
+              <div key={`${s.sessionId}-${i}`} className="p-3 rounded-md bg-muted/50 space-y-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="font-medium text-sm">{s.sessionTitle}</p>
+                  <Badge variant="outline">{s.clubName}</Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground">
+                    {s.sessionDate ? format(new Date(s.sessionDate), "dd MMM yyyy") : "—"}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {s.matchesTotal > 0 && (
+                      <>
+                        <span className="text-xs font-medium text-primary">{s.matchesWon}W</span>
+                        <span className="text-xs text-muted-foreground">/</span>
+                        <span className="text-xs font-medium text-destructive">{s.matchesLost}L</span>
+                        <span className="text-xs text-muted-foreground mx-1">|</span>
+                      </>
+                    )}
+                    <span className="text-xs font-medium">£{(s.fee / 100).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TotalSpentModal({ open, onClose, sessions }: {
+  open: boolean; onClose: () => void; sessions: SessionHistoryItem[] | undefined;
+}) {
+  const [selectedClub, setSelectedClub] = useState<string>("all");
+
+  const clubs = useMemo(() => {
+    if (!sessions) return [];
+    const map = new Map<number, string>();
+    sessions.forEach(s => map.set(s.clubId, s.clubName));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [sessions]);
+
+  const filtered = useMemo(() => {
+    if (!sessions) return [];
+    if (selectedClub === "all") return sessions;
+    return sessions.filter(s => s.clubId.toString() === selectedClub);
+  }, [sessions, selectedClub]);
+
+  const totalFiltered = useMemo(() => filtered.reduce((s, x) => s + x.fee, 0), [filtered]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto" data-testid="modal-total-spent">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PoundSterling className="h-5 w-5" />
+            Total Spent on Sessions
+          </DialogTitle>
+        </DialogHeader>
+        {clubs.length > 1 && (
+          <Select value={selectedClub} onValueChange={setSelectedClub}>
+            <SelectTrigger data-testid="select-spent-club">
+              <SelectValue placeholder="All Clubs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clubs</SelectItem>
+              {clubs.map(c => (
+                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <div className="p-4 rounded-md bg-primary/10 text-center">
+          <p className="text-3xl font-bold">£{(totalFiltered / 100).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} session{filtered.length !== 1 ? "s" : ""}{selectedClub !== "all" ? ` at ${clubs.find(c => c.id.toString() === selectedClub)?.name}` : ""}</p>
+        </div>
+        {filtered.length > 0 && (
+          <div className="space-y-2 pt-2">
+            {filtered.map((s, i) => (
+              <div key={`${s.sessionId}-${i}`} className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50" data-testid={`spent-session-${s.sessionId}`}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{s.sessionTitle}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {s.sessionDate ? format(new Date(s.sessionDate), "dd MMM yyyy") : "—"}
+                    {selectedClub === "all" && ` — ${s.clubName}`}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold">£{(s.fee / 100).toFixed(2)}</p>
+                  <Badge variant={s.paymentStatus === "PAID" ? "default" : "secondary"} className="text-[10px]">
+                    {s.paymentStatus || "UNPAID"}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CreditHistoryModal({ open, onClose, history }: {
   open: boolean; onClose: () => void; history: any[] | undefined;
 }) {
@@ -482,11 +687,16 @@ export default function Profile() {
   const { data: clubMemberships } = useQuery<any[]>({ queryKey: ["/api/my-memberships"], enabled: !!user });
   const { data: sessionActivity } = useQuery<{ totalSessions: number; sessionsThisMonth: number; totalSpent: number }>({ queryKey: ["/api/my-session-activity"], enabled: !!user });
 
+  const { data: sessionHistory } = useQuery<SessionHistoryItem[]>({ queryKey: ["/api/my-session-history"], enabled: !!user });
+
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const [outstandingModalOpen, setOutstandingModalOpen] = useState(false);
   const [membershipsModalOpen, setMembershipsModalOpen] = useState(false);
   const [performanceModalOpen, setPerformanceModalOpen] = useState(false);
   const [creditHistoryModalOpen, setCreditHistoryModalOpen] = useState(false);
+  const [totalSessionsModalOpen, setTotalSessionsModalOpen] = useState(false);
+  const [sessionsThisMonthModalOpen, setSessionsThisMonthModalOpen] = useState(false);
+  const [totalSpentModalOpen, setTotalSpentModalOpen] = useState(false);
 
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -755,9 +965,9 @@ export default function Profile() {
 
       {/* Session Activity */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} />
-        <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} />
-        <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} />
+        <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
+        <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
+        <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />
       </div>
 
       {/* Credit History */}
@@ -1017,6 +1227,9 @@ export default function Profile() {
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} profiles={profiles} />
       <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} />
+      <TotalSessionsModal open={totalSessionsModalOpen} onClose={() => setTotalSessionsModalOpen(false)} sessions={sessionHistory} />
+      <SessionsThisMonthModal open={sessionsThisMonthModalOpen} onClose={() => setSessionsThisMonthModalOpen(false)} sessions={sessionHistory} />
+      <TotalSpentModal open={totalSpentModalOpen} onClose={() => setTotalSpentModalOpen(false)} sessions={sessionHistory} />
 
       {/* Junior Dialogs */}
       <Dialog open={juniorDialogOpen} onOpenChange={(open) => { if (!open) { setJuniorDialogOpen(false); setEditingJunior(null); resetJuniorForm(); } }}>
