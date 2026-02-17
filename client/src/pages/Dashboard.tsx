@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useSessions } from "@/hooks/use-sessions";
-import { useClubs, useLeaderboard, useSessionLeaderboard } from "@/hooks/use-clubs";
+import { useQuery } from "@tanstack/react-query";
+import { useClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -157,32 +158,12 @@ function DashboardContent({
   effectiveClubId: number | null;
   onClubChange: (v: string) => void;
 }) {
-  const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard(effectiveClubId);
-  const [genderFilter, setGenderFilter] = useState<string>("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
 
-  const filteredLeaderboard = useMemo(() => {
-    if (!leaderboard) return [];
-    return leaderboard.filter(p => {
-      if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
-      if (categoryFilter !== "ALL" && p.category !== categoryFilter) return false;
-      return true;
-    });
-  }, [leaderboard, genderFilter, categoryFilter]);
-
-  const availableGenders = useMemo(() => {
-    if (!leaderboard) return [];
-    const set = new Set(leaderboard.map(p => p.gender).filter(Boolean));
-    return [...set].sort();
-  }, [leaderboard]);
-
-  const availableCategories = useMemo(() => {
-    if (!leaderboard) return [];
-    const set = new Set(leaderboard.map(p => p.category).filter(Boolean));
-    return [...set].sort();
-  }, [leaderboard]);
+  const { data: mySessions, isLoading: mySessionsLoading } = useQuery<any[]>({
+    queryKey: ["/api/my-sessions"],
+  });
 
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
@@ -212,24 +193,13 @@ function DashboardContent({
   const pastSessionsCount = filteredSessions.filter(s => isPast(new Date(s.date))).length;
   const upcomingSessionsCount = filteredSessions.filter(s => isFuture(new Date(s.date))).length;
 
-  const myLeaderboardEntry = leaderboard?.find(p => p.id === playerProfile?.id);
-  const myMatchesPlayed = myLeaderboardEntry?.matchesPlayed ?? 0;
-  const myMatchesWon = myLeaderboardEntry?.matchesWon ?? 0;
-  const myWinPct = myLeaderboardEntry?.winPercentage ?? 0;
-  const myRank = leaderboard ? (leaderboard.findIndex(p => p.id === playerProfile?.id) + 1) || 0 : 0;
-
-  const totalClubMatches = leaderboard?.reduce((sum, p) => sum + p.matchesPlayed, 0) || 0;
-  const totalPlayers = leaderboard?.length || 0;
-  const topPlayers = filteredLeaderboard.slice(0, 10);
-
-  const avgWinRate = filteredLeaderboard.length > 0
-    ? Math.round(filteredLeaderboard.reduce((sum, p) => sum + p.winPercentage, 0) / filteredLeaderboard.length)
-    : 0;
-  const totalFilteredMatches = filteredLeaderboard.reduce((sum, p) => sum + p.matchesPlayed, 0);
-
-  const clubName = effectiveClubId
-    ? clubs.find(c => c.id === effectiveClubId)?.name || "Club"
-    : "Club";
+  const myUpcomingSessions = useMemo(() => {
+    if (!mySessions) return [];
+    return mySessions
+      .filter(s => isFuture(new Date(s.sessionDate)) || s.sessionStatus === "ACTIVE")
+      .sort((a, b) => new Date(a.sessionDate).getTime() - new Date(b.sessionDate).getTime())
+      .slice(0, 5);
+  }, [mySessions]);
 
   return (
     <div className="space-y-8">
@@ -257,38 +227,6 @@ function DashboardContent({
         )}
       </div>
 
-      {myRank > 0 && (
-        <Card className="border-primary/30 bg-primary/5" data-testid="card-my-rank">
-          <CardContent className="py-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Your Rank</div>
-                  <div className="text-2xl font-bold text-primary" data-testid="text-my-rank">#{myRank}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="text-center">
-                  <div className="text-lg font-bold" data-testid="text-my-played">{myMatchesPlayed}</div>
-                  <div className="text-xs text-muted-foreground">Played</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-green-600" data-testid="text-my-won">{myMatchesWon}</div>
-                  <div className="text-xs text-muted-foreground">Won</div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-lg font-bold ${myWinPct >= 50 ? "text-green-600" : "text-muted-foreground"}`} data-testid="text-my-winpct">{myWinPct}%</div>
-                  <div className="text-xs text-muted-foreground">Win Rate</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="stats-grid">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -304,26 +242,26 @@ function DashboardContent({
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Players</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
             <div className="p-2 rounded-lg bg-emerald-500/10">
               <Users className="h-4 w-4 text-emerald-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-active-players">{totalPlayers}</div>
-            <div className="text-xs text-muted-foreground mt-1">with match results</div>
+            <div className="text-3xl font-bold" data-testid="text-my-sessions-count">{mySessions?.length || 0}</div>
+            <div className="text-xs text-muted-foreground mt-1">signed up</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Matches</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
             <div className="p-2 rounded-lg bg-amber-500/10">
               <Zap className="h-4 w-4 text-amber-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-total-matches">{totalClubMatches}</div>
-            <div className="text-xs text-muted-foreground mt-1">completed</div>
+            <div className="text-3xl font-bold" data-testid="text-upcoming-count">{upcomingSessionsCount}</div>
+            <div className="text-xs text-muted-foreground mt-1">sessions ahead</div>
           </CardContent>
         </Card>
         <Card>
@@ -340,228 +278,138 @@ function DashboardContent({
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 border-border/50" data-testid="card-leaderboard">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-amber-500" />
-                  {effectiveClubId ? clubName : "Club"} Leaderboard
-                </CardTitle>
-                <CardDescription>Players ranked by wins and win percentage</CardDescription>
-              </div>
-              <Link href="/rankings">
-                <Button variant="ghost" size="sm" data-testid="button-view-all-rankings">
-                  View All <ChevronRight className="w-4 h-4 ml-1" />
+      <Card data-testid="card-my-upcoming-sessions">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              My Upcoming Sessions
+            </CardTitle>
+            <Link href="/my-sessions">
+              <Button variant="ghost" size="sm" data-testid="button-view-all-my-sessions">
+                View All <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+          <CardDescription>Sessions you have signed up for</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {mySessionsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg" />)}
+            </div>
+          ) : myUpcomingSessions.length > 0 ? (
+            <div className="space-y-3">
+              {myUpcomingSessions.map(session => (
+                <Link key={session.sessionId} href={`/sessions/${session.sessionId}`}>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`my-upcoming-session-${session.sessionId}`}>
+                    <div className="flex flex-col items-center justify-center w-11 h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
+                      <span className="text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
+                      <span className="text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{session.sessionTitle}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                        <Clock className="w-3 h-3" /> {session.sessionStartTime}
+                        <span className="mx-1">-</span>
+                        {session.courtsAvailable} courts
+                        {session.clubName && (
+                          <>
+                            <span className="mx-1">-</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.clubName}</Badge>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={session.sessionStatus === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                      {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="font-medium">No upcoming sessions</p>
+              <p className="text-xs mt-1">Browse sessions to sign up</p>
+              <Link href="/sessions">
+                <Button variant="outline" size="sm" className="mt-3" data-testid="button-browse-sessions">
+                  Browse Sessions
                 </Button>
               </Link>
             </div>
-            {leaderboard && leaderboard.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                {availableGenders.length > 1 && (
-                  <Select value={genderFilter} onValueChange={setGenderFilter}>
-                    <SelectTrigger className="h-7 w-[100px] text-xs" data-testid="select-leaderboard-gender">
-                      <SelectValue placeholder="Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Genders</SelectItem>
-                      {availableGenders.map(g => (
-                        <SelectItem key={g} value={g!}>{g}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {availableCategories.length > 1 && (
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="h-7 w-[110px] text-xs" data-testid="select-leaderboard-category">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Categories</SelectItem>
-                      {availableCategories.map(c => (
-                        <SelectItem key={c} value={c!}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {(genderFilter !== "ALL" || categoryFilter !== "ALL") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs px-2"
-                    onClick={() => { setGenderFilter("ALL"); setCategoryFilter("ALL"); }}
-                    data-testid="button-clear-leaderboard-filters"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            )}
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card data-testid="card-upcoming-sessions">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calendar className="h-4 w-4 text-blue-500" />
+                Upcoming Sessions
+              </CardTitle>
+              <Link href="/sessions">
+                <Button variant="ghost" size="sm" data-testid="button-view-all-sessions">
+                  All <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
-            {leaderboardLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            {sessionsLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map(i => <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg" />)}
               </div>
-            ) : topPlayers.length > 0 ? (
-              <>
-                <div className="grid grid-cols-3 gap-3 mb-4 p-3 rounded-lg bg-muted/30">
-                  <div className="text-center">
-                    <div className="text-lg font-bold" data-testid="text-filtered-players">{filteredLeaderboard.length}</div>
-                    <div className="text-[10px] text-muted-foreground">Players</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold" data-testid="text-filtered-matches">{totalFilteredMatches}</div>
-                    <div className="text-[10px] text-muted-foreground">Matches</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold" data-testid="text-avg-win-rate">{avgWinRate}%</div>
-                    <div className="text-[10px] text-muted-foreground">Avg Win Rate</div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {topPlayers.map((player, index) => (
-                    <div key={player.id} onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}>
-                      <div
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer hover-elevate ${
-                          player.id === playerProfile?.id ? "bg-primary/10 border border-primary/20" : "bg-muted/30"
-                        }`}
-                        data-testid={`leaderboard-player-${player.id}`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-                          index === 0 ? "bg-amber-500 text-white" :
-                          index === 1 ? "bg-gray-400 text-white" :
-                          index === 2 ? "bg-amber-700 text-white" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate">
-                            {player.fullName}
-                            {player.id === playerProfile?.id && (
-                              <Badge variant="outline" className="ml-2 text-[10px] py-0">You</Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                            {player.gender && <Badge variant="secondary" className="text-[10px] py-0">{player.gender}</Badge>}
-                            <Badge variant="outline" className="text-[10px] py-0">{player.category || "?"}</Badge>
-                            <span>{player.matchesPlayed} played</span>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-medium">
-                            <span className="text-green-600">{player.matchesWon}W</span>
-                            <span className="text-muted-foreground mx-0.5">/</span>
-                            <span className="text-red-500">{player.matchesLost}L</span>
-                          </div>
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="text-[10px] text-muted-foreground">{player.setsWon}s {player.pointsWon}pts</span>
-                            <span className={`text-xs font-bold ${player.winPercentage >= 50 ? "text-green-600" : "text-muted-foreground"}`}>
-                              {player.winPercentage}%
-                            </span>
-                          </div>
+            ) : upcomingSessions.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingSessions.map(session => (
+                  <Link key={session.id} href={`/sessions/${session.id}`}>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`upcoming-session-${session.id}`}>
+                      <div className="flex flex-col items-center justify-center w-11 h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
+                        <span className="text-[10px] uppercase leading-none">{format(new Date(session.date), "MMM")}</span>
+                        <span className="text-lg leading-none">{format(new Date(session.date), "d")}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{session.title}</div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {session.startTime}
+                          <span className="mx-1">-</span>
+                          {session.courtsAvailable} courts
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-                {filteredLeaderboard.length > 10 && (
-                  <div className="text-center mt-3">
-                    <Link href="/rankings">
-                      <Button variant="ghost" size="sm" className="text-xs" data-testid="button-show-more-players">
-                        +{filteredLeaderboard.length - 10} more players <ChevronRight className="w-3 h-3 ml-1" />
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </>
-            ) : leaderboard && leaderboard.length > 0 ? (
-              <div className="text-center py-12">
-                <Filter className="w-10 h-10 mx-auto text-muted-foreground mb-3 opacity-50" />
-                <p className="text-muted-foreground font-medium">No players match filters</p>
-                <p className="text-sm text-muted-foreground mt-1">Try adjusting the gender or category filters</p>
+                  </Link>
+                ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <Target className="w-10 h-10 mx-auto text-muted-foreground mb-3 opacity-50" />
-                <p className="text-muted-foreground font-medium">No ranked players yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Complete matches to appear on the leaderboard</p>
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                No upcoming sessions
               </div>
             )}
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <Card data-testid="card-upcoming-sessions">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Calendar className="h-4 w-4 text-blue-500" />
-                  Upcoming Sessions
-                </CardTitle>
-                <Link href="/sessions">
-                  <Button variant="ghost" size="sm" data-testid="button-view-all-sessions">
-                    All <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </Link>
+        <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-primary/20 rounded-lg shrink-0">
+                <Building2 className="h-5 w-5 text-primary" />
               </div>
-            </CardHeader>
-            <CardContent>
-              {sessionsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2].map(i => <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg" />)}
-                </div>
-              ) : upcomingSessions.length > 0 ? (
-                <div className="space-y-3">
-                  {upcomingSessions.map(session => (
-                    <Link key={session.id} href={`/sessions/${session.id}`}>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`upcoming-session-${session.id}`}>
-                        <div className="flex flex-col items-center justify-center w-11 h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
-                          <span className="text-[10px] uppercase leading-none">{format(new Date(session.date), "MMM")}</span>
-                          <span className="text-lg leading-none">{format(new Date(session.date), "d")}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{session.title}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {session.startTime}
-                            <span className="mx-1">-</span>
-                            {session.courtsAvailable} courts
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  No upcoming sessions
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-primary/20 rounded-lg shrink-0">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm">Start Your Own Club</h3>
-                  <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
-                </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-sm">Start Your Own Club</h3>
+                <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
               </div>
-              <Link href="/create-club">
-                <Button size="sm" className="w-full mt-3" data-testid="button-create-club">
-                  <Plus className="h-4 w-4 mr-1" /> Create Club
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <Link href="/create-club">
+              <Button size="sm" className="w-full mt-3" data-testid="button-create-club">
+                <Plus className="h-4 w-4 mr-1" /> Create Club
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       {pastSessions.length > 0 && (
