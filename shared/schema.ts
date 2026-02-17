@@ -866,3 +866,47 @@ export type PolicyAcceptance = typeof policyAcceptances.$inferSelect;
 export type InternalMessage = typeof internalMessages.$inferSelect;
 export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
 export type InsertPolicyAcceptance = z.infer<typeof insertPolicyAcceptanceSchema>;
+
+// === EMAIL TEMPLATES ===
+export const emailTemplateTypeEnum = pgEnum("email_template_type", [
+  "WELCOME", "PASSWORD_RESET", "ACCOUNT_CLAIMED",
+  "SESSION_BOOKING", "SESSION_CANCELLATION",
+  "UNPAID_FEES_REMINDER", "MEMBERSHIP_EXPIRY",
+  "CLUB_ANNOUNCEMENT", "EVENT_REMINDER", "CUSTOM"
+]);
+
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  templateType: emailTemplateTypeEnum("template_type").notNull(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  htmlBody: text("html_body").notNull(),
+  isSystem: boolean("is_system").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const emailLogs = pgTable("email_logs", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => emailTemplates.id),
+  templateType: text("template_type"),
+  recipientEmail: text("recipient_email").notNull(),
+  recipientUserId: integer("recipient_user_id").references(() => users.id),
+  subject: text("subject").notNull(),
+  status: text("status").default("SENT").notNull(),
+  error: text("error"),
+  sentBy: integer("sent_by").references(() => users.id),
+  clubId: integer("club_id").references(() => clubs.id),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({ id: true, sentAt: true });
+
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type EmailLog = typeof emailLogs.$inferSelect;
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
