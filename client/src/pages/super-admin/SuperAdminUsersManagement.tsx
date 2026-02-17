@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import {
   Users, Shield, ArrowLeft, Search, Loader2, Trophy, Clock,
   KeyRound, CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
-  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle
+  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle, Plus, Building2
 } from "lucide-react";
 
 interface PlayerProfile {
@@ -108,6 +108,11 @@ export default function SuperAdminUsersManagement() {
   const [passwordMode, setPasswordMode] = useState<"none" | "set" | "link">("none");
   const [playerNewPassword, setPlayerNewPassword] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
+  const [assignClubId, setAssignClubId] = useState("");
+  const [assignClubRole, setAssignClubRole] = useState("PLAYER");
+  const [assignGrade, setAssignGrade] = useState("C3");
+  const [showAssignClub, setShowAssignClub] = useState(false);
+  const [selectedProfileClub, setSelectedProfileClub] = useState<string>("all");
 
   const { data: players, isLoading } = useQuery<ComprehensiveUser[]>({
     queryKey: ["/api/super-admin/players-comprehensive"],
@@ -119,6 +124,28 @@ export default function SuperAdminUsersManagement() {
 
   const { data: passwordResets } = useQuery<PasswordResetUser[]>({
     queryKey: ["/api/admin/password-resets"],
+  });
+
+  const { data: allClubs } = useQuery<{ id: number; name: string; status: string }[]>({
+    queryKey: ["/api/admin/clubs"],
+  });
+
+  const assignToClubMutation = useMutation({
+    mutationFn: async ({ userId, clubId, clubRole, grade }: { userId: number; clubId: number; clubRole: string; grade: string }) => {
+      const res = await apiRequest("POST", "/api/god-mode/assign-user-to-club", { userId, clubId, clubRole, grade });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+      setShowAssignClub(false);
+      setAssignClubId("");
+      setAssignClubRole("PLAYER");
+      setAssignGrade("C3");
+      toast({ title: "Assigned", description: "User has been assigned to the club." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const approveMutation = useMutation({
@@ -302,6 +329,8 @@ export default function SuperAdminUsersManagement() {
     setPasswordMode("none");
     setPlayerNewPassword("");
     setGeneratedLink("");
+    setShowAssignClub(false);
+    setSelectedProfileClub("all");
     setEditForm({
       fullName: player.fullName,
       email: player.email,
@@ -321,7 +350,7 @@ export default function SuperAdminUsersManagement() {
     });
     const pf: Record<number, Record<string, any>> = {};
     player.profiles.forEach(pr => {
-      pf[pr.id] = { gender: pr.gender || "", category: pr.grade || pr.category || "C3", clubRole: pr.clubRole, membershipStatus: pr.membershipStatus, playerStatus: pr.playerStatus };
+      pf[pr.id] = { gender: pr.gender || "", category: pr.grade || pr.category || "C3", clubRole: pr.clubRole || "PLAYER", membershipStatus: pr.membershipStatus || "PENDING", playerStatus: pr.playerStatus || "ACTIVE" };
     });
     setProfileEditForm(pf);
   };
@@ -827,9 +856,65 @@ export default function SuperAdminUsersManagement() {
                 </div>
               </div>
 
-              {selectedPlayer.profiles.length > 0 && (
-                <div>
-                  <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Club Profiles</div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                  <div className="text-sm font-semibold text-muted-foreground border-b pb-1 flex-1">Club Profiles ({selectedPlayer.profiles.length})</div>
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowAssignClub(!showAssignClub)} data-testid="button-assign-to-club">
+                    <Plus className="w-3 h-3" /> Assign to Club
+                  </Button>
+                </div>
+
+                {showAssignClub && (
+                  <div className="p-3 rounded-lg border border-border/50 mb-3 space-y-3 bg-muted/30" data-testid="panel-assign-club">
+                    <div className="text-sm font-medium flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /> Assign to New Club</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Club</Label>
+                        <Select value={assignClubId} onValueChange={setAssignClubId}>
+                          <SelectTrigger data-testid="select-assign-club"><SelectValue placeholder="Select club..." /></SelectTrigger>
+                          <SelectContent>
+                            {allClubs?.filter(c => !selectedPlayer.profiles.some(p => p.clubId === c.id)).map(c => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Role</Label>
+                        <Select value={assignClubRole} onValueChange={setAssignClubRole}>
+                          <SelectTrigger data-testid="select-assign-role"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PLAYER">Player</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="OWNER">Owner</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Grade</Label>
+                        <Select value={assignGrade} onValueChange={setAssignGrade}>
+                          <SelectTrigger data-testid="select-assign-grade"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map(g => (
+                              <SelectItem key={g} value={g}>{g}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!assignClubId || assignToClubMutation.isPending}
+                      onClick={() => assignToClubMutation.mutate({ userId: selectedPlayer.id, clubId: Number(assignClubId), clubRole: assignClubRole, grade: assignGrade })}
+                      data-testid="button-confirm-assign"
+                    >
+                      {assignToClubMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                      Assign
+                    </Button>
+                  </div>
+                )}
+
+                {selectedPlayer.profiles.length > 0 ? (
                   <div className="space-y-2">
                     {selectedPlayer.profiles.map(pr => (
                       <div key={pr.id} className="p-3 rounded-lg border border-border/50 text-sm">
@@ -837,6 +922,9 @@ export default function SuperAdminUsersManagement() {
                           <strong>{pr.clubName}</strong>
                           <Badge variant="outline" className="text-xs">{pr.clubRole}</Badge>
                           <Badge variant="outline" className="text-xs">{pr.membershipStatus}</Badge>
+                          <Badge variant="outline" className={`text-xs ${pr.playerStatus === "ACTIVE" ? "text-green-600" : pr.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"}`}>
+                            {pr.playerStatus}
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                           <span>Gender: {pr.gender || "N/A"}</span>
@@ -846,8 +934,10 @@ export default function SuperAdminUsersManagement() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2">Not a member of any club yet.</p>
+                )}
+              </div>
 
               <div className="border-t pt-3 space-y-3">
                 <div className="text-sm font-semibold text-muted-foreground">Password Management</div>
@@ -979,10 +1069,29 @@ export default function SuperAdminUsersManagement() {
               {selectedPlayer.profiles.length > 0 && (
                 <div>
                   <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Club Profiles</div>
+                  {selectedPlayer.profiles.length > 1 && (
+                    <div className="mb-3">
+                      <Label className="text-xs">Filter by Club</Label>
+                      <Select value={selectedProfileClub} onValueChange={setSelectedProfileClub}>
+                        <SelectTrigger data-testid="select-filter-profile-club"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Clubs</SelectItem>
+                          {selectedPlayer.profiles.map(pr => (
+                            <SelectItem key={pr.id} value={String(pr.clubId)}>{pr.clubName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-4">
-                    {selectedPlayer.profiles.map(pr => (
+                    {selectedPlayer.profiles
+                      .filter(pr => selectedProfileClub === "all" || String(pr.clubId) === selectedProfileClub)
+                      .map(pr => (
                       <div key={pr.id} className="p-3 rounded-lg border border-border/50">
-                        <div className="font-medium text-sm mb-2">{pr.clubName}</div>
+                        <div className="font-medium text-sm mb-2 flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-muted-foreground" />
+                          {pr.clubName}
+                        </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Gender</Label>
@@ -1032,6 +1141,19 @@ export default function SuperAdminUsersManagement() {
                                 <SelectItem value="PENDING">Pending</SelectItem>
                                 <SelectItem value="APPROVED">Approved</SelectItem>
                                 <SelectItem value="REJECTED">Rejected</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Player Status</Label>
+                            <Select value={profileEditForm[pr.id]?.playerStatus || "ACTIVE"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], playerStatus: v } }))}>
+                              <SelectTrigger data-testid={`select-profile-player-status-${pr.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ACTIVE">Active</SelectItem>
+                                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                                <SelectItem value="ARCHIVED">Archived</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

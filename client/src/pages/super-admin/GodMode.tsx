@@ -125,8 +125,47 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
     city: "", country: "", region: "", continent: "",
     dateOfBirth: "", isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
   });
+  const [showAssignClub, setShowAssignClub] = useState(false);
+  const [assignClubId, setAssignClubId] = useState("");
+  const [assignClubRole, setAssignClubRole] = useState("PLAYER");
+  const [assignGrade, setAssignGrade] = useState("C3");
+
+  const { data: allClubs } = useQuery<{ id: number; name: string; status: string }[]>({
+    queryKey: ["/api/admin/clubs"],
+    enabled: open && !isNew && showAssignClub,
+  });
+
+  const { data: userProfiles } = useQuery<{ clubId: number }[]>({
+    queryKey: ["/api/god-mode/user-profiles", member?.userId],
+    queryFn: async () => {
+      const res = await fetch(`/api/super-admin/player-profiles-by-user/${member!.userId}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !isNew && showAssignClub && !!member?.userId,
+  });
+
+  const assignToClubMutation = useMutation({
+    mutationFn: async ({ userId, targetClubId, role, grade }: { userId: number; targetClubId: number; role: string; grade: string }) => {
+      const res = await apiRequest("POST", "/api/god-mode/assign-user-to-club", { userId, clubId: targetClubId, clubRole: role, grade });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs"] });
+      setShowAssignClub(false);
+      setAssignClubId("");
+      setAssignClubRole("PLAYER");
+      setAssignGrade("C3");
+      toast({ title: "Assigned", description: "User has been assigned to the club." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
+    setShowAssignClub(false);
+    setAssignClubId("");
     if (member) {
       setForm({
         fullName: member.user?.fullName || "",
@@ -385,6 +424,68 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
                   <Input value={form.parentGuardianEmail} onChange={(e) => setForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} data-testid="input-god-member-guardian-email" />
                 </div>
               </div>
+            </div>
+          )}
+          {!isNew && (
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <div className="text-sm font-semibold text-muted-foreground border-b pb-1 flex-1">Assign to Another Club</div>
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowAssignClub(!showAssignClub)} data-testid="button-god-assign-to-club">
+                  <Plus className="w-3 h-3" /> Assign
+                </Button>
+              </div>
+              {showAssignClub && (
+                <div className="p-3 rounded-lg border border-border/50 space-y-3 bg-muted/30" data-testid="panel-god-assign-club">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-xs">Club</Label>
+                      <Select value={assignClubId} onValueChange={setAssignClubId}>
+                        <SelectTrigger data-testid="select-god-assign-club"><SelectValue placeholder="Select club..." /></SelectTrigger>
+                        <SelectContent>
+                          {allClubs?.filter(c => {
+                            const existingClubIds = new Set(userProfiles?.map(p => p.clubId) || []);
+                            existingClubIds.add(clubId);
+                            return !existingClubIds.has(c.id);
+                          }).map(c => (
+                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Role</Label>
+                      <Select value={assignClubRole} onValueChange={setAssignClubRole}>
+                        <SelectTrigger data-testid="select-god-assign-role"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PLAYER">Player</SelectItem>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Grade</Label>
+                      <Select value={assignGrade} onValueChange={setAssignGrade}>
+                        <SelectTrigger data-testid="select-god-assign-grade"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {GRADES.map(g => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!assignClubId || assignToClubMutation.isPending}
+                    onClick={() => assignToClubMutation.mutate({ userId: member!.userId, targetClubId: Number(assignClubId), role: assignClubRole, grade: assignGrade })}
+                    data-testid="button-god-confirm-assign"
+                  >
+                    {assignToClubMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                    Assign to Club
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

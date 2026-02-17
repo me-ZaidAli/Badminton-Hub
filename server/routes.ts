@@ -10688,5 +10688,60 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/super-admin/player-profiles-by-user/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const userId = Number(req.params.userId);
+      const profiles = await db.select({
+        id: playerProfiles.id,
+        clubId: playerProfiles.clubId,
+        clubRole: playerProfiles.clubRole,
+        membershipStatus: playerProfiles.membershipStatus,
+      }).from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      res.json(profiles);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to fetch profiles" });
+    }
+  });
+
+  app.post("/api/god-mode/assign-user-to-club", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const { userId, clubId, clubRole, gender, grade } = req.body;
+      if (!userId || !clubId) return res.status(400).json({ message: "userId and clubId are required" });
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+
+      const existingProfile = await storage.getPlayerProfile(userId, clubId);
+      if (existingProfile) {
+        return res.status(400).json({ message: "User is already a member of this club" });
+      }
+
+      const profile = await storage.createPlayerProfile({
+        userId,
+        clubId,
+        clubRole: clubRole || "PLAYER",
+        membershipStatus: "APPROVED",
+        playerStatus: "ACTIVE",
+        gender: gender || null,
+        category: "D",
+        grade: grade || "C3",
+        rankingPoints: 1000,
+        matchesPlayed: 0,
+        matchesWon: 0,
+      });
+
+      res.status(201).json({ ...profile, clubName: club.name });
+    } catch (err: any) {
+      console.error("Error assigning user to club:", err);
+      res.status(500).json({ message: err.message || "Failed to assign user to club" });
+    }
+  });
+
   return httpServer;
 }
