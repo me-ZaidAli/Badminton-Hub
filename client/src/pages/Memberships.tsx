@@ -96,6 +96,7 @@ interface MembershipPlan {
   name: string;
   annualPrice: number;
   defaultSessionFee: number;
+  defaultDurationDays: number;
   isDefault: boolean;
 }
 
@@ -532,22 +533,46 @@ export default function Memberships() {
         </>
       ) : (
         <Card>
-          <CardContent className="py-8 text-center">
-            <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2" data-testid="text-no-membership">No Active Membership</h3>
-            <p className="text-muted-foreground mb-4">
-              You don't have an active membership for {activeClubName || "this club"}.
-            </p>
+          <CardContent className="py-6">
+            <div className="text-center mb-4">
+              <CreditCard className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-1" data-testid="text-no-membership">No Active Membership</h3>
+              <p className="text-muted-foreground text-sm">
+                You don't have an active membership for {activeClubName || "this club"}.
+              </p>
+            </div>
             {pendingRequests.length > 0 ? (
-              <p className="text-sm text-muted-foreground">You have a pending request below.</p>
+              <p className="text-sm text-muted-foreground text-center">You have a pending request below.</p>
+            ) : plansLoading ? (
+              <div className="flex items-center justify-center h-16">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : plans.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-2" data-testid="text-no-plans">No membership plans available for this club yet.</p>
             ) : (
-              <Button
-                onClick={() => { setSelectedPlanId(""); setRequestDialogOpen(true); }}
-                data-testid="button-request-membership"
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Request Membership
-              </Button>
+              <div className="space-y-3 mt-4">
+                <p className="text-sm font-medium text-muted-foreground">Available Plans</p>
+                {plans.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="rounded-md border p-4 space-y-2 hover-elevate cursor-pointer"
+                    onClick={() => { setSelectedPlanId(plan.id.toString()); setRequestDialogOpen(true); }}
+                    data-testid={`plan-card-${plan.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm" data-testid={`text-plan-name-${plan.id}`}>{plan.name}</span>
+                        {plan.isDefault && <Badge variant="secondary" className="text-xs no-default-hover-elevate">Default</Badge>}
+                      </div>
+                      <span className="font-bold text-sm text-primary" data-testid={`text-plan-price-${plan.id}`}>{formatPounds(plan.annualPrice)}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                      <span data-testid={`text-plan-fee-${plan.id}`}>Session fee: {formatPounds(plan.defaultSessionFee)}</span>
+                      <span data-testid={`text-plan-duration-${plan.id}`}>Duration: {plan.defaultDurationDays || 365} days</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
