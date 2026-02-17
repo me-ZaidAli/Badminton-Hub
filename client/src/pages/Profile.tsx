@@ -47,15 +47,15 @@ function MetricCard({ icon: Icon, label, value, subtext, onClick, className = ""
       onClick={onClick}
       data-testid={`metric-${label.toLowerCase().replace(/\s/g, "-")}`}
     >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-md bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" />
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 rounded-md bg-primary/10">
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground truncate">{label}</p>
-            <p className="text-xl font-bold">{value}</p>
-            {subtext && <p className="text-xs text-muted-foreground">{subtext}</p>}
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
+            <p className="text-lg sm:text-xl font-bold">{value}</p>
+            {subtext && <p className="text-[10px] sm:text-xs text-muted-foreground">{subtext}</p>}
           </div>
           {onClick && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
         </div>
@@ -856,7 +856,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="container max-w-4xl mx-auto p-0 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
       {!isProfileComplete && (
         <Card className="border-amber-300 dark:border-amber-700">
           <CardContent className="p-4">
@@ -873,12 +873,12 @@ export default function Profile() {
 
       {/* Profile Header */}
       <Card data-testid="card-profile-header">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4 flex-wrap">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-4 flex-wrap">
             <div className="relative">
-              <Avatar className="h-20 w-20">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
                 {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} /> : null}
-                <AvatarFallback className="text-xl">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
+                <AvatarFallback className="text-lg sm:text-xl">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
               </Avatar>
               <button className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1.5 shadow-sm" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
                 {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
@@ -887,8 +887,8 @@ export default function Profile() {
                 onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold" data-testid="text-user-name">{user.fullName || "New User"}</h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-user-name">{user.fullName || "New User"}</h1>
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
                 <Badge variant="secondary" data-testid="badge-role">
                   <Shield className="h-3 w-3 mr-1" />
                   {user.role === "OWNER" ? "Platform Owner" : user.role.charAt(0) + user.role.slice(1).toLowerCase()}
@@ -900,7 +900,7 @@ export default function Profile() {
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-3 sm:gap-4 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground flex-wrap">
                 {(user as any)?.email && (
                   <span data-testid="text-email">{user.email}</span>
                 )}
@@ -931,7 +931,7 @@ export default function Profile() {
       </Card>
 
       {/* Financial Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
         <MetricCard icon={Wallet} label="Credit Balance" value={`${totalCredits >= 0 ? "" : "-"}£${(Math.abs(totalCredits) / 100).toFixed(2)}`}
           subtext={creditBalances && creditBalances.length > 0 ? `Across ${creditBalances.length} club${creditBalances.length > 1 ? "s" : ""}` : "No credits yet"}
           onClick={() => setCreditsModalOpen(true)} />
@@ -1005,7 +1005,7 @@ export default function Profile() {
       </Card>
 
       {/* Session Activity */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
         <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
         <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
         <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />

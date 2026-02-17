@@ -72,8 +72,8 @@ function SessionCard({ session, selected, onSelect, onWithdraw, withdrawing }: {
   const sessionDate = new Date(session.sessionDate);
 
   return (
-    <div className="rounded-md border p-4 space-y-2" data-testid={`session-card-${session.sessionId}`}>
-      <div className="flex items-start gap-3">
+    <div className="rounded-md border p-3 sm:p-4 space-y-1.5 sm:space-y-2" data-testid={`session-card-${session.sessionId}`}>
+      <div className="flex items-start gap-2 sm:gap-3">
         <Checkbox
           checked={selected}
           onCheckedChange={() => onSelect(session.sessionId)}
@@ -267,7 +267,7 @@ function TimelineView({ sessions, selectedIds, onSelect, onWithdraw, withdrawing
   }
 
   return (
-    <div className="space-y-6" data-testid="view-timeline">
+    <div className="space-y-4 sm:space-y-6" data-testid="view-timeline">
       {Object.entries(grouped).map(([month, monthSessions]) => (
         <div key={month}>
           <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wider">{month}</h3>

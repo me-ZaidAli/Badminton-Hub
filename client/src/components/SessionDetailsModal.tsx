@@ -258,30 +258,30 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   };
 
   const renderResponseSummary = () => (
-    <div className="flex items-center justify-center gap-4 sm:gap-6 py-3">
-      <button onClick={() => toggleSection("confirmed")} className="flex flex-col items-center gap-1" data-testid="summary-confirmed">
-        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-base sm:text-lg">
+    <div className="flex items-center justify-center gap-3 sm:gap-6 py-2 sm:py-3">
+      <button onClick={() => toggleSection("confirmed")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-confirmed">
+        <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-sm sm:text-lg">
           {confirmed.length}
         </div>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">Going</span>
+        <span className="text-[9px] sm:text-xs text-muted-foreground">Going</span>
       </button>
-      <button onClick={() => toggleSection("waiting")} className="flex flex-col items-center gap-1" data-testid="summary-waiting">
-        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-bold text-base sm:text-lg">
+      <button onClick={() => toggleSection("waiting")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-waiting">
+        <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 font-bold text-sm sm:text-lg">
           {waiting.length}
         </div>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">Waiting</span>
+        <span className="text-[9px] sm:text-xs text-muted-foreground">Waiting</span>
       </button>
-      <button onClick={() => toggleSection("invited")} className="flex flex-col items-center gap-1" data-testid="summary-invited">
-        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-base sm:text-lg">
+      <button onClick={() => toggleSection("invited")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-invited">
+        <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-sm sm:text-lg">
           {invited.length}
         </div>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">Invited</span>
+        <span className="text-[9px] sm:text-xs text-muted-foreground">Invited</span>
       </button>
-      <button onClick={() => toggleSection("notAttending")} className="flex flex-col items-center gap-1" data-testid="summary-not-attending">
-        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted text-muted-foreground font-bold text-base sm:text-lg">
+      <button onClick={() => toggleSection("notAttending")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-not-attending">
+        <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted text-muted-foreground font-bold text-sm sm:text-lg">
           {notAttending.length}
         </div>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">Out</span>
+        <span className="text-[9px] sm:text-xs text-muted-foreground">Out</span>
       </button>
     </div>
   );
@@ -298,14 +298,14 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
     const playerInfo = (
       <>
-        <Avatar className={`h-8 w-8 shrink-0 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
-          <AvatarFallback className="text-xs font-medium bg-muted">
+        <Avatar className={`h-7 w-7 sm:h-8 sm:w-8 shrink-0 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
+          <AvatarFallback className="text-[10px] sm:text-xs font-medium bg-muted">
             {getInitials(name)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-medium text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+            <span className="font-medium text-xs sm:text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
             {isMe && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">You</Badge>}
             {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{grade}</Badge>}
             {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
@@ -318,8 +318,8 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
     if (isAdmin) {
       return (
-        <div key={signup.id} className="flex items-center gap-2 py-2 px-1 rounded-md" data-testid={`player-row-${signup.id}`}>
-          <button className="flex items-center gap-2 flex-1 min-w-0 text-left" onClick={() => setSelectedPlayer(signup)}>
+        <div key={signup.id} className="flex items-center gap-1.5 sm:gap-2 py-1.5 sm:py-2 px-1 rounded-md" data-testid={`player-row-${signup.id}`}>
+          <button className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 text-left" onClick={() => setSelectedPlayer(signup)}>
             {playerInfo}
           </button>
           <div className="flex items-center shrink-0">
@@ -408,13 +408,13 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
       <div key={key} className="border-b border-border/50 last:border-b-0">
         <button
           onClick={() => toggleSection(key)}
-          className="flex items-center justify-between gap-2 w-full py-3 px-1 text-left"
+          className="flex items-center justify-between gap-2 w-full py-2 sm:py-3 px-1 text-left"
           data-testid={`section-toggle-${key}`}
         >
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-            <span className="font-medium text-sm">{title}</span>
-            <span className="text-sm text-muted-foreground">({players.length})</span>
+            <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${color}`} />
+            <span className="font-medium text-xs sm:text-sm">{title}</span>
+            <span className="text-xs sm:text-sm text-muted-foreground">({players.length})</span>
           </div>
           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </button>
@@ -839,10 +839,10 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   };
 
   const drawerContent = (
-    <div className="px-3 sm:px-4 pb-6 overflow-y-auto max-h-[75vh]">
-      <div className="text-center mb-3">
-        <h2 className="text-lg sm:text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
-        <div className="flex items-center justify-center gap-3 mt-1.5 text-xs sm:text-sm text-muted-foreground flex-wrap">
+    <div className="px-2 sm:px-4 pb-4 sm:pb-6 overflow-y-auto max-h-[80vh]">
+      <div className="text-center mb-2 sm:mb-3">
+        <h2 className="text-base sm:text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
+        <div className="flex items-center justify-center gap-2 sm:gap-3 mt-1 sm:mt-1.5 text-[11px] sm:text-sm text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             {format(new Date(session.date), "EEE, MMM d")}

@@ -227,53 +227,53 @@ function DashboardContent({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="stats-grid">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
-            <div className="p-2 rounded-lg bg-blue-500/10">
-              <Calendar className="h-4 w-4 text-blue-500" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">{upcomingSessionsCount} upcoming</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{upcomingSessionsCount} upcoming</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Users className="h-4 w-4 text-emerald-500" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-my-sessions-count">{mySessions?.length || 0}</div>
-            <div className="text-xs text-muted-foreground mt-1">signed up</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessions?.length || 0}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Zap className="h-4 w-4 text-amber-500" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
+              <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-upcoming-count">{upcomingSessionsCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">sessions ahead</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{upcomingSessionsCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sessions Played</CardTitle>
-            <div className="p-2 rounded-lg bg-purple-500/10">
-              <Activity className="h-4 w-4 text-purple-500" />
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Played</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/10">
+              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-sessions-played">{pastSessionsCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">completed</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{pastSessionsCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">completed</div>
           </CardContent>
         </Card>
       </div>
@@ -303,9 +303,9 @@ function DashboardContent({
               {myUpcomingSessions.map(session => (
                 <Link key={session.sessionId} href={`/sessions/${session.sessionId}`}>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`my-upcoming-session-${session.sessionId}`}>
-                    <div className="flex flex-col items-center justify-center w-11 h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
-                      <span className="text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
-                      <span className="text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
+                    <div className="flex flex-col items-center justify-center w-10 h-10 sm:w-11 sm:h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
+                      <span className="text-[9px] sm:text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
+                      <span className="text-base sm:text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{session.sessionTitle}</div>
@@ -343,7 +343,7 @@ function DashboardContent({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
         <Card data-testid="card-upcoming-sessions">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-2">

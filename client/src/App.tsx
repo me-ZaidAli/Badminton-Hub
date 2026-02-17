@@ -92,7 +92,7 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
             <Suspense fallback={<LazyFallback />}>
               <Component />
@@ -130,7 +130,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
             <Suspense fallback={<LazyFallback />}>
               <Component />
@@ -165,7 +165,7 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
             <Suspense fallback={<LazyFallback />}>
               <Component />
@@ -200,7 +200,7 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
           <ErrorBoundary>
             <Suspense fallback={<LazyFallback />}>
               <Component />

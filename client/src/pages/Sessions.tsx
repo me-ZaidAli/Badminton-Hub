@@ -561,7 +561,7 @@ export default function Sessions() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-8">
       <PageHeader 
         title="Sessions" 
         description="Book your spot for upcoming games."
@@ -579,7 +579,7 @@ export default function Sessions() {
         )}
       />
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         {!isSuperUser && (
           <div className="flex items-center gap-1">
             <Button
@@ -612,7 +612,7 @@ export default function Sessions() {
         </div>
         {displayClubs.length > 1 && (
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-            <SelectTrigger className="w-[200px]" data-testid="select-club-filter">
+            <SelectTrigger className="w-[160px] sm:w-[200px]" data-testid="select-club-filter">
               <SelectValue placeholder="All Clubs" />
             </SelectTrigger>
             <SelectContent>
@@ -690,7 +690,7 @@ export default function Sessions() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
         {filteredSessions?.map((session) => (
@@ -709,8 +709,8 @@ export default function Sessions() {
             )}
             <Card className={`h-full border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
               <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
-              <CardContent className="p-6">
-                <div className={`flex justify-between items-start mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
+              <CardContent className="p-3 sm:p-6">
+                <div className={`flex justify-between items-start mb-3 sm:mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
                   <div className="flex gap-1 flex-wrap">
                     <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
                       {session.matchMode}
@@ -767,14 +767,14 @@ export default function Sessions() {
                 </div>
                 
                 <h3
-                  className="text-xl font-bold mb-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-wrap"
+                  className="text-base sm:text-xl font-bold mb-1.5 sm:mb-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-wrap"
                   onClick={() => setDetailsSession(session)}
                   data-testid={`button-session-title-${session.id}`}
                 >
                   {session.title}
                 </h3>
                 
-                <div className="space-y-2 text-sm text-muted-foreground mb-6">
+                <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-6">
                   <div
                     className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => setDetailsSession(session)}
@@ -810,8 +810,8 @@ export default function Sessions() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50 gap-2">
-                  <span className="font-bold text-lg">
+                <div className="flex items-center justify-between mt-auto pt-3 sm:pt-4 border-t border-border/50 gap-2">
+                  <span className="font-bold text-sm sm:text-lg">
                     {format(new Date(session.date), "EEE, MMM d")}
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
