@@ -131,6 +131,33 @@ async function hasClubMembership(userId: number, userRole: string, clubId: numbe
   return result;
 }
 
+type MatchResult = {
+  teamAPlayer1Id: number;
+  teamAPlayer2Id: number | null;
+  teamBPlayer1Id: number;
+  teamBPlayer2Id: number | null;
+};
+
+function deduplicateGeneratedMatches(matches: MatchResult[], alreadyBusy: Set<number>): MatchResult[] {
+  const usedIds = new Set<number>(alreadyBusy);
+  const safe: MatchResult[] = [];
+
+  for (const m of matches) {
+    const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+    const hasDuplicate = ids.some(id => usedIds.has(id));
+    const hasInternalDuplicate = new Set(ids).size !== ids.length;
+
+    if (!hasDuplicate && !hasInternalDuplicate) {
+      safe.push(m);
+      for (const id of ids) {
+        usedIds.add(id);
+      }
+    }
+  }
+
+  return safe;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3255,7 +3282,8 @@ export async function registerRoutes(
             fixedPairs: extractFixedPairs(signups),
           });
 
-          if (generated.matches.length > 0) {
+          const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
+          if (safeDeleteReplacements.length > 0) {
             const maxQueuePos = Math.max(0, ...existingMatches
               .filter(m => m.queuePosition !== null)
               .map(m => m.queuePosition || 0));
@@ -3265,10 +3293,10 @@ export async function registerRoutes(
               courtNumber: null,
               queuePosition: maxQueuePos + 1,
               status: "QUEUED" as const,
-              teamAPlayer1Id: generated.matches[0].teamAPlayer1Id,
-              teamAPlayer2Id: generated.matches[0].teamAPlayer2Id,
-              teamBPlayer1Id: generated.matches[0].teamBPlayer1Id,
-              teamBPlayer2Id: generated.matches[0].teamBPlayer2Id,
+              teamAPlayer1Id: safeDeleteReplacements[0].teamAPlayer1Id,
+              teamAPlayer2Id: safeDeleteReplacements[0].teamAPlayer2Id,
+              teamBPlayer1Id: safeDeleteReplacements[0].teamBPlayer1Id,
+              teamBPlayer2Id: safeDeleteReplacements[0].teamBPlayer2Id,
               scoreA: 0,
               scoreB: 0,
               isCompleted: false,
@@ -3594,7 +3622,13 @@ export async function registerRoutes(
 
     try {
       const sessionId = Number(req.params.sessionId);
-      
+
+      if (matchGenLocks.has(sessionId)) {
+        return res.status(409).json({ message: "Match generation already in progress" });
+      }
+      matchGenLocks.add(sessionId);
+
+      try {
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -3689,8 +3723,12 @@ export async function registerRoutes(
         fixedPairs: extractFixedPairs(eligibleSignups),
       });
 
+      const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
+      if (safeAutoMatches.length === 0) {
+        return res.status(400).json({ message: "No valid matches could be created without player conflicts." });
+      }
       const createdMatches = await Promise.all(
-        generated.matches.map((m, i) => storage.createMatch({
+        safeAutoMatches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
@@ -3711,6 +3749,10 @@ export async function registerRoutes(
         }))
       );
       res.status(201).json(createdMatches);
+
+      } finally {
+        matchGenLocks.delete(sessionId);
+      }
     } catch (err: any) {
       console.error("Error auto-generating matches:", err);
       res.status(500).json({ message: err.message || "Failed to generate matches" });
@@ -3836,13 +3878,22 @@ export async function registerRoutes(
         return res.json({ status: "pair_blocked", message: generated.pairConstraintMessage || "Pair constraint blocked match generation", matches: [] });
       }
 
+      const safeMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
+
+      if (safeMatches.length === 0) {
+        if (isAutoGenerate) {
+          return res.json({ status: "waiting", message: "No valid matches could be created without player conflicts.", matches: [] });
+        }
+        return res.status(400).json({ message: "No valid matches could be created without player conflicts." });
+      }
+
       const maxQueuePos = Math.max(0, ...existingMatches
         .filter(m => m.queuePosition !== null)
         .map(m => m.queuePosition || 0));
 
       const defaultTarget = session.defaultPointsToPlayTo || 21;
       const createdMatches = await Promise.all(
-        generated.matches.map((m, i) => storage.createMatch({
+        safeMatches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: maxQueuePos + i + 1,
@@ -4003,8 +4054,19 @@ export async function registerRoutes(
 
       const signups = await storage.getSessionSignups(sessionId);
       const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+
+      const busyPlayerIds = new Set<number>();
+      existingMatches
+        .filter(m => m.status === "LIVE" || m.status === "QUEUED")
+        .forEach(m => {
+          if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+        });
+
       const availablePlayers = confirmedSignups
-        .filter(s => !s.isPaused && s.player.id !== pausedPlayerId)
+        .filter(s => !s.isPaused && s.player.id !== pausedPlayerId && !busyPlayerIds.has(s.player.id))
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
@@ -4031,6 +4093,13 @@ export async function registerRoutes(
 
     try {
       const sessionId = Number(req.params.sessionId);
+
+      if (matchGenLocks.has(sessionId)) {
+        return res.status(409).json({ message: "Match generation already in progress" });
+      }
+      matchGenLocks.add(sessionId);
+
+      try {
       const { resumedPlayerId, mode, genderType } = req.body;
 
       const session = await storage.getSession(sessionId);
@@ -4058,8 +4127,18 @@ export async function registerRoutes(
       const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
       const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
       const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
+
+      const livePlayerIds = new Set<number>();
+      existingMatches.filter(m => m.status === "LIVE").forEach(m => {
+        if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
+        if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
+        if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
+        if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
+      });
+
       const players = eligibleSignups
         .filter(s => !s.isPaused)
+        .filter(s => !livePlayerIds.has(s.player.id))
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
@@ -4102,9 +4181,10 @@ export async function registerRoutes(
         fixedPairs: extractFixedPairs(eligibleSignups),
       });
 
+      const safeResumeMatches = deduplicateGeneratedMatches(generated.matches, livePlayerIds);
       const defaultTarget = session.defaultPointsToPlayTo || 21;
       const createdMatches = await Promise.all(
-        generated.matches.map((m, i) => storage.createMatch({
+        safeResumeMatches.map((m, i) => storage.createMatch({
           sessionId,
           courtNumber: null,
           queuePosition: i + 1,
@@ -4126,6 +4206,10 @@ export async function registerRoutes(
       );
 
       res.json({ rebalanced: createdMatches.length, matches: createdMatches });
+
+      } finally {
+        matchGenLocks.delete(sessionId);
+      }
     } catch (err: any) {
       console.error("Error handling resume:", err);
       res.status(500).json({ message: err.message || "Failed to handle resume" });
