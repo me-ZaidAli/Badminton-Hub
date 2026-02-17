@@ -25,7 +25,7 @@ import { useUser } from "@/hooks/use-auth";
 import { useClubs } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import heroPath from "@assets/landing-hero.png";
+import heroPath from "@assets/landing-hero-new.png";
 import playersPath from "@assets/landing-players.png";
 import organisersPath from "@assets/landing-organisers.png";
 import sessionsPath from "@assets/landing-sessions.png";
