@@ -291,10 +291,12 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     const grade = getPlayerGrade(signup);
     const isMe = getPlayerUserId(signup) === user?.id;
     const isPaid = signup.paymentStatus === "PAID";
-    const isConfirmedStatus = !signup.signupStatus || signup.signupStatus === "CONFIRMED";
+    const status = signup.signupStatus || "CONFIRMED";
+    const isConfirmedStatus = status === "CONFIRMED";
     const showPayment = isAdmin && isConfirmedStatus;
+    const isPending = statusMutation.isPending || removeMutation.isPending;
 
-    const rowContent = (
+    const playerInfo = (
       <>
         <Avatar className={`h-8 w-8 shrink-0 ${isMe ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}>
           <AvatarFallback className="text-xs font-medium bg-muted">
@@ -311,37 +313,91 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             )}
           </div>
         </div>
-        {showPayment && (
-          <div className="shrink-0" data-testid={`payment-icon-${signup.id}`}>
-            {isPaid ? (
-              <PoundSterling className="h-4 w-4 text-green-500" />
-            ) : (
-              <PoundSterling className="h-4 w-4 text-red-500" />
-            )}
-          </div>
-        )}
-        {isAdmin && (
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
       </>
     );
 
     if (isAdmin) {
       return (
-        <button
-          key={signup.id}
-          className="flex items-center gap-2 py-2.5 px-1 w-full text-left rounded-md hover-elevate"
-          onClick={() => setSelectedPlayer(signup)}
-          data-testid={`player-row-${signup.id}`}
-        >
-          {rowContent}
-        </button>
+        <div key={signup.id} className="flex items-center gap-2 py-2 px-1 rounded-md" data-testid={`player-row-${signup.id}`}>
+          <button className="flex items-center gap-2 flex-1 min-w-0 text-left" onClick={() => setSelectedPlayer(signup)}>
+            {playerInfo}
+          </button>
+          <div className="flex items-center shrink-0">
+            {showPayment && (
+              <div className="shrink-0 px-0.5" data-testid={`payment-icon-${signup.id}`}>
+                {isPaid ? (
+                  <PoundSterling className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <PoundSterling className="h-3.5 w-3.5 text-red-500" />
+                )}
+              </div>
+            )}
+            <div className="hidden sm:flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={isConfirmedStatus ? "text-green-500" : "text-muted-foreground/40"}
+                onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" }); }}
+                disabled={isPending || isConfirmedStatus}
+                title="Add to session"
+                data-testid={`inline-confirm-${signup.id}`}
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={status === "WAITING" ? "text-yellow-500" : "text-muted-foreground/40"}
+                onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ signupId: signup.id, signupStatus: "WAITING" }); }}
+                disabled={isPending || status === "WAITING"}
+                title="Add to waiting list"
+                data-testid={`inline-waiting-${signup.id}`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={status === "INVITED" ? "text-blue-500" : "text-muted-foreground/40"}
+                onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" }); }}
+                disabled={isPending || status === "INVITED"}
+                title="Set as invited"
+                data-testid={`inline-invited-${signup.id}`}
+              >
+                <Mail className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={status === "NOT_ATTENDING" ? "text-muted-foreground" : "text-muted-foreground/40"}
+                onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" }); }}
+                disabled={isPending || status === "NOT_ATTENDING"}
+                title="Decline"
+                data-testid={`inline-decline-${signup.id}`}
+              >
+                <Ban className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground/40"
+                onClick={(e) => { e.stopPropagation(); removeMutation.mutate(signup.id); }}
+                disabled={isPending}
+                title="Remove from session"
+                data-testid={`inline-remove-${signup.id}`}
+              >
+                <UserMinus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 sm:hidden" />
+          </div>
+        </div>
       );
     }
 
     return (
       <div key={signup.id} className="flex items-center gap-2 py-2.5 px-1" data-testid={`player-row-${signup.id}`}>
-        {rowContent}
+        {playerInfo}
       </div>
     );
   };
@@ -533,16 +589,56 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           </div>
 
           <div className="space-y-1 pt-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider px-3 pb-1">Set Status</p>
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3"
-              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: isConfirmed ? "WAITING" : "CONFIRMED" })}
-              disabled={isPending}
-              data-testid={`option-status-toggle-${signup.id}`}
+              className={`w-full justify-start gap-3 ${isConfirmed ? "bg-green-50 dark:bg-green-900/20" : ""}`}
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "CONFIRMED" })}
+              disabled={isPending || isConfirmed}
+              data-testid={`option-confirm-${signup.id}`}
             >
-              {isConfirmed ? <Clock className="h-4 w-4 text-yellow-500" /> : <CheckCircle className="h-4 w-4 text-green-500" />}
-              <span className="text-sm">{isConfirmed ? "Move to waiting list" : "Confirm player"}</span>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm">Add to Session</span>
+              {isConfirmed && <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">Current</Badge>}
             </Button>
+
+            <Button
+              variant="ghost"
+              className={`w-full justify-start gap-3 ${status === "WAITING" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "WAITING" })}
+              disabled={isPending || status === "WAITING"}
+              data-testid={`option-waiting-${signup.id}`}
+            >
+              <Clock className="h-4 w-4 text-yellow-500" />
+              <span className="text-sm">Add to Waiting List</span>
+              {status === "WAITING" && <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">Current</Badge>}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className={`w-full justify-start gap-3 ${status === "INVITED" ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "INVITED" })}
+              disabled={isPending || status === "INVITED"}
+              data-testid={`option-invited-${signup.id}`}
+            >
+              <Mail className="h-4 w-4 text-blue-500" />
+              <span className="text-sm">Set as Invited</span>
+              {status === "INVITED" && <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">Current</Badge>}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className={`w-full justify-start gap-3 ${status === "NOT_ATTENDING" ? "bg-muted" : ""}`}
+              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
+              disabled={isPending || status === "NOT_ATTENDING"}
+              data-testid={`option-decline-${signup.id}`}
+            >
+              <Ban className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">Decline / Not Attending</span>
+              {status === "NOT_ATTENDING" && <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">Current</Badge>}
+            </Button>
+
+            <div className="border-t border-border/50 my-1" />
 
             {isConfirmed && (
               <Button
@@ -592,17 +688,6 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
                 <span className="text-sm">Send message</span>
               </Button>
             )}
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3"
-              onClick={() => statusMutation.mutate({ signupId: signup.id, signupStatus: "NOT_ATTENDING" })}
-              disabled={isPending || status === "NOT_ATTENDING"}
-              data-testid={`option-decline-${signup.id}`}
-            >
-              <Ban className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">Mark as not attending</span>
-            </Button>
 
             <Button
               variant="ghost"
