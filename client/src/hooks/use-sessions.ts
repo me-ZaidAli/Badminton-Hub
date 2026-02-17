@@ -331,23 +331,28 @@ export function useAddGuestPlayer() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, fullName, gender, category }: { sessionId: number; fullName: string; gender?: string; category?: string }) => {
+    mutationFn: async ({ sessionId, fullName, gender, category, email, forceCreate }: { sessionId: number; fullName: string; gender?: string; category?: string; email?: string; forceCreate?: boolean }) => {
       const res = await fetch(`/api/sessions/${sessionId}/guest-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, gender, category }),
+        body: JSON.stringify({ fullName, gender, category, email: email || undefined, forceCreate }),
         credentials: "include",
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Failed to add guest player");
+      const data = await res.json();
+      if (res.status === 409 && data.requiresConfirmation) {
+        return { ...data, _isDuplicate: true };
       }
-      return res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to add guest player");
+      }
+      return data;
     },
-    onSuccess: (_, { sessionId }) => {
+    onSuccess: (data, { sessionId }) => {
+      if (data?._isDuplicate) return;
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
-      toast({ title: "Player Added", description: "New player has been added to the session." });
+      const emailMsg = data?.emailSent ? " A claim email has been sent." : "";
+      toast({ title: "Player Added", description: `New player has been added to the session.${emailMsg}` });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });

@@ -5782,22 +5782,85 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const sessionId = Number(req.params.sessionId);
-      const { fullName, gender, category } = req.body;
+      const { fullName, gender, category, email, forceCreate } = req.body;
       if (!fullName) return res.status(400).json({ message: "Name is required" });
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
       const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", session.clubId);
       if (!allowed) return res.status(403).json({ message: "Not authorized" });
 
-      const placeholderEmail = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@guest.local`;
+      const normalizedEmail = email ? email.trim().toLowerCase() : null;
+
+      if (!forceCreate) {
+        const duplicates: any[] = [];
+
+        if (normalizedEmail) {
+          const [existingByEmail] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+          if (existingByEmail) {
+            const profiles = await db.select({
+              id: playerProfiles.id,
+              clubId: playerProfiles.clubId,
+              clubName: clubs.name,
+            }).from(playerProfiles)
+              .leftJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+              .where(eq(playerProfiles.userId, existingByEmail.id));
+            duplicates.push({
+              userId: existingByEmail.id,
+              fullName: existingByEmail.fullName,
+              email: existingByEmail.email,
+              matchType: "email",
+              clubs: profiles.map(p => ({ clubId: p.clubId, clubName: p.clubName })),
+            });
+          }
+        }
+
+        const similarByName = await db.select().from(users)
+          .where(and(
+            ilike(users.fullName, fullName.trim()),
+            normalizedEmail ? sql`${users.email} != ${normalizedEmail}` : sql`1=1`
+          ));
+        for (const u of similarByName) {
+          if (duplicates.some(d => d.userId === u.id)) continue;
+          const profiles = await db.select({
+            id: playerProfiles.id,
+            clubId: playerProfiles.clubId,
+            clubName: clubs.name,
+          }).from(playerProfiles)
+            .leftJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+            .where(eq(playerProfiles.userId, u.id));
+          duplicates.push({
+            userId: u.id,
+            fullName: u.fullName,
+            email: u.email.includes("@guest.local") ? null : u.email,
+            matchType: "name",
+            clubs: profiles.map(p => ({ clubId: p.clubId, clubName: p.clubName })),
+          });
+        }
+
+        if (duplicates.length > 0) {
+          return res.status(409).json({
+            message: "Potential duplicate players found",
+            duplicates,
+            requiresConfirmation: true,
+          });
+        }
+      }
+
+      const finalEmail = normalizedEmail || `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@guest.local`;
       const hashedPassword = await hashPassword("GuestPlayer123!");
+      const claimToken = normalizedEmail ? randomBytes(32).toString("hex") : null;
+      const claimTokenExpiry = normalizedEmail ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null;
 
       const newUser = await storage.createUser({
         fullName,
-        email: placeholderEmail,
+        email: finalEmail,
         password: hashedPassword,
         role: "PLAYER",
       });
+
+      if (claimToken && claimTokenExpiry) {
+        await db.update(users).set({ claimToken, claimTokenExpiry }).where(eq(users.id, newUser.id));
+      }
 
       const newProfile = await storage.createPlayerProfile({
         userId: newUser.id,
@@ -5811,10 +5874,49 @@ export async function registerRoutes(
 
       await storage.createSessionSignup(sessionId, newProfile.id, session.sessionFee || 0);
 
-      res.status(201).json({ userId: newUser.id, profileId: newProfile.id, fullName });
+      const club = await storage.getClub(session.clubId);
+      let emailSent = false;
+      if (normalizedEmail && claimToken && club) {
+        try {
+          const claimUrl = `${req.protocol}://${req.get("host")}/claim-account?token=${claimToken}`;
+          const { sendClaimAccountEmail } = await import("./email");
+          await sendClaimAccountEmail(normalizedEmail, fullName, club.name, claimUrl);
+          emailSent = true;
+        } catch (emailErr: any) {
+          console.warn("Could not send claim email (email service may not be configured):", emailErr.message);
+        }
+      }
+
+      res.status(201).json({ userId: newUser.id, profileId: newProfile.id, fullName, emailSent });
     } catch (err: any) {
       console.error("Error adding guest player:", err);
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/claim-account", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password || password.length < 6) {
+        return res.status(400).json({ message: "Valid token and password (min 6 chars) required" });
+      }
+      const [user] = await db.select().from(users).where(eq(users.claimToken, token));
+      if (!user) return res.status(404).json({ message: "Invalid or expired claim link" });
+      if (user.claimTokenExpiry && new Date(user.claimTokenExpiry) < new Date()) {
+        return res.status(400).json({ message: "Claim link has expired" });
+      }
+      const hashedPassword = await hashPassword(password);
+      await db.update(users).set({
+        password: hashedPassword,
+        claimToken: null,
+        claimTokenExpiry: null,
+        accountStatus: "ACTIVE",
+        emailVerified: true,
+      }).where(eq(users.id, user.id));
+      res.json({ success: true, message: "Account claimed successfully. You can now log in." });
+    } catch (err: any) {
+      console.error("Error claiming account:", err);
+      res.status(500).json({ message: "Failed to claim account" });
     }
   });
 

@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -116,8 +116,10 @@ export default function SessionDetail() {
   const [capacityValue, setCapacityValue] = useState(0);
 
   const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [guestGender, setGuestGender] = useState("MALE");
   const [guestCategory, setGuestCategory] = useState("C3");
+  const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: any[]; formData: any } | null>(null);
 
   const [editingNameSignupId, setEditingNameSignupId] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
@@ -285,12 +287,21 @@ export default function SessionDetail() {
     });
   };
 
-  const handleAddGuest = () => {
+  const handleAddGuest = (forceCreate?: boolean) => {
     if (guestName.trim()) {
-      addGuestPlayer({ sessionId: id, fullName: guestName.trim(), gender: guestGender, category: guestCategory }, {
-        onSuccess: () => {
+      addGuestPlayer({ sessionId: id, fullName: guestName.trim(), gender: guestGender, category: guestCategory, email: guestEmail.trim() || undefined, forceCreate }, {
+        onSuccess: (data) => {
+          if (data?._isDuplicate) {
+            setDuplicateWarning({
+              duplicates: data.duplicates,
+              formData: { fullName: guestName.trim(), gender: guestGender, category: guestCategory, email: guestEmail.trim() },
+            });
+            return;
+          }
           setAddGuestDialogOpen(false);
+          setDuplicateWarning(null);
           setGuestName("");
+          setGuestEmail("");
           setGuestGender("MALE");
           setGuestCategory("C3");
         }
@@ -1150,7 +1161,7 @@ export default function SessionDetail() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={addGuestDialogOpen} onOpenChange={setAddGuestDialogOpen}>
+              <Dialog open={addGuestDialogOpen} onOpenChange={(open) => { setAddGuestDialogOpen(open); if (!open) { setDuplicateWarning(null); } }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2" data-testid="button-add-new-player">
                     <UserPlus2 className="w-4 h-4" /> Add New Player
@@ -1159,52 +1170,118 @@ export default function SessionDetail() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New Player</DialogTitle>
+                    <DialogDescription>Create a new player account and add them to this session.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <div>
-                      <Label>Full Name</Label>
-                      <Input 
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                        placeholder="Enter player name..."
-                        className="mt-2"
-                        data-testid="input-guest-name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Gender</Label>
-                      <Select value={guestGender} onValueChange={setGuestGender}>
-                        <SelectTrigger className="mt-2" data-testid="select-guest-gender">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MALE">Male</SelectItem>
-                          <SelectItem value="FEMALE">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Grade</Label>
-                      <Select value={guestCategory} onValueChange={setGuestCategory}>
-                        <SelectTrigger className="mt-2" data-testid="select-guest-category">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
-                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                  {duplicateWarning ? (
+                    <div className="space-y-4 pt-2">
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                          <AlertTriangle className="w-4 h-4 inline mr-1" />
+                          Potential duplicate player(s) found
+                        </p>
+                        <div className="space-y-2">
+                          {duplicateWarning.duplicates.map((dup: any, idx: number) => (
+                            <div key={idx} className="text-sm p-2 bg-background rounded border">
+                              <p className="font-medium">{dup.fullName}</p>
+                              {dup.email && <p className="text-muted-foreground text-xs">{dup.email}</p>}
+                              <p className="text-xs text-muted-foreground">
+                                Match: {dup.matchType === "email" ? "Same email" : "Same name"}
+                              </p>
+                              {dup.clubs?.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Clubs: {dup.clubs.map((c: any) => c.clubName).join(", ")}
+                                </p>
+                              )}
+                              {user?.role === "OWNER" && (
+                                <p className="text-xs text-primary mt-1">
+                                  As super admin, you can merge these accounts from God Mode.
+                                </p>
+                              )}
+                            </div>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setDuplicateWarning(null)}
+                          data-testid="button-cancel-duplicate"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          onClick={() => {
+                            setDuplicateWarning(null);
+                            handleAddGuest(true);
+                          }}
+                          disabled={isAddingGuest}
+                          data-testid="button-force-create"
+                        >
+                          {isAddingGuest ? "Adding..." : "Create Anyway"}
+                        </Button>
+                      </div>
                     </div>
-                    <Button 
-                      className="w-full" 
-                      onClick={handleAddGuest}
-                      disabled={!guestName.trim() || isAddingGuest}
-                      data-testid="button-confirm-add-guest"
-                    >
-                      {isAddingGuest ? "Adding..." : "Add Player"}
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <Label>Full Name</Label>
+                        <Input 
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          placeholder="Enter player name..."
+                          className="mt-2"
+                          data-testid="input-guest-name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Email (optional)</Label>
+                        <Input 
+                          type="email"
+                          value={guestEmail}
+                          onChange={(e) => setGuestEmail(e.target.value)}
+                          placeholder="player@example.com"
+                          className="mt-2"
+                          data-testid="input-guest-email"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">If provided, the player will receive an email to claim their account.</p>
+                      </div>
+                      <div>
+                        <Label>Gender</Label>
+                        <Select value={guestGender} onValueChange={setGuestGender}>
+                          <SelectTrigger className="mt-2" data-testid="select-guest-gender">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MALE">Male</SelectItem>
+                            <SelectItem value="FEMALE">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Grade</Label>
+                        <Select value={guestCategory} onValueChange={setGuestCategory}>
+                          <SelectTrigger className="mt-2" data-testid="select-guest-category">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                              <SelectItem key={g} value={g}>{g}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button 
+                        className="w-full" 
+                        onClick={() => handleAddGuest()}
+                        disabled={!guestName.trim() || isAddingGuest}
+                        data-testid="button-confirm-add-guest"
+                      >
+                        {isAddingGuest ? "Adding..." : "Add Player"}
+                      </Button>
+                    </div>
+                  )}
                 </DialogContent>
               </Dialog>
             </div>

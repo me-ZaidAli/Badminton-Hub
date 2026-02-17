@@ -67,6 +67,8 @@ export const users = pgTable("users", {
   closedReason: text("closed_reason"),
   profilePictureUrl: text("profile_picture_url"),
   nickname: text("nickname"),
+  claimToken: text("claim_token"),
+  claimTokenExpiry: timestamp("claim_token_expiry"),
   showPublicName: boolean("show_public_name").default(false).notNull(),
   displayMode: text("display_mode").default("light").notNull(),
   reducedMotion: boolean("reduced_motion").default(false).notNull(),

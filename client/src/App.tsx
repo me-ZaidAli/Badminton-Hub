@@ -36,6 +36,7 @@ const OrganizerDashboard = lazy(() => import("@/pages/OrganizerDashboard"));
 const PendingApproval = lazy(() => import("@/pages/PendingApproval"));
 const ExploreClubs = lazy(() => import("@/pages/explore/ExploreClubs"));
 const ExploreSessions = lazy(() => import("@/pages/explore/ExploreSessions"));
+const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
@@ -257,6 +258,7 @@ function Router() {
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/explore/clubs">{() => <Suspense fallback={<LazyFallback />}><ExploreClubs /></Suspense>}</Route>
       <Route path="/explore/sessions">{() => <Suspense fallback={<LazyFallback />}><ExploreSessions /></Suspense>}</Route>
+      <Route path="/claim-account">{() => <Suspense fallback={<LazyFallback />}><ClaimAccount /></Suspense>}</Route>
       
       {/* Protected Routes */}
       <Route path="/dashboard">
