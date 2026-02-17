@@ -425,7 +425,7 @@ function DashboardContent({
               <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm">Start Your Own Club</h3>
+              <h3 className="font-bold text-sm">Start Your Own Club or Group</h3>
               <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
             </div>
           </div>
