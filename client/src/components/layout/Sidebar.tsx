@@ -6,6 +6,7 @@ import logoPath from "@assets/image_1770381062912_optimized.png";
 import { useState } from "react";
 import { 
   Calendar, 
+  CalendarCheck,
   Settings, 
   LogOut, 
   ShieldCheck,
@@ -37,6 +38,7 @@ function useNavItems(): NavItem[] {
 
   const navItems: NavItem[] = [
     { href: "/sessions", label: "Sessions", icon: Calendar },
+    { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck },
     { href: "/clubs", label: "Clubs", icon: Building2 },
     { href: "/rankings", label: "Rankings", icon: Trophy },
     { href: "/notifications", label: "Notifications", icon: Bell },

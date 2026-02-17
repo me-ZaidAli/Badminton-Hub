@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -6663,6 +6663,88 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching session activity:", err);
       res.status(500).json({ message: "Failed to fetch session activity" });
+    }
+  });
+
+  app.get("/api/my-sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const userProfiles = await db
+        .select({ id: playerProfiles.id })
+        .from(playerProfiles)
+        .where(eq(playerProfiles.userId, user.id));
+
+      if (userProfiles.length === 0) return res.json([]);
+
+      const profileIds = userProfiles.map(p => p.id);
+      const signups = await db
+        .select({
+          signupId: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          signupStatus: sessionSignups.signupStatus,
+          fee: sessionSignups.fee,
+          paymentStatus: sessionSignups.paymentStatus,
+          sessionTitle: sessions.title,
+          sessionDate: sessions.date,
+          sessionStartTime: sessions.startTime,
+          sessionDuration: sessions.durationMinutes,
+          sessionStatus: sessions.status,
+          maxPlayers: sessions.maxPlayers,
+          courtsAvailable: sessions.courtsAvailable,
+          clubId: sessions.clubId,
+          venueId: sessions.venueId,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(
+          and(
+            inArray(sessionSignups.playerId, profileIds),
+            inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING", "INVITED"]),
+            inArray(sessions.status, ["ACTIVE", "UPCOMING"])
+          )
+        )
+        .orderBy(desc(sessions.date));
+
+      const clubIds = [...new Set(signups.map(s => s.clubId))];
+      const clubsData = clubIds.length > 0
+        ? await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, clubIds))
+        : [];
+      const clubMap = Object.fromEntries(clubsData.map(c => [c.id, c.name]));
+
+      const venueIds = [...new Set(signups.map(s => s.venueId).filter(Boolean))] as number[];
+      const venuesData = venueIds.length > 0
+        ? await db.select({ id: venues.id, name: venues.name, address: venues.address, city: venues.city }).from(venues).where(inArray(venues.id, venueIds))
+        : [];
+      const venueMap = Object.fromEntries(venuesData.map(v => [v.id, v]));
+
+      const result = signups.map(s => ({
+        signupId: s.signupId,
+        sessionId: s.sessionId,
+        playerId: s.playerId,
+        signupStatus: s.signupStatus,
+        fee: s.fee,
+        paymentStatus: s.paymentStatus,
+        sessionTitle: s.sessionTitle,
+        sessionDate: s.sessionDate,
+        sessionStartTime: s.sessionStartTime,
+        sessionDuration: s.sessionDuration,
+        sessionStatus: s.sessionStatus,
+        maxPlayers: s.maxPlayers,
+        courtsAvailable: s.courtsAvailable,
+        clubId: s.clubId,
+        clubName: clubMap[s.clubId] || `Club ${s.clubId}`,
+        venueName: s.venueId ? venueMap[s.venueId]?.name || null : null,
+        venueAddress: s.venueId ? venueMap[s.venueId]?.address || null : null,
+        venueCity: s.venueId ? venueMap[s.venueId]?.city || null : null,
+      }));
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error fetching my sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
     }
   });
 

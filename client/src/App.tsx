@@ -21,6 +21,7 @@ import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Sessions from "@/pages/Sessions";
+import MySessions from "@/pages/MySessions";
 import SessionDetail from "@/pages/SessionDetail";
 import PublicSession from "@/pages/PublicSession";
 import NotFound from "@/pages/not-found";
@@ -262,6 +263,9 @@ function Router() {
       </Route>
       <Route path="/sessions">
         <PrivateRoute component={Sessions} />
+      </Route>
+      <Route path="/my-sessions">
+        <PrivateRoute component={MySessions} />
       </Route>
       <Route path="/sessions/:id">
         <PrivateRoute component={SessionDetail} />
