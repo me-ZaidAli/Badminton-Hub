@@ -363,7 +363,7 @@ export default function MembershipBoard() {
   });
 
   const editPlanMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; name: string; annualPrice: number; defaultSessionFee: number; isDefault: boolean }) => {
+    mutationFn: async ({ id, ...data }: { id: number; name: string; annualPrice: number; defaultSessionFee: number; defaultDurationDays: number; isDefault: boolean }) => {
       await apiRequest("PATCH", `/api/clubs/${clubId}/membership-plans/${id}`, data);
     },
     onSuccess: () => {
