@@ -135,6 +135,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const matchGenLocks = new Set<number>();
+
   // Set up authentication first
   setupAuth(app);
 
@@ -3176,6 +3178,7 @@ export async function registerRoutes(
       const matchId = Number(req.params.id);
       const match = await storage.getMatch(matchId);
       if (!match) return res.status(404).json({ message: "Match not found" });
+      const sessionIdForLock = match.sessionId;
 
       if (match.status !== "QUEUED") {
         return res.status(400).json({ message: "Only queued matches can be deleted with this endpoint" });
@@ -3192,7 +3195,9 @@ export async function registerRoutes(
       await storage.deleteMatch(matchId);
 
       let replacement = null;
-      if (session.autoGenerateActive) {
+      if (session.autoGenerateActive && !matchGenLocks.has(sessionIdForLock)) {
+        matchGenLocks.add(sessionIdForLock);
+        try {
         const mode = req.query.mode as string || req.body?.mode;
         const genderType = req.query.genderType as string || req.body?.genderType;
         const matchMode = mode || session.matchMode || "SOCIAL";
@@ -3204,8 +3209,21 @@ export async function registerRoutes(
         const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
         const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
         const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
+
+        const existingMatches = await storage.getSessionMatches(match.sessionId);
+        const busyPlayerIds = new Set<number>();
+        existingMatches
+          .filter(m => m.status === "LIVE" || m.status === "QUEUED")
+          .forEach(m => {
+            if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+            if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+            if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+            if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+          });
+
         const players = eligibleSignups
           .filter(s => !s.isPaused)
+          .filter(s => !busyPlayerIds.has(s.player.id))
           .map(s => ({
             id: s.player.id,
             gender: s.player.gender,
@@ -3215,7 +3233,6 @@ export async function registerRoutes(
           }));
 
         if (players.length >= playersPerMatch) {
-          const existingMatches = await storage.getSessionMatches(match.sessionId);
           const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
             existingMatches.map(m => ({
               teamAPlayer1Id: m.teamAPlayer1Id,
@@ -3263,6 +3280,9 @@ export async function registerRoutes(
               setScores: [],
             });
           }
+        }
+        } finally {
+          matchGenLocks.delete(sessionIdForLock);
         }
       }
 
@@ -3703,6 +3723,14 @@ export async function registerRoutes(
 
     try {
       const sessionId = Number(req.params.sessionId);
+
+      if (matchGenLocks.has(sessionId)) {
+        return res.json({ status: "busy", message: "Match generation already in progress", matches: [] });
+      }
+      matchGenLocks.add(sessionId);
+
+      try {
+
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -3735,7 +3763,6 @@ export async function registerRoutes(
 
       const existingMatches = await storage.getSessionMatches(sessionId);
 
-      // Exclude players currently in LIVE or QUEUED matches
       const busyPlayerIds = new Set<number>();
       existingMatches
         .filter(m => m.status === "LIVE" || m.status === "QUEUED")
@@ -3771,7 +3798,9 @@ export async function registerRoutes(
         return res.json({ status: "full", message: "Queue is already full", matches: [] });
       }
 
-      const effectiveTarget = isAutoGenerate ? Math.min(1, matchesNeeded) : matchesNeeded;
+      const effectiveTarget = matchesNeeded;
+      const maxMatchesByPlayers = Math.floor(players.length / playersPerMatch);
+      const finalTarget = Math.min(effectiveTarget, maxMatchesByPlayers);
 
       const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
         existingMatches.map(m => ({
@@ -3796,7 +3825,7 @@ export async function registerRoutes(
         players,
         playersPerSide: playersPerSide as 1 | 2,
         genderType: gType,
-        queueTarget: effectiveTarget,
+        queueTarget: finalTarget,
         recentPairings,
         recentOpponents,
         playerMatchCounts,
@@ -3835,6 +3864,10 @@ export async function registerRoutes(
       );
 
       res.status(201).json(createdMatches);
+
+      } finally {
+        matchGenLocks.delete(sessionId);
+      }
     } catch (err: any) {
       console.error("Error smart-generating matches:", err);
       res.status(500).json({ message: err.message || "Failed to generate matches" });

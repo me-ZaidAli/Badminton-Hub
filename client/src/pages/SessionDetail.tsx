@@ -1023,7 +1023,7 @@ export default function SessionDetail() {
                 className="w-full gap-2 mt-3 bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/25" 
                 onClick={() => {
                   updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
-                  smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
+                  smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: (session as any).queueTargetSize || 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
                 }}
                 data-testid="button-start-session-main"
               >
@@ -1858,6 +1858,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
   const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
+  const manualGenInFlight = useRef(false);
 
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
@@ -1903,6 +1904,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       return;
     }
     const interval = setInterval(() => {
+      if (manualGenInFlight.current) return;
       smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
         onSuccess: (data: any) => {
           if (data?.status === "waiting") {
@@ -2014,6 +2016,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 
   const handleSmartGenerate = () => {
     setNotEnoughPlayersMessage(null);
+    manualGenInFlight.current = true;
     const wasInactive = !autoGenerateActive || autoGenLocallyStopped;
     if (wasInactive) {
       setAutoGenLocallyStopped(false);
@@ -2021,6 +2024,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive }, {
       onSuccess: (data: any) => {
+        manualGenInFlight.current = false;
         if (data?.status === "waiting") {
           setAutoGenWaiting(true);
           setPairConstraintMessage(null);
@@ -2033,6 +2037,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         }
       },
       onError: (err: any) => {
+        manualGenInFlight.current = false;
         const msg = err?.message || "Failed to generate matches";
         setNotEnoughPlayersMessage(msg);
         setTimeout(() => setNotEnoughPlayersMessage(null), 5000);
@@ -2042,10 +2047,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 
   const handleStartAutoGenerate = () => {
     if (showNotEnoughPlayersWarning()) return;
+    manualGenInFlight.current = true;
     setAutoGenLocallyStopped(false);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
       onSuccess: (data: any) => {
+        manualGenInFlight.current = false;
         if (data?.status === "waiting") {
           setAutoGenWaiting(true);
           setPairConstraintMessage(null);
@@ -2057,6 +2064,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           setPairConstraintMessage(null);
         }
       },
+      onError: () => { manualGenInFlight.current = false; },
     });
   };
 
@@ -2074,7 +2082,10 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     if (currentQueuedCount > newSize) {
       trimQueue({ sessionId, targetSize: newSize });
     } else if (currentQueuedCount < newSize && autoGenerateActive && !autoGenLocallyStopped) {
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true });
+      manualGenInFlight.current = true;
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true }, {
+        onSettled: () => { manualGenInFlight.current = false; },
+      });
     }
   };
 
