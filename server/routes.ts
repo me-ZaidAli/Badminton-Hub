@@ -6616,6 +6616,56 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/my-session-activity", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const userProfiles = await db
+        .select({ id: playerProfiles.id })
+        .from(playerProfiles)
+        .where(eq(playerProfiles.userId, user.id));
+
+      if (userProfiles.length === 0) {
+        return res.json({ totalSessions: 0, sessionsThisMonth: 0, totalSpent: 0 });
+      }
+
+      const profileIds = userProfiles.map(p => p.id);
+      const allSignups = await db
+        .select({
+          sessionId: sessionSignups.sessionId,
+          fee: sessionSignups.fee,
+          signupStatus: sessionSignups.signupStatus,
+          sessionDate: sessions.date,
+        })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(
+          and(
+            inArray(sessionSignups.playerId, profileIds),
+            eq(sessionSignups.signupStatus, "CONFIRMED")
+          )
+        );
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const uniqueSessions = new Set(allSignups.map(s => s.sessionId));
+      const thisMonthSessions = new Set(
+        allSignups.filter(s => s.sessionDate && new Date(s.sessionDate) >= monthStart).map(s => s.sessionId)
+      );
+      const totalSpent = allSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
+
+      res.json({
+        totalSessions: uniqueSessions.size,
+        sessionsThisMonth: thisMonthSessions.size,
+        totalSpent,
+      });
+    } catch (err: any) {
+      console.error("Error fetching session activity:", err);
+      res.status(500).json({ message: "Failed to fetch session activity" });
+    }
+  });
+
   // === ADMIN: Global rankings (OWNER and ADMIN only) ===
   app.get("/api/admin/rankings", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
