@@ -62,6 +62,7 @@ type BadmintonCourtProps = {
   availablePlayers: Player[];
   isOrganiser: boolean;
   isSignedUp: boolean;
+  currentPlayerProfileId?: number | null;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
@@ -177,6 +178,7 @@ export function BadmintonCourt({
   availablePlayers,
   isOrganiser,
   isSignedUp,
+  currentPlayerProfileId,
   onStartMatch,
   onCompleteMatch,
   onEndSet,
@@ -200,6 +202,15 @@ export function BadmintonCourt({
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const target = match?.pointsToPlayTo || defaultPointsToPlayTo;
+
+  const isPlayerInMatch = currentPlayerProfileId && match ? (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  ) : false;
+
+  const canEndMatch = isOrganiser || isPlayerInMatch;
 
   useEffect(() => {
     setEditName(courtName || `Court ${courtNumber}`);
@@ -513,7 +524,7 @@ export function BadmintonCourt({
               </div>
             </div>
 
-            {(isOrganiser || isSignedUp) && (
+            {(isOrganiser || canEndMatch) && (
               <div className="p-3 bg-muted/30 border-t border-border/50 flex justify-center gap-2">
                 {match.status === "QUEUED" && isOrganiser && (
                   <Button 
@@ -524,7 +535,7 @@ export function BadmintonCourt({
                     <Play className="w-4 h-4" /> Start Match
                   </Button>
                 )}
-                {match.status === "LIVE" && (
+                {match.status === "LIVE" && canEndMatch && (
                   <div className="flex items-center gap-2">
                     <Button 
                       variant="destructive" 

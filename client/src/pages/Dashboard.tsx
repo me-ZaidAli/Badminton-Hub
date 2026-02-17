@@ -1,18 +1,21 @@
 import { useState, useMemo, useEffect } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useSessions } from "@/hooks/use-sessions";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
+import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link, Redirect } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Link, Redirect, useLocation } from "wouter";
 import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
-  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User
+  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye
 } from "lucide-react";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
@@ -160,9 +163,27 @@ function DashboardContent({
 }) {
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
 
   const { data: mySessions, isLoading: mySessionsLoading } = useQuery<any[]>({
     queryKey: ["/api/my-sessions"],
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("POST", `/api/sessions/${sessionId}/withdraw`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-session-activity"] });
+      setSelectedSession(null);
+      toast({ title: "Withdrawn", description: "You have been removed from this session." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to withdraw", variant: "destructive" });
+    },
   });
 
   const { data: allAnnouncements } = useQuery<any[]>({
@@ -192,14 +213,6 @@ function DashboardContent({
       .filter(s => isPast(new Date(s.date)))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5),
-    [filteredSessions]
-  );
-
-  const upcomingSessions = useMemo(() =>
-    filteredSessions
-      .filter(s => isFuture(new Date(s.date)))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 3),
     [filteredSessions]
   );
 
@@ -360,31 +373,34 @@ function DashboardContent({
           ) : myUpcomingSessions.length > 0 ? (
             <div className="space-y-3">
               {myUpcomingSessions.map(session => (
-                <Link key={session.sessionId} href={`/sessions/${session.sessionId}`}>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`my-upcoming-session-${session.sessionId}`}>
-                    <div className="flex flex-col items-center justify-center w-10 h-10 sm:w-11 sm:h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
-                      <span className="text-[9px] sm:text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
-                      <span className="text-base sm:text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{session.sessionTitle}</div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                        <Clock className="w-3 h-3" /> {session.sessionStartTime}
-                        <span className="mx-1">-</span>
-                        {session.courtsAvailable} courts
-                        {session.clubName && (
-                          <>
-                            <span className="mx-1">-</span>
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.clubName}</Badge>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <Badge variant={session.sessionStatus === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-[10px]">
-                      {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
-                    </Badge>
+                <div
+                  key={session.sessionId}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer"
+                  onClick={() => setSelectedSession(session)}
+                  data-testid={`my-upcoming-session-${session.sessionId}`}
+                >
+                  <div className="flex flex-col items-center justify-center w-10 h-10 sm:w-11 sm:h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
+                    <span className="text-[9px] sm:text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
+                    <span className="text-base sm:text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
                   </div>
-                </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{session.sessionTitle}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                      <Clock className="w-3 h-3" /> {session.sessionStartTime}
+                      <span className="mx-1">-</span>
+                      {session.courtsAvailable} courts
+                      {session.clubName && (
+                        <>
+                          <span className="mx-1">-</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.clubName}</Badge>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant={session.sessionStatus === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                    {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
+                  </Badge>
+                </div>
               ))}
             </div>
           ) : (
@@ -402,74 +418,24 @@ function DashboardContent({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
-        <Card data-testid="card-upcoming-sessions">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="h-4 w-4 text-blue-500" />
-                Upcoming Sessions
-              </CardTitle>
-              <Link href="/sessions">
-                <Button variant="ghost" size="sm" data-testid="button-view-all-sessions">
-                  All <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
+      <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/20 rounded-lg shrink-0">
+              <Building2 className="h-5 w-5 text-primary" />
             </div>
-          </CardHeader>
-          <CardContent>
-            {sessionsLoading ? (
-              <div className="space-y-3">
-                {[1, 2].map(i => <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg" />)}
-              </div>
-            ) : upcomingSessions.length > 0 ? (
-              <div className="space-y-3">
-                {upcomingSessions.map(session => (
-                  <Link key={session.id} href={`/sessions/${session.id}`}>
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`upcoming-session-${session.id}`}>
-                      <div className="flex flex-col items-center justify-center w-11 h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
-                        <span className="text-[10px] uppercase leading-none">{format(new Date(session.date), "MMM")}</span>
-                        <span className="text-lg leading-none">{format(new Date(session.date), "d")}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{session.title}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {session.startTime}
-                          <span className="mx-1">-</span>
-                          {session.courtsAvailable} courts
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                No upcoming sessions
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-primary/20 rounded-lg shrink-0">
-                <Building2 className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-sm">Start Your Own Club</h3>
-                <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
-              </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-sm">Start Your Own Club</h3>
+              <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
             </div>
-            <Link href="/create-club">
-              <Button size="sm" className="w-full mt-3" data-testid="button-create-club">
-                <Plus className="h-4 w-4 mr-1" /> Create Club
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <Link href="/create-club">
+            <Button size="sm" className="w-full mt-3" data-testid="button-create-club">
+              <Plus className="h-4 w-4 mr-1" /> Create Club
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
 
       {pastSessions.length > 0 && (
         <div data-testid="recent-sessions-section">
@@ -523,6 +489,44 @@ function DashboardContent({
         open={statsOpen}
         onOpenChange={setStatsOpen}
       />
+
+      <Dialog open={!!selectedSession} onOpenChange={(open) => !open && setSelectedSession(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          {selectedSession && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base">{selectedSession.sessionTitle}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  {format(new Date(selectedSession.sessionDate), "EEE, dd MMM yyyy")} at {selectedSession.sessionStartTime}
+                  {selectedSession.clubName && ` - ${selectedSession.clubName}`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    setSelectedSession(null);
+                    navigate(`/sessions/${selectedSession.sessionId}`);
+                  }}
+                  data-testid="button-view-session-popup"
+                >
+                  <Eye className="h-4 w-4" /> View Session
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start gap-2"
+                  onClick={() => withdrawMutation.mutate(selectedSession.sessionId)}
+                  disabled={withdrawMutation.isPending}
+                  data-testid="button-withdraw-popup"
+                >
+                  {withdrawMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                  Withdraw from Session
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

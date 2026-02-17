@@ -678,7 +678,7 @@ export function MatchQueue({
   );
 }
 
-export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean }) {
+export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false, currentPlayerProfileId }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean; currentPlayerProfileId?: number | null }) {
   const [scoreMatch, setScoreMatch] = useState<CourtMatch | null>(null);
   const [scoreMode, setScoreMode] = useState<"edit" | "player">("edit");
   const [teamScoreA, setTeamScoreA] = useState<string>("");
@@ -810,7 +810,13 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
               {completedMatches.map((match) => {
                 const hasScore = (match.scoreA || 0) > 0 || (match.scoreB || 0) > 0;
                 const scoreAlreadyEntered = !!match.scoreEnteredByUserId;
-                const canPlayerEnterScore = isSignedUp && !scoreAlreadyEntered && !hasScore;
+                const isPlayerInThisMatch = currentPlayerProfileId ? (
+                  match.teamAPlayer1?.id === currentPlayerProfileId ||
+                  match.teamAPlayer2?.id === currentPlayerProfileId ||
+                  match.teamBPlayer1?.id === currentPlayerProfileId ||
+                  match.teamBPlayer2?.id === currentPlayerProfileId
+                ) : false;
+                const canPlayerEnterScore = (isPlayerInThisMatch || (isSignedUp && !currentPlayerProfileId)) && !scoreAlreadyEntered && !hasScore;
 
                 return (
                   <div

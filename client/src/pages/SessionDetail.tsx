@@ -1064,6 +1064,7 @@ export default function SessionDetail() {
         sessionId={id} 
         isOrganiser={isOrganiser}
         isSignedUp={!!isSignedUp}
+        currentPlayerProfileId={userProfileForClub?.id || null}
         matchMode={session.matchMode} 
         courtsAvailable={session.courtsAvailable}
         courtNames={session.courtNames}
@@ -1746,10 +1747,11 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3 }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3 }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
+  currentPlayerProfileId: number | null;
   matchMode: "COMPETITIVE" | "SOCIAL" | "TRAINING";
   courtsAvailable: number;
   courtNames?: string[] | null;
@@ -2247,6 +2249,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
                     availablePlayers={availablePlayers}
                     isOrganiser={isOrganiser}
                     isSignedUp={isSignedUp}
+                    currentPlayerProfileId={currentPlayerProfileId}
                     onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
                     onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
                     onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
@@ -2280,7 +2283,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, matchMode, courtsAvai
               onClearQueue={handleClearQueue}
               notEnoughPlayersMessage={notEnoughPlayersMessage}
             />
-            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} />
+            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
           </div>
         </div>
 
