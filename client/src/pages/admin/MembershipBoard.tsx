@@ -364,7 +364,7 @@ export default function MembershipBoard() {
 
   const editPlanMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: number; name: string; annualPrice: number; defaultSessionFee: number; defaultDurationDays: number; isDefault: boolean }) => {
-      await apiRequest("PATCH", `/api/clubs/${clubId}/membership-plans/${id}`, data);
+      await apiRequest("PATCH", `/api/membership-plans/${id}`, data);
     },
     onSuccess: () => {
       invalidateMemberships();
@@ -378,7 +378,7 @@ export default function MembershipBoard() {
 
   const deletePlanMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/clubs/${clubId}/membership-plans/${id}`);
+      await apiRequest("DELETE", `/api/membership-plans/${id}`);
     },
     onSuccess: () => {
       invalidateMemberships();
