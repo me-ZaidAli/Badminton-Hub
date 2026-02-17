@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -689,13 +690,68 @@ export default function Profile() {
           className={totalOutstanding > 0 ? "border-amber-300/50 dark:border-amber-700/50" : ""} />
       </div>
 
-      {/* Performance Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard icon={Trophy} label="Matches Won" value={performance.won} onClick={() => setPerformanceModalOpen(true)} />
-        <MetricCard icon={Target} label="Matches Lost" value={performance.lost} onClick={() => setPerformanceModalOpen(true)} />
-        <MetricCard icon={BarChart3} label="Win Rate" value={`${performance.winPct}%`} subtext={`${performance.played} played`} onClick={() => setPerformanceModalOpen(true)} />
-        <MetricCard icon={Activity} label="Total Matches" value={performance.played} onClick={() => setPerformanceModalOpen(true)} />
-      </div>
+      {/* Performance Stats - Single card with chart */}
+      <Card className="cursor-pointer hover-elevate" onClick={() => setPerformanceModalOpen(true)} data-testid="card-performance">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-md bg-primary/10">
+                <BarChart3 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Match Performance</p>
+                <p className="text-xs text-muted-foreground">{performance.played} matches played</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-24 h-24 shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={performance.played > 0
+                      ? [{ name: "Won", value: performance.won }, { name: "Lost", value: performance.lost }]
+                      : [{ name: "None", value: 1 }]}
+                    cx="50%" cy="50%"
+                    innerRadius={28} outerRadius={42}
+                    paddingAngle={performance.played > 0 ? 3 : 0}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    {performance.played > 0 ? (
+                      <>
+                        <Cell fill="hsl(var(--primary))" />
+                        <Cell fill="hsl(var(--destructive))" />
+                      </>
+                    ) : (
+                      <Cell fill="hsl(var(--muted-foreground) / 0.3)" />
+                    )}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <p className="text-2xl font-bold text-primary">{performance.won}</p>
+                <p className="text-xs text-muted-foreground">Won</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-destructive">{performance.lost}</p>
+                <p className="text-xs text-muted-foreground">Lost</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{performance.winPct}%</p>
+                <p className="text-xs text-muted-foreground">Win Rate</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{performance.played}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Session Activity */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
