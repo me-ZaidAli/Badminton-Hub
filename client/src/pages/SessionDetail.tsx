@@ -337,8 +337,8 @@ export default function SessionDetail() {
   if (!session) return <div>Session not found</div>;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between gap-6">
+    <div className="space-y-4 sm:space-y-8">
+      <div className="flex flex-col md:flex-row justify-between gap-4 sm:gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2 flex-wrap">
             <Badge variant="outline">{session.matchMode}</Badge>
@@ -832,7 +832,7 @@ export default function SessionDetail() {
         </div>
 
         <Card className="min-w-[300px] border-primary/20 bg-primary/5">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
               <span className="text-muted-foreground">Capacity</span>
               {editingCapacity && isOrganiser ? (
@@ -1077,10 +1077,10 @@ export default function SessionDetail() {
         savedQueueTargetSize={(session as any).queueTargetSize ?? 3}
       />
 
-      <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-2xl font-display font-bold flex items-center gap-2">
-            <Users className="w-6 h-6" />
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+          <h2 className="text-xl sm:text-2xl font-display font-bold flex items-center gap-2">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
             Session Players ({confirmedSignups.length})
           </h2>
           {isOrganiser && (
@@ -1211,7 +1211,7 @@ export default function SessionDetail() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {confirmedSignups.slice().sort((a, b) => {
             const aPaused = !!(a as any).isPaused;
             const bPaused = !!(b as any).isPaused;
@@ -1231,7 +1231,7 @@ export default function SessionDetail() {
             return (
               <div 
                 key={signup.id} 
-                className={`flex items-center justify-between p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate ${isPaused ? "opacity-60" : ""}`}
+                className={`flex items-center justify-between p-3 sm:p-4 bg-card rounded-xl border border-border/50 shadow-sm hover-elevate ${isPaused ? "opacity-60" : ""}`}
                 data-testid={`signup-${signup.id}`}
               >
                 <div className="flex items-center flex-1 min-w-0">
@@ -1936,9 +1936,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   };
 
   const handleSmartGenerate = () => {
-    if (activePlayerCount < minPlayersNeeded) {
-      if (showNotEnoughPlayersWarning()) return;
-    }
     setNotEnoughPlayersMessage(null);
     const wasInactive = !autoGenerateActive || autoGenLocallyStopped;
     if (wasInactive) {
@@ -1957,6 +1954,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           setAutoGenWaiting(false);
           setPairConstraintMessage(null);
         }
+      },
+      onError: (err: any) => {
+        const msg = err?.message || "Failed to generate matches";
+        setNotEnoughPlayersMessage(msg);
+        setTimeout(() => setNotEnoughPlayersMessage(null), 5000);
       },
     });
   };
@@ -2237,7 +2239,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               <Trophy className="w-5 h-5 text-primary" />
               Live Courts
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
                 const match = liveMatches.find(m => m.courtNumber === courtNum) || null;
                 return (
@@ -2265,7 +2267,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <MatchQueue
               matches={typedMatches}
               availablePlayers={availablePlayers}
