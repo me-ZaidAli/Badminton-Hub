@@ -1,12 +1,21 @@
+import nodemailer from "nodemailer";
+
+function getGmailTransport() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
+}
+
 export async function sendClaimAccountEmail(
   to: string,
   playerName: string,
   clubName: string,
   claimUrl: string
 ): Promise<void> {
-  const sendgridKey = process.env.SENDGRID_API_KEY;
-  const resendKey = process.env.RESEND_API_KEY;
-
   const subject = `You've been added to ${clubName} - Claim your account`;
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -25,6 +34,19 @@ export async function sendClaimAccountEmail(
     </div>
   `;
 
+  const transport = getGmailTransport();
+  if (transport) {
+    await transport.sendMail({
+      from: `"Club Master" <${process.env.GMAIL_USER}>`,
+      to,
+      subject,
+      html: htmlContent,
+    });
+    console.log(`[EMAIL SENT] Claim account email sent to ${to} via Gmail`);
+    return;
+  }
+
+  const sendgridKey = process.env.SENDGRID_API_KEY;
   if (sendgridKey) {
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
@@ -46,6 +68,7 @@ export async function sendClaimAccountEmail(
     return;
   }
 
+  const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -69,5 +92,20 @@ export async function sendClaimAccountEmail(
 
   console.log(`[EMAIL NOT SENT - No email service configured] Claim account email for ${to}:`);
   console.log(`  Claim URL: ${claimUrl}`);
-  throw new Error("No email service configured. Set SENDGRID_API_KEY or RESEND_API_KEY.");
+  throw new Error("No email service configured. Set GMAIL_USER/GMAIL_APP_PASSWORD, SENDGRID_API_KEY, or RESEND_API_KEY.");
+}
+
+export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  const transport = getGmailTransport();
+  if (transport) {
+    await transport.sendMail({
+      from: `"Club Master" <${process.env.GMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log(`[EMAIL SENT] Email sent to ${to} via Gmail`);
+    return;
+  }
+  throw new Error("No email service configured.");
 }
