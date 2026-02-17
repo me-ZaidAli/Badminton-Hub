@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Info, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send } from "lucide-react";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -772,13 +772,19 @@ export default function Sessions() {
                   data-testid={`button-session-title-${session.id}`}
                 >
                   {session.title}
-                  <Info className="h-4 w-4 text-muted-foreground shrink-0" />
                 </h3>
                 
                 <div className="space-y-2 text-sm text-muted-foreground mb-6">
-                  <div className="flex items-center gap-2">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setDetailsSession(session)}
+                    data-testid={`button-rsvp-${session.id}`}
+                  >
                     <Users className="h-4 w-4" />
                     <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      RSVP
+                    </Badge>
                   </div>
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
@@ -820,7 +826,7 @@ export default function Sessions() {
                           <Wallet className="h-4 w-4 mr-1" />
                           Finances
                         </Button>
-                        <EditSessionDialog session={session} venues={[]} />
+                        <EditSessionDialog session={session} venues={[]} adminClubs={isSuperUser ? (clubs || []) : (adminClubs || [])} />
                         <Button
                           size="icon"
                           variant="ghost"
@@ -1797,10 +1803,11 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   );
 }
 
-function EditSessionDialog({ session, venues: propVenues }: { session: any; venues: any[] }) {
+function EditSessionDialog({ session, venues: propVenues, adminClubs }: { session: any; venues: any[]; adminClubs?: { id: number; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const { mutate: updateSession, isPending } = useUpdateSession();
-  const { data: venues } = useVenues(session.clubId || null);
+  const [editClubId, setEditClubId] = useState<number>(session.clubId);
+  const { data: venues } = useVenues(editClubId || null);
   const { toast } = useToast();
 
   const [editTitle, setEditTitle] = useState("");
@@ -1844,6 +1851,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
   });
 
   const initializeForm = async () => {
+    setEditClubId(session.clubId);
     setEditTitle(session.title || "");
     setEditDate(session.date ? format(new Date(session.date), "yyyy-MM-dd") : "");
     setEditStartTime(session.startTime || "18:00");
@@ -1897,6 +1905,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
     updateSession({
       sessionId: session.id,
       updates: {
+        clubId: editClubId,
         title: editTitle,
         date: editDate,
         startTime: editStartTime,
@@ -1952,6 +1961,42 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
           <DialogTitle>Edit Session</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-4">
+          {adminClubs && adminClubs.length > 0 && (
+            <div>
+              <Label>Club</Label>
+              <Select value={editClubId?.toString() || ""} onValueChange={(v) => { setEditClubId(Number(v)); setEditVenueId(null); setEditInvitees(new Set()); }}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-club">
+                  <SelectValue placeholder="Select club" />
+                </SelectTrigger>
+                <SelectContent>
+                  {adminClubs.map((club: any) => (
+                    <SelectItem key={club.id} value={club.id.toString()}>
+                      {club.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label>Venue</Label>
+            <Select value={editVenueId?.toString() || "none"} onValueChange={(v) => setEditVenueId(v === "none" ? null : Number(v))}>
+              <SelectTrigger className="mt-2" data-testid="select-edit-venue">
+                <SelectValue placeholder="Select venue" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No venue selected</SelectItem>
+                {venueList.map((venue: any) => (
+                  <SelectItem key={venue.id} value={venue.id.toString()}>
+                    {venue.name}{venue.city ? ` - ${venue.city}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {venueList.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">No venues configured for this club</p>
+            )}
+          </div>
           <div>
             <Label>Session Title</Label>
             <Input
@@ -2218,24 +2263,6 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
               </Select>
             </div>
           </div>
-          {venueList.length > 0 && (
-            <div>
-              <Label>Venue</Label>
-              <Select value={editVenueId?.toString() || "none"} onValueChange={(v) => setEditVenueId(v === "none" ? null : Number(v))}>
-                <SelectTrigger className="mt-2" data-testid="select-edit-venue">
-                  <SelectValue placeholder="Select venue" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No venue selected</SelectItem>
-                  {venueList.map((venue: any) => (
-                    <SelectItem key={venue.id} value={venue.id.toString()}>
-                      {venue.name}{venue.city ? ` - ${venue.city}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           <div>
             <Label>Live Stream Link</Label>
             <Input
@@ -2255,7 +2282,7 @@ function EditSessionDialog({ session, venues: propVenues }: { session: any; venu
             setWeeksBefore={setEditWeeksBefore}
           />
           <InvitePlayersModal
-            clubId={session.clubId}
+            clubId={editClubId}
             selectedPlayerIds={editInvitees}
             onSelectionChange={setEditInvitees}
           />

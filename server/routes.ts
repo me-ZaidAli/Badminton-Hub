@@ -2379,7 +2379,9 @@ export async function registerRoutes(
       if (isPrivate !== undefined) updates.isPrivate = !!isPrivate;
       if (shuttleTubesUsed !== undefined) updates.shuttleTubesUsed = Number(shuttleTubesUsed);
       if (clubId !== undefined && clubId !== session.clubId) {
-        if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Only platform owners can reassign sessions to another club" });
+        const canEditSource = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", session.clubId);
+        const canEditTarget = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", clubId);
+        if (!canEditSource || !canEditTarget) return res.status(403).json({ message: "You need admin access to both the current and target club to reassign a session" });
         const targetClub = await storage.getClub(clubId);
         if (!targetClub) return res.status(400).json({ message: "Target club not found" });
         updates.clubId = clubId;
