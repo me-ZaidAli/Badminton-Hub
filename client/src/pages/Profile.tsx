@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, Star, Clock, Award
+  PoundSterling, ChevronRight, Star, Clock, Award, Building2
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -501,6 +501,48 @@ function SessionsThisMonthModal({ open, onClose, sessions }: {
   );
 }
 
+function ClubsModal({ open, onClose, profiles, sessions }: {
+  open: boolean; onClose: () => void; profiles: any[] | undefined; sessions: SessionHistoryItem[] | undefined;
+}) {
+  const clubSessionCounts = useMemo(() => {
+    if (!sessions) return new Map<number, number>();
+    const counts = new Map<number, number>();
+    sessions.forEach(s => counts.set(s.clubId, (counts.get(s.clubId) || 0) + 1));
+    return counts;
+  }, [sessions]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="bg-background max-h-[80vh] flex flex-col" data-testid="modal-clubs">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            My Clubs ({profiles?.length || 0})
+          </DialogTitle>
+        </DialogHeader>
+        <div className="overflow-y-auto space-y-2">
+          {(!profiles || profiles.length === 0) ? (
+            <p className="text-muted-foreground text-sm text-center py-4">No clubs joined yet</p>
+          ) : (
+            profiles.map((p: any) => (
+              <div key={p.id} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`club-item-${p.clubId}`}>
+                <div className="flex items-center gap-3">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">{p.club?.name || `Club ${p.clubId}`}</span>
+                </div>
+                <Badge variant="secondary" className="text-xs" data-testid={`club-sessions-${p.clubId}`}>
+                  <CalendarDays className="h-3 w-3 mr-1" />
+                  {clubSessionCounts.get(p.clubId) || 0} session{(clubSessionCounts.get(p.clubId) || 0) !== 1 ? "s" : ""}
+                </Badge>
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TotalSpentModal({ open, onClose, sessions }: {
   open: boolean; onClose: () => void; sessions: SessionHistoryItem[] | undefined;
 }) {
@@ -697,6 +739,7 @@ export default function Profile() {
   const [totalSessionsModalOpen, setTotalSessionsModalOpen] = useState(false);
   const [sessionsThisMonthModalOpen, setSessionsThisMonthModalOpen] = useState(false);
   const [totalSpentModalOpen, setTotalSpentModalOpen] = useState(false);
+  const [clubsModalOpen, setClubsModalOpen] = useState(false);
 
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -866,13 +909,11 @@ export default function Profile() {
                 )}
               </div>
               {profiles && profiles.length > 0 && (
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {profiles.map((p: any) => (
-                    <Badge key={p.id} variant="outline" className="text-xs" data-testid={`badge-club-${p.clubId}`}>
-                      {p.club?.name || `Club ${p.clubId}`}
-                    </Badge>
-                  ))}
-                </div>
+                <Badge variant="outline" className="text-xs cursor-pointer mt-2" onClick={() => setClubsModalOpen(true)} data-testid="badge-clubs-count">
+                  <Building2 className="h-3 w-3 mr-1" />
+                  {profiles.length} Club{profiles.length !== 1 ? "s" : ""}
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </Badge>
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -1227,6 +1268,7 @@ export default function Profile() {
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} profiles={profiles} />
       <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} />
+      <ClubsModal open={clubsModalOpen} onClose={() => setClubsModalOpen(false)} profiles={profiles} sessions={sessionHistory} />
       <TotalSessionsModal open={totalSessionsModalOpen} onClose={() => setTotalSessionsModalOpen(false)} sessions={sessionHistory} />
       <SessionsThisMonthModal open={sessionsThisMonthModalOpen} onClose={() => setSessionsThisMonthModalOpen(false)} sessions={sessionHistory} />
       <TotalSpentModal open={totalSpentModalOpen} onClose={() => setTotalSpentModalOpen(false)} sessions={sessionHistory} />
