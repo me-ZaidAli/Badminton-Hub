@@ -6237,6 +6237,8 @@ export async function registerRoutes(
         );
       }
 
+      queryConditions.push(eq(sessionSignups.signupStatus, "CONFIRMED"));
+
       const signupsData = await db
         .select({
           signupId: sessionSignups.id,
@@ -9911,6 +9913,8 @@ export async function registerRoutes(
       const sessionConditions: any[] = [inArray(sessions.clubId, filteredClubIds)];
       if (qDateFrom) sessionConditions.push(gte(sessions.date, qDateFrom));
       if (qDateTo) sessionConditions.push(lte(sessions.date, qDateTo));
+
+      sessionConditions.push(eq(sessionSignups.signupStatus, "CONFIRMED"));
 
       const signupsData = await db.select({
         fee: sessionSignups.fee,
