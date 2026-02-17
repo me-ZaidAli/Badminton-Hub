@@ -3162,8 +3162,9 @@ export async function registerRoutes(
         const gType = genderType || session.matchGenderType || "MIXED";
 
         const signups = await storage.getSessionSignups(match.sessionId);
-        const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-        const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+        const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+        const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+        const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
         const players = eligibleSignups
           .filter(s => !s.isPaused)
           .map(s => ({
@@ -3267,8 +3268,9 @@ export async function registerRoutes(
       else if (filterType === "mixed") gType = "MIXED";
 
       const signups = await storage.getSessionSignups(match.sessionId);
-      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
 
       const existingMatches = await storage.getSessionMatches(match.sessionId);
       const busyPlayerIds = new Set<number>();
@@ -3550,10 +3552,10 @@ export async function registerRoutes(
       const playersPerMatch = playersPerSide * 2;
       const genderType = requestGenderType || session.matchGenderType || "MIXED";
 
-      // Get signups - prefer ATTENDED players, fall back to all if none marked
       const signups = await storage.getSessionSignups(sessionId);
-      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
       let players = eligibleSignups.map(s => s.player);
 
       // Filter by gender type
@@ -3688,8 +3690,9 @@ export async function registerRoutes(
       const queueTarget = Math.min(Math.max(queueTargetSize || 3, 1), 10);
 
       const signups = await storage.getSessionSignups(sessionId);
-      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
 
       const existingMatches = await storage.getSessionMatches(sessionId);
 
@@ -3927,7 +3930,8 @@ export async function registerRoutes(
         }));
 
       const signups = await storage.getSessionSignups(sessionId);
-      const availablePlayers = signups
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const availablePlayers = confirmedSignups
         .filter(s => !s.isPaused && s.player.id !== pausedPlayerId)
         .map(s => ({
           id: s.player.id,
@@ -3937,7 +3941,7 @@ export async function registerRoutes(
           genderOverride: s.genderOverride,
         }));
 
-      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers, extractFixedPairs(signups));
+      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers, extractFixedPairs(confirmedSignups));
 
       for (const rep of replacements) {
         await storage.updateMatch(rep.matchId, { [rep.position]: rep.newPlayerId });
@@ -3979,8 +3983,9 @@ export async function registerRoutes(
       const gType = genderType || session.matchGenderType || "MIXED";
 
       const signups = await storage.getSessionSignups(sessionId);
-      const attendedSignups = signups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : signups;
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
       const players = eligibleSignups
         .filter(s => !s.isPaused)
         .map(s => ({
