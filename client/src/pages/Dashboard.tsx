@@ -12,7 +12,7 @@ import { Link, Redirect } from "wouter";
 import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
-  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter
+  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User
 } from "lucide-react";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
@@ -165,6 +165,20 @@ function DashboardContent({
     queryKey: ["/api/my-sessions"],
   });
 
+  const { data: allAnnouncements } = useQuery<any[]>({
+    queryKey: ["/api/announcements"],
+  });
+
+  const { data: archivedAnnouncementIds } = useQuery<number[]>({
+    queryKey: ["/api/announcements/my-archives"],
+    enabled: !!user,
+  });
+
+  const activeAnnouncements = useMemo(() => {
+    const archivedSet = new Set(archivedAnnouncementIds || []);
+    return (allAnnouncements || []).filter(a => !archivedSet.has(a.id));
+  }, [allAnnouncements, archivedAnnouncementIds]);
+
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
     if (effectiveClubId) {
@@ -277,6 +291,51 @@ function DashboardContent({
           </CardContent>
         </Card>
       </div>
+
+      {activeAnnouncements.length > 0 && (
+        <Card data-testid="card-announcements-preview">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Megaphone className="h-5 w-5 text-amber-500" />
+                Announcements
+                <Badge variant="secondary" className="text-xs">{activeAnnouncements.length}</Badge>
+              </CardTitle>
+              <Link href="/announcements">
+                <Button variant="ghost" size="sm" data-testid="button-view-all-announcements">
+                  View All <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {activeAnnouncements.slice(0, 2).map(announcement => (
+                <Link key={announcement.id} href="/announcements">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`announcement-preview-${announcement.id}`}>
+                    <div className="p-1.5 rounded-md bg-amber-500/10 shrink-0 mt-0.5">
+                      <Megaphone className="h-3.5 w-3.5 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{announcement.title}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{announcement.content}</div>
+                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                        <User className="h-2.5 w-2.5" />
+                        {announcement.author.fullName}
+                        <span className="mx-1">-</span>
+                        {format(new Date(announcement.createdAt), "MMM d")}
+                      </div>
+                    </div>
+                    {announcement.imageUrl && (
+                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-my-upcoming-sessions">
         <CardHeader className="pb-3">

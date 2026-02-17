@@ -51,7 +51,8 @@ const Financials = lazy(() => import("@/pages/admin/Financials"));
 const MembershipBoard = lazy(() => import("@/pages/admin/MembershipBoard"));
 const AdminInventory = lazy(() => import("@/pages/admin/Inventory"));
 const Memberships = lazy(() => import("@/pages/Memberships"));
-const Announcements = lazy(() => import("@/pages/admin/Announcements"));
+const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
+const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
 const MemberImport = lazy(() => import("@/pages/admin/MemberImport"));
 const UserApproval = lazy(() => import("@/pages/admin/UserApproval"));
@@ -264,6 +265,9 @@ function Router() {
       <Route path="/sessions">
         <PrivateRoute component={Sessions} />
       </Route>
+      <Route path="/announcements">
+        <PrivateRoute component={Announcements} />
+      </Route>
       <Route path="/my-sessions">
         <PrivateRoute component={MySessions} />
       </Route>
@@ -355,7 +359,7 @@ function Router() {
         <AdminRoute component={AdminInventory} />
       </Route>
       <Route path="/admin/announcements">
-        <OwnerRoute component={Announcements} />
+        <OwnerRoute component={AdminAnnouncements} />
       </Route>
       <Route path="/admin/calendar">
         <OwnerRoute component={CalendarImport} />

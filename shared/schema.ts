@@ -579,9 +579,20 @@ export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  linkUrl: text("link_url"),
+  linkText: text("link_text"),
+  clubId: integer("club_id").references(() => clubs.id),
   visibleTo: visibilityEnum("visible_to").default("ALL").notNull(),
   authorId: integer("author_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const announcementArchives = pgTable("announcement_archives", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").references(() => announcements.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  archivedAt: timestamp("archived_at").defaultNow().notNull(),
 });
 
 // === INTERNAL MESSAGES ===
@@ -755,7 +766,12 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   numberOfSets: z.number().min(1).max(3).default(1),
   publishAt: z.coerce.date().optional().nullable(),
 });
-export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true });
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true }).extend({
+  clubId: z.number().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  linkUrl: z.string().nullable().optional(),
+  linkText: z.string().nullable().optional(),
+});
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 export const insertCoachSchema = createInsertSchema(coaches).omit({ id: true, createdAt: true, status: true });
 export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true, joinedAt: true });
@@ -795,6 +811,7 @@ export type Session = typeof sessions.$inferSelect;
 export type SessionSignup = typeof sessionSignups.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
+export type AnnouncementArchive = typeof announcementArchives.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentCategory = typeof tournamentCategories.$inferSelect;

@@ -1,6 +1,6 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, announcements, memberships, clubs, venues,
+  users, playerProfiles, sessions, sessionSignups, matches, announcements, announcementArchives, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   creditLedger, inventoryMovements,
@@ -86,6 +86,11 @@ export interface IStorage {
   // Announcements
   getAnnouncements(): Promise<(Announcement & { author: User })[]>;
   createAnnouncement(announcement: InsertAnnouncement & { authorId: number }): Promise<Announcement>;
+  updateAnnouncement(id: number, updates: Partial<InsertAnnouncement>): Promise<Announcement>;
+  deleteAnnouncement(id: number): Promise<void>;
+  getArchivedAnnouncementIds(userId: number): Promise<number[]>;
+  archiveAnnouncement(announcementId: number, userId: number): Promise<void>;
+  unarchiveAnnouncement(announcementId: number, userId: number): Promise<void>;
 
   // Admin
   getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
@@ -723,6 +728,32 @@ export class DatabaseStorage implements IStorage {
   async createAnnouncement(announcement: InsertAnnouncement & { authorId: number }): Promise<Announcement> {
     const [newAnnouncement] = await db.insert(announcements).values(announcement).returning();
     return newAnnouncement;
+  }
+
+  async updateAnnouncement(id: number, updates: Partial<InsertAnnouncement>): Promise<Announcement> {
+    const [updated] = await db.update(announcements).set(updates).where(eq(announcements.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAnnouncement(id: number): Promise<void> {
+    await db.delete(announcements).where(eq(announcements.id, id));
+  }
+
+  async getArchivedAnnouncementIds(userId: number): Promise<number[]> {
+    const result = await db.select({ announcementId: announcementArchives.announcementId })
+      .from(announcementArchives)
+      .where(eq(announcementArchives.userId, userId));
+    return result.map(r => r.announcementId);
+  }
+
+  async archiveAnnouncement(announcementId: number, userId: number): Promise<void> {
+    await db.insert(announcementArchives).values({ announcementId, userId }).onConflictDoNothing();
+  }
+
+  async unarchiveAnnouncement(announcementId: number, userId: number): Promise<void> {
+    await db.delete(announcementArchives).where(
+      and(eq(announcementArchives.announcementId, announcementId), eq(announcementArchives.userId, userId))
+    );
   }
 
   async getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]> {

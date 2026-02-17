@@ -63,6 +63,26 @@ const uploadCoachPhoto = multer({
   },
 });
 
+const announcementUploadsDir = path.join(process.cwd(), "public", "uploads", "announcements");
+if (!fs.existsSync(announcementUploadsDir)) {
+  fs.mkdirSync(announcementUploadsDir, { recursive: true });
+}
+const announcementPhotoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, announcementUploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `announcement-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadAnnouncementPhoto = multer({
+  storage: announcementPhotoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
+
 const profilePhotoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, profileUploadsDir),
   filename: (_req, file, cb) => {
@@ -4043,7 +4063,6 @@ export async function registerRoutes(
 
   app.post(api.announcements.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Only admins can create announcements
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) {
       return res.sendStatus(403);
@@ -4054,6 +4073,63 @@ export async function registerRoutes(
       authorId: req.user!.id
     });
     res.status(201).json(announcement);
+  });
+
+  app.get("/api/announcements/my-archives", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const archivedIds = await storage.getArchivedAnnouncementIds(req.user!.id);
+    res.json(archivedIds);
+  });
+
+  app.post("/api/announcements/upload-image", uploadAnnouncementPhoto.single("image"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const imageUrl = `/uploads/announcements/${req.file.filename}`;
+    res.json({ imageUrl });
+  });
+
+  app.patch("/api/announcements/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    const id = parseInt(req.params.id);
+    const updateSchema = z.object({
+      title: z.string().optional(),
+      content: z.string().optional(),
+      imageUrl: z.string().nullable().optional(),
+      linkUrl: z.string().nullable().optional(),
+      linkText: z.string().nullable().optional(),
+      clubId: z.number().nullable().optional(),
+      visibleTo: z.enum(["ALL", "PLAYERS", "ADMINS"]).optional(),
+    });
+    const updates = updateSchema.parse(req.body);
+    const updated = await storage.updateAnnouncement(id, updates);
+    res.json(updated);
+  });
+
+  app.delete("/api/announcements/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    const id = parseInt(req.params.id);
+    await storage.deleteAnnouncement(id);
+    res.sendStatus(204);
+  });
+
+  app.post("/api/announcements/:id/archive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = parseInt(req.params.id);
+    await storage.archiveAnnouncement(id, req.user!.id);
+    res.sendStatus(204);
+  });
+
+  app.post("/api/announcements/:id/unarchive", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = parseInt(req.params.id);
+    await storage.unarchiveAnnouncement(id, req.user!.id);
+    res.sendStatus(204);
   });
 
   // === Admin Endpoints ===
