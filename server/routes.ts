@@ -2824,6 +2824,19 @@ export async function registerRoutes(
         startedAt: new Date(),
         queuePosition: null
       });
+
+      // Remove these players from remaining queued matches
+      const livePlayerIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
+      const sessionMatches = await storage.getSessionMatches(match.sessionId);
+      const queuedMatchesWithBusyPlayers = sessionMatches.filter(m => {
+        if (m.status !== "QUEUED" || m.id === matchId) return false;
+        const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+        return mPlayers.some(pid => livePlayerIds.includes(pid));
+      });
+      for (const qm of queuedMatchesWithBusyPlayers) {
+        await storage.deleteMatch(qm.id);
+      }
+
       res.json(updated);
     } catch (err: any) {
       console.error("Error starting match:", err);
@@ -2895,12 +2908,25 @@ export async function registerRoutes(
 
         if (freedCourt && currentMatch.sessionId) {
           const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+
+          const livePlayerIds = new Set<number>();
+          sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
+            if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
+            if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
+            if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
+            if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
+          });
+
           const queuedMatches = sessionMatches
             .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
             .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
 
-          if (queuedMatches.length > 0) {
-            const nextMatch = queuedMatches[0];
+          const nextMatch = queuedMatches.find(m => {
+            const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+            return !mPlayers.some(pid => livePlayerIds.has(pid));
+          });
+
+          if (nextMatch) {
             await storage.updateMatch(nextMatch.id, {
               status: "LIVE",
               courtNumber: freedCourt,
@@ -3001,12 +3027,25 @@ export async function registerRoutes(
 
       if (freedCourt && currentMatch.sessionId) {
         const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+
+        const livePlayerIds = new Set<number>();
+        sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
+          if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
+        });
+
         const queuedMatches = sessionMatches
           .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
           .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
 
-        if (queuedMatches.length > 0) {
-          const nextMatch = queuedMatches[0];
+        const nextMatch = queuedMatches.find(m => {
+          const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+          return !mPlayers.some(pid => livePlayerIds.has(pid));
+        });
+
+        if (nextMatch) {
           await storage.updateMatch(nextMatch.id, {
             status: "LIVE",
             courtNumber: freedCourt,
