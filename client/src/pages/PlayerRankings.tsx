@@ -9,8 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Trophy, Search, ArrowUp, ArrowDown,
-  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, TrendingUp, Percent, Swords
+  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, TrendingUp, Percent, Swords, Info, ArrowUpDown
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export default function PlayerRankings() {
   const [matchType, setMatchType] = useState<string>("all");
   const [timePeriod, setTimePeriod] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("default");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
 
@@ -102,6 +104,16 @@ export default function PlayerRankings() {
 
   const { data: leaderboard, isLoading } = useFilteredLeaderboard(filters);
 
+  const gradeRank = (grade: string | null | undefined): number => {
+    const order = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+    const idx = order.indexOf(grade || "");
+    return idx >= 0 ? idx : -1;
+  };
+
+  const computePoints = (player: LeaderboardPlayer): number => {
+    return (player.matchesWon * 3) + (player.matchesLost * 1);
+  };
+
   const scopedLeaderboard = useMemo(() => {
     if (!leaderboard) return [];
     if (clubScope === "my" && selectedClubId === "all") {
@@ -111,13 +123,29 @@ export default function PlayerRankings() {
   }, [leaderboard, clubScope, selectedClubId, myClubIds]);
 
   const filteredLeaderboard = useMemo(() => {
-    if (!searchQuery.trim()) return scopedLeaderboard;
-    const q = searchQuery.toLowerCase();
-    return scopedLeaderboard.filter(p =>
-      p.fullName.toLowerCase().includes(q) ||
-      (p.clubName && p.clubName.toLowerCase().includes(q))
-    );
-  }, [scopedLeaderboard, searchQuery]);
+    let result = [...scopedLeaderboard];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(p =>
+        p.fullName.toLowerCase().includes(q) ||
+        (p.clubName && p.clubName.toLowerCase().includes(q))
+      );
+    }
+
+    if (sortBy === "grade") {
+      result.sort((a, b) => gradeRank(b.grade || b.category) - gradeRank(a.grade || a.category));
+    } else if (sortBy === "winpct") {
+      result.sort((a, b) => b.winPercentage - a.winPercentage || b.matchesWon - a.matchesWon);
+    } else if (sortBy === "matches") {
+      result.sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.matchesWon - a.matchesWon);
+    } else if (sortBy === "points") {
+      result.sort((a, b) => computePoints(b) - computePoints(a) || b.matchesWon - a.matchesWon);
+    } else {
+      result.sort((a, b) => b.matchesWon - a.matchesWon || b.winPercentage - a.winPercentage || b.matchesPlayed - a.matchesPlayed);
+    }
+
+    return result;
+  }, [scopedLeaderboard, searchQuery, sortBy]);
 
   const rankedLeaderboard = useMemo(() => {
     let currentRank = 0;
@@ -128,7 +156,7 @@ export default function PlayerRankings() {
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
-      return { ...player, rank: currentRank, isTied };
+      return { ...player, rank: currentRank, isTied, totalPoints: computePoints(player) };
     });
   }, [filteredLeaderboard]);
 
@@ -157,10 +185,29 @@ export default function PlayerRankings() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Rankings"
-        description="See how players rank across clubs based on match performance."
-      />
+      <div className="flex items-center gap-2">
+        <PageHeader
+          title="Rankings"
+          description="See how players rank across clubs based on match performance."
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" data-testid="button-ranking-info">
+              <Info className="h-5 w-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 text-sm space-y-3" align="start">
+            <h4 className="font-semibold text-base">How Rankings Work</h4>
+            <div className="space-y-2 text-muted-foreground">
+              <p><span className="font-medium text-foreground">Points System:</span> Players earn 3 points for each win and 1 point for each loss. Points reflect overall activity and success.</p>
+              <p><span className="font-medium text-foreground">Default Ranking:</span> Players are ranked first by total wins, then by win percentage as a tiebreaker.</p>
+              <p><span className="font-medium text-foreground">Grade:</span> Players have a skill grade from C3 (beginner) to A1 (advanced). Grades are assigned by admins or computed automatically based on recent performance.</p>
+              <p><span className="font-medium text-foreground">Auto-Grading:</span> When enabled, the system evaluates a rolling window of the last 5 sessions. Players need at least 10 games across 3 sessions to qualify. A win rate above 55% triggers a promotion, while below 40% triggers a demotion.</p>
+              <p><span className="font-medium text-foreground">Win %:</span> Percentage of matches won out of total matches played.</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {myStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -310,6 +357,19 @@ export default function PlayerRankings() {
                 <SelectItem value="thisSeason">This Season</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[170px]" data-testid="select-sort-by">
+                <ArrowUpDown className="h-4 w-4 mr-1 shrink-0" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default (Wins)</SelectItem>
+                <SelectItem value="grade">Grade (High to Low)</SelectItem>
+                <SelectItem value="winpct">Win % (High to Low)</SelectItem>
+                <SelectItem value="matches">Matches (Most to Least)</SelectItem>
+                <SelectItem value="points">Points (High to Low)</SelectItem>
+              </SelectContent>
+            </Select>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={resetFilters} data-testid="button-reset-ranking-filters">
                 <RotateCcw className="h-4 w-4 mr-1" /> Reset
@@ -332,6 +392,7 @@ export default function PlayerRankings() {
               <TableHead className="text-right w-[80px]">Played</TableHead>
               <TableHead className="text-right w-[100px]">W / L</TableHead>
               <TableHead className="text-right w-[80px]">Win %</TableHead>
+              <TableHead className="text-right w-[80px]">Points</TableHead>
               <TableHead className="hidden lg:table-cell w-[140px]">Achievements</TableHead>
             </TableRow>
           </TableHeader>
@@ -342,12 +403,12 @@ export default function PlayerRankings() {
                   <TableCell className="h-14"><div className="w-8 h-4 bg-muted animate-pulse rounded mx-auto" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-muted animate-pulse rounded" /></TableCell>
                   {selectedClubId === "all" && <TableCell className="hidden md:table-cell" />}
-                  <TableCell colSpan={5} />
+                  <TableCell colSpan={6} />
                 </TableRow>
               ))
             ) : rankedLeaderboard.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={selectedClubId === "all" ? 8 : 7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={selectedClubId === "all" ? 9 : 8} className="text-center py-12 text-muted-foreground">
                   <Target className="w-10 h-10 mx-auto mb-3 opacity-50" />
                   <p className="font-medium">No players found</p>
                   <p className="text-sm mt-1">
@@ -431,6 +492,11 @@ export default function PlayerRankings() {
                   <TableCell className="text-right">
                     <span className={`font-bold text-lg ${player.winPercentage >= 50 ? "text-green-600" : "text-muted-foreground"}`}>
                       {player.winPercentage}%
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="font-bold text-base" data-testid={`text-points-${player.id}`}>
+                      {player.totalPoints}
                     </span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
