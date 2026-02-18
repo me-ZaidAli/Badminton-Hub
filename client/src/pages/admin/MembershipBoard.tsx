@@ -94,6 +94,8 @@ interface ClubMembership {
   paymentConfirmed?: boolean;
   fullName: string;
   planName: string;
+  planAnnualPrice?: number;
+  proratedPrice?: number;
 }
 
 interface MembershipPlan {
@@ -290,6 +292,16 @@ export default function MembershipBoard() {
     }
     return filtered;
   }, [memberships, searchQuery]);
+
+  const membershipSummary = useMemo(() => {
+    const getMembershipFee = (m: ClubMembership) => m.proratedPrice ?? m.planAnnualPrice ?? 0;
+    const totalRevenue = memberships.reduce((sum, m) => sum + getMembershipFee(m), 0);
+    const paidAmount = memberships.filter((m) => m.paymentConfirmed || m.paymentStatus === "PAID").reduce((sum, m) => sum + getMembershipFee(m), 0);
+    const unpaidAmount = totalRevenue - paidAmount;
+    const paidCount = memberships.filter((m) => m.paymentConfirmed || m.paymentStatus === "PAID").length;
+    const unpaidCount = memberships.length - paidCount;
+    return { totalRevenue, paidAmount, unpaidAmount, paidCount, unpaidCount };
+  }, [memberships]);
 
   const filteredAssignMembers = useMemo(() => {
     if (!assignMemberSearch) return clubMembers;
@@ -927,6 +939,38 @@ export default function MembershipBoard() {
             </div>
           )}
 
+          {clubId && memberships.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Total Revenue</div>
+                  <div className="text-2xl font-bold" data-testid="text-total-revenue">
+                    £{formatPounds(membershipSummary.totalRevenue)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{memberships.length} memberships</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Collected</div>
+                  <div className="text-2xl font-bold text-green-600" data-testid="text-collected-revenue">
+                    £{formatPounds(membershipSummary.paidAmount)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{membershipSummary.paidCount} paid</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Outstanding</div>
+                  <div className="text-2xl font-bold text-red-500" data-testid="text-outstanding-revenue">
+                    £{formatPounds(membershipSummary.unpaidAmount)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{membershipSummary.unpaidCount} unpaid</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-lg" data-testid="text-memberships-count">
@@ -984,6 +1028,7 @@ export default function MembershipBoard() {
                         </TableHead>
                         <TableHead>Member</TableHead>
                         <TableHead>Plan</TableHead>
+                        <TableHead>Fee</TableHead>
                         <TableHead>Start Date</TableHead>
                         <TableHead>End Date</TableHead>
                         <TableHead>Days Remaining</TableHead>
@@ -1012,6 +1057,11 @@ export default function MembershipBoard() {
                               </span>
                             </TableCell>
                             <TableCell data-testid={`text-membership-plan-${membership.id}`}>{membership.planName}</TableCell>
+                            <TableCell data-testid={`text-membership-fee-${membership.id}`}>
+                              <span className="font-medium">
+                                £{formatPounds(membership.proratedPrice ?? membership.planAnnualPrice ?? 0)}
+                              </span>
+                            </TableCell>
                             <TableCell data-testid={`text-membership-start-${membership.id}`}>
                               {membership.startDate ? format(new Date(membership.startDate), "dd MMM yyyy") : "N/A"}
                             </TableCell>
