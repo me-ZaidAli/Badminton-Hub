@@ -562,7 +562,16 @@ export function BadmintonCourt({
                   </div>
                 )}
                 {match.status === "COMPLETED" && (
-                  <Badge variant="secondary">Completed</Badge>
+                  <div className="flex flex-col items-center gap-1">
+                    <Badge variant="secondary">Completed</Badge>
+                    {(match.scoreEnteredByUser || match.scoreUpdatedByUser) && (
+                      <span className="text-[10px] text-muted-foreground" data-testid={`text-score-entered-by-${match.id}`}>
+                        {match.scoreUpdatedByUser
+                          ? `Score amended by ${match.scoreUpdatedByUser.fullName}`
+                          : `Score entered by ${match.scoreEnteredByUser!.fullName}`}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
