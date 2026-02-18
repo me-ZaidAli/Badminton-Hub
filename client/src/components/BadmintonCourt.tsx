@@ -196,6 +196,7 @@ export function BadmintonCourt({
   const [setScoreA, setSetScoreA] = useState<string>("");
   const [setScoreB, setSetScoreB] = useState<string>("");
   const [multiSetStep, setMultiSetStep] = useState<"enter" | "confirm">("enter");
+  const [singleSetStep, setSingleSetStep] = useState<"enter" | "confirm">("enter");
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(courtName || `Court ${courtNumber}`);
   const [isEditingTarget, setIsEditingTarget] = useState(false);
@@ -240,6 +241,7 @@ export function BadmintonCourt({
     setSetScoreA("");
     setSetScoreB("");
     setMultiSetStep("enter");
+    setSingleSetStep("enter");
     setShowSuccess(false);
     setDialogTarget(target);
     setShowScoreDialog(true);
@@ -258,6 +260,7 @@ export function BadmintonCourt({
     setSetScoreA("");
     setSetScoreB("");
     setMultiSetStep("enter");
+    setSingleSetStep("enter");
   };
 
   const getTeamALabel = () => {
@@ -684,7 +687,9 @@ export function BadmintonCourt({
                           <span className={cn("text-2xl font-bold font-mono", Number(setScoreB) > Number(setScoreA) ? "text-primary" : "text-muted-foreground")}>{setScoreB}</span>
                         </div>
                       </div>
-                      <p className="text-sm text-center text-muted-foreground">Confirm set {currentSetNum} scores?</p>
+                      <p className="text-sm text-center text-muted-foreground">
+                        {currentSetNum >= matchSets ? "This will end the match and submit the final score." : `Confirm set ${currentSetNum} scores?`}
+                      </p>
                       <div className="grid grid-cols-2 gap-3">
                         <Button
                           variant="outline"
@@ -700,7 +705,7 @@ export function BadmintonCourt({
                           className="gap-2"
                           data-testid="button-confirm-set"
                         >
-                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm"}
+                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : currentSetNum >= matchSets ? "End Match & Submit" : "Confirm"}
                         </Button>
                       </div>
                     </div>
@@ -712,7 +717,11 @@ export function BadmintonCourt({
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {showSuccess ? "Match Saved" : "Enter Match Score"}
+                  {showSuccess
+                    ? "Match Saved"
+                    : singleSetStep === "enter"
+                      ? "Enter Match Score"
+                      : "Confirm & End Match"}
                 </DialogTitle>
                 <DialogDescription className="sr-only">Enter the final match scores</DialogDescription>
               </DialogHeader>
@@ -723,68 +732,112 @@ export function BadmintonCourt({
                   <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
                 </div>
               ) : (
-                <div className="space-y-4 pt-2" data-testid="finish-score-entry">
-                  <div className="flex items-center justify-center gap-2 py-1" data-testid="single-set-target-selector">
-                    <span className="text-sm text-muted-foreground">Play to</span>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={String(dialogTarget)}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        if (!isNaN(val) && val > 0) handleDialogTargetChange(val);
-                      }}
-                      className="w-20 h-8 text-sm text-center"
-                      data-testid="input-dialog-target-single"
-                    />
-                  </div>
+                <>
+                  {singleSetStep === "enter" && (
+                    <div className="space-y-4 pt-2" data-testid="finish-score-entry">
+                      <div className="flex items-center justify-center gap-2 py-1" data-testid="single-set-target-selector">
+                        <span className="text-sm text-muted-foreground">Play to</span>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={String(dialogTarget)}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            if (!isNaN(val) && val > 0) handleDialogTargetChange(val);
+                          }}
+                          className="w-20 h-8 text-sm text-center"
+                          data-testid="input-dialog-target-single"
+                        />
+                      </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-a-label">{getTeamALabel()}</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={teamScoreA}
-                        onChange={(e) => setTeamScoreA(e.target.value)}
-                        className="w-24 text-center text-lg font-bold"
-                        data-testid="input-score-a"
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-b-label">{getTeamBLabel()}</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={teamScoreB}
-                        onChange={(e) => setTeamScoreB(e.target.value)}
-                        className="w-24 text-center text-lg font-bold"
-                        data-testid="input-score-b"
-                      />
-                    </div>
-                  </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-a-label">{getTeamALabel()}</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={teamScoreA}
+                            onChange={(e) => setTeamScoreA(e.target.value)}
+                            className="w-24 text-center text-lg font-bold"
+                            data-testid="input-score-a"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="flex-1 text-sm font-medium truncate" data-testid="text-team-b-label">{getTeamBLabel()}</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={teamScoreB}
+                            onChange={(e) => setTeamScoreB(e.target.value)}
+                            className="w-24 text-center text-lg font-bold"
+                            data-testid="input-score-b"
+                          />
+                        </div>
+                      </div>
 
-                  {teamScoreA !== "" && teamScoreB !== "" && teamScoreA === teamScoreB && (
-                    <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
+                      {teamScoreA !== "" && teamScoreB !== "" && teamScoreA === teamScoreB && (
+                        <p className="text-sm text-destructive text-center">Scores cannot be tied</p>
+                      )}
+
+                      <Button
+                        className="w-full gap-2"
+                        onClick={() => setSingleSetStep("confirm")}
+                        disabled={
+                          teamScoreA === "" || teamScoreB === "" ||
+                          isNaN(Number(teamScoreA)) || isNaN(Number(teamScoreB)) ||
+                          Number(teamScoreA) < 0 || Number(teamScoreB) < 0 ||
+                          Number(teamScoreA) === Number(teamScoreB)
+                        }
+                        data-testid="button-next-scores"
+                      >
+                        Next <ArrowRight className="w-4 h-4" />
+                      </Button>
+                    </div>
                   )}
 
-                  <Button
-                    className="w-full gap-2"
-                    onClick={handleFinalConfirm}
-                    disabled={
-                      isSubmitting ||
-                      teamScoreA === "" || teamScoreB === "" ||
-                      isNaN(Number(teamScoreA)) || isNaN(Number(teamScoreB)) ||
-                      Number(teamScoreA) < 0 || Number(teamScoreB) < 0 ||
-                      Number(teamScoreA) === Number(teamScoreB)
-                    }
-                    data-testid="button-confirm-finish"
-                  >
-                    <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "Confirm Scores"}
-                  </Button>
-                </div>
+                  {singleSetStep === "confirm" && (
+                    <div className="space-y-4 pt-2" data-testid="finish-score-confirm">
+                      <div className="rounded-lg border border-border p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {Number(teamScoreA) > Number(teamScoreB) && <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                            <span className={cn("truncate", Number(teamScoreA) > Number(teamScoreB) ? "font-semibold" : "text-muted-foreground")}>{getTeamALabel()}</span>
+                          </div>
+                          <span className={cn("text-2xl font-bold font-mono", Number(teamScoreA) > Number(teamScoreB) ? "text-primary" : "text-muted-foreground")}>{teamScoreA}</span>
+                        </div>
+                        <div className="border-t border-border" />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {Number(teamScoreB) > Number(teamScoreA) && <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                            <span className={cn("truncate", Number(teamScoreB) > Number(teamScoreA) ? "font-semibold" : "text-muted-foreground")}>{getTeamBLabel()}</span>
+                          </div>
+                          <span className={cn("text-2xl font-bold font-mono", Number(teamScoreB) > Number(teamScoreA) ? "text-primary" : "text-muted-foreground")}>{teamScoreB}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-center text-muted-foreground">This will end the match and submit the final score.</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => setSingleSetStep("enter")}
+                          className="gap-2"
+                          data-testid="button-amend-scores"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Amend
+                        </Button>
+                        <Button
+                          onClick={handleFinalConfirm}
+                          disabled={isSubmitting}
+                          className="gap-2"
+                          data-testid="button-confirm-finish"
+                        >
+                          <Check className="w-4 h-4" /> {isSubmitting ? "Saving..." : "End Match & Submit"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

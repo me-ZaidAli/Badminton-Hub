@@ -2908,8 +2908,12 @@ export async function registerRoutes(
       const sA = Number(scoreA);
       const sB = Number(scoreB);
 
-      if (sA < target && sB < target) {
-        return res.status(400).json({ message: `At least one side must reach ${target} points.` });
+      if (sA === sB) {
+        return res.status(400).json({ message: "Scores cannot be tied. One side must have a higher score." });
+      }
+
+      if (sA < 0 || sB < 0) {
+        return res.status(400).json({ message: "Scores cannot be negative." });
       }
 
       const existingSetScores = (currentMatch.setScores as { scoreA: number; scoreB: number }[]) || [];
@@ -3028,14 +3032,12 @@ export async function registerRoutes(
       const sB = Number(scoreB);
       const totalSets = currentMatch.numberOfSets || 1;
 
-      if (totalSets === 1) {
-        const aWins = sA >= target && sB < target;
-        const bWins = sB >= target && sA < target;
-        if (!aWins && !bWins) {
-          return res.status(400).json({ 
-            message: `Invalid score. One side must reach ${target} points and the other must be below ${target}.`
-          });
-        }
+      if (sA === sB) {
+        return res.status(400).json({ message: "Scores cannot be tied. One side must have a higher score." });
+      }
+
+      if (sA < 0 || sB < 0) {
+        return res.status(400).json({ message: "Scores cannot be negative." });
       }
 
       const finalSetScores = providedSetScores || currentMatch.setScores || [{ scoreA: sA, scoreB: sB }];
