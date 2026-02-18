@@ -159,7 +159,7 @@ export default function MembershipBoard() {
   const [editMembershipEndDate, setEditMembershipEndDate] = useState("");
 
   const [addMembershipDialog, setAddMembershipDialog] = useState(false);
-  const [addMemberUserId, setAddMemberUserId] = useState<string>("");
+  const [addMemberUserIds, setAddMemberUserIds] = useState<string[]>([]);
   const [addMemberPlanId, setAddMemberPlanId] = useState<string>("");
   const [addMemberStartDate, setAddMemberStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [addMemberDurationDays, setAddMemberDurationDays] = useState<string>("365");
@@ -390,27 +390,50 @@ export default function MembershipBoard() {
   });
 
   const addMembershipMutation = useMutation({
-    mutationFn: async (data: { userId: number; planId: number; startDate: string; durationDays: number; paymentStatus: string }) => {
-      const res = await apiRequest("POST", `/api/clubs/${clubId}/memberships/add`, data);
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({ message: "Failed to add membership" }));
-        throw new Error(errData.message || "Failed to add membership");
+    mutationFn: async (data: { userIds: number[]; planId: number; startDate: string; durationDays: number; paymentStatus: string }) => {
+      const results: { userId: number; success: boolean; error?: string }[] = [];
+      for (const userId of data.userIds) {
+        try {
+          const res = await apiRequest("POST", `/api/clubs/${clubId}/memberships/add`, {
+            userId,
+            planId: data.planId,
+            startDate: data.startDate,
+            durationDays: data.durationDays,
+            paymentStatus: data.paymentStatus,
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ message: "Failed" }));
+            results.push({ userId, success: false, error: errData.message });
+          } else {
+            results.push({ userId, success: true });
+          }
+        } catch (err: any) {
+          results.push({ userId, success: false, error: err.message });
+        }
       }
-      return res.json();
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0 && failures.length === data.userIds.length) {
+        throw new Error(failures[0].error || "Failed to add memberships");
+      }
+      return { results, successCount: results.filter(r => r.success).length, failCount: failures.length };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidateMemberships();
       setAddMembershipDialog(false);
-      setAddMemberUserId("");
+      setAddMemberUserIds([]);
       setAddMemberPlanId("");
       setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
       setAddMemberDurationDays("365");
       setAddMemberPaymentStatus("UNPAID");
       setAddMemberSearch("");
-      toast({ title: "Membership Added", description: "The membership has been created successfully." });
+      if (data.failCount > 0) {
+        toast({ title: "Partially Added", description: `${data.successCount} memberships created, ${data.failCount} failed (may already have active memberships).` });
+      } else {
+        toast({ title: "Memberships Added", description: `${data.successCount} membership${data.successCount > 1 ? "s" : ""} created successfully.` });
+      }
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to add membership.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to add memberships.", variant: "destructive" });
     },
   });
 
@@ -761,7 +784,7 @@ export default function MembershipBoard() {
                 <Button
                   size="sm"
                   onClick={() => {
-                    setAddMemberUserId("");
+                    setAddMemberUserIds([]);
                     setAddMemberPlanId(plans.length > 0 ? plans[0].id.toString() : "");
                     setAddMemberStartDate(format(new Date(), "yyyy-MM-dd"));
                     setAddMemberDurationDays("365");
@@ -1370,7 +1393,7 @@ export default function MembershipBoard() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Select Member</Label>
+              <Label>Select Members</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1381,19 +1404,25 @@ export default function MembershipBoard() {
                   data-testid="input-add-member-search"
                 />
               </div>
-              <div className="border rounded-md max-h-[180px] overflow-y-auto">
+              <div className="border rounded-md max-h-[160px] overflow-y-auto">
                 {filteredClubMembers.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">No members found</p>
                 ) : (
                   filteredClubMembers.map((member: any) => {
                     const userId = member.user?.id || member.userId;
                     const name = member.user?.fullName || member.fullName || "Unknown";
-                    const isSelected = addMemberUserId === String(userId);
+                    const isSelected = addMemberUserIds.includes(String(userId));
                     return (
                       <div
                         key={userId}
                         className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover-elevate ${isSelected ? "bg-primary/10" : ""}`}
-                        onClick={() => setAddMemberUserId(String(userId))}
+                        onClick={() => {
+                          setAddMemberUserIds(prev =>
+                            prev.includes(String(userId))
+                              ? prev.filter(id => id !== String(userId))
+                              : [...prev, String(userId)]
+                          );
+                        }}
                         data-testid={`member-option-${userId}`}
                       >
                         {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
@@ -1404,6 +1433,36 @@ export default function MembershipBoard() {
                 )}
               </div>
             </div>
+
+            {addMemberUserIds.length > 0 && (
+              <div className="space-y-2">
+                <Label>Selected Members ({addMemberUserIds.length})</Label>
+                <div className="border rounded-md p-2 space-y-1 max-h-[120px] overflow-y-auto">
+                  {addMemberUserIds.map((uid) => {
+                    const member = clubMembers.find((m: any) => String(m.user?.id || m.userId) === uid);
+                    const name = member?.user?.fullName || member?.fullName || "Unknown";
+                    return (
+                      <div
+                        key={uid}
+                        className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-muted/50"
+                        data-testid={`selected-member-${uid}`}
+                      >
+                        <span className="text-sm truncate">{name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          onClick={() => setAddMemberUserIds(prev => prev.filter(id => id !== uid))}
+                          data-testid={`remove-member-${uid}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="add-member-plan">Membership Plan</Label>
@@ -1499,8 +1558,8 @@ export default function MembershipBoard() {
             </Button>
             <Button
               onClick={() => {
-                if (!addMemberUserId) {
-                  toast({ title: "Please select a member", variant: "destructive" });
+                if (addMemberUserIds.length === 0) {
+                  toast({ title: "Please select at least one member", variant: "destructive" });
                   return;
                 }
                 if (!addMemberPlanId) {
@@ -1512,7 +1571,7 @@ export default function MembershipBoard() {
                   return;
                 }
                 addMembershipMutation.mutate({
-                  userId: Number(addMemberUserId),
+                  userIds: addMemberUserIds.map(Number),
                   planId: Number(addMemberPlanId),
                   startDate: addMemberStartDate,
                   durationDays: parseInt(addMemberDurationDays) || 365,
@@ -1523,7 +1582,7 @@ export default function MembershipBoard() {
               data-testid="button-add-membership-confirm"
             >
               {addMembershipMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Add Membership
+              Add Membership{addMemberUserIds.length > 1 ? `s (${addMemberUserIds.length})` : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
