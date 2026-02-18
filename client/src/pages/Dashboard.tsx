@@ -217,16 +217,23 @@ function DashboardContent({
   );
 
   const totalSessionsCount = filteredSessions.length;
-  const pastSessionsCount = filteredSessions.filter(s => isPast(new Date(s.date))).length;
-  const upcomingSessionsCount = filteredSessions.filter(s => isFuture(new Date(s.date))).length;
+
+  const mySessionsList = useMemo(() => mySessions || [], [mySessions]);
+  const myUpcomingCount = useMemo(() =>
+    mySessionsList.filter(s => isFuture(new Date(s.sessionDate)) || s.sessionStatus === "ACTIVE").length,
+    [mySessionsList]
+  );
+  const myPlayedCount = useMemo(() =>
+    mySessionsList.filter(s => isPast(new Date(s.sessionDate)) && s.sessionStatus !== "ACTIVE").length,
+    [mySessionsList]
+  );
 
   const myUpcomingSessions = useMemo(() => {
-    if (!mySessions) return [];
-    return mySessions
+    return mySessionsList
       .filter(s => isFuture(new Date(s.sessionDate)) || s.sessionStatus === "ACTIVE")
       .sort((a, b) => new Date(a.sessionDate).getTime() - new Date(b.sessionDate).getTime())
       .slice(0, 5);
-  }, [mySessions]);
+  }, [mySessionsList]);
 
   return (
     <div className="space-y-8">
@@ -257,14 +264,14 @@ function DashboardContent({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
               <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
             </div>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             <div className="text-2xl sm:text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{upcomingSessionsCount} upcoming</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">in this club</div>
           </CardContent>
         </Card>
         <Card>
@@ -275,19 +282,19 @@ function DashboardContent({
             </div>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessions?.length || 0}</div>
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessionsList.length}</div>
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Upcoming</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
               <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
             </div>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{upcomingSessionsCount}</div>
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{myUpcomingCount}</div>
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
           </CardContent>
         </Card>
@@ -299,7 +306,7 @@ function DashboardContent({
             </div>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{pastSessionsCount}</div>
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{myPlayedCount}</div>
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">completed</div>
           </CardContent>
         </Card>
