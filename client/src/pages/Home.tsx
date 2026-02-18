@@ -29,7 +29,7 @@ import heroPath from "@assets/bpg_20260217_093920_0000_1771321177372.png";
 import playersPath from "@assets/landing-players.png";
 import organisersPath from "@assets/image_1771422277330.png";
 import sessionsPath from "@assets/landing-sessions.png";
-import paymentsPath from "@assets/landing-payments.png";
+import paymentsPath from "@assets/image_1771423821388.png";
 import venuesPath from "@assets/landing-venues.png";
 import adminPath from "@assets/landing-admin.png";
 
