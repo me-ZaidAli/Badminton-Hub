@@ -23,7 +23,7 @@ import {
   Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map,
   CheckCircle, Clock, XCircle, Loader2, Building2, Pencil,
   Trash2, Archive, Pause, Mail, Key, Save, Send, User,
-  ChevronDown, ChevronUp, Phone, Calendar
+  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus
 } from "lucide-react";
 
 type Membership = {
@@ -226,6 +226,8 @@ function UserDetailDialog({
   const [msgBody, setMsgBody] = useState("");
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirmBan, setConfirmBan] = useState(false);
 
   const [form, setForm] = useState<UserDetailFormData>({
     fullName: member.user?.fullName || "",
@@ -309,16 +311,49 @@ function UserDetailDialog({
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/clubs/${club.id}/members/${member.id}/remove`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
+      setConfirmRemove(false);
+      onClose();
+      toast({ title: "Removed", description: "Member has been removed from the club. They can request to rejoin in the future." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to remove member", variant: "destructive" });
+    },
+  });
+
+  const banMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/clubs/${club.id}/members/${member.id}/ban`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
+      setConfirmBan(false);
+      onClose();
+      toast({ title: "Banned", description: "Member has been banned. They will be notified and can no longer access club sessions." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to ban member", variant: "destructive" });
+    },
+  });
+
   const winPct = member.matchesPlayed > 0 ? Math.round((member.matchesWon / member.matchesPlayed) * 100) : 0;
 
   return (
     <>
-      <Dialog open={open && !confirmDelete} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog open={open && !confirmDelete && !confirmRemove && !confirmBan} onOpenChange={(o) => { if (!o) onClose(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh]" data-testid="dialog-user-detail">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-primary" />
               {member.user?.fullName || "Member Detail"}
+              {member.playerStatus === "BANNED" && (
+                <Badge variant="destructive" className="no-default-hover-elevate">Banned</Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-5 py-2 pr-2">
@@ -438,6 +473,7 @@ function UserDetailDialog({
                       <SelectItem value="ACTIVE">Active</SelectItem>
                       <SelectItem value="SUSPENDED">Suspended</SelectItem>
                       <SelectItem value="ARCHIVED">Archived</SelectItem>
+                      <SelectItem value="BANNED">Banned</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -493,7 +529,7 @@ function UserDetailDialog({
             )}
           </div>
 
-          <DialogFooter className="flex-wrap gap-2">
+          <DialogFooter className="flex-col gap-3">
             <div className="flex items-center gap-1 flex-wrap">
               <Button
                 onClick={() => saveMutation.mutate()}
@@ -519,6 +555,24 @@ function UserDetailDialog({
               >
                 <Mail className="w-4 h-4 mr-1" /> Send Message
               </Button>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap border-t pt-3">
+              <Button
+                variant="outline"
+                className="text-amber-600"
+                onClick={() => setConfirmRemove(true)}
+                data-testid="button-remove-from-club"
+              >
+                <UserMinus className="w-4 h-4 mr-1" /> Remove from Club
+              </Button>
+              <Button
+                variant="outline"
+                className="text-destructive"
+                onClick={() => setConfirmBan(true)}
+                data-testid="button-ban-member"
+              >
+                <ShieldAlert className="w-4 h-4 mr-1" /> Ban
+              </Button>
               <Button
                 variant="outline"
                 className="text-destructive"
@@ -531,6 +585,50 @@ function UserDetailDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from Club</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove <strong>{member.user?.fullName}</strong> from <strong>{club.name}</strong>. Their profile and match history for this club will be deleted. They will be notified and can request to rejoin in the future.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeMutation.mutate()}
+              className="bg-amber-600 text-white"
+              data-testid="button-confirm-remove"
+            >
+              {removeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <UserMinus className="w-4 h-4 mr-1" />}
+              Remove Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBan} onOpenChange={setConfirmBan}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ban Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will ban <strong>{member.user?.fullName}</strong> from <strong>{club.name}</strong>. They will no longer be able to see or sign up for any sessions from this club. They will receive a notification informing them of the ban.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => banMutation.mutate()}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-ban"
+            >
+              {banMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ShieldAlert className="w-4 h-4 mr-1" />}
+              Ban Member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -841,6 +939,7 @@ function MembersManagementDialog({
                     <SelectItem value="ACTIVE">Active</SelectItem>
                     <SelectItem value="SUSPENDED">Suspended</SelectItem>
                     <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    <SelectItem value="BANNED">Banned</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -965,6 +1064,7 @@ function MembersManagementDialog({
                                 variant="outline"
                                 className={`text-xs ${
                                   m.playerStatus === "ACTIVE" ? "text-green-600" :
+                                  m.playerStatus === "BANNED" ? "text-red-700" :
                                   m.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"
                                 }`}
                               >

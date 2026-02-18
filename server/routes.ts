@@ -1575,6 +1575,10 @@ export async function registerRoutes(
     const profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
     if (!profile) return res.status(403).json({ message: "You must be an accepted member of this club to join this session." });
 
+    if (profile.playerStatus === "BANNED") {
+      return res.status(403).json({ message: "You have been banned from this club and cannot join sessions." });
+    }
+
     if (profile.membershipStatus !== "APPROVED") {
       const statusMsg = profile.membershipStatus === "PENDING"
         ? "Your membership is pending approval. You cannot join sessions until approved."
@@ -1732,6 +1736,10 @@ export async function registerRoutes(
 
     const profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
     if (!profile) return res.status(403).json({ message: "You must be a member of this club." });
+
+    if (profile.playerStatus === "BANNED") {
+      return res.status(403).json({ message: "You have been banned from this club and cannot participate in sessions." });
+    }
 
     const { action } = req.body;
     if (!["accept", "decline", "cancel", "join", "wait"].includes(action)) {
@@ -10667,6 +10675,74 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Bulk action error:", err);
       res.status(500).json({ message: "Failed to perform bulk action" });
+    }
+  });
+
+  // Remove member from club (delete profile, allows rejoin)
+  app.post("/api/clubs/:clubId/members/:profileId/remove", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "Member not found" });
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+
+      await db.delete(playerProfiles).where(eq(playerProfiles.id, profileId));
+
+      await db.insert(notifications).values({
+        userId: profile.userId,
+        type: "GENERAL",
+        title: "Removed from Club",
+        message: `You have been removed from ${club?.name || "the club"}. You may request to rejoin in the future.`,
+        linkUrl: "/clubs",
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error removing member:", err);
+      res.status(500).json({ message: "Failed to remove member" });
+    }
+  });
+
+  // Ban member from club
+  app.post("/api/clubs/:clubId/members/:profileId/ban", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "Member not found" });
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+
+      await db.update(playerProfiles).set({ playerStatus: "BANNED" as any }).where(eq(playerProfiles.id, profileId));
+
+      await db.insert(notifications).values({
+        userId: profile.userId,
+        type: "GENERAL",
+        title: "You Have Been Banned",
+        message: `You have been banned from ${club?.name || "the club"}. You will no longer be able to see or sign up for sessions from this club.`,
+        linkUrl: "/clubs",
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error banning member:", err);
+      res.status(500).json({ message: "Failed to ban member" });
     }
   });
 
