@@ -69,6 +69,7 @@ function getStatusBadge(status: string) {
   switch (status) {
     case "ACTIVE": return <Badge variant="default" className="bg-green-500 no-default-hover-elevate">Active</Badge>;
     case "SUSPENDED": return <Badge variant="destructive" className="no-default-hover-elevate">Suspended</Badge>;
+    case "BANNED": return <Badge variant="destructive" className="no-default-hover-elevate">Banned</Badge>;
     case "ARCHIVED": return <Badge variant="secondary" className="no-default-hover-elevate">Archived</Badge>;
     default: return <Badge variant="outline" className="no-default-hover-elevate">{status}</Badge>;
   }
@@ -734,11 +735,46 @@ function EditMemberDialog({
   onOpenChange: (open: boolean) => void;
   selectedClubFilter: string;
 }) {
+  const { toast } = useToast();
   const { mutate: updatePlayer, isPending } = useUpdatePlayer();
+  const [banConfirmOpen, setBanConfirmOpen] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
 
   const activeProfile = (selectedClubFilter !== "all"
     ? player.playerProfiles.find(p => p.clubId === Number(selectedClubFilter))
     : player.playerProfiles[0]) || null;
+
+  const banMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeProfile) throw new Error("No profile found");
+      await apiRequest("POST", `/api/clubs/${activeProfile.clubId}/members/${activeProfile.id}/ban`);
+    },
+    onSuccess: () => {
+      toast({ title: "Player banned from club" });
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+      setBanConfirmOpen(false);
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to ban player", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeProfile) throw new Error("No profile found");
+      await apiRequest("POST", `/api/clubs/${activeProfile.clubId}/members/${activeProfile.id}/remove`);
+    },
+    onSuccess: () => {
+      toast({ title: "Player removed from club" });
+      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
+      setRemoveConfirmOpen(false);
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to remove player", description: err.message, variant: "destructive" });
+    },
+  });
 
   const [fullName, setFullName] = useState(player.fullName);
   const [email, setEmail] = useState(player.email);
@@ -778,6 +814,7 @@ function EditMemberDialog({
   };
 
   return (
+  <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -945,6 +982,39 @@ function EditMemberDialog({
           </div>
         </div>
 
+        {activeProfile && (
+          <div className="border-t pt-4 mt-2">
+            <p className="text-sm font-semibold text-muted-foreground mb-3">Club Actions</p>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-destructive border-destructive/30"
+                onClick={() => setRemoveConfirmOpen(true)}
+                data-testid="button-remove-from-club"
+              >
+                <Trash2 className="w-3 h-3" />
+                Remove from Club
+              </Button>
+              {activeProfile.playerStatus !== "BANNED" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setBanConfirmOpen(true)}
+                  data-testid="button-ban-player"
+                >
+                  <Ban className="w-3 h-3" />
+                  Ban Player
+                </Button>
+              )}
+              {activeProfile.playerStatus === "BANNED" && (
+                <Badge variant="destructive" className="no-default-hover-elevate">Currently Banned</Badge>
+              )}
+            </div>
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-edit">
             Cancel
@@ -956,5 +1026,58 @@ function EditMemberDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={removeConfirmOpen} onOpenChange={setRemoveConfirmOpen}>
+      <AlertDialogContent data-testid="dialog-remove-confirm">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <Trash2 className="w-5 h-5 text-destructive" />
+            Remove from Club
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This will completely remove <strong>{player.fullName}</strong>'s profile from this club, including all club-specific data. They will be able to rejoin the club in the future.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground"
+            onClick={() => removeMutation.mutate()}
+            disabled={removeMutation.isPending}
+            data-testid="button-confirm-remove"
+          >
+            {removeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Remove
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={banConfirmOpen} onOpenChange={setBanConfirmOpen}>
+      <AlertDialogContent data-testid="dialog-ban-confirm">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <Ban className="w-5 h-5 text-destructive" />
+            Ban Player
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This will ban <strong>{player.fullName}</strong> from this club. They will not be able to join sessions or participate in matches. This action can be reversed by changing their player status.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground"
+            onClick={() => banMutation.mutate()}
+            disabled={banMutation.isPending}
+            data-testid="button-confirm-ban"
+          >
+            {banMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Ban Player
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }

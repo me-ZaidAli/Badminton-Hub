@@ -11,10 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Users, Shield, ArrowLeft, Search, Loader2, Trophy, Clock,
   KeyRound, CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
-  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle, Plus, Building2
+  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle, Plus, Building2, Ban
 } from "lucide-react";
 
 interface PlayerProfile {
@@ -113,6 +114,8 @@ export default function SuperAdminUsersManagement() {
   const [assignGrade, setAssignGrade] = useState("C3");
   const [showAssignClub, setShowAssignClub] = useState(false);
   const [selectedProfileClub, setSelectedProfileClub] = useState<string>("all");
+  const [banConfirmProfile, setBanConfirmProfile] = useState<PlayerProfile | null>(null);
+  const [removeConfirmProfile, setRemoveConfirmProfile] = useState<PlayerProfile | null>(null);
 
   const { data: players, isLoading } = useQuery<ComprehensiveUser[]>({
     queryKey: ["/api/super-admin/players-comprehensive"],
@@ -255,6 +258,36 @@ export default function SuperAdminUsersManagement() {
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const banProfileMutation = useMutation({
+    mutationFn: async (profile: PlayerProfile) => {
+      await apiRequest("POST", `/api/clubs/${profile.clubId}/members/${profile.id}/ban`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+      setBanConfirmProfile(null);
+      setSelectedPlayer(null);
+      toast({ title: "Player banned from club" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to ban player", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removeProfileMutation = useMutation({
+    mutationFn: async (profile: PlayerProfile) => {
+      await apiRequest("POST", `/api/clubs/${profile.clubId}/members/${profile.id}/remove`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+      setRemoveConfirmProfile(null);
+      setSelectedPlayer(null);
+      toast({ title: "Player removed from club" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to remove player", description: err.message, variant: "destructive" });
     },
   });
 
@@ -922,7 +955,7 @@ export default function SuperAdminUsersManagement() {
                           <strong>{pr.clubName}</strong>
                           <Badge variant="outline" className="text-xs">{pr.clubRole}</Badge>
                           <Badge variant="outline" className="text-xs">{pr.membershipStatus}</Badge>
-                          <Badge variant="outline" className={`text-xs ${pr.playerStatus === "ACTIVE" ? "text-green-600" : pr.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"}`}>
+                          <Badge variant="outline" className={`text-xs ${pr.playerStatus === "ACTIVE" ? "text-green-600" : pr.playerStatus === "BANNED" ? "text-red-600" : pr.playerStatus === "SUSPENDED" ? "text-red-600" : "text-muted-foreground"}`}>
                             {pr.playerStatus}
                           </Badge>
                         </div>
@@ -930,6 +963,32 @@ export default function SuperAdminUsersManagement() {
                           <span>Gender: {pr.gender || "N/A"}</span>
                           <span>Grade: {pr.grade || pr.category || "N/A"}</span>
                           <span>W: {pr.matchesWon} / P: {pr.matchesPlayed}</span>
+                        </div>
+                        <div className="flex gap-2 mt-2 flex-wrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-destructive border-destructive/30"
+                            onClick={() => setRemoveConfirmProfile(pr)}
+                            data-testid={`button-remove-profile-${pr.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Remove
+                          </Button>
+                          {pr.playerStatus !== "BANNED" ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => setBanConfirmProfile(pr)}
+                              data-testid={`button-ban-profile-${pr.id}`}
+                            >
+                              <Ban className="w-3 h-3" />
+                              Ban
+                            </Button>
+                          ) : (
+                            <Badge variant="destructive" className="no-default-hover-elevate text-xs">Banned</Badge>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1153,6 +1212,7 @@ export default function SuperAdminUsersManagement() {
                               <SelectContent>
                                 <SelectItem value="ACTIVE">Active</SelectItem>
                                 <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                                <SelectItem value="BANNED">Banned</SelectItem>
                                 <SelectItem value="ARCHIVED">Archived</SelectItem>
                               </SelectContent>
                             </Select>
@@ -1217,6 +1277,58 @@ export default function SuperAdminUsersManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!removeConfirmProfile} onOpenChange={(open) => { if (!open) setRemoveConfirmProfile(null); }}>
+        <AlertDialogContent data-testid="dialog-remove-profile-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Remove from Club
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will completely remove <strong>{selectedPlayer?.fullName}</strong>'s profile from <strong>{removeConfirmProfile?.clubName}</strong>, including all club-specific data. They will be able to rejoin the club in the future.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => removeConfirmProfile && removeProfileMutation.mutate(removeConfirmProfile)}
+              disabled={removeProfileMutation.isPending}
+              data-testid="button-confirm-remove-profile"
+            >
+              {removeProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!banConfirmProfile} onOpenChange={(open) => { if (!open) setBanConfirmProfile(null); }}>
+        <AlertDialogContent data-testid="dialog-ban-profile-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Ban className="w-5 h-5 text-destructive" />
+              Ban Player
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will ban <strong>{selectedPlayer?.fullName}</strong> from <strong>{banConfirmProfile?.clubName}</strong>. They will not be able to join sessions or participate in matches. This action can be reversed by changing their player status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => banConfirmProfile && banProfileMutation.mutate(banConfirmProfile)}
+              disabled={banProfileMutation.isPending}
+              data-testid="button-confirm-ban-profile"
+            >
+              {banProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Ban Player
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
