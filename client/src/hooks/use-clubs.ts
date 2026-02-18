@@ -93,6 +93,7 @@ export type LeaderboardPlayer = {
   fullName: string;
   gender: string | null;
   category: string | null;
+  grade?: string | null;
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
