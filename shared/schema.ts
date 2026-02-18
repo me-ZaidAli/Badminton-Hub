@@ -144,6 +144,7 @@ export const clubMemberships = pgTable("club_memberships", {
   userId: integer("user_id").references(() => users.id).notNull(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
   planId: integer("plan_id").references(() => membershipPlans.id).notNull(),
+  membershipNumber: text("membership_number").unique(),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   totalDays: integer("total_days").notNull(),
@@ -867,6 +868,40 @@ export type InternalMessage = typeof internalMessages.$inferSelect;
 export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
 export type InsertPolicyAcceptance = z.infer<typeof insertPolicyAcceptanceSchema>;
 
+// === DISCOUNT CODES ===
+export const discountCodes = pgTable("discount_codes", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  discountPercent: integer("discount_percent"),
+  shopName: text("shop_name"),
+  shopUrl: text("shop_url"),
+  validUntil: timestamp("valid_until"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const discountCodeAssignments = pgTable("discount_code_assignments", {
+  id: serial("id").primaryKey(),
+  discountCodeId: integer("discount_code_id").references(() => discountCodes.id).notNull(),
+  userId: integer("user_id").references(() => users.id),
+  appliesToAll: boolean("applies_to_all").default(false).notNull(),
+  assignedBy: integer("assigned_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const discountCodesRelations = relations(discountCodes, ({ one, many }) => ({
+  club: one(clubs, { fields: [discountCodes.clubId], references: [clubs.id] }),
+  assignments: many(discountCodeAssignments),
+}));
+
+export const discountCodeAssignmentsRelations = relations(discountCodeAssignments, ({ one }) => ({
+  discountCode: one(discountCodes, { fields: [discountCodeAssignments.discountCodeId], references: [discountCodes.id] }),
+  user: one(users, { fields: [discountCodeAssignments.userId], references: [users.id] }),
+}));
+
 // === EMAIL TEMPLATES ===
 export const emailTemplateTypeEnum = pgEnum("email_template_type", [
   "WELCOME", "PASSWORD_RESET", "ACCOUNT_CLAIMED",
@@ -910,3 +945,10 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailLog = typeof emailLogs.$inferSelect;
 export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+
+export const insertDiscountCodeSchema = createInsertSchema(discountCodes).omit({ id: true, createdAt: true });
+export const insertDiscountCodeAssignmentSchema = createInsertSchema(discountCodeAssignments).omit({ id: true, createdAt: true });
+export type DiscountCode = typeof discountCodes.$inferSelect;
+export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
+export type DiscountCodeAssignment = typeof discountCodeAssignments.$inferSelect;
+export type InsertDiscountCodeAssignment = z.infer<typeof insertDiscountCodeAssignmentSchema>;

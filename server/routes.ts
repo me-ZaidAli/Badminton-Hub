@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -8861,6 +8861,7 @@ export async function registerRoutes(
         userId: clubMemberships.userId,
         clubId: clubMemberships.clubId,
         planId: clubMemberships.planId,
+        membershipNumber: clubMemberships.membershipNumber,
         startDate: clubMemberships.startDate,
         endDate: clubMemberships.endDate,
         totalDays: clubMemberships.totalDays,
@@ -9178,6 +9179,10 @@ export async function registerRoutes(
         status: "ACTIVE",
         paymentConfirmed: body.paymentStatus === "PAID",
       }).returning();
+
+      const memNumber = `MEM-${String(newMembership.id).padStart(6, "0")}`;
+      await db.update(clubMemberships).set({ membershipNumber: memNumber }).where(eq(clubMemberships.id, newMembership.id));
+      newMembership.membershipNumber = memNumber;
 
       res.json(newMembership);
     } catch (err: any) {
@@ -10905,6 +10910,241 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error assigning user to club:", err);
       res.status(500).json({ message: err.message || "Failed to assign user to club" });
+    }
+  });
+
+  // === DISCOUNT CODES ===
+
+  // GET /api/clubs/:clubId/discount-codes - List discount codes for a club (admin)
+  app.get("/api/clubs/:clubId/discount-codes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const codes = await db.select().from(discountCodes).where(eq(discountCodes.clubId, clubId)).orderBy(desc(discountCodes.createdAt));
+
+      const codesWithAssignments = await Promise.all(codes.map(async (code) => {
+        const assignments = await db.select({
+          id: discountCodeAssignments.id,
+          userId: discountCodeAssignments.userId,
+          appliesToAll: discountCodeAssignments.appliesToAll,
+          fullName: users.fullName,
+        }).from(discountCodeAssignments)
+          .leftJoin(users, eq(discountCodeAssignments.userId, users.id))
+          .where(eq(discountCodeAssignments.discountCodeId, code.id));
+        return { ...code, assignments };
+      }));
+
+      res.json(codesWithAssignments);
+    } catch (err: any) {
+      console.error("Error fetching discount codes:", err);
+      res.status(500).json({ message: "Failed to fetch discount codes" });
+    }
+  });
+
+  // POST /api/clubs/:clubId/discount-codes - Create a discount code
+  app.post("/api/clubs/:clubId/discount-codes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        code: z.string().min(1),
+        description: z.string().optional(),
+        discountPercent: z.number().int().min(1).max(100).optional(),
+        shopName: z.string().optional(),
+        shopUrl: z.string().optional(),
+        validUntil: z.string().optional(),
+      }).parse(req.body);
+
+      const [newCode] = await db.insert(discountCodes).values({
+        clubId,
+        code: body.code,
+        description: body.description || null,
+        discountPercent: body.discountPercent || null,
+        shopName: body.shopName || null,
+        shopUrl: body.shopUrl || null,
+        validUntil: body.validUntil ? new Date(body.validUntil) : null,
+        createdBy: req.user!.id,
+      }).returning();
+
+      res.json(newCode);
+    } catch (err: any) {
+      console.error("Error creating discount code:", err);
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to create discount code" });
+    }
+  });
+
+  // PATCH /api/discount-codes/:id - Update a discount code
+  app.patch("/api/discount-codes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const codeId = Number(req.params.id);
+      const [existingCode] = await db.select().from(discountCodes).where(eq(discountCodes.id, codeId));
+      if (!existingCode) return res.status(404).json({ message: "Discount code not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existingCode.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        code: z.string().min(1).optional(),
+        description: z.string().optional().nullable(),
+        discountPercent: z.number().int().min(1).max(100).optional().nullable(),
+        shopName: z.string().optional().nullable(),
+        shopUrl: z.string().optional().nullable(),
+        validUntil: z.string().optional().nullable(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+
+      const updateData: any = {};
+      if (body.code !== undefined) updateData.code = body.code;
+      if (body.description !== undefined) updateData.description = body.description;
+      if (body.discountPercent !== undefined) updateData.discountPercent = body.discountPercent;
+      if (body.shopName !== undefined) updateData.shopName = body.shopName;
+      if (body.shopUrl !== undefined) updateData.shopUrl = body.shopUrl;
+      if (body.validUntil !== undefined) updateData.validUntil = body.validUntil ? new Date(body.validUntil) : null;
+      if (body.isActive !== undefined) updateData.isActive = body.isActive;
+
+      const [updated] = await db.update(discountCodes).set(updateData).where(eq(discountCodes.id, codeId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating discount code:", err);
+      res.status(500).json({ message: err.message || "Failed to update discount code" });
+    }
+  });
+
+  // DELETE /api/discount-codes/:id - Delete a discount code
+  app.delete("/api/discount-codes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const codeId = Number(req.params.id);
+      const [existingCode] = await db.select().from(discountCodes).where(eq(discountCodes.id, codeId));
+      if (!existingCode) return res.status(404).json({ message: "Discount code not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existingCode.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      await db.delete(discountCodeAssignments).where(eq(discountCodeAssignments.discountCodeId, codeId));
+      await db.delete(discountCodes).where(eq(discountCodes.id, codeId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting discount code:", err);
+      res.status(500).json({ message: err.message || "Failed to delete discount code" });
+    }
+  });
+
+  // POST /api/discount-codes/:id/assign - Assign discount code to members
+  app.post("/api/discount-codes/:id/assign", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const codeId = Number(req.params.id);
+      const [existingCode] = await db.select().from(discountCodes).where(eq(discountCodes.id, codeId));
+      if (!existingCode) return res.status(404).json({ message: "Discount code not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existingCode.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const body = z.object({
+        userIds: z.array(z.number().int()).optional(),
+        appliesToAll: z.boolean().optional(),
+      }).parse(req.body);
+
+      await db.delete(discountCodeAssignments).where(eq(discountCodeAssignments.discountCodeId, codeId));
+
+      if (body.appliesToAll) {
+        await db.insert(discountCodeAssignments).values({
+          discountCodeId: codeId,
+          appliesToAll: true,
+          assignedBy: req.user!.id,
+        });
+      } else if (body.userIds && body.userIds.length > 0) {
+        for (const userId of body.userIds) {
+          await db.insert(discountCodeAssignments).values({
+            discountCodeId: codeId,
+            userId,
+            appliesToAll: false,
+            assignedBy: req.user!.id,
+          });
+        }
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error assigning discount code:", err);
+      res.status(500).json({ message: err.message || "Failed to assign discount code" });
+    }
+  });
+
+  // GET /api/my-discount-codes - Get discount codes assigned to current user
+  app.get("/api/my-discount-codes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+
+      const directAssignments = await db.select({
+        codeId: discountCodes.id,
+        code: discountCodes.code,
+        description: discountCodes.description,
+        discountPercent: discountCodes.discountPercent,
+        shopName: discountCodes.shopName,
+        shopUrl: discountCodes.shopUrl,
+        validUntil: discountCodes.validUntil,
+        clubId: discountCodes.clubId,
+        clubName: clubs.name,
+      }).from(discountCodeAssignments)
+        .innerJoin(discountCodes, eq(discountCodeAssignments.discountCodeId, discountCodes.id))
+        .leftJoin(clubs, eq(discountCodes.clubId, clubs.id))
+        .where(and(
+          eq(discountCodeAssignments.userId, userId),
+          eq(discountCodes.isActive, true)
+        ));
+
+      const userClubIds = (await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")))
+      ).map(p => p.clubId);
+
+      let allMemberCodes: typeof directAssignments = [];
+      if (userClubIds.length > 0) {
+        allMemberCodes = await db.select({
+          codeId: discountCodes.id,
+          code: discountCodes.code,
+          description: discountCodes.description,
+          discountPercent: discountCodes.discountPercent,
+          shopName: discountCodes.shopName,
+          shopUrl: discountCodes.shopUrl,
+          validUntil: discountCodes.validUntil,
+          clubId: discountCodes.clubId,
+          clubName: clubs.name,
+        }).from(discountCodeAssignments)
+          .innerJoin(discountCodes, eq(discountCodeAssignments.discountCodeId, discountCodes.id))
+          .leftJoin(clubs, eq(discountCodes.clubId, clubs.id))
+          .where(and(
+            eq(discountCodeAssignments.appliesToAll, true),
+            inArray(discountCodes.clubId, userClubIds),
+            eq(discountCodes.isActive, true)
+          ));
+      }
+
+      const allCodes = [...directAssignments, ...allMemberCodes];
+      const uniqueCodes = Array.from(new Map(allCodes.map(c => [c.codeId, c])).values());
+
+      const grouped = uniqueCodes.reduce((acc: Record<number, { clubId: number; clubName: string; codes: any[] }>, code) => {
+        if (!acc[code.clubId]) {
+          acc[code.clubId] = { clubId: code.clubId, clubName: code.clubName || "Unknown Club", codes: [] };
+        }
+        acc[code.clubId].codes.push(code);
+        return acc;
+      }, {});
+
+      res.json(Object.values(grouped));
+    } catch (err: any) {
+      console.error("Error fetching my discount codes:", err);
+      res.status(500).json({ message: "Failed to fetch discount codes" });
     }
   });
 

@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, Star, Clock, Award, Building2
+  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -223,17 +223,27 @@ function MembershipsModal({ open, onClose, memberships }: {
             const isExpired = daysRemaining <= 0;
             const isExpiring = daysRemaining > 0 && daysRemaining <= 30;
             return (
-              <Card key={m.id} data-testid={`membership-detail-${m.id}`}>
-                <CardContent className="p-4 space-y-3">
+              <div key={m.id} className="relative overflow-visible rounded-md bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px]" data-testid={`membership-detail-${m.id}`}>
+                <div className="rounded-md bg-background/95 dark:bg-background/90 p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-bold text-lg">{m.clubName}</p>
+                      <div className="flex items-center gap-2">
+                        <Award className="h-5 w-5 text-amber-500" />
+                        <p className="font-bold text-lg">{m.clubName}</p>
+                      </div>
                       <p className="text-sm text-muted-foreground">{m.planName}</p>
                     </div>
-                    <Badge variant={isExpired ? "destructive" : isExpiring ? "secondary" : "default"}>
-                      {isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "Active"}
+                    <Badge variant={isExpired ? "destructive" : isExpiring ? "secondary" : "default"} className={!isExpired && !isExpiring ? "bg-amber-500 text-white" : ""}>
+                      {isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "VIP Member"}
                     </Badge>
                   </div>
+                  {m.membershipNumber && (
+                    <div className="flex items-center gap-2 py-2 px-3 rounded-md bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20">
+                      <Shield className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                      <span className="text-xs text-muted-foreground">Member No.</span>
+                      <span className="font-mono font-bold text-sm tracking-wider" data-testid={`text-membership-number-${m.id}`}>{m.membershipNumber}</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-muted-foreground">Price Paid</p>
@@ -255,7 +265,7 @@ function MembershipsModal({ open, onClose, memberships }: {
                     </div>
                   </div>
                   {!isExpired && (
-                    <div className="pt-2 border-t border-border/50">
+                    <div className="pt-2 border-t border-amber-500/20">
                       <p className="text-sm">
                         <span className={`font-bold ${isExpiring ? "text-amber-500" : "text-green-600"}`}>
                           {daysRemaining} days
@@ -264,8 +274,8 @@ function MembershipsModal({ open, onClose, memberships }: {
                       </p>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -276,6 +286,84 @@ function MembershipsModal({ open, onClose, memberships }: {
             </Button>
           </Link>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DiscountCodesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data: discountData = [], isLoading } = useQuery<{ clubId: number; clubName: string; codes: any[] }[]>({
+    queryKey: ["/api/my-discount-codes"],
+    enabled: open,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-discount-codes">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-amber-500" />
+            My Discount Codes
+          </DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : discountData.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No discount codes available</p>
+        ) : (
+          <div className="space-y-5">
+            {discountData.map((club) => (
+              <div key={club.clubId}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm">{club.clubName}</h3>
+                </div>
+                <div className="space-y-2">
+                  {club.codes.map((code: any) => (
+                    <div
+                      key={code.codeId}
+                      className="rounded-md bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px]"
+                    >
+                      <div className="rounded-md bg-background/95 dark:bg-background/90 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <Badge variant="outline" className="font-mono text-sm tracking-wider border-amber-500/30 no-default-hover-elevate">
+                            {code.code}
+                          </Badge>
+                          {code.discountPercent && (
+                            <Badge className="bg-amber-500 text-white no-default-hover-elevate">{code.discountPercent}% OFF</Badge>
+                          )}
+                        </div>
+                        {code.description && (
+                          <p className="text-sm text-muted-foreground">{code.description}</p>
+                        )}
+                        {code.shopName && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Star className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                            <span className="text-muted-foreground">Shop:</span>
+                            {code.shopUrl ? (
+                              <a href={code.shopUrl} target="_blank" rel="noopener noreferrer" className="text-primary flex items-center gap-1" data-testid={`link-shop-${code.codeId}`}>
+                                {code.shopName} <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="font-medium">{code.shopName}</span>
+                            )}
+                          </div>
+                        )}
+                        {code.validUntil && (
+                          <p className="text-xs text-muted-foreground">
+                            Valid until: {format(new Date(code.validUntil), "MMM d, yyyy")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -740,6 +828,7 @@ export default function Profile() {
   const [sessionsThisMonthModalOpen, setSessionsThisMonthModalOpen] = useState(false);
   const [totalSpentModalOpen, setTotalSpentModalOpen] = useState(false);
   const [clubsModalOpen, setClubsModalOpen] = useState(false);
+  const [discountCodesModalOpen, setDiscountCodesModalOpen] = useState(false);
 
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -1033,16 +1122,42 @@ export default function Profile() {
 
       {/* Active Memberships */}
       {activeMembershipCount > 0 && (
-        <Card className="cursor-pointer hover-elevate" onClick={() => setMembershipsModalOpen(true)} data-testid="card-active-memberships">
+        <div
+          className="cursor-pointer rounded-md bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px]"
+          onClick={() => setMembershipsModalOpen(true)}
+          data-testid="card-active-memberships"
+        >
+          <div className="rounded-md bg-background/95 dark:bg-background/90 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-amber-500/10">
+                  <Award className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="font-medium">VIP Membership</p>
+                  <p className="text-xs text-muted-foreground">{activeMembershipCount} active membership{activeMembershipCount > 1 ? "s" : ""}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-500 text-white no-default-hover-elevate">VIP</Badge>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeMembershipCount > 0 && (
+        <Card className="cursor-pointer hover-elevate" onClick={() => setDiscountCodesModalOpen(true)} data-testid="card-discount-codes">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-primary/10">
-                  <CreditCard className="h-5 w-5 text-primary" />
+                <div className="p-2 rounded-md bg-amber-500/10">
+                  <Tag className="h-5 w-5 text-amber-500" />
                 </div>
                 <div>
-                  <p className="font-medium">Active Memberships</p>
-                  <p className="text-xs text-muted-foreground">{activeMembershipCount} active membership{activeMembershipCount > 1 ? "s" : ""}</p>
+                  <p className="font-medium">Discount Codes</p>
+                  <p className="text-xs text-muted-foreground">View exclusive member discounts</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -1266,6 +1381,7 @@ export default function Profile() {
       <CreditsModal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} creditBalances={creditBalances} memberships={memberships} />
       <OutstandingModal open={outstandingModalOpen} onClose={() => setOutstandingModalOpen(false)} payments={outstandingPayments} />
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
+      <DiscountCodesModal open={discountCodesModalOpen} onClose={() => setDiscountCodesModalOpen(false)} />
       <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} profiles={profiles} />
       <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} />
       <ClubsModal open={clubsModalOpen} onClose={() => setClubsModalOpen(false)} profiles={profiles} sessions={sessionHistory} />

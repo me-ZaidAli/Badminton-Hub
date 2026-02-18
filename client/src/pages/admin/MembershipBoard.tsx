@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users, UserPlus } from "lucide-react";
+import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users, UserPlus, Tag, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 
 function formatPounds(pence: number): string {
@@ -106,6 +106,25 @@ interface MembershipPlan {
   isDefault: boolean;
 }
 
+interface DiscountCodeAssignment {
+  id: number;
+  userId: number;
+  fullName?: string;
+}
+
+interface DiscountCode {
+  id: number;
+  clubId: number;
+  code: string;
+  description?: string;
+  discountPercent?: number;
+  shopName?: string;
+  shopUrl?: string;
+  validUntil?: string;
+  appliesToAll?: boolean;
+  assignments?: DiscountCodeAssignment[];
+}
+
 export default function MembershipBoard() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -166,6 +185,27 @@ export default function MembershipBoard() {
   const [addMemberPaymentStatus, setAddMemberPaymentStatus] = useState<string>("UNPAID");
   const [addMemberSearch, setAddMemberSearch] = useState("");
 
+  const [createDiscountDialog, setCreateDiscountDialog] = useState(false);
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountDescription, setDiscountDescription] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [discountShopName, setDiscountShopName] = useState("");
+  const [discountShopUrl, setDiscountShopUrl] = useState("");
+  const [discountValidUntil, setDiscountValidUntil] = useState("");
+
+  const [editDiscountDialog, setEditDiscountDialog] = useState<DiscountCode | null>(null);
+  const [editDiscountCode, setEditDiscountCode] = useState("");
+  const [editDiscountDescription, setEditDiscountDescription] = useState("");
+  const [editDiscountPercent, setEditDiscountPercent] = useState("");
+  const [editDiscountShopName, setEditDiscountShopName] = useState("");
+  const [editDiscountShopUrl, setEditDiscountShopUrl] = useState("");
+  const [editDiscountValidUntil, setEditDiscountValidUntil] = useState("");
+
+  const [assignDiscountDialog, setAssignDiscountDialog] = useState<DiscountCode | null>(null);
+  const [assignAppliesToAll, setAssignAppliesToAll] = useState(false);
+  const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
+  const [assignMemberSearch, setAssignMemberSearch] = useState("");
+
   const clubId = selectedClubId || (myAdminClubs && myAdminClubs.length > 0 ? myAdminClubs[0].id.toString() : "");
 
   const requestsUrl = clubId ? `/api/clubs/${clubId}/membership-requests` : null;
@@ -193,6 +233,12 @@ export default function MembershipBoard() {
     enabled: !!plansUrl,
   });
 
+  const discountCodesUrl = clubId ? `/api/clubs/${clubId}/discount-codes` : null;
+  const { data: discountCodes = [], isLoading: discountCodesLoading } = useQuery<DiscountCode[]>({
+    queryKey: [discountCodesUrl],
+    enabled: !!discountCodesUrl && activeTab === "discounts",
+  });
+
   const { data: clubMembers = [] } = useQuery<any[]>({
     queryKey: ["/api/clubs", clubId, "members"],
     queryFn: async () => {
@@ -200,7 +246,7 @@ export default function MembershipBoard() {
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!clubId && addMembershipDialog,
+    enabled: !!clubId && (addMembershipDialog || !!assignDiscountDialog),
   });
 
   const addMembershipExpiryDate = useMemo(() => {
@@ -245,6 +291,15 @@ export default function MembershipBoard() {
     return filtered;
   }, [memberships, searchQuery]);
 
+  const filteredAssignMembers = useMemo(() => {
+    if (!assignMemberSearch) return clubMembers;
+    const lower = assignMemberSearch.toLowerCase();
+    return clubMembers.filter((m: any) => {
+      const name = m.user?.fullName || m.fullName || "";
+      return name.toLowerCase().includes(lower);
+    });
+  }, [clubMembers, assignMemberSearch]);
+
   const invalidateMemberships = () => {
     queryClient.invalidateQueries({
       predicate: (q) => {
@@ -254,6 +309,15 @@ export default function MembershipBoard() {
           key.includes("/memberships") ||
           key.includes("/membership-plans")
         );
+      },
+    });
+  };
+
+  const invalidateDiscountCodes = () => {
+    queryClient.invalidateQueries({
+      predicate: (q) => {
+        const key = q.queryKey[0];
+        return typeof key === "string" && key.includes("/discount-codes");
       },
     });
   };
@@ -464,6 +528,87 @@ export default function MembershipBoard() {
     },
   });
 
+  const createDiscountMutation = useMutation({
+    mutationFn: async (data: { code: string; description?: string; discountPercent?: number; shopName?: string; shopUrl?: string; validUntil?: string }) => {
+      await apiRequest("POST", `/api/clubs/${clubId}/discount-codes`, data);
+    },
+    onSuccess: () => {
+      invalidateDiscountCodes();
+      setCreateDiscountDialog(false);
+      setDiscountCode("");
+      setDiscountDescription("");
+      setDiscountPercent("");
+      setDiscountShopName("");
+      setDiscountShopUrl("");
+      setDiscountValidUntil("");
+      toast({ title: "Discount Code Created", description: "The discount code has been created." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create discount code.", variant: "destructive" });
+    },
+  });
+
+  const editDiscountMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; code: string; description?: string; discountPercent?: number; shopName?: string; shopUrl?: string; validUntil?: string }) => {
+      await apiRequest("PATCH", `/api/discount-codes/${id}`, data);
+    },
+    onSuccess: () => {
+      invalidateDiscountCodes();
+      setEditDiscountDialog(null);
+      toast({ title: "Discount Code Updated", description: "The discount code has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update discount code.", variant: "destructive" });
+    },
+  });
+
+  const deleteDiscountMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/discount-codes/${id}`);
+    },
+    onSuccess: () => {
+      invalidateDiscountCodes();
+      toast({ title: "Discount Code Deleted", description: "The discount code has been deleted." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete discount code.", variant: "destructive" });
+    },
+  });
+
+  const assignDiscountMutation = useMutation({
+    mutationFn: async ({ id, userIds, appliesToAll }: { id: number; userIds?: number[]; appliesToAll?: boolean }) => {
+      await apiRequest("POST", `/api/discount-codes/${id}/assign`, { userIds, appliesToAll });
+    },
+    onSuccess: () => {
+      invalidateDiscountCodes();
+      setAssignDiscountDialog(null);
+      setAssignUserIds([]);
+      setAssignAppliesToAll(false);
+      setAssignMemberSearch("");
+      toast({ title: "Assignment Updated", description: "The discount code assignment has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to assign discount code.", variant: "destructive" });
+    },
+  });
+
+  const openEditDiscount = (dc: DiscountCode) => {
+    setEditDiscountCode(dc.code);
+    setEditDiscountDescription(dc.description || "");
+    setEditDiscountPercent(dc.discountPercent?.toString() || "");
+    setEditDiscountShopName(dc.shopName || "");
+    setEditDiscountShopUrl(dc.shopUrl || "");
+    setEditDiscountValidUntil(dc.validUntil ? format(new Date(dc.validUntil), "yyyy-MM-dd") : "");
+    setEditDiscountDialog(dc);
+  };
+
+  const openAssignDiscount = (dc: DiscountCode) => {
+    setAssignAppliesToAll(dc.appliesToAll || false);
+    setAssignUserIds((dc.assignments || []).map((a) => String(a.userId)));
+    setAssignMemberSearch("");
+    setAssignDiscountDialog(dc);
+  };
+
   const openEditMembership = (membership: ClubMembership) => {
     setEditMembershipPlanId(membership.planId?.toString() || "");
     setEditMembershipStatus(membership.status);
@@ -660,6 +805,13 @@ export default function MembershipBoard() {
         <TabsList data-testid="tabs-membership">
           <TabsTrigger value="requests" data-testid="tab-requests">Membership Requests</TabsTrigger>
           <TabsTrigger value="active" data-testid="tab-active">Active Memberships</TabsTrigger>
+          <TabsTrigger value="discounts" data-testid="tab-discounts">
+            <Tag className="h-4 w-4 mr-1" />
+            Discount Codes
+            {discountCodes.length > 0 && (
+              <Badge variant="secondary" className="ml-1 no-default-hover-elevate">{discountCodes.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests">
@@ -934,6 +1086,111 @@ export default function MembershipBoard() {
                       })}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="discounts">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-lg" data-testid="text-discounts-count">
+                Discount Codes ({discountCodes.length})
+              </CardTitle>
+              <Button size="sm" onClick={() => setCreateDiscountDialog(true)} data-testid="button-add-discount">
+                <Plus className="h-4 w-4 mr-1" />
+                Add Code
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {!clubId ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Tag className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Select a club to view discount codes</p>
+                  </div>
+                </div>
+              ) : discountCodesLoading ? (
+                <div className="h-64 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" data-testid="loader-discounts" />
+                </div>
+              ) : discountCodes.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Tag className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No discount codes found</p>
+                    <p className="text-sm mt-1">Create your first discount code to get started</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {discountCodes.map((dc) => (
+                    <Card key={dc.id} className="hover-elevate" data-testid={`card-discount-${dc.id}`}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="no-default-hover-elevate font-mono" data-testid={`text-discount-code-${dc.id}`}>
+                                {dc.code}
+                              </Badge>
+                              {dc.discountPercent != null && dc.discountPercent > 0 && (
+                                <Badge variant="secondary" className="no-default-hover-elevate" data-testid={`text-discount-percent-${dc.id}`}>
+                                  {dc.discountPercent}% off
+                                </Badge>
+                              )}
+                            </div>
+                            {dc.description && (
+                              <p className="text-sm text-muted-foreground" data-testid={`text-discount-desc-${dc.id}`}>{dc.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button size="icon" variant="ghost" onClick={() => openEditDiscount(dc)} data-testid={`button-edit-discount-${dc.id}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => deleteDiscountMutation.mutate(dc.id)} disabled={deleteDiscountMutation.isPending} data-testid={`button-delete-discount-${dc.id}`}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {(dc.shopName || dc.shopUrl) && (
+                          <div className="flex items-center gap-2 text-sm">
+                            {dc.shopName && <span className="font-medium" data-testid={`text-discount-shop-${dc.id}`}>{dc.shopName}</span>}
+                            {dc.shopUrl && (
+                              <a href={dc.shopUrl} target="_blank" rel="noopener noreferrer" className="text-primary inline-flex items-center gap-1" data-testid={`link-discount-shop-${dc.id}`}>
+                                <ExternalLink className="h-3 w-3" />
+                                Visit
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {dc.validUntil && (
+                          <div className="text-sm text-muted-foreground" data-testid={`text-discount-valid-${dc.id}`}>
+                            Valid until: {format(new Date(dc.validUntil), "dd MMM yyyy")}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t">
+                          <div className="text-sm" data-testid={`text-discount-assigned-${dc.id}`}>
+                            {dc.appliesToAll ? (
+                              <Badge variant="default" className="bg-green-500 no-default-hover-elevate">All Members</Badge>
+                            ) : dc.assignments && dc.assignments.length > 0 ? (
+                              <span className="text-muted-foreground">
+                                {dc.assignments.map((a) => a.fullName || `User #${a.userId}`).join(", ")}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Not assigned</span>
+                            )}
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => openAssignDiscount(dc)} data-testid={`button-assign-discount-${dc.id}`}>
+                            <Users className="h-4 w-4 mr-1" />
+                            Assign
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -1707,6 +1964,333 @@ export default function MembershipBoard() {
             >
               {editDetailsMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createDiscountDialog} onOpenChange={setCreateDiscountDialog}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5" />
+              Create Discount Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="discount-code">Code</Label>
+              <Input
+                id="discount-code"
+                placeholder="e.g. SUMMER20"
+                value={discountCode}
+                onChange={(e) => setDiscountCode(e.target.value)}
+                data-testid="input-discount-code"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discount-description">Description</Label>
+              <Input
+                id="discount-description"
+                placeholder="Optional description..."
+                value={discountDescription}
+                onChange={(e) => setDiscountDescription(e.target.value)}
+                data-testid="input-discount-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discount-percent">Discount %</Label>
+              <Input
+                id="discount-percent"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="e.g. 20"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(e.target.value)}
+                data-testid="input-discount-percent"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discount-shop-name">Shop Name</Label>
+              <Input
+                id="discount-shop-name"
+                placeholder="e.g. Yonex Pro Shop"
+                value={discountShopName}
+                onChange={(e) => setDiscountShopName(e.target.value)}
+                data-testid="input-discount-shop-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discount-shop-url">Shop URL</Label>
+              <Input
+                id="discount-shop-url"
+                placeholder="https://..."
+                value={discountShopUrl}
+                onChange={(e) => setDiscountShopUrl(e.target.value)}
+                data-testid="input-discount-shop-url"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discount-valid-until">Valid Until</Label>
+              <Input
+                id="discount-valid-until"
+                type="date"
+                value={discountValidUntil}
+                onChange={(e) => setDiscountValidUntil(e.target.value)}
+                data-testid="input-discount-valid-until"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDiscountDialog(false)} data-testid="button-create-discount-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!discountCode.trim()) {
+                  toast({ title: "Please enter a code", variant: "destructive" });
+                  return;
+                }
+                createDiscountMutation.mutate({
+                  code: discountCode.trim(),
+                  description: discountDescription || undefined,
+                  discountPercent: discountPercent ? Number(discountPercent) : undefined,
+                  shopName: discountShopName || undefined,
+                  shopUrl: discountShopUrl || undefined,
+                  validUntil: discountValidUntil || undefined,
+                });
+              }}
+              disabled={createDiscountMutation.isPending}
+              data-testid="button-create-discount-confirm"
+            >
+              {createDiscountMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Create Code
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editDiscountDialog} onOpenChange={(open) => !open && setEditDiscountDialog(null)}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Discount Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-code">Code</Label>
+              <Input
+                id="edit-discount-code"
+                value={editDiscountCode}
+                onChange={(e) => setEditDiscountCode(e.target.value)}
+                data-testid="input-edit-discount-code"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-description">Description</Label>
+              <Input
+                id="edit-discount-description"
+                value={editDiscountDescription}
+                onChange={(e) => setEditDiscountDescription(e.target.value)}
+                data-testid="input-edit-discount-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-percent">Discount %</Label>
+              <Input
+                id="edit-discount-percent"
+                type="number"
+                min="0"
+                max="100"
+                value={editDiscountPercent}
+                onChange={(e) => setEditDiscountPercent(e.target.value)}
+                data-testid="input-edit-discount-percent"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-shop-name">Shop Name</Label>
+              <Input
+                id="edit-discount-shop-name"
+                value={editDiscountShopName}
+                onChange={(e) => setEditDiscountShopName(e.target.value)}
+                data-testid="input-edit-discount-shop-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-shop-url">Shop URL</Label>
+              <Input
+                id="edit-discount-shop-url"
+                value={editDiscountShopUrl}
+                onChange={(e) => setEditDiscountShopUrl(e.target.value)}
+                data-testid="input-edit-discount-shop-url"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-discount-valid-until">Valid Until</Label>
+              <Input
+                id="edit-discount-valid-until"
+                type="date"
+                value={editDiscountValidUntil}
+                onChange={(e) => setEditDiscountValidUntil(e.target.value)}
+                data-testid="input-edit-discount-valid-until"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDiscountDialog(null)} data-testid="button-edit-discount-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editDiscountDialog || !editDiscountCode.trim()) {
+                  toast({ title: "Please enter a code", variant: "destructive" });
+                  return;
+                }
+                editDiscountMutation.mutate({
+                  id: editDiscountDialog.id,
+                  code: editDiscountCode.trim(),
+                  description: editDiscountDescription || undefined,
+                  discountPercent: editDiscountPercent ? Number(editDiscountPercent) : undefined,
+                  shopName: editDiscountShopName || undefined,
+                  shopUrl: editDiscountShopUrl || undefined,
+                  validUntil: editDiscountValidUntil || undefined,
+                });
+              }}
+              disabled={editDiscountMutation.isPending}
+              data-testid="button-edit-discount-confirm"
+            >
+              {editDiscountMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!assignDiscountDialog} onOpenChange={(open) => !open && setAssignDiscountDialog(null)}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Assign Discount Code
+            </DialogTitle>
+          </DialogHeader>
+          {assignDiscountDialog && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-md bg-muted/50">
+                <p className="text-sm font-medium" data-testid="text-assign-discount-code">{assignDiscountDialog.code}</p>
+                {assignDiscountDialog.description && (
+                  <p className="text-xs text-muted-foreground mt-1">{assignDiscountDialog.description}</p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="assign-all-members"
+                  checked={assignAppliesToAll}
+                  onCheckedChange={setAssignAppliesToAll}
+                  data-testid="switch-assign-all-members"
+                />
+                <Label htmlFor="assign-all-members" className="cursor-pointer">Assign to all members</Label>
+              </div>
+
+              {!assignAppliesToAll && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Select Members</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search members..."
+                        className="pl-10"
+                        value={assignMemberSearch}
+                        onChange={(e) => setAssignMemberSearch(e.target.value)}
+                        data-testid="input-assign-member-search"
+                      />
+                    </div>
+                    <div className="border rounded-md max-h-[160px] overflow-y-auto">
+                      {filteredAssignMembers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No members found</p>
+                      ) : (
+                        filteredAssignMembers.map((member: any) => {
+                          const userId = member.user?.id || member.userId;
+                          const name = member.user?.fullName || member.fullName || "Unknown";
+                          const isSelected = assignUserIds.includes(String(userId));
+                          return (
+                            <div
+                              key={userId}
+                              className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover-elevate ${isSelected ? "bg-primary/10" : ""}`}
+                              onClick={() => {
+                                setAssignUserIds(prev =>
+                                  prev.includes(String(userId))
+                                    ? prev.filter(id => id !== String(userId))
+                                    : [...prev, String(userId)]
+                                );
+                              }}
+                              data-testid={`assign-member-option-${userId}`}
+                            >
+                              {isSelected && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
+                              <span className="text-sm truncate">{name}</span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {assignUserIds.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Selected Members ({assignUserIds.length})</Label>
+                      <div className="border rounded-md p-2 space-y-1 max-h-[120px] overflow-y-auto">
+                        {assignUserIds.map((uid) => {
+                          const member = clubMembers.find((m: any) => String(m.user?.id || m.userId) === uid);
+                          const name = member?.user?.fullName || member?.fullName || "Unknown";
+                          return (
+                            <div
+                              key={uid}
+                              className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-muted/50"
+                              data-testid={`assign-selected-member-${uid}`}
+                            >
+                              <span className="text-sm truncate">{name}</span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 flex-shrink-0"
+                                onClick={() => setAssignUserIds(prev => prev.filter(id => id !== uid))}
+                                data-testid={`assign-remove-member-${uid}`}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDiscountDialog(null)} data-testid="button-assign-discount-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!assignDiscountDialog) return;
+                assignDiscountMutation.mutate({
+                  id: assignDiscountDialog.id,
+                  appliesToAll: assignAppliesToAll,
+                  userIds: assignAppliesToAll ? undefined : assignUserIds.map(Number),
+                });
+              }}
+              disabled={assignDiscountMutation.isPending}
+              data-testid="button-assign-discount-confirm"
+            >
+              {assignDiscountMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Save Assignment
             </Button>
           </DialogFooter>
         </DialogContent>
