@@ -1282,6 +1282,76 @@ export async function registerRoutes(
     });
   });
 
+  // === My Match Performance (real data from matches, with club ranking position) ===
+  app.get("/api/my-match-performance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      if (!userProfiles || userProfiles.length === 0) {
+        return res.json({ clubs: [], totals: { played: 0, won: 0, lost: 0, winPct: 0 } });
+      }
+
+      const clubResults: {
+        clubId: number;
+        clubName: string;
+        profileId: number;
+        category: string | null;
+        grade: string | null;
+        played: number;
+        won: number;
+        lost: number;
+        winPct: number;
+        setsWon: number;
+        pointsWon: number;
+        rank: number;
+        totalPlayers: number;
+      }[] = [];
+
+      for (const profile of userProfiles) {
+        const clubId = profile.clubId;
+        const clubName = (profile as any).club?.name || `Club ${clubId}`;
+
+        const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
+
+        const myEntry = leaderboard.find((e: any) => e.id === profile.id);
+        const rank = leaderboard.findIndex((e: any) => e.id === profile.id) + 1;
+
+        clubResults.push({
+          clubId,
+          clubName,
+          profileId: profile.id,
+          category: profile.category,
+          grade: profile.grade,
+          played: myEntry?.matchesPlayed || 0,
+          won: myEntry?.matchesWon || 0,
+          lost: myEntry?.matchesLost || 0,
+          winPct: myEntry?.winPercentage || 0,
+          setsWon: (myEntry as any)?.setsWon || 0,
+          pointsWon: (myEntry as any)?.pointsWon || 0,
+          rank: rank > 0 ? rank : 0,
+          totalPlayers: leaderboard.length,
+        });
+      }
+
+      const totalPlayed = clubResults.reduce((s, c) => s + c.played, 0);
+      const totalWon = clubResults.reduce((s, c) => s + c.won, 0);
+      const totalLost = totalPlayed - totalWon;
+
+      res.json({
+        clubs: clubResults,
+        totals: {
+          played: totalPlayed,
+          won: totalWon,
+          lost: totalLost,
+          winPct: totalPlayed > 0 ? Math.round((totalWon / totalPlayed) * 100) : 0,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error fetching match performance:", err);
+      res.status(500).json({ message: "Failed to fetch match performance" });
+    }
+  });
+
   // === Users ===
   app.get(api.users.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

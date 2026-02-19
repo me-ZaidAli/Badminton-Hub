@@ -369,23 +369,26 @@ function DiscountCodesModal({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-function PerformanceModal({ open, onClose, profiles }: {
-  open: boolean; onClose: () => void; profiles: any[] | undefined;
+function PerformanceModal({ open, onClose, matchPerformance }: {
+  open: boolean; onClose: () => void; matchPerformance: {
+    clubs: { clubId: number; clubName: string; profileId: number; category: string | null; grade: string | null; played: number; won: number; lost: number; winPct: number; setsWon: number; pointsWon: number; rank: number; totalPlayers: number }[];
+    totals: { played: number; won: number; lost: number; winPct: number };
+  } | undefined;
 }) {
   const [selectedClub, setSelectedClub] = useState<string>("all");
-  const filteredProfiles = useMemo(() => {
-    if (!profiles) return [];
-    if (selectedClub === "all") return profiles;
-    return profiles.filter((p: any) => p.clubId.toString() === selectedClub);
-  }, [profiles, selectedClub]);
+  const clubs = matchPerformance?.clubs || [];
+  const filteredClubs = useMemo(() => {
+    if (selectedClub === "all") return clubs;
+    return clubs.filter((c) => c.clubId.toString() === selectedClub);
+  }, [clubs, selectedClub]);
 
   const totals = useMemo(() => {
-    const played = filteredProfiles.reduce((s: number, p: any) => s + (p.matchesPlayed || 0), 0);
-    const won = filteredProfiles.reduce((s: number, p: any) => s + (p.matchesWon || 0), 0);
+    if (selectedClub === "all" && matchPerformance) return matchPerformance.totals;
+    const played = filteredClubs.reduce((s, c) => s + c.played, 0);
+    const won = filteredClubs.reduce((s, c) => s + c.won, 0);
     const lost = played - won;
-    const winPct = played > 0 ? Math.round((won / played) * 100) : 0;
-    return { played, won, lost, winPct };
-  }, [filteredProfiles]);
+    return { played, won, lost, winPct: played > 0 ? Math.round((won / played) * 100) : 0 };
+  }, [filteredClubs, selectedClub, matchPerformance]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -393,19 +396,19 @@ function PerformanceModal({ open, onClose, profiles }: {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Performance Stats
+            Match Performance
           </DialogTitle>
         </DialogHeader>
-        {profiles && profiles.length > 1 && (
+        {clubs.length > 1 && (
           <Select value={selectedClub} onValueChange={setSelectedClub}>
             <SelectTrigger data-testid="select-perf-club">
               <SelectValue placeholder="All Clubs" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clubs</SelectItem>
-              {profiles.map((p: any) => (
-                <SelectItem key={p.clubId} value={p.clubId.toString()}>
-                  {p.club?.name || `Club ${p.clubId}`}
+              {clubs.map((c) => (
+                <SelectItem key={c.clubId} value={c.clubId.toString()}>
+                  {c.clubName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -413,11 +416,11 @@ function PerformanceModal({ open, onClose, profiles }: {
         )}
         <div className="grid grid-cols-2 gap-3">
           <div className="p-4 rounded-md bg-muted/50 text-center">
-            <p className="text-3xl font-bold text-green-600">{totals.won}</p>
+            <p className="text-3xl font-bold text-primary">{totals.won}</p>
             <p className="text-xs text-muted-foreground">Matches Won</p>
           </div>
           <div className="p-4 rounded-md bg-muted/50 text-center">
-            <p className="text-3xl font-bold text-red-600">{totals.lost}</p>
+            <p className="text-3xl font-bold text-destructive">{totals.lost}</p>
             <p className="text-xs text-muted-foreground">Matches Lost</p>
           </div>
           <div className="p-4 rounded-md bg-muted/50 text-center">
@@ -425,23 +428,25 @@ function PerformanceModal({ open, onClose, profiles }: {
             <p className="text-xs text-muted-foreground">Total Matches</p>
           </div>
           <div className="p-4 rounded-md bg-muted/50 text-center">
-            <p className="text-3xl font-bold text-primary">{totals.winPct}%</p>
+            <p className="text-3xl font-bold">{totals.winPct}%</p>
             <p className="text-xs text-muted-foreground">Win Rate</p>
           </div>
         </div>
-        {filteredProfiles.length > 0 && (
+        {filteredClubs.length > 0 && (
           <div className="space-y-2 pt-2">
             <p className="text-sm font-medium text-muted-foreground">Per Club Breakdown</p>
-            {filteredProfiles.map((p: any) => {
-              const played = p.matchesPlayed || 0;
-              const won = p.matchesWon || 0;
-              const pct = played > 0 ? Math.round((won / played) * 100) : 0;
-              const barWidth = Math.max(pct, 2);
+            {filteredClubs.map((c) => {
+              const barWidth = Math.max(c.winPct, 2);
               return (
-                <div key={p.id} className="space-y-1" data-testid={`perf-club-${p.clubId}`}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{p.club?.name || `Club ${p.clubId}`}</span>
-                    <span className="text-muted-foreground">{won}W / {played - won}L ({pct}%)</span>
+                <div key={c.clubId} className="space-y-1" data-testid={`perf-club-${c.clubId}`}>
+                  <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{c.clubName}</span>
+                      {c.rank > 0 && (
+                        <Badge variant="outline" className="text-xs no-default-hover-elevate">#{c.rank}</Badge>
+                      )}
+                    </div>
+                    <span className="text-muted-foreground">{c.won}W / {c.lost}L ({c.winPct}%)</span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${barWidth}%` }} />
@@ -819,6 +824,11 @@ export default function Profile() {
 
   const { data: sessionHistory } = useQuery<SessionHistoryItem[]>({ queryKey: ["/api/my-session-history"], enabled: !!user });
 
+  const { data: matchPerformance } = useQuery<{
+    clubs: { clubId: number; clubName: string; profileId: number; category: string | null; grade: string | null; played: number; won: number; lost: number; winPct: number; setsWon: number; pointsWon: number; rank: number; totalPlayers: number }[];
+    totals: { played: number; won: number; lost: number; winPct: number };
+  }>({ queryKey: ["/api/my-match-performance"], enabled: !!user });
+
   const [creditsModalOpen, setCreditsModalOpen] = useState(false);
   const [outstandingModalOpen, setOutstandingModalOpen] = useState(false);
   const [membershipsModalOpen, setMembershipsModalOpen] = useState(false);
@@ -829,6 +839,7 @@ export default function Profile() {
   const [totalSpentModalOpen, setTotalSpentModalOpen] = useState(false);
   const [clubsModalOpen, setClubsModalOpen] = useState(false);
   const [discountCodesModalOpen, setDiscountCodesModalOpen] = useState(false);
+  const [rankingClubFilter, setRankingClubFilter] = useState<string>("all");
 
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -852,11 +863,9 @@ export default function Profile() {
   }, [outstandingPayments]);
 
   const performance = useMemo(() => {
-    if (!profiles) return { played: 0, won: 0, lost: 0, winPct: 0 };
-    const played = profiles.reduce((s: number, p: any) => s + (p.matchesPlayed || 0), 0);
-    const won = profiles.reduce((s: number, p: any) => s + (p.matchesWon || 0), 0);
-    return { played, won, lost: played - won, winPct: played > 0 ? Math.round((won / played) * 100) : 0 };
-  }, [profiles]);
+    if (!matchPerformance) return { played: 0, won: 0, lost: 0, winPct: 0 };
+    return matchPerformance.totals;
+  }, [matchPerformance]);
 
   const activeMembershipClubIds = useMemo(() => {
     return new Set((clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").map((m: any) => m.clubId));
@@ -1092,6 +1101,89 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Club Ranking Card */}
+      {matchPerformance && matchPerformance.clubs.length > 0 && (
+        <Card data-testid="card-club-ranking">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-md bg-amber-500/10">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="font-semibold">Club Rankings</p>
+                  <p className="text-xs text-muted-foreground">Your position in each club</p>
+                </div>
+              </div>
+              {matchPerformance.clubs.length > 1 && (
+                <Select value={rankingClubFilter} onValueChange={setRankingClubFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-ranking-club">
+                    <SelectValue placeholder="All Clubs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clubs</SelectItem>
+                    {matchPerformance.clubs.map((c) => (
+                      <SelectItem key={c.clubId} value={c.clubId.toString()}>
+                        {c.clubName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-3">
+              {(rankingClubFilter === "all" ? matchPerformance.clubs : matchPerformance.clubs.filter(c => c.clubId.toString() === rankingClubFilter)).map((club) => (
+                <div key={club.clubId} className="rounded-md bg-muted/40 p-4" data-testid={`ranking-club-${club.clubId}`}>
+                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{club.clubName}</span>
+                      {club.grade && (
+                        <Badge variant="outline" className="text-xs no-default-hover-elevate">{club.grade}</Badge>
+                      )}
+                    </div>
+                    {club.rank > 0 && (
+                      <Badge className={`no-default-hover-elevate ${club.rank <= 3 ? "bg-amber-500 text-white" : ""}`}>
+                        #{club.rank} of {club.totalPlayers}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <p className="text-xl font-bold">{club.rank > 0 ? `#${club.rank}` : "-"}</p>
+                      <p className="text-[10px] text-muted-foreground">Rank</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-primary">{club.won}</p>
+                      <p className="text-[10px] text-muted-foreground">Won</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-destructive">{club.lost}</p>
+                      <p className="text-[10px] text-muted-foreground">Lost</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold">{club.winPct}%</p>
+                      <p className="text-[10px] text-muted-foreground">Win %</p>
+                    </div>
+                  </div>
+                  {club.played > 0 && (
+                    <div className="mt-3">
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(club.winPct, 2)}%` }} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">{club.played} matches played</p>
+                    </div>
+                  )}
+                  {club.played === 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">No completed matches yet</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Session Activity */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
@@ -1382,7 +1474,7 @@ export default function Profile() {
       <OutstandingModal open={outstandingModalOpen} onClose={() => setOutstandingModalOpen(false)} payments={outstandingPayments} />
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <DiscountCodesModal open={discountCodesModalOpen} onClose={() => setDiscountCodesModalOpen(false)} />
-      <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} profiles={profiles} />
+      <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} matchPerformance={matchPerformance} />
       <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} />
       <ClubsModal open={clubsModalOpen} onClose={() => setClubsModalOpen(false)} profiles={profiles} sessions={sessionHistory} />
       <TotalSessionsModal open={totalSessionsModalOpen} onClose={() => setTotalSessionsModalOpen(false)} sessions={sessionHistory} />
