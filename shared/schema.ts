@@ -38,6 +38,10 @@ export const membershipRequestStatusEnum = pgEnum("membership_request_status", [
 export const merchOrderStatusEnum = pgEnum("merch_order_status", ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]);
 export const inventoryMovementTypeEnum = pgEnum("inventory_movement_type", ["RECEIPT", "USAGE", "SALE", "ADJUSTMENT"]);
 export const recurrenceFrequencyEnum = pgEnum("recurrence_frequency", ["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]);
+export const acquisitionSourceEnum = pgEnum("acquisition_source", [
+  "FACEBOOK", "INSTAGRAM", "TIKTOK", "WEBSITE", "WORD_OF_MOUTH",
+  "LEISURE_CENTRE", "SAW_SESSION", "THROUGH_COACH", "REFERRAL", "OTHER"
+]);
 
 // === USERS ===
 export const users = pgTable("users", {
@@ -72,6 +76,9 @@ export const users = pgTable("users", {
   showPublicName: boolean("show_public_name").default(false).notNull(),
   displayMode: text("display_mode").default("light").notNull(),
   reducedMotion: boolean("reduced_motion").default(false).notNull(),
+  acquisitionSource: acquisitionSourceEnum("acquisition_source"),
+  acquisitionSourceOther: text("acquisition_source_other"),
+  lastActivityAt: timestamp("last_activity_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
