@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, Gift } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -248,6 +248,27 @@ export default function AdminDashboard() {
               <CardContent>
                 <p className="text-muted-foreground">
                   Post announcements and updates to club members.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-referral-management">
+            <Link href="/admin/referrals">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-emerald-500" />
+                    Referral Management
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Review and approve referral submissions, award credits.
                 </p>
               </CardContent>
             </Link>

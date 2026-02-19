@@ -15,7 +15,7 @@ import { Link, Redirect, useLocation } from "wouter";
 import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
-  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye
+  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift
 } from "lucide-react";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
@@ -422,6 +422,25 @@ function DashboardContent({
               </Link>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-500/20 rounded-lg shrink-0">
+              <Gift className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-sm">Refer & Earn</h3>
+              <p className="text-xs text-muted-foreground">Invite friends and earn {"\u00A3"}4 credit for each approved referral</p>
+            </div>
+          </div>
+          <Link href="/referrals">
+            <Button size="sm" className="w-full mt-3" data-testid="button-go-referrals">
+              <Gift className="h-4 w-4 mr-1" /> Start Referring
+            </Button>
+          </Link>
         </CardContent>
       </Card>
 

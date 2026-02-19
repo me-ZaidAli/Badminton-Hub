@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink
+  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink, Gift
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -1257,6 +1257,25 @@ export default function Profile() {
           </CardContent>
         </Card>
       )}
+
+      <Link href="/referrals">
+        <Card className="cursor-pointer hover-elevate" data-testid="card-referrals-link">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-emerald-500/10">
+                  <Gift className="h-5 w-5 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="font-medium">Refer & Earn</p>
+                  <p className="text-xs text-muted-foreground">Invite friends and earn credits</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Membership Benefits - only for clubs without active membership */}
       {clubsWithoutMembership.length > 0 && (

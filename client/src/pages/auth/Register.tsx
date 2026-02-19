@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Link, useLocation } from "wouter";
-import { Eye, EyeOff, Shield, KeyRound } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -55,6 +56,7 @@ const formSchema = z.object({
 
 export default function Register() {
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const { mutate: register, isPending } = useRegister();
   const [showPassword, setShowPassword] = useState(false);
   const [showClaimDialog, setShowClaimDialog] = useState(false);
@@ -63,7 +65,39 @@ export default function Register() {
   const [claimFullName, setClaimFullName] = useState("");
   const [showClaimPassword, setShowClaimPassword] = useState(false);
   const [claimPending, setClaimPending] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [referralValidating, setReferralValidating] = useState(false);
+  const [referralReferrer, setReferralReferrer] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const ref = params.get("ref");
+    if (ref) {
+      setReferralCode(ref);
+      validateReferralCode(ref);
+    }
+  }, [searchString]);
+
+  async function validateReferralCode(code: string) {
+    if (!code.trim()) {
+      setReferralValid(null);
+      setReferralReferrer("");
+      return;
+    }
+    setReferralValidating(true);
+    try {
+      const res = await fetch(`/api/referrals/validate/${encodeURIComponent(code.trim().toUpperCase())}`);
+      const data = await res.json();
+      setReferralValid(data.valid);
+      setReferralReferrer(data.referrerName || "");
+    } catch {
+      setReferralValid(false);
+    } finally {
+      setReferralValidating(false);
+    }
+  }
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -123,6 +157,16 @@ export default function Register() {
             throw new Error("An account with this email already exists. Please sign in instead.");
           }
           throw new Error(data?.message || "Registration failed");
+        }
+        if (referralCode.trim()) {
+          try {
+            await fetch("/api/referrals/submit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: referralCode.trim().toUpperCase() }),
+              credentials: "include",
+            });
+          } catch {}
         }
         toast({ title: "Account created", description: "Welcome! Complete your profile and browse clubs to get started." });
         setLocation("/clubs");
@@ -381,6 +425,38 @@ export default function Register() {
                   </CardContent>
                 </Card>
               )}
+
+              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Gift className="h-4 w-4 text-primary" />
+                  Referral Code (optional)
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="e.g. REF-A1B2C3D4"
+                    value={referralCode}
+                    onChange={(e) => {
+                      setReferralCode(e.target.value);
+                      setReferralValid(null);
+                    }}
+                    onBlur={() => validateReferralCode(referralCode)}
+                    className="font-mono"
+                    data-testid="input-referral-code"
+                  />
+                  {referralValidating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />}
+                  {!referralValidating && referralValid === true && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+                </div>
+                {referralValid === true && referralReferrer && (
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-green-500 text-white no-default-hover-elevate text-xs">Valid</Badge>
+                    <span className="text-xs text-muted-foreground">Referred by {referralReferrer}</span>
+                  </div>
+                )}
+                {referralValid === false && (
+                  <p className="text-xs text-destructive">Invalid or expired referral code</p>
+                )}
+                <p className="text-xs text-muted-foreground">Have a referral code? Enter it here to reward your friend</p>
+              </div>
 
               <div className="space-y-3 border rounded-md p-4">
                 <p className="text-sm font-medium">Required agreements</p>

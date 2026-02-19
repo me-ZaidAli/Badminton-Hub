@@ -1047,3 +1047,35 @@ export type TicketInternalNote = typeof ticketInternalNotes.$inferSelect;
 export type InsertTicketInternalNote = z.infer<typeof insertTicketInternalNoteSchema>;
 export type TicketAuditLog = typeof ticketAuditLogs.$inferSelect;
 export type InsertTicketAuditLog = z.infer<typeof insertTicketAuditLogSchema>;
+
+// === REFERRAL SYSTEM ===
+export const referralStatusEnum = pgEnum("referral_status", ["ACTIVE", "PENDING", "APPROVED", "REJECTED", "EXPIRED", "USED"]);
+
+export const referrals = pgTable("referrals", {
+  id: serial("id").primaryKey(),
+  referrerId: integer("referrer_id").references(() => users.id).notNull(),
+  code: text("code").notNull().unique(),
+  referredName: text("referred_name"),
+  referredEmail: text("referred_email"),
+  referredUserId: integer("referred_user_id").references(() => users.id),
+  clubId: integer("club_id").references(() => clubs.id),
+  status: referralStatusEnum("status").default("ACTIVE").notNull(),
+  rejectionReason: text("rejection_reason"),
+  approvedById: integer("approved_by_id").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  creditAwarded: integer("credit_awarded"),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const referralsRelations = relations(referrals, ({ one }) => ({
+  referrer: one(users, { fields: [referrals.referrerId], references: [users.id] }),
+  referredUser: one(users, { fields: [referrals.referredUserId], references: [users.id] }),
+  club: one(clubs, { fields: [referrals.clubId], references: [clubs.id] }),
+  approvedBy: one(users, { fields: [referrals.approvedById], references: [users.id] }),
+}));
+
+export const insertReferralSchema = createInsertSchema(referrals).omit({ id: true, createdAt: true });
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = z.infer<typeof insertReferralSchema>;

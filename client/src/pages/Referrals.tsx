@@ -1,0 +1,469 @@
+import { useState, useMemo } from "react";
+import { useUser } from "@/hooks/use-auth";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useClubs } from "@/hooks/use-clubs";
+import {
+  Gift, Copy, Check, Clock, UserPlus, TrendingUp, Award,
+  Loader2, Share2, Link2, Plus, ChevronRight, Star
+} from "lucide-react";
+import { format, formatDistanceToNow, differenceInDays } from "date-fns";
+
+interface ReferralData {
+  id: number;
+  code: string;
+  referredName: string | null;
+  referredEmail: string | null;
+  referredUserId: number | null;
+  clubId: number | null;
+  status: string;
+  creditAwarded: number | null;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+  clubName: string | null;
+}
+
+interface ReferralStats {
+  totalReferrals: number;
+  approvedReferrals: number;
+  pendingReferrals: number;
+  totalCreditsEarned: number;
+  premiumEligible: boolean;
+  milestoneReached: boolean;
+}
+
+interface ReferralResponse {
+  referrals: ReferralData[];
+  stats: ReferralStats;
+}
+
+function getStatusConfig(status: string, expiresAt: string) {
+  const daysLeft = differenceInDays(new Date(expiresAt), new Date());
+  switch (status) {
+    case "ACTIVE":
+      return { label: "Active", variant: "default" as const, className: "bg-green-500 text-white no-default-hover-elevate" };
+    case "PENDING":
+      return { label: "Pending Approval", variant: "default" as const, className: "bg-amber-500 text-white no-default-hover-elevate" };
+    case "APPROVED":
+      return { label: "Approved", variant: "default" as const, className: "bg-blue-500 text-white no-default-hover-elevate" };
+    case "REJECTED":
+      return { label: "Rejected", variant: "destructive" as const, className: "no-default-hover-elevate" };
+    case "EXPIRED":
+      return { label: "Expired", variant: "secondary" as const, className: "no-default-hover-elevate" };
+    case "USED":
+      return { label: "Used", variant: "secondary" as const, className: "no-default-hover-elevate" };
+    default:
+      return { label: status, variant: "secondary" as const, className: "no-default-hover-elevate" };
+  }
+}
+
+export default function Referrals() {
+  const { data: user } = useUser();
+  const { data: clubs = [] } = useClubs();
+  const { toast } = useToast();
+  const [generateDialog, setGenerateDialog] = useState(false);
+  const [referredName, setReferredName] = useState("");
+  const [referredEmail, setReferredEmail] = useState("");
+  const [selectedClubId, setSelectedClubId] = useState("");
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery<ReferralResponse>({
+    queryKey: ["/api/my-referrals"],
+    enabled: !!user,
+  });
+
+  const referrals = data?.referrals || [];
+  const stats = data?.stats || { totalReferrals: 0, approvedReferrals: 0, pendingReferrals: 0, totalCreditsEarned: 0, premiumEligible: false, milestoneReached: false };
+
+  const generateMutation = useMutation({
+    mutationFn: async (data: { referredName?: string; referredEmail?: string; clubId?: number }) => {
+      const res = await apiRequest("POST", "/api/referrals/generate", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-referrals"] });
+      setGenerateDialog(false);
+      setReferredName("");
+      setReferredEmail("");
+      setSelectedClubId("");
+      toast({ title: "Referral Code Generated", description: "Your new referral code is ready to share." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to generate code.", variant: "destructive" });
+    },
+  });
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+    toast({ title: "Copied!", description: "Referral code copied to clipboard." });
+  };
+
+  const copyLink = (code: string) => {
+    const link = `${window.location.origin}/register?ref=${code}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(code);
+    setTimeout(() => setCopiedLink(null), 2000);
+    toast({ title: "Link Copied!", description: "Referral link copied to clipboard." });
+  };
+
+  const premiumProgress = Math.min((stats.totalCreditsEarned / 800) * 100, 100);
+  const milestoneProgress = Math.min((stats.totalCreditsEarned / 1600) * 100, 100);
+
+  const activeReferrals = referrals.filter(r => r.status === "ACTIVE");
+  const pendingReferrals = referrals.filter(r => r.status === "PENDING");
+  const completedReferrals = referrals.filter(r => r.status === "APPROVED" || r.status === "REJECTED");
+
+  if (isLoading) {
+    return (
+      <div className="h-64 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Refer & Earn"
+        description="Invite friends to join and earn rewards for every successful referral"
+        action={
+          <Button onClick={() => setGenerateDialog(true)} data-testid="button-generate-referral">
+            <Plus className="h-4 w-4 mr-1" />
+            New Referral Code
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card data-testid="card-stat-total">
+          <CardContent className="p-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground">Total Referrals</div>
+              <div className="text-2xl font-bold">{stats.totalReferrals}</div>
+            </div>
+            <UserPlus className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+        <Card data-testid="card-stat-approved">
+          <CardContent className="p-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground">Approved</div>
+              <div className="text-2xl font-bold text-green-600">{stats.approvedReferrals}</div>
+            </div>
+            <Check className="h-5 w-5 text-green-500" />
+          </CardContent>
+        </Card>
+        <Card data-testid="card-stat-pending">
+          <CardContent className="p-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground">Pending</div>
+              <div className="text-2xl font-bold text-amber-500">{stats.pendingReferrals}</div>
+            </div>
+            <Clock className="h-5 w-5 text-amber-500" />
+          </CardContent>
+        </Card>
+        <Card data-testid="card-stat-credits">
+          <CardContent className="p-4 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground">Credits Earned</div>
+              <div className="text-2xl font-bold">{"\u00A3"}{(stats.totalCreditsEarned / 100).toFixed(2)}</div>
+            </div>
+            <TrendingUp className="h-5 w-5 text-primary" />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card data-testid="card-milestone-premium">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-amber-500" />
+                <span className="font-semibold text-sm">Premium Rate Eligibility</span>
+              </div>
+              {stats.premiumEligible ? (
+                <Badge className="bg-green-500 text-white no-default-hover-elevate">Unlocked</Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">{"\u00A3"}{((800 - stats.totalCreditsEarned) / 100).toFixed(2)} to go</span>
+              )}
+            </div>
+            <Progress value={premiumProgress} className="h-2" data-testid="progress-premium" />
+            <p className="text-xs text-muted-foreground">
+              Earn {"\u00A3"}8 in referral credits to unlock 4-month Premium member rate
+            </p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-milestone-champion">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-purple-500" />
+                <span className="font-semibold text-sm">Referral Champion</span>
+              </div>
+              {stats.milestoneReached ? (
+                <Badge className="bg-purple-500 text-white no-default-hover-elevate">Achieved</Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">{"\u00A3"}{((1600 - stats.totalCreditsEarned) / 100).toFixed(2)} to go</span>
+              )}
+            </div>
+            <Progress value={milestoneProgress} className="h-2" data-testid="progress-champion" />
+            <p className="text-xs text-muted-foreground">
+              Earn {"\u00A3"}16 in referral credits (4 approved referrals) to become a Referral Champion
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {activeReferrals.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Gift className="h-5 w-5 text-green-500" />
+              Active Codes ({activeReferrals.length})
+            </CardTitle>
+            <CardDescription>Share these codes with friends before they expire</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {activeReferrals.map((ref) => {
+                const daysLeft = differenceInDays(new Date(ref.expiresAt), new Date());
+                const statusConfig = getStatusConfig(ref.status, ref.expiresAt);
+                return (
+                  <div key={ref.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-md border border-border/50 bg-muted/20" data-testid={`referral-active-${ref.id}`}>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono font-bold text-base" data-testid={`text-referral-code-${ref.id}`}>{ref.code}</code>
+                        <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+                      </div>
+                      {ref.referredName && (
+                        <p className="text-sm text-muted-foreground">For: {ref.referredName}</p>
+                      )}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {daysLeft > 0 ? (
+                          <span>{daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining</span>
+                        ) : (
+                          <span className="text-red-500">Expires today</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyCode(ref.code)}
+                        data-testid={`button-copy-code-${ref.id}`}
+                      >
+                        {copiedCode === ref.code ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                        Code
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyLink(ref.code)}
+                        data-testid={`button-copy-link-${ref.id}`}
+                      >
+                        {copiedLink === ref.code ? <Check className="h-4 w-4 mr-1" /> : <Link2 className="h-4 w-4 mr-1" />}
+                        Link
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingReferrals.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              Pending Approval ({pendingReferrals.length})
+            </CardTitle>
+            <CardDescription>These referrals are waiting for admin review</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingReferrals.map((ref) => {
+                const statusConfig = getStatusConfig(ref.status, ref.expiresAt);
+                return (
+                  <div key={ref.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-md border border-border/50 bg-amber-500/5" data-testid={`referral-pending-${ref.id}`}>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono font-bold">{ref.code}</code>
+                        <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+                      </div>
+                      {ref.referredName && (
+                        <p className="text-sm">Referred: <span className="font-medium">{ref.referredName}</span></p>
+                      )}
+                      {ref.usedAt && (
+                        <p className="text-xs text-muted-foreground">Submitted {formatDistanceToNow(new Date(ref.usedAt), { addSuffix: true })}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Referral History ({completedReferrals.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {completedReferrals.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Gift className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No completed referrals yet</p>
+              <p className="text-sm mt-1">Generate a code and share it with friends to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {completedReferrals.map((ref) => {
+                const statusConfig = getStatusConfig(ref.status, ref.expiresAt);
+                return (
+                  <div key={ref.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-md border border-border/50" data-testid={`referral-completed-${ref.id}`}>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono text-sm">{ref.code}</code>
+                        <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+                        {ref.creditAwarded && ref.creditAwarded > 0 && (
+                          <Badge variant="secondary" className="no-default-hover-elevate">+{"\u00A3"}{(ref.creditAwarded / 100).toFixed(2)}</Badge>
+                        )}
+                      </div>
+                      {ref.referredName && (
+                        <p className="text-sm text-muted-foreground">{ref.referredName}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {format(new Date(ref.createdAt), "dd MMM yyyy")}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {referrals.filter(r => r.status === "EXPIRED").length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg text-muted-foreground">Expired Codes ({referrals.filter(r => r.status === "EXPIRED").length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {referrals.filter(r => r.status === "EXPIRED").map((ref) => (
+                <div key={ref.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30 opacity-60" data-testid={`referral-expired-${ref.id}`}>
+                  <code className="font-mono text-sm">{ref.code}</code>
+                  <Badge variant="secondary" className="no-default-hover-elevate">Expired</Badge>
+                  {ref.referredName && <span className="text-xs text-muted-foreground">{ref.referredName}</span>}
+                  <span className="text-xs text-muted-foreground ml-auto">{format(new Date(ref.expiresAt), "dd MMM yyyy")}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
+        <DialogContent className="bg-background max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5" />
+              Generate Referral Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="referred-name">Friend's Name (optional)</Label>
+              <Input
+                id="referred-name"
+                placeholder="e.g. John Smith"
+                value={referredName}
+                onChange={(e) => setReferredName(e.target.value)}
+                data-testid="input-referred-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="referred-email">Friend's Email (optional)</Label>
+              <Input
+                id="referred-email"
+                type="email"
+                placeholder="e.g. john@example.com"
+                value={referredEmail}
+                onChange={(e) => setReferredEmail(e.target.value)}
+                data-testid="input-referred-email"
+              />
+            </div>
+            {clubs.length > 0 && (
+              <div className="space-y-2">
+                <Label>Club (optional)</Label>
+                <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                  <SelectTrigger data-testid="select-referral-club">
+                    <SelectValue placeholder="Select a club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No specific club</SelectItem>
+                    {clubs.map((club: any) => (
+                      <SelectItem key={club.id} value={String(club.id)}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="p-3 rounded-md bg-muted/50 space-y-1">
+              <p className="text-sm font-medium">How it works</p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>1. Share the generated code or link with your friend</li>
+                <li>2. They enter the code when signing up</li>
+                <li>3. An admin approves the referral</li>
+                <li>4. You receive {"\u00A3"}4 credit in your wallet</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateDialog(false)} data-testid="button-generate-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                generateMutation.mutate({
+                  referredName: referredName || undefined,
+                  referredEmail: referredEmail || undefined,
+                  clubId: selectedClubId && selectedClubId !== "none" ? Number(selectedClubId) : undefined,
+                });
+              }}
+              disabled={generateMutation.isPending}
+              data-testid="button-generate-confirm"
+            >
+              {generateMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Generate Code
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

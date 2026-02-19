@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -12369,6 +12369,404 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error banning member:", err);
       res.status(500).json({ message: "Failed to ban member" });
+    }
+  });
+
+  // === REFERRAL SYSTEM ===
+
+  // GET /api/my-referrals - Get current user's referral codes and stats
+  app.get("/api/my-referrals", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+
+      const myReferrals = await db.select({
+        id: referrals.id,
+        code: referrals.code,
+        referredName: referrals.referredName,
+        referredEmail: referrals.referredEmail,
+        referredUserId: referrals.referredUserId,
+        clubId: referrals.clubId,
+        status: referrals.status,
+        creditAwarded: referrals.creditAwarded,
+        expiresAt: referrals.expiresAt,
+        usedAt: referrals.usedAt,
+        createdAt: referrals.createdAt,
+        clubName: clubs.name,
+      }).from(referrals)
+        .leftJoin(clubs, eq(referrals.clubId, clubs.id))
+        .where(eq(referrals.referrerId, userId))
+        .orderBy(desc(referrals.createdAt));
+
+      // Auto-expire any active codes past their expiry date
+      const now = new Date();
+      for (const ref of myReferrals) {
+        if (ref.status === "ACTIVE" && new Date(ref.expiresAt) < now) {
+          await db.update(referrals).set({ status: "EXPIRED" }).where(eq(referrals.id, ref.id));
+          ref.status = "EXPIRED";
+        }
+      }
+
+      const totalReferrals = myReferrals.length;
+      const approvedReferrals = myReferrals.filter(r => r.status === "APPROVED").length;
+      const pendingReferrals = myReferrals.filter(r => r.status === "PENDING").length;
+      const totalCreditsEarned = myReferrals.reduce((sum, r) => sum + (r.creditAwarded || 0), 0);
+
+      res.json({
+        referrals: myReferrals,
+        stats: {
+          totalReferrals,
+          approvedReferrals,
+          pendingReferrals,
+          totalCreditsEarned,
+          premiumEligible: totalCreditsEarned >= 800,
+          milestoneReached: totalCreditsEarned >= 1600,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error fetching referrals:", err);
+      res.status(500).json({ message: "Failed to fetch referrals" });
+    }
+  });
+
+  // POST /api/referrals/generate - Generate a new referral code
+  app.post("/api/referrals/generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const body = z.object({
+        referredName: z.string().min(1).optional(),
+        referredEmail: z.string().email().optional(),
+        clubId: z.number().int().optional(),
+      }).parse(req.body);
+
+      const code = `REF-${randomBytes(4).toString("hex").toUpperCase()}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const [newReferral] = await db.insert(referrals).values({
+        referrerId: userId,
+        code,
+        referredName: body.referredName || null,
+        referredEmail: body.referredEmail || null,
+        clubId: body.clubId || null,
+        status: "ACTIVE",
+        expiresAt,
+      }).returning();
+
+      res.status(201).json(newReferral);
+    } catch (err: any) {
+      console.error("Error generating referral code:", err);
+      res.status(500).json({ message: err.message || "Failed to generate referral code" });
+    }
+  });
+
+  // GET /api/referrals/validate/:code - Validate a referral code (public, used during registration)
+  app.get("/api/referrals/validate/:code", async (req, res) => {
+    try {
+      const code = req.params.code.trim().toUpperCase();
+      const [referral] = await db.select({
+        id: referrals.id,
+        code: referrals.code,
+        status: referrals.status,
+        expiresAt: referrals.expiresAt,
+        referredName: referrals.referredName,
+        referredEmail: referrals.referredEmail,
+        referrerName: users.fullName,
+      }).from(referrals)
+        .leftJoin(users, eq(referrals.referrerId, users.id))
+        .where(eq(referrals.code, code));
+
+      if (!referral) {
+        return res.status(404).json({ valid: false, message: "Referral code not found" });
+      }
+
+      if (referral.status !== "ACTIVE") {
+        return res.json({ valid: false, message: `Referral code is ${referral.status.toLowerCase()}` });
+      }
+
+      if (new Date(referral.expiresAt) < new Date()) {
+        await db.update(referrals).set({ status: "EXPIRED" }).where(eq(referrals.id, referral.id));
+        return res.json({ valid: false, message: "Referral code has expired" });
+      }
+
+      res.json({
+        valid: true,
+        referrerName: referral.referrerName,
+        referredName: referral.referredName,
+        referredEmail: referral.referredEmail,
+      });
+    } catch (err: any) {
+      console.error("Error validating referral:", err);
+      res.status(500).json({ valid: false, message: "Failed to validate referral code" });
+    }
+  });
+
+  // POST /api/referrals/submit - Submit a referral after registration
+  app.post("/api/referrals/submit", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        code: z.string().min(1),
+      }).parse(req.body);
+
+      const code = body.code.trim().toUpperCase();
+      const [referral] = await db.select().from(referrals).where(eq(referrals.code, code));
+
+      if (!referral) {
+        return res.status(404).json({ message: "Referral code not found" });
+      }
+
+      if (referral.status !== "ACTIVE") {
+        return res.status(400).json({ message: `Referral code is already ${referral.status.toLowerCase()}` });
+      }
+
+      if (new Date(referral.expiresAt) < new Date()) {
+        await db.update(referrals).set({ status: "EXPIRED" }).where(eq(referrals.id, referral.id));
+        return res.status(400).json({ message: "Referral code has expired" });
+      }
+
+      if (referral.referrerId === req.user!.id) {
+        return res.status(400).json({ message: "You cannot use your own referral code" });
+      }
+
+      // Update referral to pending
+      await db.update(referrals).set({
+        status: "PENDING",
+        referredUserId: req.user!.id,
+        referredName: req.user!.fullName,
+        referredEmail: req.user!.email,
+        usedAt: new Date(),
+      }).where(eq(referrals.id, referral.id));
+
+      // Send notification to referrer
+      await db.insert(notifications).values({
+        userId: referral.referrerId,
+        type: "REFERRAL",
+        title: "New Referral Submitted",
+        message: `${req.user!.fullName} has signed up using your referral code ${referral.code}. It's now pending admin approval.`,
+        linkUrl: "/referrals",
+        status: "in_progress",
+      });
+
+      // Send internal message to referrer
+      const systemUser = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
+      const senderId = systemUser.length > 0 ? systemUser[0].id : req.user!.id;
+      
+      await db.insert(internalMessages).values({
+        senderId,
+        recipientId: referral.referrerId,
+        subject: "Thank you for your referral!",
+        body: `Thank you for referring ${req.user!.fullName} to the club! Your referral is now pending admin approval. Once approved, you'll receive £4 credit in your wallet.`,
+        clubId: referral.clubId,
+      });
+
+      res.json({ success: true, message: "Referral submitted and pending approval" });
+    } catch (err: any) {
+      console.error("Error submitting referral:", err);
+      res.status(500).json({ message: err.message || "Failed to submit referral" });
+    }
+  });
+
+  // GET /api/admin/referrals - Admin view of all referrals (filtered by club)
+  app.get("/api/admin/referrals", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const statusFilter = req.query.status as string | undefined;
+
+      // Get admin's clubs
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+
+      if (adminClubIds.length === 0) {
+        return res.json([]);
+      }
+
+      let query = db.select({
+        id: referrals.id,
+        code: referrals.code,
+        referrerId: referrals.referrerId,
+        referredName: referrals.referredName,
+        referredEmail: referrals.referredEmail,
+        referredUserId: referrals.referredUserId,
+        clubId: referrals.clubId,
+        status: referrals.status,
+        rejectionReason: referrals.rejectionReason,
+        creditAwarded: referrals.creditAwarded,
+        expiresAt: referrals.expiresAt,
+        usedAt: referrals.usedAt,
+        createdAt: referrals.createdAt,
+        referrerName: users.fullName,
+        referrerEmail: users.email,
+        clubName: clubs.name,
+      }).from(referrals)
+        .leftJoin(users, eq(referrals.referrerId, users.id))
+        .leftJoin(clubs, eq(referrals.clubId, clubs.id));
+
+      const conditions: any[] = [];
+
+      // Only show referrals for admin's clubs (or with null clubId for OWNER)
+      if (user.role === "OWNER") {
+        // OWNER sees all referrals
+      } else {
+        conditions.push(inArray(referrals.clubId, adminClubIds));
+      }
+
+      if (statusFilter && statusFilter !== "all") {
+        conditions.push(eq(referrals.status, statusFilter as any));
+      }
+
+      const results = conditions.length > 0
+        ? await query.where(and(...conditions)).orderBy(desc(referrals.createdAt))
+        : await query.orderBy(desc(referrals.createdAt));
+
+      res.json(results);
+    } catch (err: any) {
+      console.error("Error fetching admin referrals:", err);
+      res.status(500).json({ message: "Failed to fetch referrals" });
+    }
+  });
+
+  // POST /api/admin/referrals/:id/approve - Approve a referral
+  app.post("/api/admin/referrals/:id/approve", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const refId = Number(req.params.id);
+      const [referral] = await db.select().from(referrals).where(eq(referrals.id, refId));
+      if (!referral) return res.status(404).json({ message: "Referral not found" });
+
+      if (referral.status !== "PENDING") {
+        return res.status(400).json({ message: `Cannot approve a referral with status ${referral.status}` });
+      }
+
+      // Check admin permission
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        if (referral.clubId) {
+          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", referral.clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else {
+          return res.sendStatus(403);
+        }
+      }
+
+      const creditAmount = 400; // £4 in pence
+
+      // Update referral status
+      await db.update(referrals).set({
+        status: "APPROVED",
+        approvedById: user.id,
+        approvedAt: new Date(),
+        creditAwarded: creditAmount,
+      }).where(eq(referrals.id, refId));
+
+      // Add credit to referrer's wallet
+      if (referral.clubId) {
+        await db.insert(creditLedger).values({
+          userId: referral.referrerId,
+          clubId: referral.clubId,
+          amount: creditAmount,
+          reason: `Referral reward for referring ${referral.referredName || "a new member"} (code: ${referral.code})`,
+          createdById: user.id,
+        });
+      }
+
+      // Calculate total credits for milestone checking
+      const allApproved = await db.select().from(referrals)
+        .where(and(eq(referrals.referrerId, referral.referrerId), eq(referrals.status, "APPROVED")));
+      const totalCredits = allApproved.reduce((sum, r) => sum + (r.creditAwarded || 0), 0) + creditAmount;
+
+      // Send approval notification
+      let notifMessage = `Your referral of ${referral.referredName || "a new member"} has been approved! £4 credit has been added to your wallet.`;
+      
+      if (totalCredits >= 1600 && totalCredits - creditAmount < 1600) {
+        notifMessage += ` You've reached the £16 milestone with 4+ approved referrals!`;
+      } else if (totalCredits >= 800 && totalCredits - creditAmount < 800) {
+        notifMessage += ` You've reached £8 in referral credits and are now eligible for the premium member rate!`;
+      }
+
+      await db.insert(notifications).values({
+        userId: referral.referrerId,
+        type: "REFERRAL",
+        title: "Referral Approved",
+        message: notifMessage,
+        linkUrl: "/referrals",
+        status: "in_progress",
+      });
+
+      // Send internal message
+      await db.insert(internalMessages).values({
+        senderId: user.id,
+        recipientId: referral.referrerId,
+        subject: "Referral Approved - Credit Awarded!",
+        body: notifMessage,
+        clubId: referral.clubId,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error approving referral:", err);
+      res.status(500).json({ message: err.message || "Failed to approve referral" });
+    }
+  });
+
+  // POST /api/admin/referrals/:id/reject - Reject a referral
+  app.post("/api/admin/referrals/:id/reject", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const refId = Number(req.params.id);
+      const [referral] = await db.select().from(referrals).where(eq(referrals.id, refId));
+      if (!referral) return res.status(404).json({ message: "Referral not found" });
+
+      if (referral.status !== "PENDING") {
+        return res.status(400).json({ message: `Cannot reject a referral with status ${referral.status}` });
+      }
+
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        if (referral.clubId) {
+          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", referral.clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else {
+          return res.sendStatus(403);
+        }
+      }
+
+      const body = z.object({
+        reason: z.string().optional(),
+      }).parse(req.body);
+
+      await db.update(referrals).set({
+        status: "REJECTED",
+        rejectionReason: body.reason || null,
+      }).where(eq(referrals.id, refId));
+
+      // Notify the referrer
+      await db.insert(notifications).values({
+        userId: referral.referrerId,
+        type: "REFERRAL",
+        title: "Referral Not Approved",
+        message: `Your referral of ${referral.referredName || "a member"} was not approved.${body.reason ? ` Reason: ${body.reason}` : ""}`,
+        linkUrl: "/referrals",
+        status: "in_progress",
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error rejecting referral:", err);
+      res.status(500).json({ message: err.message || "Failed to reject referral" });
     }
   });
 
