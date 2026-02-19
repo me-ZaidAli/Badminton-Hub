@@ -57,14 +57,29 @@ function getAchievements(player: LeaderboardPlayer): { icon: any; label: string;
   return badges;
 }
 
-function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string; color: string; bgColor: string }> {
-  const badges = new Map<number, { icon: any; label: string; color: string; bgColor: string }>();
-  if (players.length === 0) return badges;
+interface BadgeHolder {
+  id: number;
+  icon: any;
+  label: string;
+  description: string;
+  color: string;
+  bgColor: string;
+  holderName: string;
+}
+
+function getBadgeHolders(players: any[]): BadgeHolder[] {
+  const holders: BadgeHolder[] = [];
+  const usedIds = new Set<number>();
+  if (players.length === 0) return holders;
 
   const maxWins = Math.max(...players.map(p => p.matchesWon));
   if (maxWins > 0) {
     const champion = players.find(p => p.matchesWon === maxWins);
-    if (champion) badges.set(champion.id || champion.profileId, { icon: Crown, label: "Champion", color: "text-amber-500", bgColor: "bg-amber-500/15" });
+    if (champion) {
+      const id = champion.id || champion.profileId;
+      usedIds.add(id);
+      holders.push({ id, icon: Crown, label: "Champion", description: "Most wins overall", color: "text-amber-500", bgColor: "bg-amber-500/15", holderName: champion.displayName || champion.fullName || "Unknown" });
+    }
   }
 
   const eligible = players.filter(p => p.matchesPlayed >= 5);
@@ -72,16 +87,26 @@ function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string
     const maxPct = Math.max(...eligible.map(p => p.winPercentage));
     if (maxPct > 0) {
       const sharpshooter = eligible.find(p => p.winPercentage === maxPct);
-      const id = sharpshooter.id || sharpshooter.profileId;
-      if (sharpshooter && !badges.has(id)) badges.set(id, { icon: Target, label: "Sharpshooter", color: "text-red-500", bgColor: "bg-red-500/15" });
+      if (sharpshooter) {
+        const id = sharpshooter.id || sharpshooter.profileId;
+        if (!usedIds.has(id)) {
+          usedIds.add(id);
+          holders.push({ id, icon: Target, label: "Sharpshooter", description: "Highest win rate (min 5 matches)", color: "text-red-500", bgColor: "bg-red-500/15", holderName: sharpshooter.displayName || sharpshooter.fullName || "Unknown" });
+        }
+      }
     }
   }
 
   const maxMatches = Math.max(...players.map(p => p.matchesPlayed));
   if (maxMatches > 0) {
     const ironman = players.find(p => p.matchesPlayed === maxMatches);
-    const id = ironman.id || ironman.profileId;
-    if (ironman && !badges.has(id)) badges.set(id, { icon: Shield, label: "Ironman", color: "text-blue-500", bgColor: "bg-blue-500/15" });
+    if (ironman) {
+      const id = ironman.id || ironman.profileId;
+      if (!usedIds.has(id)) {
+        usedIds.add(id);
+        holders.push({ id, icon: Shield, label: "Ironman", description: "Most matches played", color: "text-blue-500", bgColor: "bg-blue-500/15", holderName: ironman.displayName || ironman.fullName || "Unknown" });
+      }
+    }
   }
 
   const newcomers = players.filter(p => p.matchesPlayed >= 3 && p.matchesPlayed <= 10);
@@ -89,11 +114,23 @@ function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string
     const maxNewPct = Math.max(...newcomers.map(p => p.winPercentage));
     if (maxNewPct > 0) {
       const star = newcomers.find(p => p.winPercentage === maxNewPct);
-      const id = star.id || star.profileId;
-      if (star && !badges.has(id)) badges.set(id, { icon: Sparkles, label: "Rising Star", color: "text-pink-500", bgColor: "bg-pink-500/15" });
+      if (star) {
+        const id = star.id || star.profileId;
+        if (!usedIds.has(id)) {
+          usedIds.add(id);
+          holders.push({ id, icon: Sparkles, label: "Rising Star", description: "Best newcomer (3-10 matches)", color: "text-pink-500", bgColor: "bg-pink-500/15", holderName: star.displayName || star.fullName || "Unknown" });
+        }
+      }
     }
   }
 
+  return holders;
+}
+
+function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string; color: string; bgColor: string }> {
+  const holders = getBadgeHolders(players);
+  const badges = new Map<number, { icon: any; label: string; color: string; bgColor: string }>();
+  holders.forEach(h => badges.set(h.id, { icon: h.icon, label: h.label, color: h.color, bgColor: h.bgColor }));
   return badges;
 }
 
@@ -214,6 +251,7 @@ export default function PlayerRankings() {
   }, [myProfile, rankedLeaderboard]);
 
   const uniqueBadgesMap = useMemo(() => getUniqueBadges(rankedLeaderboard), [rankedLeaderboard]);
+  const badgeHolders = useMemo(() => getBadgeHolders(rankedLeaderboard), [rankedLeaderboard]);
 
   const hasActiveFilters = selectedClubId !== "all" || category !== "all" || gender !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
 
@@ -251,6 +289,55 @@ export default function PlayerRankings() {
           </PopoverContent>
         </Popover>
       </div>
+
+      {badgeHolders.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="h-4 w-4 text-muted-foreground" />
+              <h4 className="text-sm font-semibold">Badge Guide</h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {badgeHolders.map((badge) => (
+                <div key={badge.label} className="flex items-center gap-3 p-2 rounded-md bg-muted/30" data-testid={`badge-holder-${badge.label.toLowerCase().replace(/\s/g, '-')}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${badge.bgColor} shrink-0`}>
+                    <badge.icon className={`w-4 h-4 ${badge.color}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{badge.label}</div>
+                    <div className="text-xs text-muted-foreground truncate">{badge.holderName}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border">
+              <div className="text-xs font-medium mb-2 text-muted-foreground">Achievement Badges</div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <span className="text-xs text-muted-foreground">5+ Wins</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs text-muted-foreground">10+ Matches</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-purple-500" />
+                  <span className="text-xs text-muted-foreground">Top Performer (75%+ win rate)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">First Win</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Medal className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs text-muted-foreground">Undefeated (3+ matches)</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {myStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -563,80 +650,6 @@ export default function PlayerRankings() {
           </TableBody>
         </Table>
       </div>
-
-      {rankedLeaderboard.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-semibold">Badge Guide</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-500/15 shrink-0">
-                  <Crown className="w-4 h-4 text-amber-500" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">Champion</div>
-                  <div className="text-xs text-muted-foreground">Most wins overall</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/15 shrink-0">
-                  <Target className="w-4 h-4 text-red-500" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">Sharpshooter</div>
-                  <div className="text-xs text-muted-foreground">Highest win rate (min 5 matches)</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-500/15 shrink-0">
-                  <Shield className="w-4 h-4 text-blue-500" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">Ironman</div>
-                  <div className="text-xs text-muted-foreground">Most matches played</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-pink-500/15 shrink-0">
-                  <Sparkles className="w-4 h-4 text-pink-500" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">Rising Star</div>
-                  <div className="text-xs text-muted-foreground">Best newcomer (3-10 matches)</div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-border">
-              <div className="text-xs font-medium mb-2 text-muted-foreground">Achievement Badges</div>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-orange-500" />
-                  <span className="text-xs text-muted-foreground">5+ Wins</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs text-muted-foreground">10+ Matches</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-purple-500" />
-                  <span className="text-xs text-muted-foreground">Top Performer (75%+ win rate)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-green-500" />
-                  <span className="text-xs text-muted-foreground">First Win</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Medal className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs text-muted-foreground">Undefeated (3+ matches)</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {rankedLeaderboard.length > 0 && (
         <div className="text-sm text-muted-foreground text-center">
