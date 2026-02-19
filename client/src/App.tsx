@@ -67,6 +67,8 @@ const Venues = lazy(() => import("@/pages/Venues"));
 const ClubsManagement = lazy(() => import("@/pages/ClubsManagement"));
 
 const NotificationsPage = lazy(() => import("@/pages/Notifications"));
+const Tickets = lazy(() => import("@/pages/Tickets"));
+const TicketDetail = lazy(() => import("@/pages/TicketDetail"));
 const PasswordResets = lazy(() => import("@/pages/admin/PasswordResets"));
 const ContactForm = lazy(() => import("@/pages/ContactForm"));
 const Messages = lazy(() => import("@/pages/admin/Messages"));
@@ -311,6 +313,12 @@ function Router() {
       </Route>
       <Route path="/notifications">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationsPage /></Suspense>} />
+      </Route>
+      <Route path="/tickets">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Tickets /></Suspense>} />
+      </Route>
+      <Route path="/tickets/:id">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TicketDetail /></Suspense>} />
       </Route>
 
       <Route path="/contact">

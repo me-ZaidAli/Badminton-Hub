@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -11538,6 +11538,662 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching my discount codes:", err);
       res.status(500).json({ message: "Failed to fetch discount codes" });
+    }
+  });
+
+  // === TICKET SYSTEM ===
+
+  // 1. POST /api/tickets - Create ticket
+  app.post("/api/tickets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { clubId, subject, description, category, priority } = req.body;
+      if (!clubId || !subject || !description || !category) {
+        return res.status(400).json({ message: "clubId, subject, description, and category are required" });
+      }
+
+      const ticketNumber = "TK-" + randomBytes(4).toString("hex").toUpperCase();
+
+      const isSafeguarding = category === "SAFEGUARDING";
+      const finalPriority = isSafeguarding ? "URGENT" : (priority || "MEDIUM");
+      const isConfidential = isSafeguarding ? true : false;
+
+      const now = new Date();
+      const autoCloseAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const [ticket] = await db.insert(tickets).values({
+        ticketNumber,
+        clubId: Number(clubId),
+        createdByUserId: req.user!.id,
+        subject,
+        description,
+        category,
+        priority: finalPriority,
+        isConfidential,
+        autoCloseAt,
+      }).returning();
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId: ticket.id,
+        actorUserId: req.user!.id,
+        action: "CREATED",
+        toStatus: "SUBMITTED",
+      });
+
+      await db.insert(notifications).values({
+        userId: req.user!.id,
+        type: "TICKET_UPDATE",
+        title: "Ticket Created",
+        message: `Your ticket ${ticketNumber} has been submitted successfully.`,
+        linkUrl: `/tickets/${ticket.id}`,
+        status: "in_progress",
+      });
+
+      res.status(201).json(ticket);
+    } catch (err: any) {
+      console.error("Error creating ticket:", err);
+      res.status(500).json({ message: "Failed to create ticket" });
+    }
+  });
+
+  // 2. GET /api/tickets - List tickets for current user
+  app.get("/api/tickets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const creatorAlias = db.select({
+        id: users.id,
+        fullName: users.fullName,
+      }).from(users).as("creator");
+
+      const result = await db
+        .select({
+          ticket: tickets,
+          creatorName: users.fullName,
+        })
+        .from(tickets)
+        .leftJoin(users, eq(tickets.createdByUserId, users.id))
+        .where(
+          and(
+            sql`${tickets.deletedAt} IS NULL`,
+            or(
+              eq(tickets.createdByUserId, userId),
+              eq(tickets.linkedBanUserId, userId)
+            )
+          )
+        )
+        .orderBy(desc(tickets.lastActivityAt));
+
+      const ticketsWithNames = await Promise.all(result.map(async (r) => {
+        let assigneeName: string | null = null;
+        if (r.ticket.assignedToUserId) {
+          const [assignee] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, r.ticket.assignedToUserId));
+          assigneeName = assignee?.fullName || null;
+        }
+        return {
+          ...r.ticket,
+          creatorName: r.creatorName,
+          assigneeName,
+        };
+      }));
+
+      res.json(ticketsWithNames);
+    } catch (err: any) {
+      console.error("Error fetching tickets:", err);
+      res.status(500).json({ message: "Failed to fetch tickets" });
+    }
+  });
+
+  // 3. GET /api/admin/tickets - List tickets for staff
+  app.get("/api/admin/tickets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const userRole = req.user!.role;
+      const isOwner = userRole === "OWNER";
+
+      if (!isOwner) {
+        const profiles = await storage.getUserPlayerProfiles(userId);
+        const adminClubIds = profiles
+          .filter(p => p.membershipStatus === "APPROVED" && ["OWNER", "ADMIN"].includes(p.clubRole))
+          .map(p => p.clubId);
+        if (adminClubIds.length === 0) {
+          return res.status(403).json({ message: "Not authorized" });
+        }
+      }
+
+      const conditions: any[] = [sql`${tickets.deletedAt} IS NULL`];
+
+      if (!isOwner) {
+        const profiles = await storage.getUserPlayerProfiles(userId);
+        const adminClubIds = profiles
+          .filter(p => p.membershipStatus === "APPROVED" && ["OWNER", "ADMIN"].includes(p.clubRole))
+          .map(p => p.clubId);
+        if (adminClubIds.length > 0) {
+          conditions.push(inArray(tickets.clubId, adminClubIds));
+        }
+      }
+
+      const { clubId, status, category } = req.query;
+      if (clubId) conditions.push(eq(tickets.clubId, Number(clubId)));
+      if (status) conditions.push(eq(tickets.status, status as any));
+      if (category) conditions.push(eq(tickets.category, category as any));
+
+      if (!isOwner && userRole !== "ADMIN") {
+        conditions.push(eq(tickets.isConfidential, false));
+      }
+
+      const priorityOrder = sql`CASE ${tickets.priority} WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5 END`;
+
+      const result = await db
+        .select({
+          ticket: tickets,
+          creatorName: users.fullName,
+        })
+        .from(tickets)
+        .leftJoin(users, eq(tickets.createdByUserId, users.id))
+        .where(and(...conditions))
+        .orderBy(priorityOrder, desc(tickets.lastActivityAt));
+
+      const ticketsWithNames = await Promise.all(result.map(async (r) => {
+        let assigneeName: string | null = null;
+        if (r.ticket.assignedToUserId) {
+          const [assignee] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, r.ticket.assignedToUserId));
+          assigneeName = assignee?.fullName || null;
+        }
+        return {
+          ...r.ticket,
+          creatorName: r.creatorName,
+          assigneeName,
+        };
+      }));
+
+      res.json(ticketsWithNames);
+    } catch (err: any) {
+      console.error("Error fetching admin tickets:", err);
+      res.status(500).json({ message: "Failed to fetch tickets" });
+    }
+  });
+
+  // 4. GET /api/tickets/:id - Get ticket detail
+  app.get("/api/tickets/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const userId = req.user!.id;
+      const userRole = req.user!.role;
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) {
+        return res.status(404).json({ message: "Ticket not found" });
+      }
+
+      const isCreator = ticket.createdByUserId === userId;
+      const isBanTarget = ticket.linkedBanUserId === userId;
+      const isOwner = userRole === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(userId, userRole, ticket.clubId);
+
+      if (!isCreator && !isBanTarget && !isStaff) {
+        return res.status(403).json({ message: "Not authorized to view this ticket" });
+      }
+
+      if (ticket.isConfidential && !isStaff) {
+        return res.status(403).json({ message: "Not authorized to view confidential ticket" });
+      }
+
+      if (isStaff && ticket.status === "SUBMITTED") {
+        await db.update(tickets).set({
+          status: "UNDER_REVIEW",
+          lastActivityAt: new Date(),
+        }).where(eq(tickets.id, ticketId));
+
+        await db.insert(ticketAuditLogs).values({
+          ticketId: ticket.id,
+          actorUserId: userId,
+          action: "STATUS_CHANGE",
+          fromStatus: "SUBMITTED",
+          toStatus: "UNDER_REVIEW",
+        });
+
+        await db.insert(notifications).values({
+          userId: ticket.createdByUserId,
+          type: "TICKET_UPDATE",
+          title: "Ticket Under Review",
+          message: `Your ticket ${ticket.ticketNumber} is now being reviewed by staff.`,
+          linkUrl: `/tickets/${ticket.id}`,
+          status: "in_progress",
+        });
+
+        ticket.status = "UNDER_REVIEW";
+      }
+
+      const [creator] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, ticket.createdByUserId));
+      let assigneeName: string | null = null;
+      if (ticket.assignedToUserId) {
+        const [assignee] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, ticket.assignedToUserId));
+        assigneeName = assignee?.fullName || null;
+      }
+
+      const repliesResult = await db
+        .select({
+          reply: ticketReplies,
+          authorName: users.fullName,
+        })
+        .from(ticketReplies)
+        .leftJoin(users, eq(ticketReplies.authorUserId, users.id))
+        .where(and(eq(ticketReplies.ticketId, ticketId), sql`${ticketReplies.deletedAt} IS NULL`))
+        .orderBy(ticketReplies.createdAt);
+
+      const replies = repliesResult.map(r => ({
+        ...r.reply,
+        authorName: r.authorName,
+      }));
+
+      const auditLogsResult = await db
+        .select({
+          log: ticketAuditLogs,
+          actorName: users.fullName,
+        })
+        .from(ticketAuditLogs)
+        .leftJoin(users, eq(ticketAuditLogs.actorUserId, users.id))
+        .where(eq(ticketAuditLogs.ticketId, ticketId))
+        .orderBy(ticketAuditLogs.createdAt);
+
+      const auditLogs = auditLogsResult.map(r => ({
+        ...r.log,
+        actorName: r.actorName,
+      }));
+
+      let internalNotes: any[] = [];
+      if (isStaff) {
+        const notesResult = await db
+          .select({
+            note: ticketInternalNotes,
+            authorName: users.fullName,
+          })
+          .from(ticketInternalNotes)
+          .leftJoin(users, eq(ticketInternalNotes.authorUserId, users.id))
+          .where(eq(ticketInternalNotes.ticketId, ticketId))
+          .orderBy(ticketInternalNotes.createdAt);
+
+        internalNotes = notesResult.map(r => ({
+          ...r.note,
+          authorName: r.authorName,
+        }));
+      }
+
+      res.json({
+        ...ticket,
+        creatorName: creator?.fullName || null,
+        assigneeName,
+        replies,
+        auditLogs,
+        internalNotes: isStaff ? internalNotes : undefined,
+      });
+    } catch (err: any) {
+      console.error("Error fetching ticket detail:", err);
+      res.status(500).json({ message: "Failed to fetch ticket" });
+    }
+  });
+
+  // 5. PATCH /api/tickets/:id/status - Update ticket status
+  app.patch("/api/tickets/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { status: newStatus } = req.body;
+      if (!newStatus) return res.status(400).json({ message: "status is required" });
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const validTransitions: Record<string, string[]> = {
+        SUBMITTED: ["UNDER_REVIEW", "CLOSED"],
+        UNDER_REVIEW: ["RESPONDED", "RESOLVED", "CLOSED"],
+        RESPONDED: ["AWAITING_USER", "RESOLVED", "CLOSED"],
+        AWAITING_USER: ["UNDER_REVIEW", "RESPONDED", "RESOLVED", "CLOSED"],
+        RESOLVED: ["CLOSED", "UNDER_REVIEW"],
+        CLOSED: ["UNDER_REVIEW"],
+      };
+
+      const allowed = validTransitions[ticket.status] || [];
+      if (!allowed.includes(newStatus)) {
+        return res.status(400).json({ message: `Cannot transition from ${ticket.status} to ${newStatus}` });
+      }
+
+      const updates: any = {
+        status: newStatus,
+        lastActivityAt: new Date(),
+      };
+
+      if (newStatus === "RESOLVED" || newStatus === "CLOSED") {
+        updates.closedAt = new Date();
+      }
+
+      const [updated] = await db.update(tickets).set(updates).where(eq(tickets.id, ticketId)).returning();
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId: ticket.id,
+        actorUserId: req.user!.id,
+        action: "STATUS_CHANGE",
+        fromStatus: ticket.status,
+        toStatus: newStatus,
+      });
+
+      await db.insert(notifications).values({
+        userId: ticket.createdByUserId,
+        type: "TICKET_UPDATE",
+        title: "Ticket Status Updated",
+        message: `Your ticket ${ticket.ticketNumber} status changed to ${newStatus}.`,
+        linkUrl: `/tickets/${ticket.id}`,
+        status: "in_progress",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating ticket status:", err);
+      res.status(500).json({ message: "Failed to update ticket status" });
+    }
+  });
+
+  // 6. PATCH /api/tickets/:id/assign - Assign ticket
+  app.patch("/api/tickets/:id/assign", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { assignedToUserId } = req.body;
+      if (!assignedToUserId) return res.status(400).json({ message: "assignedToUserId is required" });
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const [updated] = await db.update(tickets).set({
+        assignedToUserId: Number(assignedToUserId),
+        lastActivityAt: new Date(),
+      }).where(eq(tickets.id, ticketId)).returning();
+
+      const [assignee] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, Number(assignedToUserId)));
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId: ticket.id,
+        actorUserId: req.user!.id,
+        action: "ASSIGNED",
+        metadata: { assignedToUserId: Number(assignedToUserId), assigneeName: assignee?.fullName },
+      });
+
+      await db.insert(notifications).values({
+        userId: Number(assignedToUserId),
+        type: "TICKET_UPDATE",
+        title: "Ticket Assigned to You",
+        message: `You have been assigned ticket ${ticket.ticketNumber}: ${ticket.subject}`,
+        linkUrl: `/tickets/${ticket.id}`,
+        status: "in_progress",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error assigning ticket:", err);
+      res.status(500).json({ message: "Failed to assign ticket" });
+    }
+  });
+
+  // 7. POST /api/tickets/:id/replies - Add reply
+  app.post("/api/tickets/:id/replies", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { body } = req.body;
+      if (!body || !body.trim()) return res.status(400).json({ message: "Reply body is required" });
+
+      const userId = req.user!.id;
+      const userRole = req.user!.role;
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+
+      const isCreator = ticket.createdByUserId === userId;
+      const isBanTarget = ticket.linkedBanUserId === userId;
+      const isOwner = userRole === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(userId, userRole, ticket.clubId);
+
+      if (!isCreator && !isBanTarget && !isStaff) {
+        return res.status(403).json({ message: "Not authorized to reply" });
+      }
+
+      const [reply] = await db.insert(ticketReplies).values({
+        ticketId,
+        authorUserId: userId,
+        body: body.trim(),
+        isStaff,
+      }).returning();
+
+      const statusUpdates: any = {
+        lastActivityAt: new Date(),
+        autoCloseAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      };
+
+      if (isStaff) {
+        if (["AWAITING_USER", "UNDER_REVIEW", "SUBMITTED"].includes(ticket.status)) {
+          statusUpdates.status = "RESPONDED";
+        }
+      } else {
+        if (["RESPONDED", "RESOLVED"].includes(ticket.status)) {
+          statusUpdates.status = "AWAITING_USER";
+        }
+      }
+
+      await db.update(tickets).set(statusUpdates).where(eq(tickets.id, ticketId));
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId,
+        actorUserId: userId,
+        action: isStaff ? "STAFF_REPLY" : "USER_REPLY",
+        fromStatus: ticket.status,
+        toStatus: statusUpdates.status || ticket.status,
+      });
+
+      if (isStaff) {
+        await db.insert(notifications).values({
+          userId: ticket.createdByUserId,
+          type: "TICKET_UPDATE",
+          title: "New Reply on Your Ticket",
+          message: `Staff responded to your ticket ${ticket.ticketNumber}.`,
+          linkUrl: `/tickets/${ticket.id}`,
+          status: "in_progress",
+        });
+      } else if (ticket.assignedToUserId) {
+        await db.insert(notifications).values({
+          userId: ticket.assignedToUserId,
+          type: "TICKET_UPDATE",
+          title: "New Reply on Ticket",
+          message: `User responded to ticket ${ticket.ticketNumber}.`,
+          linkUrl: `/tickets/${ticket.id}`,
+          status: "in_progress",
+        });
+      }
+
+      res.status(201).json(reply);
+    } catch (err: any) {
+      console.error("Error adding ticket reply:", err);
+      res.status(500).json({ message: "Failed to add reply" });
+    }
+  });
+
+  // 8. POST /api/tickets/:id/notes - Add internal note (staff only)
+  app.post("/api/tickets/:id/notes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { body } = req.body;
+      if (!body || !body.trim()) return res.status(400).json({ message: "Note body is required" });
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const [note] = await db.insert(ticketInternalNotes).values({
+        ticketId,
+        authorUserId: req.user!.id,
+        body: body.trim(),
+      }).returning();
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId,
+        actorUserId: req.user!.id,
+        action: "INTERNAL_NOTE",
+      });
+
+      await db.update(tickets).set({
+        lastActivityAt: new Date(),
+      }).where(eq(tickets.id, ticketId));
+
+      res.status(201).json(note);
+    } catch (err: any) {
+      console.error("Error adding internal note:", err);
+      res.status(500).json({ message: "Failed to add internal note" });
+    }
+  });
+
+  // 9. GET /api/tickets/:id/audit-log - Get audit log (staff only)
+  app.get("/api/tickets/:id/audit-log", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const result = await db
+        .select({
+          log: ticketAuditLogs,
+          actorName: users.fullName,
+        })
+        .from(ticketAuditLogs)
+        .leftJoin(users, eq(ticketAuditLogs.actorUserId, users.id))
+        .where(eq(ticketAuditLogs.ticketId, ticketId))
+        .orderBy(ticketAuditLogs.createdAt);
+
+      const logs = result.map(r => ({
+        ...r.log,
+        actorName: r.actorName,
+      }));
+
+      res.json(logs);
+    } catch (err: any) {
+      console.error("Error fetching audit log:", err);
+      res.status(500).json({ message: "Failed to fetch audit log" });
+    }
+  });
+
+  // 10. POST /api/admin/ban-member - Ban member and create ticket
+  app.post("/api/admin/ban-member", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { userId: targetUserId, clubId, reason, message } = req.body;
+      if (!targetUserId || !clubId || !reason) {
+        return res.status(400).json({ message: "userId, clubId, and reason are required" });
+      }
+
+      const isOwner = req.user!.role === "OWNER";
+      const isAdmin = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, Number(clubId));
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const targetUser = await storage.getUser(Number(targetUserId));
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const targetProfiles = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, Number(targetUserId)), eq(playerProfiles.clubId, Number(clubId))));
+
+      if (targetProfiles.length > 0) {
+        await db.update(playerProfiles).set({
+          playerStatus: "BANNED",
+        }).where(and(eq(playerProfiles.userId, Number(targetUserId)), eq(playerProfiles.clubId, Number(clubId))));
+      }
+
+      const ticketNumber = "TK-" + randomBytes(4).toString("hex").toUpperCase();
+      const autoCloseAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      const [ticket] = await db.insert(tickets).values({
+        ticketNumber,
+        clubId: Number(clubId),
+        createdByUserId: req.user!.id,
+        subject: `Member Ban: ${targetUser.fullName}`,
+        description: reason,
+        category: "SAFEGUARDING",
+        priority: "HIGH",
+        isConfidential: true,
+        linkedBanUserId: Number(targetUserId),
+        autoCloseAt,
+      }).returning();
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId: ticket.id,
+        actorUserId: req.user!.id,
+        action: "CREATED",
+        toStatus: "SUBMITTED",
+        metadata: { bannedUserId: Number(targetUserId), bannedUserName: targetUser.fullName },
+      });
+
+      const clubAdmins = await db.select().from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(and(
+          eq(playerProfiles.clubId, Number(clubId)),
+          eq(playerProfiles.membershipStatus, "APPROVED"),
+          or(
+            eq(playerProfiles.clubRole, "ADMIN"),
+            eq(playerProfiles.clubRole, "OWNER")
+          )
+        ));
+
+      const ownerUsers = await db.select().from(users).where(eq(users.role, "OWNER" as any));
+      const notifyUserIds = new Set<number>();
+      for (const ca of clubAdmins) {
+        notifyUserIds.add(ca.player_profiles.userId);
+      }
+      for (const ou of ownerUsers) {
+        notifyUserIds.add(ou.id);
+      }
+      notifyUserIds.delete(req.user!.id);
+
+      for (const notifyId of notifyUserIds) {
+        await db.insert(notifications).values({
+          userId: notifyId,
+          type: "TICKET_UPDATE",
+          title: "Member Banned",
+          message: `${targetUser.fullName} has been banned from the club. Reason: ${reason}`,
+          linkUrl: `/tickets/${ticket.id}`,
+          status: "in_progress",
+        });
+      }
+
+      await db.insert(notifications).values({
+        userId: Number(targetUserId),
+        type: "TICKET_UPDATE",
+        title: "Account Action",
+        message: message || `Your membership has been suspended. Reason: ${reason}`,
+        linkUrl: `/tickets/${ticket.id}`,
+        status: "in_progress",
+      });
+
+      res.status(201).json(ticket);
+    } catch (err: any) {
+      console.error("Error banning member:", err);
+      res.status(500).json({ message: "Failed to ban member" });
     }
   });
 

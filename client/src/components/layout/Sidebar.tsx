@@ -20,6 +20,7 @@ import {
   Trophy,
   Bell,
   Megaphone,
+  Ticket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,6 +44,7 @@ function useNavItems(): NavItem[] {
     { href: "/clubs", label: "Clubs", icon: Building2 },
     { href: "/rankings", label: "Rankings", icon: Trophy },
     { href: "/announcements", label: "Announcements", icon: Megaphone },
+    { href: "/tickets", label: "Tickets", icon: Ticket },
     { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/inbox", label: "Inbox", icon: Mail },
   ];

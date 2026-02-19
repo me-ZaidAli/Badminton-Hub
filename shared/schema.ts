@@ -979,3 +979,71 @@ export type DiscountCode = typeof discountCodes.$inferSelect;
 export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
 export type DiscountCodeAssignment = typeof discountCodeAssignments.$inferSelect;
 export type InsertDiscountCodeAssignment = z.infer<typeof insertDiscountCodeAssignmentSchema>;
+
+// === Ticketing System ===
+export const ticketStatusEnum = pgEnum("ticket_status", ["SUBMITTED", "UNDER_REVIEW", "RESPONDED", "AWAITING_USER", "RESOLVED", "CLOSED"]);
+export const ticketCategoryEnum = pgEnum("ticket_category", ["CONCERN", "COMPLAINT", "SUGGESTION", "GENERAL", "SAFEGUARDING", "BAN_APPEAL"]);
+export const ticketPriorityEnum = pgEnum("ticket_priority", ["LOW", "MEDIUM", "HIGH", "URGENT"]);
+
+export const tickets = pgTable("tickets", {
+  id: serial("id").primaryKey(),
+  ticketNumber: text("ticket_number").notNull().unique(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
+  assignedToUserId: integer("assigned_to_user_id").references(() => users.id),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  category: ticketCategoryEnum("category").notNull(),
+  priority: ticketPriorityEnum("priority").default("MEDIUM").notNull(),
+  status: ticketStatusEnum("status").default("SUBMITTED").notNull(),
+  isConfidential: boolean("is_confidential").default(false).notNull(),
+  linkedBanUserId: integer("linked_ban_user_id").references(() => users.id),
+  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+  autoCloseAt: timestamp("auto_close_at"),
+  closedAt: timestamp("closed_at"),
+  deletedAt: timestamp("deleted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ticketReplies = pgTable("ticket_replies", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").references(() => tickets.id).notNull(),
+  authorUserId: integer("author_user_id").references(() => users.id).notNull(),
+  body: text("body").notNull(),
+  isStaff: boolean("is_staff").default(false).notNull(),
+  deletedAt: timestamp("deleted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ticketInternalNotes = pgTable("ticket_internal_notes", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").references(() => tickets.id).notNull(),
+  authorUserId: integer("author_user_id").references(() => users.id).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ticketAuditLogs = pgTable("ticket_audit_logs", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").references(() => tickets.id).notNull(),
+  actorUserId: integer("actor_user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTicketSchema = createInsertSchema(tickets).omit({ id: true, createdAt: true, lastActivityAt: true, deletedAt: true, closedAt: true });
+export const insertTicketReplySchema = createInsertSchema(ticketReplies).omit({ id: true, createdAt: true, deletedAt: true });
+export const insertTicketInternalNoteSchema = createInsertSchema(ticketInternalNotes).omit({ id: true, createdAt: true });
+export const insertTicketAuditLogSchema = createInsertSchema(ticketAuditLogs).omit({ id: true, createdAt: true });
+
+export type Ticket = typeof tickets.$inferSelect;
+export type InsertTicket = z.infer<typeof insertTicketSchema>;
+export type TicketReply = typeof ticketReplies.$inferSelect;
+export type InsertTicketReply = z.infer<typeof insertTicketReplySchema>;
+export type TicketInternalNote = typeof ticketInternalNotes.$inferSelect;
+export type InsertTicketInternalNote = z.infer<typeof insertTicketInternalNoteSchema>;
+export type TicketAuditLog = typeof ticketAuditLogs.$inferSelect;
+export type InsertTicketAuditLog = z.infer<typeof insertTicketAuditLogSchema>;

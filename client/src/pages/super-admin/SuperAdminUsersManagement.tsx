@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { BanMemberModal } from "@/components/BanMemberModal";
 import {
   Users, Shield, ArrowLeft, Search, Loader2, Trophy, Clock,
   KeyRound, CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
@@ -1304,31 +1305,16 @@ export default function SuperAdminUsersManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!banConfirmProfile} onOpenChange={(open) => { if (!open) setBanConfirmProfile(null); }}>
-        <AlertDialogContent data-testid="dialog-ban-profile-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Ban className="w-5 h-5 text-destructive" />
-              Ban Player
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will ban <strong>{selectedPlayer?.fullName}</strong> from <strong>{banConfirmProfile?.clubName}</strong>. They will not be able to join sessions or participate in matches. This action can be reversed by changing their player status.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground"
-              onClick={() => banConfirmProfile && banProfileMutation.mutate(banConfirmProfile)}
-              disabled={banProfileMutation.isPending}
-              data-testid="button-confirm-ban-profile"
-            >
-              {banProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Ban Player
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {banConfirmProfile && selectedPlayer && (
+        <BanMemberModal
+          open={!!banConfirmProfile}
+          onClose={() => setBanConfirmProfile(null)}
+          userId={selectedPlayer.id}
+          userName={selectedPlayer.fullName}
+          clubId={banConfirmProfile.clubId}
+          clubName={banConfirmProfile.clubName || "Unknown Club"}
+        />
+      )}
     </div>
   );
 }
