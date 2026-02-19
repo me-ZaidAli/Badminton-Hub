@@ -114,12 +114,13 @@ export default function AcquisitionAnalytics() {
   });
 
   const clubsQuery = useQuery<{ clubId: number; clubName: string }[]>({
-    queryKey: ["/api/admin/analytics"],
+    queryKey: ["/api/clubs", "acquisition-filter"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/analytics", { credentials: "include" });
+      const res = await fetch("/api/clubs", { credentials: "include" });
       if (!res.ok) return [];
       const d = await res.json();
-      return d.clubs?.map((c: any) => ({ clubId: c.clubId, clubName: c.clubName })) || [];
+      if (!Array.isArray(d)) return [];
+      return d.map((c: any) => ({ clubId: c.id, clubName: c.name }));
     },
   });
 
@@ -233,7 +234,7 @@ export default function AcquisitionAnalytics() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Clubs</SelectItem>
-                  {clubsQuery.data?.map((c) => (
+                  {Array.isArray(clubsQuery.data) && clubsQuery.data.map((c) => (
                     <SelectItem key={c.clubId} value={String(c.clubId)}>
                       {c.clubName}
                     </SelectItem>
