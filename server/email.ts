@@ -107,5 +107,25 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     console.log(`[EMAIL SENT] Email sent to ${to} via Gmail`);
     return;
   }
-  throw new Error("No email service configured.");
+  console.log(`[EMAIL NOT SENT - No service] ${subject} to ${to}`);
+}
+
+export async function sendChatNotificationEmail(to: string, subject: string, body: string): Promise<void> {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #333;">Club Master - Chat Notification</h2>
+      <p>${body}</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.REPLIT_DEV_DOMAIN ? 'https://' + process.env.REPLIT_DEV_DOMAIN : ''}/inbox" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+          Open Chat
+        </a>
+      </div>
+      <p style="color: #999; font-size: 12px; margin-top: 30px;">You received this email because of your notification preferences in Club Master.</p>
+    </div>
+  `;
+  try {
+    await sendEmail(to, subject, htmlContent);
+  } catch (e) {
+    console.log(`[EMAIL SKIP] Chat notification to ${to}: ${subject}`);
+  }
 }

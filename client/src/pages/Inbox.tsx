@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+
+const GroupChats = lazy(() => import("./GroupChats"));
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +42,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   MessageCircle,
   Send,
   Loader2,
@@ -52,6 +60,7 @@ import {
   Shield,
   ChevronDown,
   User,
+  Users,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -312,8 +321,28 @@ export default function InboxPage() {
     );
   }
 
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("chat") ? "group" : "direct";
+  });
+
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col" data-testid="chat-container">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+        <TabsList className="mx-3 mt-2 w-fit" data-testid="inbox-tabs">
+          <TabsTrigger value="direct" className="gap-1.5" data-testid="tab-direct-messages">
+            <MessageCircle className="h-4 w-4" />Direct Messages
+          </TabsTrigger>
+          <TabsTrigger value="group" className="gap-1.5" data-testid="tab-group-chats">
+            <Users className="h-4 w-4" />Group Chats
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="group" className="flex-1 min-h-0 mt-2 mx-0">
+          <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+            <GroupChats />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="direct" className="flex-1 min-h-0 mt-2 mx-0">
       <div className="flex flex-1 min-h-0 border rounded-md overflow-hidden">
         <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 border-r flex flex-col bg-background ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b space-y-2">
@@ -681,6 +710,8 @@ export default function InboxPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

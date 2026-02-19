@@ -75,6 +75,7 @@ const TicketDetail = lazy(() => import("@/pages/TicketDetail"));
 const PasswordResets = lazy(() => import("@/pages/admin/PasswordResets"));
 const ContactForm = lazy(() => import("@/pages/ContactForm"));
 const Messages = lazy(() => import("@/pages/admin/Messages"));
+const ChatModeration = lazy(() => import("@/pages/admin/ChatModeration"));
 const InboxPage = lazy(() => import("@/pages/Inbox"));
 const PolicyPage = lazy(() => import("@/pages/PolicyPage"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
@@ -452,6 +453,9 @@ function Router() {
       </Route>
       <Route path="/admin/messages">
         <OwnerRoute component={Messages} />
+      </Route>
+      <Route path="/admin/chat-moderation">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><ChatModeration /></Suspense>} />
       </Route>
 
       {/* Super Admin Routes - OWNER only */}

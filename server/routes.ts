@@ -15,6 +15,7 @@ import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
+import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1447,6 +1448,12 @@ export async function registerRoutes(
         }
       }
 
+      try {
+        await autoCreateSessionChat(session.id, session.title, input.clubId, req.user!.id);
+      } catch (chatErr) {
+        console.error("[SESSION CREATE] Failed to auto-create session chat:", chatErr);
+      }
+
       res.status(201).json(session);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1782,6 +1789,13 @@ export async function registerRoutes(
     }
     
     const signup = await storage.createSessionSignup(sessionId, profile.id, fee);
+
+    try {
+      await addUserToSessionChat(sessionId, req.user!.id);
+    } catch (chatErr) {
+      console.error("[SESSION JOIN] Failed to add user to session chat:", chatErr);
+    }
+
     res.status(201).json(signup);
   });
 
@@ -1792,6 +1806,12 @@ export async function registerRoutes(
     if (!profile) return res.sendStatus(400);
 
     await storage.deleteSessionSignup(sessionId, profile.id);
+
+    try {
+      await removeUserFromSessionChat(sessionId, req.user!.id);
+    } catch (chatErr) {
+      console.error("[SESSION WITHDRAW] Failed to remove user from session chat:", chatErr);
+    }
 
     // Auto-promote first waiting list player
     const session = await storage.getSession(sessionId);
@@ -13175,6 +13195,9 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to generate report" });
     }
   });
+
+  // === GROUP CHAT ROUTES ===
+  registerChatRoutes(app);
 
   return httpServer;
 }

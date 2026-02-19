@@ -1086,3 +1086,125 @@ export const referralsRelations = relations(referrals, ({ one }) => ({
 export const insertReferralSchema = createInsertSchema(referrals).omit({ id: true, createdAt: true });
 export type Referral = typeof referrals.$inferSelect;
 export type InsertReferral = z.infer<typeof insertReferralSchema>;
+
+// === GROUP CHAT SYSTEM ===
+export const chatTypeEnum = pgEnum("chat_type", ["SESSION", "CLUB", "PREMIUM", "STAFF", "EVENT", "CUSTOM"]);
+export const chatRoleEnum = pgEnum("chat_role", ["ADMIN", "ORGANISER", "COACH", "MEMBER"]);
+export const chatMessageTypeEnum = pgEnum("chat_message_type", ["USER", "SYSTEM"]);
+
+export const chats = pgTable("chats", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: chatTypeEnum("type").notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  sessionId: integer("session_id").references(() => sessions.id),
+  description: text("description"),
+  isLocked: boolean("is_locked").default(false).notNull(),
+  isReadOnlyForPlayers: boolean("is_read_only_for_players").default(false).notNull(),
+  isJuniorLinked: boolean("is_junior_linked").default(false).notNull(),
+  pinnedMessageId: integer("pinned_message_id"),
+  createdById: integer("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const chatMembers = pgTable("chat_members", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").references(() => chats.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: chatRoleEnum("role").default("MEMBER").notNull(),
+  isMuted: boolean("is_muted").default(false).notNull(),
+  mutedUntil: timestamp("muted_until"),
+  muteReason: text("mute_reason"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").references(() => chats.id, { onDelete: "cascade" }).notNull(),
+  senderId: integer("sender_id").references(() => users.id),
+  body: text("body").notNull(),
+  messageType: chatMessageTypeEnum("message_type").default("USER").notNull(),
+  systemEventType: text("system_event_type"),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedById: integer("deleted_by_id").references(() => users.id),
+  deleteReason: text("delete_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatReactions = pgTable("chat_reactions", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => chatMessages.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  emoji: text("emoji").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatReports = pgTable("chat_reports", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => chatMessages.id, { onDelete: "cascade" }).notNull(),
+  reporterId: integer("reporter_id").references(() => users.id).notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").default("OPEN").notNull(),
+  resolvedById: integer("resolved_by_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  resolution: text("resolution"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatAuditLogs = pgTable("chat_audit_logs", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").references(() => chats.id, { onDelete: "cascade" }).notNull(),
+  actorId: integer("actor_id").references(() => users.id).notNull(),
+  action: text("action").notNull(),
+  targetUserId: integer("target_user_id").references(() => users.id),
+  targetMessageId: integer("target_message_id").references(() => chatMessages.id),
+  reason: text("reason"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatsRelations = relations(chats, ({ one, many }) => ({
+  club: one(clubs, { fields: [chats.clubId], references: [clubs.id] }),
+  session: one(sessions, { fields: [chats.sessionId], references: [sessions.id] }),
+  createdBy: one(users, { fields: [chats.createdById], references: [users.id] }),
+  members: many(chatMembers),
+  messages: many(chatMessages),
+}));
+
+export const chatMembersRelations = relations(chatMembers, ({ one }) => ({
+  chat: one(chats, { fields: [chatMembers.chatId], references: [chats.id] }),
+  user: one(users, { fields: [chatMembers.userId], references: [users.id] }),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => ({
+  chat: one(chats, { fields: [chatMessages.chatId], references: [chats.id] }),
+  sender: one(users, { fields: [chatMessages.senderId], references: [users.id] }),
+  reactions: many(chatReactions),
+}));
+
+export const chatReactionsRelations = relations(chatReactions, ({ one }) => ({
+  message: one(chatMessages, { fields: [chatReactions.messageId], references: [chatMessages.id] }),
+  user: one(users, { fields: [chatReactions.userId], references: [users.id] }),
+}));
+
+export const insertChatSchema = createInsertSchema(chats).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertChatMemberSchema = createInsertSchema(chatMembers).omit({ id: true, joinedAt: true });
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true });
+export const insertChatReactionSchema = createInsertSchema(chatReactions).omit({ id: true, createdAt: true });
+export const insertChatReportSchema = createInsertSchema(chatReports).omit({ id: true, createdAt: true });
+export const insertChatAuditLogSchema = createInsertSchema(chatAuditLogs).omit({ id: true, createdAt: true });
+
+export type Chat = typeof chats.$inferSelect;
+export type InsertChat = z.infer<typeof insertChatSchema>;
+export type ChatMember = typeof chatMembers.$inferSelect;
+export type InsertChatMember = z.infer<typeof insertChatMemberSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatReaction = typeof chatReactions.$inferSelect;
+export type InsertChatReaction = z.infer<typeof insertChatReactionSchema>;
+export type ChatReport = typeof chatReports.$inferSelect;
+export type InsertChatReport = z.infer<typeof insertChatReportSchema>;
+export type ChatAuditLog = typeof chatAuditLogs.$inferSelect;
+export type InsertChatAuditLog = z.infer<typeof insertChatAuditLogSchema>;
