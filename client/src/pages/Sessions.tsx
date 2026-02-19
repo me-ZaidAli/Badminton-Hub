@@ -16,7 +16,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -390,6 +391,7 @@ export default function Sessions() {
   const [detailsSession, setDetailsSession] = useState<any>(null);
   const [financeSession, setFinanceSession] = useState<any>(null);
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
+  const [joinSession, setJoinSession] = useState<any>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
@@ -400,6 +402,24 @@ export default function Sessions() {
     queryKey: ["/api/user/memberships"],
     enabled: !!user,
   });
+
+  const { data: mySignups } = useQuery<any[]>({
+    queryKey: ["/api/my-sessions"],
+    enabled: !!user,
+  });
+
+  const { data: juniors } = useQuery<any[]>({
+    queryKey: ["/api/juniors"],
+    enabled: !!user,
+  });
+
+  const mySignupsBySession = useMemo(() => {
+    const map = new Map<number, any>();
+    if (mySignups) {
+      mySignups.forEach(s => map.set(s.sessionId, s));
+    }
+    return map;
+  }, [mySignups]);
 
   const myClubIds = useMemo(() => {
     if (!memberships) return new Set<number>();
@@ -472,6 +492,20 @@ export default function Sessions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       toast({ title: "Published", description: "Session is now open for signups." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("POST", `/api/sessions/${sessionId}/withdraw`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      toast({ title: "Withdrawn", description: "You've been removed from this session." });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -810,16 +844,107 @@ export default function Sessions() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between mt-auto pt-3 sm:pt-4 border-t border-border/50 gap-2">
+                {(() => {
+                  const signup = mySignupsBySession.get(session.id);
+                  const isSignedUp = signup && (signup.signupStatus === "CONFIRMED" || signup.signupStatus === "WAITING");
+                  const isNotAttending = signup && signup.signupStatus === "NOT_ATTENDING";
+                  const isInvited = signup && signup.signupStatus === "INVITED";
+                  const isPast = new Date(session.date) < now;
+                  const isScheduledLater = (session as any).publishAt && new Date((session as any).publishAt) > new Date();
+                  const hasAccess = getSessionAccess(session.clubId) === "allowed";
+
+                  return (
+                    <>
+                      {user && hasAccess && !isPast && !isScheduledLater && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 space-y-2" data-testid={`session-join-area-${session.id}`}>
+                          {isSignedUp ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400 flex-1 justify-center py-1.5">
+                                <CheckCircle className="h-4 w-4 mr-1.5" />
+                                {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 border-red-200 dark:border-red-800"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  withdrawMutation.mutate(session.id);
+                                }}
+                                disabled={withdrawMutation.isPending}
+                                data-testid={`button-decline-session-${session.id}`}
+                              >
+                                {withdrawMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
+                                Withdraw
+                              </Button>
+                            </div>
+                          ) : isInvited ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                className="flex-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setJoinSession(session);
+                                }}
+                                data-testid={`button-accept-invite-${session.id}`}
+                              >
+                                <UserCheck className="h-4 w-4 mr-1.5" />
+                                Accept Invite
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 border-red-200 dark:border-red-800"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  withdrawMutation.mutate(session.id);
+                                }}
+                                disabled={withdrawMutation.isPending}
+                                data-testid={`button-decline-invite-${session.id}`}
+                              >
+                                {withdrawMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
+                                Decline
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setJoinSession(session);
+                              }}
+                              data-testid={`button-join-session-${session.id}`}
+                            >
+                              <UserCheck className="h-4 w-4 mr-1.5" />
+                              Join Session
+                              {juniors && juniors.length > 0 && (
+                                <Badge variant="secondary" className="ml-2 text-[10px] bg-primary-foreground/20">
+                                  <Baby className="h-3 w-3 mr-0.5" />
+                                  +Kids
+                                </Badge>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {user && !hasAccess && !isPast && (
+                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                            <Lock className="h-4 w-4 text-red-500" />
+                            <span>Join the club to sign up</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 gap-2">
                   <span className="font-bold text-sm sm:text-lg">
                     {format(new Date(session.date), "EEE, MMM d")}
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {user && !isSuperUser && !editableClubIds.has(session.clubId) && (
-                      getSessionAccess(session.clubId) === "denied" ? (
-                        <Lock className="h-5 w-5 text-red-500" data-testid={`icon-session-locked-${session.id}`} />
-                      ) : null
-                    )}
                     {editableClubIds.has(session.clubId) ? (
                       <>
                         <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
@@ -930,7 +1055,203 @@ export default function Sessions() {
           onOpenChange={(open) => { if (!open) setFinanceSession(null); }}
         />
       )}
+
+      {joinSession && (
+        <JoinSessionModal
+          session={joinSession}
+          open={!!joinSession}
+          onOpenChange={(open) => { if (!open) setJoinSession(null); }}
+          user={user}
+          juniors={juniors || []}
+        />
+      )}
     </div>
+  );
+}
+
+function JoinSessionModal({
+  session,
+  open,
+  onOpenChange,
+  user,
+  juniors,
+}: {
+  session: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: any;
+  juniors: any[];
+}) {
+  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set([user?.id]));
+
+  const clubJuniors = juniors.filter((j: any) => {
+    return true;
+  });
+
+  const allAttendees = [
+    { id: user?.id, fullName: user?.fullName || "Me", isJunior: false },
+    ...clubJuniors.map((j: any) => ({ id: j.id, fullName: j.fullName, isJunior: true })),
+  ];
+
+  const hasChildren = clubJuniors.length > 0;
+
+  const toggleAttendee = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === allAttendees.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allAttendees.map(a => a.id)));
+    }
+  };
+
+  const joinMutation = useMutation({
+    mutationFn: async () => {
+      if (selectedIds.size === 0) throw new Error("Select at least one person");
+      const attendees = Array.from(selectedIds).map(userId => ({
+        userId,
+        paymentMethod: "NONE",
+      }));
+      const res = await apiRequest("POST", `/api/sessions/${session.id}/join-multi`, { attendees });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      const signedUp = data.signups?.length || 0;
+      const errs = data.errors?.length || 0;
+      if (signedUp > 0) {
+        toast({
+          title: "Signed Up",
+          description: `${signedUp} ${signedUp === 1 ? "person" : "people"} signed up for ${session.title || "session"}.${errs > 0 ? ` ${errs} could not be added.` : ""}`,
+        });
+      }
+      if (errs > 0 && signedUp === 0) {
+        toast({
+          title: "Could Not Join",
+          description: data.errors.join(", "),
+          variant: "destructive",
+        });
+      }
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle data-testid="text-join-session-title">Join Session</DialogTitle>
+          <DialogDescription>
+            {session.title || "Session"} - {format(new Date(session.date), "EEE, MMM d")} at {session.startTime}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Who's attending?</span>
+            {hasChildren && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={selectAll}
+                data-testid="button-select-all-attendees"
+              >
+                {selectedIds.size === allAttendees.length ? (
+                  <>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                    Select All
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-2" data-testid="attendee-list">
+            {allAttendees.map((attendee) => (
+              <div
+                key={attendee.id}
+                className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                  selectedIds.has(attendee.id)
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover-elevate"
+                }`}
+                onClick={() => toggleAttendee(attendee.id)}
+                data-testid={`attendee-option-${attendee.id}`}
+              >
+                <Checkbox
+                  checked={selectedIds.has(attendee.id)}
+                  onCheckedChange={() => toggleAttendee(attendee.id)}
+                  data-testid={`checkbox-attendee-${attendee.id}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{attendee.fullName}</span>
+                    {attendee.isJunior && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        <Baby className="h-3 w-3 mr-0.5" />
+                        Junior
+                      </Badge>
+                    )}
+                    {!attendee.isJunior && (
+                      <Badge variant="outline" className="text-[10px]">You</Badge>
+                    )}
+                  </div>
+                </div>
+                {selectedIds.has(attendee.id) && (
+                  <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {session.sessionFee != null && (
+            <div className="text-sm text-muted-foreground text-center">
+              Session fee: <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span> per person
+              {selectedIds.size > 0 && (
+                <span className="ml-1">
+                  (Total: <span className="font-medium">£{((session.sessionFee * selectedIds.size) / 100).toFixed(2)}</span>)
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-join">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => joinMutation.mutate()}
+            disabled={joinMutation.isPending || selectedIds.size === 0}
+            data-testid="button-confirm-join"
+          >
+            {joinMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <UserCheck className="h-4 w-4 mr-2" />
+            )}
+            Join ({selectedIds.size})
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
