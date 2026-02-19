@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
-import { useMyAdminClubs } from "@/hooks/use-clubs";
+import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,7 @@ export default function AdminDashboard() {
   const [downloadingAttendance, setDownloadingAttendance] = useState(false);
 
   const isOwner = user?.role === "OWNER";
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics"],
@@ -89,14 +90,14 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold" data-testid="text-dashboard-title">Admin Panel</h1>
+          <h1 className="text-3xl font-display font-bold" data-testid="text-dashboard-title">{isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel"}</h1>
           <p className="text-muted-foreground">
             {`Overview of your managed club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}.`}
           </p>
         </div>
         <Badge variant="outline" className="text-sm py-1 px-3">
           <Shield className="h-4 w-4 mr-2" />
-          {user?.role}
+          {isOrganiserOnly ? "ORGANISER" : user?.role}
         </Badge>
       </div>
 
@@ -171,43 +172,47 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border-border/50 hover-elevate cursor-pointer">
-          <Link href="/admin/players">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <UserPlus className="h-5 w-5 text-purple-500" />
-                  Player Management
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Add new players and edit their profiles and details.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer">
+            <Link href="/admin/players">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5 text-purple-500" />
+                    Player Management
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Add new players and edit their profiles and details.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
 
-        <Card className="border-border/50 hover-elevate cursor-pointer">
-          <Link href="/admin/financials">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-500" />
-                  Financials
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Track payments, view unpaid sessions, and manage fees.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer">
+            <Link href="/admin/financials">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-500" />
+                    Financials
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Track payments, view unpaid sessions, and manage fees.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
 
         <Card className="border-border/50 hover-elevate cursor-pointer">
           <Link href="/sessions">
@@ -249,43 +254,47 @@ export default function AdminDashboard() {
           </Card>
         )}
 
-        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
-          <Link href="/admin/memberships">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-teal-500" />
-                  Membership Management
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Manage membership plans, requests, and payment status.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
+            <Link href="/admin/memberships">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-teal-500" />
+                    Membership Management
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Manage membership plans, requests, and payment status.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
 
-        <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
-          <Link href="/admin/import-members">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-indigo-500" />
-                  Import Members
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Bulk upload members via CSV or add them manually.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
+            <Link href="/admin/import-members">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Upload className="h-5 w-5 text-indigo-500" />
+                    Import Members
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Bulk upload members via CSV or add them manually.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
       </div>
 
       {isOwner && (

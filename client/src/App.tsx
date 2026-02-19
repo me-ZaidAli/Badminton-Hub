@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileTopNav } from "@/components/layout/Sidebar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
-import { useMyAdminClubs } from "@/hooks/use-clubs";
+import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense, useEffect } from "react";
@@ -125,6 +125,45 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   
   if (!hasClubAdminAccess) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-background">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <ErrorBoundary>
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function NonOrganiserAdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const { data: myAdminClubs, isLoading: clubsLoading } = useMyAdminClubs(!!user);
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
+  const [, setLocation] = useLocation();
+
+  if (isLoading || clubsLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!user) {
+    setLocation("/login");
+    return null;
+  }
+
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  
+  if (!hasClubAdminAccess || isOrganiserOnly) {
     setLocation("/dashboard");
     return null;
   }
@@ -348,25 +387,25 @@ function Router() {
         <AdminRoute component={AdminDashboard} />
       </Route>
       <Route path="/admin/players">
-        <AdminRoute component={PlayerManagement} />
+        <NonOrganiserAdminRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/members">
-        <AdminRoute component={PlayerManagement} />
+        <NonOrganiserAdminRoute component={PlayerManagement} />
       </Route>
       <Route path="/admin/players/:playerId">
-        <AdminRoute component={PlayerProfile} />
+        <NonOrganiserAdminRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
-        <AdminRoute component={Financials} />
+        <NonOrganiserAdminRoute component={Financials} />
       </Route>
       <Route path="/admin/membership-board">
-        <AdminRoute component={MembershipBoard} />
+        <NonOrganiserAdminRoute component={MembershipBoard} />
       </Route>
       <Route path="/admin/memberships">
-        <AdminRoute component={MembershipBoard} />
+        <NonOrganiserAdminRoute component={MembershipBoard} />
       </Route>
       <Route path="/admin/inventory">
-        <AdminRoute component={AdminInventory} />
+        <NonOrganiserAdminRoute component={AdminInventory} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={AdminAnnouncements} />
@@ -393,7 +432,7 @@ function Router() {
         <OwnerRoute component={Analytics} />
       </Route>
       <Route path="/admin/import-members">
-        <AdminRoute component={MemberImport} />
+        <NonOrganiserAdminRoute component={MemberImport} />
       </Route>
 
       <Route path="/admin/password-resets">

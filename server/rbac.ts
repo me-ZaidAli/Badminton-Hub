@@ -47,28 +47,28 @@ export async function canPerform(user: RBACUser, action: RBACAction, clubId?: nu
     case "VIEW_CLUB":
       return true;
 
-    case "MANAGE_CLUB":
     case "VIEW_MEMBERS":
-    case "MANAGE_MEMBERS":
     case "MANAGE_VENUES":
+      return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);
+
+    case "MANAGE_CLUB":
+    case "MANAGE_MEMBERS":
       return ["OWNER", "ADMIN"].includes(clubRole);
 
     case "MANAGE_SESSIONS":
-      return ["OWNER", "ADMIN"].includes(clubRole);
+    case "EDIT_SESSIONS":
+      return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);
 
     case "MANAGE_CREDITS":
     case "MANAGE_MEMBERSHIPS":
     case "MANAGE_INVENTORY":
       return ["OWNER", "ADMIN"].includes(clubRole);
 
-    case "EDIT_SESSIONS":
-      return ["OWNER", "ADMIN"].includes(clubRole);
-
     case "MANAGE_TOURNAMENTS":
-      return ["OWNER", "ADMIN"].includes(clubRole);
+      return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);
 
     case "VIEW_ADMIN_PANEL":
-      return ["OWNER", "ADMIN"].includes(clubRole);
+      return ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole);
 
     default:
       return false;

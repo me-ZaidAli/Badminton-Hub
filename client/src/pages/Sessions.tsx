@@ -1,6 +1,6 @@
 import { useSessions, useCreateSession, useUpdateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs, useMySessionClubs, useMyAdminClubs } from "@/hooks/use-clubs";
+import { useClubs, useMySessionClubs, useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -395,6 +395,7 @@ export default function Sessions() {
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const editableClubIds = new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
@@ -948,10 +949,12 @@ export default function Sessions() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {editableClubIds.has(session.clubId) ? (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
-                          <Wallet className="h-4 w-4 mr-1" />
-                          Finances
-                        </Button>
+                        {!isOrganiserOnly && (
+                          <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
+                            <Wallet className="h-4 w-4 mr-1" />
+                            Finances
+                          </Button>
+                        )}
                         <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
                         <Button
                           size="icon"

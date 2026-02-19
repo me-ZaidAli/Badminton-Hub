@@ -60,6 +60,36 @@ export function useMyAdminClubs(isAuthenticated: boolean = false) {
   });
 }
 
+export interface UserClubRole {
+  clubId: number;
+  clubRole: string;
+}
+
+export function useUserClubRoles(isAuthenticated: boolean = false) {
+  return useQuery<UserClubRole[]>({
+    queryKey: ["/api/user/club-roles"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/club-roles", { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 401) return [];
+        throw new Error("Failed to fetch club roles");
+      }
+      return res.json();
+    },
+    enabled: isAuthenticated,
+  });
+}
+
+export function useIsOrganiserOnly(isAuthenticated: boolean = false) {
+  const { data: user } = useQuery<any>({ queryKey: ["/api/user"], enabled: isAuthenticated });
+  const { data: clubRoles } = useUserClubRoles(isAuthenticated);
+  if (user?.role === "OWNER" || user?.role === "ADMIN") return false;
+  if (!clubRoles || clubRoles.length === 0) return false;
+  const hasAdminOrOwner = clubRoles.some(r => r.clubRole === "ADMIN" || r.clubRole === "OWNER");
+  const hasOrganiser = clubRoles.some(r => r.clubRole === "ORGANISER");
+  return hasOrganiser && !hasAdminOrOwner;
+}
+
 // Get all clubs for super admin (includes pending/inactive clubs)
 export function useAllClubsForAdmin(enabled: boolean = false) {
   return useQuery<Club[]>({

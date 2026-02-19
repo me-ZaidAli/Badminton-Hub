@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { useMyAdminClubs } from "@/hooks/use-clubs";
+import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { useState } from "react";
@@ -55,6 +55,7 @@ function useBadgeCounts() {
 function useNavItems(): NavItem[] {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN" || hasClubAdminAccess || 
@@ -77,7 +78,8 @@ function useNavItems(): NavItem[] {
     }
     navItems.push({ href: "/super-admin/god-mode", label: "God Mode Control", icon: Zap, section: "super-admin" });
   } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
-    navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+    const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
+    navItems.push({ href: "/admin", label: panelLabel, icon: ShieldCheck });
   }
 
   return navItems;

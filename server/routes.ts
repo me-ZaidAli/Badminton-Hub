@@ -287,7 +287,7 @@ export async function registerRoutes(
         .filter(p =>
           p.membershipStatus === "APPROVED" &&
           p.club.isActive &&
-          ["OWNER", "ADMIN"].includes(p.clubRole)
+          ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole)
         )
         .map(p => p.club);
       const allClubs = await storage.getClubs();
@@ -316,7 +316,7 @@ export async function registerRoutes(
         .filter(p => 
           p.membershipStatus === "APPROVED" && 
           p.club.isActive &&
-          ["OWNER", "ADMIN"].includes(p.clubRole)
+          ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole)
         )
         .map(p => p.club);
       
@@ -822,6 +822,22 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/user/club-roles", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await storage.getUserPlayerProfiles(req.user!.id);
+      const clubRoles = profiles
+        .filter(p => p.membershipStatus === "APPROVED")
+        .map(p => ({
+          clubId: p.clubId,
+          clubRole: p.clubRole,
+        }));
+      res.json(clubRoles);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch club roles" });
+    }
+  });
+
   app.post("/api/clubs/join", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -921,7 +937,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, clubId);
       if (!canAccess) return res.sendStatus(403);
       const sessions = await storage.getSessionsByClub(clubId);
       res.json(sessions);
@@ -2075,7 +2091,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     const signups = await storage.getSessionSignups(sessionId);
@@ -2122,7 +2138,7 @@ export async function registerRoutes(
     });
   });
 
-  // Admin: Update signup payment status
+  // Admin/Organiser: Update signup payment status
   app.patch("/api/sessions/:sessionId/signups/:signupId/payment-override", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const sessionId = Number(req.params.sessionId);
@@ -2130,7 +2146,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes, paymentNotes } = req.body;
@@ -2152,7 +2168,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     let { signupStatus } = req.body;
@@ -2213,7 +2229,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     try {
@@ -2255,7 +2271,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     const { playerId } = req.body;
@@ -2370,7 +2386,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     const { signupId } = req.body;
@@ -2399,7 +2415,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
       
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2558,7 +2574,7 @@ export async function registerRoutes(
       for (const sessionId of sessionIds) {
         const session = await storage.getSession(Number(sessionId));
         if (!session) continue;
-        const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+        const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
         if (!canAccess) {
           return res.status(403).json({ message: "No access to one or more sessions" });
         }
@@ -2596,7 +2612,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    const canAccess = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_VENUES", clubId);
     if (!canAccess) {
       return res.sendStatus(403);
     }
@@ -2633,7 +2649,7 @@ export async function registerRoutes(
       const venue = await storage.getVenue(venueId);
       if (!venue) return res.status(404).json({ message: "Venue not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, venue.clubId);
+      const canAccess = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_VENUES", venue.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2664,7 +2680,7 @@ export async function registerRoutes(
       const venue = await storage.getVenue(venueId);
       if (!venue) return res.status(404).json({ message: "Venue not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, venue.clubId);
+      const canAccess = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_VENUES", venue.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2689,7 +2705,7 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2751,7 +2767,7 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2848,7 +2864,7 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -2898,7 +2914,7 @@ export async function registerRoutes(
       const session = await storage.getSession(currentMatch.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
       if (!isAdmin && !isSignedUp) {
         return res.status(403).json({ message: "Only session participants or admins can end a set" });
@@ -3020,7 +3036,7 @@ export async function registerRoutes(
       const session = await storage.getSession(currentMatch.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
       
       if (!isAdmin && !isSignedUp) {
@@ -3128,7 +3144,7 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       // Check admin access (global role OR club owner)
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
@@ -3164,7 +3180,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can change points target" });
       }
@@ -3194,7 +3210,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can change number of sets" });
       }
@@ -3224,7 +3240,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins can delete queued matches" });
       }
@@ -3347,7 +3363,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins can reshuffle matches" });
       }
@@ -3500,7 +3516,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can amend scores" });
       }
@@ -3589,7 +3605,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins can cancel live matches" });
       }
@@ -3614,7 +3630,7 @@ export async function registerRoutes(
       const session = await storage.getSession(match.sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins can delete matches" });
       }
@@ -3642,7 +3658,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, sessionId);
       
       if (!isAdmin && !isSignedUp) {
@@ -3786,7 +3802,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, sessionId);
       if (!isAdmin && !isSignedUp) {
         return res.status(403).json({ message: "Only session participants or admins can generate matches" });
@@ -3949,7 +3965,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.status(403).json({ message: "Only admins can trim queue" });
 
       const allMatches = await storage.getSessionMatches(sessionId);
@@ -3982,7 +3998,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.status(403).json({ message: "Only admins can clear queue" });
 
       await storage.updateSession(sessionId, { autoGenerateActive: false });
@@ -4010,7 +4026,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) {
         return res.status(403).json({ message: "Only admins and organisers can stop all matches" });
       }
@@ -4048,7 +4064,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.sendStatus(403);
 
       const existingMatches = await storage.getSessionMatches(sessionId);
@@ -4115,7 +4131,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.sendStatus(403);
 
       const existingMatches = await storage.getSessionMatches(sessionId);
@@ -7180,7 +7196,7 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, session.clubId);
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
     const signup = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId)).limit(1);

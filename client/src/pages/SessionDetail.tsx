@@ -3,7 +3,7 @@ import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs } from "@/hooks/use-clubs";
+import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useVenues } from "@/hooks/use-venues";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -239,6 +239,7 @@ export default function SessionDetail() {
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const editableClubIds = new Set((user?.role === "OWNER" || user?.role === "ADMIN") ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
   const canEditSession = session ? editableClubIds.has(session.clubId) : false;
   const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
