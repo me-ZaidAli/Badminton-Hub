@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,9 +14,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft, Loader2, ShieldAlert, Clock, User, MessageSquare,
   AlertCircle, Send, FileText, History, StickyNote, ArrowRight,
+  XCircle, RotateCcw, Lock, CheckCircle2,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,6 +57,15 @@ function PriorityBadge({ priority }: { priority: string }) {
       {priority}
     </Badge>
   );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 export default function TicketDetail() {
@@ -122,6 +133,7 @@ export default function TicketDetail() {
         isAdmin={isAdmin}
         ticketId={ticketId}
         onBack={() => navigate("/tickets")}
+        userId={user?.id}
       />
 
       <Card>
@@ -135,7 +147,7 @@ export default function TicketDetail() {
       <Tabs defaultValue="conversation">
         <TabsList data-testid="tabs-ticket-detail">
           <TabsTrigger value="conversation" data-testid="tab-conversation">
-            <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Conversation
+            <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Chat
           </TabsTrigger>
           <TabsTrigger value="timeline" data-testid="tab-timeline">
             <History className="h-3.5 w-3.5 mr-1.5" /> Timeline
@@ -148,7 +160,15 @@ export default function TicketDetail() {
         </TabsList>
 
         <TabsContent value="conversation">
-          <ConversationTab replies={replies || []} ticketId={ticketId} />
+          <ConversationTab
+            replies={replies || []}
+            ticketId={ticketId}
+            ticketStatus={ticket.status}
+            userId={user?.id}
+            creatorName={creatorName}
+            ticketDescription={ticket.description}
+            ticketCreatedAt={ticket.createdAt}
+          />
         </TabsContent>
 
         <TabsContent value="timeline">
@@ -172,6 +192,7 @@ function TicketHeader({
   isAdmin,
   ticketId,
   onBack,
+  userId,
 }: {
   ticket: any;
   creatorName: string;
@@ -179,6 +200,7 @@ function TicketHeader({
   isAdmin: boolean;
   ticketId: number;
   onBack: () => void;
+  userId?: number;
 }) {
   const { toast } = useToast();
 
@@ -196,6 +218,9 @@ function TicketHeader({
       toast({ title: "Error", description: err.message || "Failed to update status", variant: "destructive" });
     },
   });
+
+  const isClosed = ticket.status === "CLOSED";
+  const isResolved = ticket.status === "RESOLVED";
 
   return (
     <div className="space-y-4">
@@ -234,6 +259,41 @@ function TicketHeader({
             )}
           </div>
         </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => statusMutation.mutate("CLOSED")}
+              disabled={statusMutation.isPending}
+              data-testid="button-close-ticket"
+            >
+              {statusMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-1" />
+              )}
+              Close Ticket
+            </Button>
+          )}
+          {isClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => statusMutation.mutate("UNDER_REVIEW")}
+              disabled={statusMutation.isPending}
+              data-testid="button-reopen-ticket"
+            >
+              {statusMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4 mr-1" />
+              )}
+              Reopen Ticket
+            </Button>
+          )}
+        </div>
       </div>
 
       {isAdmin && (
@@ -261,9 +321,31 @@ function TicketHeader({
   );
 }
 
-function ConversationTab({ replies, ticketId }: { replies: any[]; ticketId: number }) {
+function ConversationTab({
+  replies,
+  ticketId,
+  ticketStatus,
+  userId,
+  creatorName,
+  ticketDescription,
+  ticketCreatedAt,
+}: {
+  replies: any[];
+  ticketId: number;
+  ticketStatus: string;
+  userId?: number;
+  creatorName: string;
+  ticketDescription: string;
+  ticketCreatedAt: string;
+}) {
   const [body, setBody] = useState("");
   const { toast } = useToast();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isClosed = ticketStatus === "CLOSED";
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [replies.length]);
 
   const replyMutation = useMutation({
     mutationFn: async (replyBody: string) => {
@@ -272,10 +354,10 @@ function ConversationTab({ replies, ticketId }: { replies: any[]; ticketId: numb
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
       setBody("");
-      toast({ title: "Reply Sent", description: "Your reply has been added." });
+      toast({ title: "Message Sent" });
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Failed to send reply", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Failed to send message", variant: "destructive" });
     },
   });
 
@@ -285,69 +367,129 @@ function ConversationTab({ replies, ticketId }: { replies: any[]; ticketId: numb
     replyMutation.mutate(body.trim());
   }
 
-  return (
-    <div className="space-y-4 mt-4">
-      {replies.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-8 text-center text-muted-foreground">
-            <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-40" />
-            <p className="font-medium">No replies yet</p>
-            <p className="text-sm mt-1">Start the conversation below.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3" data-testid="replies-list">
-          {replies.map((reply: any) => (
-            <Card
-              key={reply.id}
-              className={reply.isStaff ? "border-l-2 border-l-blue-500" : ""}
-              data-testid={`reply-${reply.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-sm font-medium" data-testid={`text-reply-author-${reply.id}`}>
-                    {reply.authorName}
-                  </span>
-                  {reply.isStaff && (
-                    <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                      Staff
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {format(new Date(reply.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                  </span>
-                </div>
-                <div className="text-sm whitespace-pre-wrap" data-testid={`text-reply-body-${reply.id}`}>
-                  {reply.body}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (body.trim()) {
+        replyMutation.mutate(body.trim());
+      }
+    }
+  }
 
-      <Card>
-        <CardContent className="p-4">
-          <form onSubmit={handleSubmit} className="space-y-3" data-testid="form-reply">
-            <Textarea
-              placeholder="Type your reply..."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={3}
-              data-testid="input-reply-body"
-            />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={replyMutation.isPending || !body.trim()} data-testid="button-send-reply">
-                {replyMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Send Reply
-              </Button>
+  return (
+    <div className="mt-4 flex flex-col" data-testid="conversation-chat">
+      <Card className="flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1 max-h-[500px] min-h-[200px]" data-testid="chat-messages">
+          <div className="flex justify-center mb-4">
+            <Badge variant="secondary" className="text-[10px]">
+              Ticket opened {format(new Date(ticketCreatedAt), "MMM d, yyyy 'at' h:mm a")}
+            </Badge>
+          </div>
+
+          <div className="flex justify-start mb-3" data-testid="chat-original-message">
+            <div className="flex gap-2 max-w-[85%]">
+              <Avatar className="h-7 w-7 shrink-0 mt-1">
+                <AvatarFallback className="text-[10px] bg-muted">
+                  {getInitials(creatorName || "U")}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-medium">{creatorName}</span>
+                </div>
+                <div className="rounded-md rounded-tl-none bg-muted p-3 text-sm whitespace-pre-wrap">
+                  {ticketDescription}
+                </div>
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                  {format(new Date(ticketCreatedAt), "h:mm a")}
+                </span>
+              </div>
             </div>
-          </form>
-        </CardContent>
+          </div>
+
+          {replies.map((reply: any) => {
+            const isOwnReply = reply.authorUserId === userId;
+            const isStaff = reply.isStaff;
+            const alignRight = isOwnReply;
+
+            return (
+              <div
+                key={reply.id}
+                className={`flex ${alignRight ? "justify-end" : "justify-start"} mb-3`}
+                data-testid={`chat-message-${reply.id}`}
+              >
+                <div className={`flex gap-2 max-w-[85%] ${alignRight ? "flex-row-reverse" : ""}`}>
+                  <Avatar className="h-7 w-7 shrink-0 mt-1">
+                    <AvatarFallback className={`text-[10px] ${isStaff ? "bg-blue-500/20 text-blue-700 dark:text-blue-400" : "bg-muted"}`}>
+                      {getInitials(reply.authorName || "U")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className={alignRight ? "text-right" : ""}>
+                    <div className={`flex items-center gap-2 mb-0.5 ${alignRight ? "justify-end" : ""}`}>
+                      <span className="text-xs font-medium">{reply.authorName}</span>
+                      {isStaff && (
+                        <Badge variant="secondary" className="text-[9px] bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                          Staff
+                        </Badge>
+                      )}
+                    </div>
+                    <div
+                      className={`rounded-md p-3 text-sm whitespace-pre-wrap ${
+                        alignRight
+                          ? "rounded-tr-none bg-primary/10 text-foreground"
+                          : isStaff
+                            ? "rounded-tl-none bg-blue-500/10"
+                            : "rounded-tl-none bg-muted"
+                      }`}
+                    >
+                      {reply.body}
+                    </div>
+                    <span className={`text-[10px] text-muted-foreground mt-0.5 block ${alignRight ? "text-right" : ""}`}>
+                      {format(new Date(reply.createdAt), "MMM d 'at' h:mm a")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {isClosed ? (
+          <div className="border-t p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Lock className="h-4 w-4" />
+              <span>This ticket is closed. Reopen it to continue the conversation.</span>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t p-3" data-testid="chat-input-area">
+            <form onSubmit={handleSubmit} className="flex items-end gap-2">
+              <Textarea
+                placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={2}
+                className="flex-1 resize-none text-sm"
+                data-testid="input-chat-message"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={replyMutation.isPending || !body.trim()}
+                data-testid="button-send-message"
+              >
+                {replyMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </form>
+          </div>
+        )}
       </Card>
     </div>
   );

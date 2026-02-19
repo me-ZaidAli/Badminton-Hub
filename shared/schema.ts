@@ -1026,7 +1026,7 @@ export const ticketInternalNotes = pgTable("ticket_internal_notes", {
 export const ticketAuditLogs = pgTable("ticket_audit_logs", {
   id: serial("id").primaryKey(),
   ticketId: integer("ticket_id").references(() => tickets.id).notNull(),
-  actorUserId: integer("actor_user_id").references(() => users.id).notNull(),
+  actorUserId: integer("actor_user_id").references(() => users.id),
   action: text("action").notNull(),
   fromStatus: text("from_status"),
   toStatus: text("to_status"),

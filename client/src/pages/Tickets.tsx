@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Ticket, Loader2, ShieldAlert, Clock, ArrowRight, Filter,
-  AlertCircle, MessageSquare,
+  AlertCircle, MessageSquare, RotateCcw, Archive, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -138,6 +138,7 @@ function MyTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) {
   const { data: tickets, isLoading } = useQuery<any[]>({
     queryKey: ["/api/tickets"],
   });
+  const [showClosed, setShowClosed] = useState(false);
 
   if (isLoading) {
     return (
@@ -159,11 +160,51 @@ function MyTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) {
     );
   }
 
+  const openTickets = tickets.filter((t: any) => t.status !== "CLOSED");
+  const closedTickets = tickets.filter((t: any) => t.status === "CLOSED");
+
   return (
-    <div className="space-y-2 mt-4" data-testid="ticket-list-my">
-      {tickets.map((ticket: any) => (
-        <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} />
-      ))}
+    <div className="space-y-4 mt-4">
+      {openTickets.length === 0 && closedTickets.length > 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Ticket className="h-10 w-10 mx-auto mb-2 opacity-40" />
+            <p className="font-medium">No open tickets</p>
+            <p className="text-sm mt-1">All your tickets are closed.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2" data-testid="ticket-list-my-open">
+          {openTickets.map((ticket: any) => (
+            <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} />
+          ))}
+        </div>
+      )}
+
+      {closedTickets.length > 0 && (
+        <div data-testid="closed-tickets-section">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-between"
+            onClick={() => setShowClosed(!showClosed)}
+            data-testid="button-toggle-closed"
+          >
+            <span className="flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              Closed Tickets ({closedTickets.length})
+            </span>
+            {showClosed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          {showClosed && (
+            <div className="space-y-2 mt-2" data-testid="ticket-list-my-closed">
+              {closedTickets.map((ticket: any) => (
+                <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -254,7 +295,51 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2" data-testid="ticket-list-admin">
+        <>
+          <div className="space-y-2" data-testid="ticket-list-admin">
+            {tickets.filter((t: any) => t.status !== "CLOSED").map((ticket: any) => (
+              <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
+            ))}
+          </div>
+          {tickets.filter((t: any) => t.status === "CLOSED").length > 0 && !statusFilter && (
+            <ClosedTicketsSection
+              tickets={tickets.filter((t: any) => t.status === "CLOSED")}
+              onRowClick={onRowClick}
+            />
+          )}
+          {statusFilter === "CLOSED" && (
+            <div className="space-y-2" data-testid="ticket-list-admin-closed">
+              {tickets.filter((t: any) => t.status === "CLOSED").map((ticket: any) => (
+                <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ClosedTicketsSection({ tickets, onRowClick }: { tickets: any[]; onRowClick: (id: number) => void }) {
+  const [showClosed, setShowClosed] = useState(false);
+
+  return (
+    <div className="mt-4" data-testid="admin-closed-tickets-section">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full justify-between"
+        onClick={() => setShowClosed(!showClosed)}
+        data-testid="button-admin-toggle-closed"
+      >
+        <span className="flex items-center gap-2">
+          <Archive className="h-4 w-4" />
+          Closed Tickets ({tickets.length})
+        </span>
+        {showClosed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </Button>
+      {showClosed && (
+        <div className="space-y-2 mt-2" data-testid="ticket-list-admin-closed">
           {tickets.map((ticket: any) => (
             <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
           ))}

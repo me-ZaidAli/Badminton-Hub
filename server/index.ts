@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { evaluateAllClubsGrades } from "./grading";
+import { autoCloseInactiveTickets } from "./ticket-autoclose";
 
 const app = express();
 const httpServer = createServer(app);
@@ -109,6 +110,17 @@ app.use((req, res, next) => {
           console.error("Daily grading evaluation failed:", err);
         }
       }, 24 * 60 * 60 * 1000);
+
+      setInterval(async () => {
+        try {
+          const closed = await autoCloseInactiveTickets();
+          if (closed > 0) {
+            log(`Auto-closed ${closed} inactive ticket(s)`, "tickets");
+          }
+        } catch (err) {
+          console.error("Auto-close tickets failed:", err);
+        }
+      }, 6 * 60 * 60 * 1000);
     },
   );
 })();
