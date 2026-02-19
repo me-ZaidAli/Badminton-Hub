@@ -1,0 +1,713 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  BarChart3, Users, TrendingUp, Target, Download, Loader2,
+  Activity, Award, ArrowUpRight, ArrowDownRight, Minus,
+  FileText, Filter
+} from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend
+} from "recharts";
+
+const CHANNEL_LABELS: Record<string, string> = {
+  FACEBOOK: "Facebook",
+  INSTAGRAM: "Instagram",
+  TIKTOK: "TikTok",
+  WEBSITE: "Website",
+  WORD_OF_MOUTH: "Word of Mouth",
+  LEISURE_CENTRE: "Leisure Centre",
+  SAW_SESSION: "Saw a Session",
+  THROUGH_COACH: "Through a Coach",
+  REFERRAL: "Referral",
+  OTHER: "Other",
+  UNKNOWN: "Not Specified",
+};
+
+const CHART_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(220, 70%, 55%)",
+  "hsl(160, 60%, 45%)",
+  "hsl(340, 65%, 50%)",
+  "hsl(45, 80%, 50%)",
+  "hsl(280, 60%, 55%)",
+  "hsl(200, 70%, 50%)",
+  "hsl(10, 70%, 55%)",
+  "hsl(130, 50%, 45%)",
+  "hsl(0, 0%, 60%)",
+  "hsl(60, 60%, 50%)",
+];
+
+interface AnalyticsData {
+  summary: {
+    totalUsers: number;
+    activeUsers: number;
+    activeRate: number;
+    newThisMonth: number;
+    newLastMonth: number;
+    premiumUsers: number;
+    organicRatio: number;
+  };
+  signupsPerMonth: { month: string; signups: number; growth: number }[];
+  signupsByChannel: Record<string, number>;
+  premiumConversionByChannel: Record<string, { total: number; premium: number; rate: number }>;
+  avgTimeToPremiumByChannel: Record<string, number>;
+  retentionByChannel: Record<string, { total: number; retained: number; rate: number }>;
+  avgLifespanByChannel: Record<string, number>;
+  referralEffectiveness: {
+    totalCodes: number;
+    used: number;
+    approved: number;
+    conversionRate: number;
+    approvalRate: number;
+  };
+  channelQualityScores: Record<string, number>;
+}
+
+interface MonthlyReport {
+  period: string;
+  month: number;
+  year: number;
+  growthOverview: {
+    newSignups: number;
+    previousMonthSignups: number;
+    growthRate: number;
+    totalUsersToDate: number;
+  };
+  acquisitionBreakdown: Record<string, number>;
+  premiumInsights: { newPremiumMembers: number; conversionRate: number };
+  retentionInsights: { activeUsers: number; totalUsers: number; retentionRate: number };
+  referralPerformance: { totalReferrals: number; approved: number; pending: number };
+  recommendations: string[];
+}
+
+export default function AcquisitionAnalytics() {
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [clubId, setClubId] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const queryParams = new URLSearchParams();
+  if (dateFrom) queryParams.set("dateFrom", dateFrom);
+  if (dateTo) queryParams.set("dateTo", dateTo);
+  if (clubId !== "all") queryParams.set("clubId", clubId);
+  if (sourceFilter !== "all") queryParams.set("source", sourceFilter);
+
+  const { data, isLoading } = useQuery<AnalyticsData>({
+    queryKey: ["/api/admin/analytics/acquisition", dateFrom, dateTo, clubId, sourceFilter],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/analytics/acquisition?${queryParams.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json();
+    },
+  });
+
+  const clubsQuery = useQuery<{ clubId: number; clubName: string }[]>({
+    queryKey: ["/api/admin/analytics"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/analytics", { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return d.clubs?.map((c: any) => ({ clubId: c.clubId, clubName: c.clubName })) || [];
+    },
+  });
+
+  const now = new Date();
+  const { data: monthlyReport, isLoading: reportLoading } = useQuery<MonthlyReport>({
+    queryKey: ["/api/admin/analytics/monthly-report", now.getMonth(), now.getFullYear()],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/admin/analytics/monthly-report?month=${now.getMonth()}&year=${now.getFullYear()}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error("Failed to load report");
+      return res.json();
+    },
+  });
+
+  async function handleExportCSV() {
+    try {
+      const res = await fetch("/api/admin/analytics/acquisition/csv", { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "acquisition-analytics.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {}
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]" data-testid="loading-spinner">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const channelPieData = data
+    ? Object.entries(data.signupsByChannel).map(([key, value]) => ({
+        name: CHANNEL_LABELS[key] || key,
+        value,
+      }))
+    : [];
+
+  const qualityScoreData = data
+    ? Object.entries(data.channelQualityScores)
+        .map(([key, score]) => ({
+          channel: CHANNEL_LABELS[key] || key,
+          score,
+        }))
+        .sort((a, b) => b.score - a.score)
+    : [];
+
+  const retentionData = data
+    ? Object.entries(data.retentionByChannel)
+        .map(([key, val]) => ({
+          channel: CHANNEL_LABELS[key] || key,
+          rate: val.rate,
+          retained: val.retained,
+          total: val.total,
+        }))
+        .sort((a, b) => b.rate - a.rate)
+    : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start gap-4 flex-wrap">
+        <PageHeader
+          title="Acquisition & KPI Analytics"
+          description="Comprehensive user acquisition tracking, channel performance, and growth metrics."
+        />
+        <Button onClick={handleExportCSV} variant="outline" data-testid="button-export-csv">
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      <Card data-testid="card-filters">
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filters</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">From Date</label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                data-testid="input-date-from"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">To Date</label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                data-testid="input-date-to"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Club</label>
+              <Select value={clubId} onValueChange={setClubId}>
+                <SelectTrigger data-testid="select-filter-club">
+                  <SelectValue placeholder="All clubs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clubs</SelectItem>
+                  {clubsQuery.data?.map((c) => (
+                    <SelectItem key={c.clubId} value={String(c.clubId)}>
+                      {c.clubName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Acquisition Source</label>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger data-testid="select-filter-source">
+                  <SelectValue placeholder="All sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  {Object.entries(CHANNEL_LABELS).filter(([k]) => k !== "UNKNOWN").map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList data-testid="tabs-analytics">
+          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="channels" data-testid="tab-channels">Channels</TabsTrigger>
+          <TabsTrigger value="retention" data-testid="tab-retention">Retention</TabsTrigger>
+          <TabsTrigger value="referrals" data-testid="tab-referrals">Referrals</TabsTrigger>
+          <TabsTrigger value="report" data-testid="tab-report">Monthly Report</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {data && (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card data-testid="card-total-users">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold" data-testid="value-total-users">{data.summary.totalUsers}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {data.summary.activeUsers} active ({data.summary.activeRate}%)
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card data-testid="card-new-this-month">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">New This Month</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold" data-testid="value-new-this-month">{data.summary.newThisMonth}</div>
+                    <div className="flex items-center gap-1 mt-1">
+                      {data.summary.newThisMonth > data.summary.newLastMonth ? (
+                        <ArrowUpRight className="h-3 w-3 text-green-500" />
+                      ) : data.summary.newThisMonth < data.summary.newLastMonth ? (
+                        <ArrowDownRight className="h-3 w-3 text-red-500" />
+                      ) : (
+                        <Minus className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        vs {data.summary.newLastMonth} last month
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card data-testid="card-premium-users">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Premium Members</CardTitle>
+                    <Award className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold" data-testid="value-premium-users">{data.summary.premiumUsers}</div>
+                  </CardContent>
+                </Card>
+                <Card data-testid="card-organic-ratio">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Organic Ratio</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold" data-testid="value-organic-ratio">{data.summary.organicRatio}%</div>
+                    <p className="text-xs text-muted-foreground mt-1">non-referral signups</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card data-testid="card-signups-chart">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BarChart3 className="h-4 w-4" />
+                      Monthly Signups & Growth
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {data.signupsPerMonth.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={data.signupsPerMonth}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Legend />
+                          <Line type="monotone" dataKey="signups" stroke="hsl(var(--primary))" strokeWidth={2} name="Signups" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
+                        No signup data yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card data-testid="card-channel-pie">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Target className="h-4 w-4" />
+                      Signups by Channel
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {channelPieData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={channelPieData}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {channelPieData.map((_, index) => (
+                              <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
+                        No channel data yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="channels" className="space-y-6">
+          {data && (
+            <>
+              <Card data-testid="card-quality-scores">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Award className="h-4 w-4" />
+                    Channel Quality Scores
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Weighted score: 40% Premium conversion + 30% Retention + 30% Activity
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {qualityScoreData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={qualityScoreData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, 100]} />
+                        <YAxis dataKey="channel" type="category" tick={{ fontSize: 11 }} width={120} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: number) => [`${value}`, "Quality Score"]}
+                        />
+                        <Bar dataKey="score" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                      No data available yet
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-conversion-table">
+                <CardHeader>
+                  <CardTitle className="text-base">Premium Conversion by Channel</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Channel</TableHead>
+                          <TableHead className="text-right">Total Users</TableHead>
+                          <TableHead className="text-right">Premium</TableHead>
+                          <TableHead className="text-right">Conversion Rate</TableHead>
+                          <TableHead className="text-right">Avg Days to Premium</TableHead>
+                          <TableHead className="text-right">Avg Lifespan (days)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(data.premiumConversionByChannel).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                              No conversion data yet
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          Object.entries(data.premiumConversionByChannel).map(([ch, val]) => (
+                            <TableRow key={ch} data-testid={`row-conversion-${ch}`}>
+                              <TableCell className="font-medium">{CHANNEL_LABELS[ch] || ch}</TableCell>
+                              <TableCell className="text-right">{val.total}</TableCell>
+                              <TableCell className="text-right">{val.premium}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={val.rate > 20 ? "default" : "secondary"}>
+                                  {val.rate}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {data.avgTimeToPremiumByChannel[ch] ?? "-"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {data.avgLifespanByChannel[ch] ?? "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="retention" className="space-y-6">
+          {data && (
+            <Card data-testid="card-retention-table">
+              <CardHeader>
+                <CardTitle className="text-base">Retention by Acquisition Channel</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Users active within 30 days, for accounts older than 90 days
+                </p>
+              </CardHeader>
+              <CardContent>
+                {retentionData.length > 0 ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={retentionData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="channel" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: number) => [`${value}%`, "Retention"]}
+                        />
+                        <Bar dataKey="rate" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <div className="mt-4 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Channel</TableHead>
+                            <TableHead className="text-right">Eligible Users</TableHead>
+                            <TableHead className="text-right">Still Active</TableHead>
+                            <TableHead className="text-right">Retention Rate</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {retentionData.map((r) => (
+                            <TableRow key={r.channel} data-testid={`row-retention-${r.channel}`}>
+                              <TableCell className="font-medium">{r.channel}</TableCell>
+                              <TableCell className="text-right">{r.total}</TableCell>
+                              <TableCell className="text-right">{r.retained}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={r.rate > 50 ? "default" : "secondary"}>
+                                  {r.rate}%
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground text-sm">
+                    No retention data available yet (requires users older than 90 days)
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="referrals" className="space-y-6">
+          {data && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <Card data-testid="card-ref-total">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Codes Generated</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{data.referralEffectiveness.totalCodes}</div>
+                </CardContent>
+              </Card>
+              <Card data-testid="card-ref-used">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Codes Used</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{data.referralEffectiveness.used}</div>
+                </CardContent>
+              </Card>
+              <Card data-testid="card-ref-approved">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Approved</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{data.referralEffectiveness.approved}</div>
+                </CardContent>
+              </Card>
+              <Card data-testid="card-ref-conversion">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Usage Rate</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{data.referralEffectiveness.conversionRate}%</div>
+                </CardContent>
+              </Card>
+              <Card data-testid="card-ref-approval-rate">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Approval Rate</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{data.referralEffectiveness.approvalRate}%</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="report" className="space-y-6">
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : monthlyReport ? (
+            <div className="space-y-6">
+              <Card data-testid="card-report-header">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Monthly Summary: {monthlyReport.period}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">New Signups</p>
+                      <p className="text-2xl font-bold" data-testid="report-new-signups">
+                        {monthlyReport.growthOverview.newSignups}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        {monthlyReport.growthOverview.growthRate > 0 ? (
+                          <ArrowUpRight className="h-3 w-3 text-green-500" />
+                        ) : monthlyReport.growthOverview.growthRate < 0 ? (
+                          <ArrowDownRight className="h-3 w-3 text-red-500" />
+                        ) : (
+                          <Minus className="h-3 w-3" />
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {monthlyReport.growthOverview.growthRate}% vs previous month
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Total Users to Date</p>
+                      <p className="text-2xl font-bold">{monthlyReport.growthOverview.totalUsersToDate}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Active Users</p>
+                      <p className="text-2xl font-bold">{monthlyReport.retentionInsights.activeUsers}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {monthlyReport.retentionInsights.retentionRate}% retention
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Premium Conversions</p>
+                      <p className="text-2xl font-bold">{monthlyReport.premiumInsights.newPremiumMembers}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {monthlyReport.premiumInsights.conversionRate}% of new users
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Acquisition Breakdown</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(monthlyReport.acquisitionBreakdown).map(([ch, count]) => (
+                        <Badge key={ch} variant="outline" data-testid={`report-channel-${ch}`}>
+                          {CHANNEL_LABELS[ch] || ch}: {count}
+                        </Badge>
+                      ))}
+                      {Object.keys(monthlyReport.acquisitionBreakdown).length === 0 && (
+                        <span className="text-sm text-muted-foreground">No signups this month</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Referral Performance</h4>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <span>Total: {monthlyReport.referralPerformance.totalReferrals}</span>
+                      <span>Approved: {monthlyReport.referralPerformance.approved}</span>
+                      <span>Pending: {monthlyReport.referralPerformance.pending}</span>
+                    </div>
+                  </div>
+
+                  {monthlyReport.recommendations.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Recommendations</h4>
+                      <ul className="space-y-1">
+                        {monthlyReport.recommendations.map((rec, i) => (
+                          <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <TrendingUp className="h-3 w-3 mt-1 shrink-0 text-primary" />
+                            {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-muted-foreground">
+              No report data available
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -117,6 +117,7 @@ export interface IStorage {
   deletePlayerProfile(id: number): Promise<void>;
   deleteUserCompletely(userId: number): Promise<void>;
   createUserWithProfile(userData: InsertUser, profileData: { gender?: string; category?: string; clubId?: number }): Promise<{ user: User; profile: PlayerProfile }>;
+  updateUserActivity(userId: number): Promise<void>;
 
   // Junior accounts
   getJuniorAccounts(parentUserId: number): Promise<User[]>;
@@ -789,6 +790,10 @@ export class DatabaseStorage implements IStorage {
   }>): Promise<User> {
     const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
     return updated;
+  }
+
+  async updateUserActivity(userId: number): Promise<void> {
+    await db.update(users).set({ lastActivityAt: new Date() } as any).where(eq(users.id, userId));
   }
 
   async updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number; grade?: string; adminLocked?: boolean; gradingResetAt?: Date | null }): Promise<PlayerProfile> {

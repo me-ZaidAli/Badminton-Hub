@@ -9,10 +9,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation, useSearch } from "wouter";
-import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+
+const ACQUISITION_OPTIONS = [
+  { value: "FACEBOOK", label: "Facebook" },
+  { value: "INSTAGRAM", label: "Instagram" },
+  { value: "TIKTOK", label: "TikTok" },
+  { value: "WEBSITE", label: "Website" },
+  { value: "WORD_OF_MOUTH", label: "Word of Mouth" },
+  { value: "LEISURE_CENTRE", label: "Leisure Centre" },
+  { value: "SAW_SESSION", label: "Saw a Session Running" },
+  { value: "THROUGH_COACH", label: "Through a Coach" },
+  { value: "REFERRAL", label: "Referral Link / Code" },
+  { value: "OTHER", label: "Other" },
+] as const;
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
@@ -24,6 +39,8 @@ const formSchema = z.object({
   isJunior: z.boolean().default(false),
   parentGuardianName: z.string().optional(),
   parentGuardianEmail: z.string().optional(),
+  acquisitionSource: z.string().min(1, "Please tell us how you heard about us"),
+  acquisitionSourceOther: z.string().optional(),
   confirmAccurate: z.boolean().refine(val => val === true, { message: "You must confirm your information is accurate" }),
   acceptTerms: z.boolean().refine(val => val === true, { message: "You must agree to the Terms & Conditions" }),
   acceptPrivacy: z.boolean().refine(val => val === true, { message: "You must agree to the Privacy Policy" }),
@@ -52,6 +69,14 @@ const formSchema = z.object({
     return true;
   },
   { message: "Parental consent is required for junior accounts", path: ["parentalConsent"] }
+).refine(
+  (data) => {
+    if (data.acquisitionSource === "OTHER") {
+      return !!data.acquisitionSourceOther && data.acquisitionSourceOther.trim().length > 0;
+    }
+    return true;
+  },
+  { message: "Please tell us how you heard about us", path: ["acquisitionSourceOther"] }
 );
 
 export default function Register() {
@@ -111,6 +136,8 @@ export default function Register() {
       isJunior: false,
       parentGuardianName: "",
       parentGuardianEmail: "",
+      acquisitionSource: "",
+      acquisitionSourceOther: "",
       confirmAccurate: false,
       acceptTerms: false,
       acceptPrivacy: false,
@@ -119,12 +146,21 @@ export default function Register() {
   });
 
   const isJunior = form.watch("isJunior");
+  const acquisitionSource = form.watch("acquisitionSource");
+
+  useEffect(() => {
+    if (referralCode.trim() && referralValid === true) {
+      form.setValue("acquisitionSource", "REFERRAL");
+    }
+  }, [referralValid, referralCode]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const acceptedPolicies = ["TERMS_CONDITIONS", "PRIVACY_POLICY"];
     if (values.isJunior) {
       acceptedPolicies.push("JUNIOR_PARENTAL_CONSENT");
     }
+
+    const effectiveSource = referralCode.trim() ? "REFERRAL" : values.acquisitionSource;
 
     fetch("/api/auth/register", {
       method: "POST",
@@ -139,6 +175,8 @@ export default function Register() {
         isJunior: values.isJunior,
         parentGuardianName: values.isJunior ? values.parentGuardianName : undefined,
         parentGuardianEmail: values.isJunior ? values.parentGuardianEmail : undefined,
+        acquisitionSource: effectiveSource,
+        acquisitionSourceOther: effectiveSource === "OTHER" ? values.acquisitionSourceOther : undefined,
         acceptedPolicies,
       }),
       credentials: "include"
@@ -425,6 +463,68 @@ export default function Register() {
                   </CardContent>
                 </Card>
               )}
+
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Megaphone className="h-4 w-4 text-primary" />
+                  How did you hear about us?
+                </div>
+                <FormField
+                  control={form.control}
+                  name="acquisitionSource"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select
+                        onValueChange={(val) => {
+                          field.onChange(val);
+                          if (val !== "OTHER") {
+                            form.setValue("acquisitionSourceOther", "");
+                          }
+                        }}
+                        value={field.value}
+                        disabled={!!referralCode.trim() && referralValid === true}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-acquisition-source">
+                            <SelectValue placeholder="Please select an option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ACQUISITION_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} data-testid={`select-item-${opt.value.toLowerCase()}`}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {acquisitionSource === "OTHER" && (
+                  <FormField
+                    control={form.control}
+                    name="acquisitionSourceOther"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Please tell us more..."
+                            className="resize-none text-sm"
+                            rows={2}
+                            {...field}
+                            data-testid="input-acquisition-other"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                {referralCode.trim() && referralValid === true && (
+                  <p className="text-xs text-muted-foreground">Automatically set to "Referral" because you have a valid referral code</p>
+                )}
+              </div>
 
               <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
                 <div className="flex items-center gap-2 text-sm font-medium">

@@ -39,6 +39,9 @@ The frontend utilizes React 18, TypeScript, Wouter for routing, and TanStack Rea
 -   **IT Helpdesk Ticketing System**: A secure, ticket-based support system with full lifecycle management, category classification, priority levels, RBAC, confidential tickets, internal notes, and immutable audit logging. Includes integration for banning members.
 -   **Automatic Player Grading System**: A 9-tier skill grading system with automatic promotion/demotion based on rolling session performance and customizable thresholds, with an admin override lock.
 -   **Referral System**: Full-featured refer-and-earn system with unique single-use codes (REF-XXXXXXXX format), 30-day expiration, admin approval workflow, £4 credit rewards per approved referral, milestone tracking (£8 for premium rate eligibility, £16 for Referral Champion status), automated notifications and internal messages, and registration page integration with URL parameter support (?ref=CODE).
+-   **Acquisition Tracking System**: Mandatory "How did you hear about us?" field on registration with 10 selectable channels (Facebook, Instagram, TikTok, Website, Word of Mouth, Leisure Centre, Saw a Session, Through a Coach, Referral, Other). Auto-sets to Referral when code used. Stored at creation, locked from user edits.
+-   **KPI Analytics Dashboard**: Admin-only Acquisition & KPI Analytics panel with signups per month, signups by channel, MoM growth, Premium conversion rate by channel, avg time to Premium, retention rate by channel (90-day threshold), avg active lifespan, referral effectiveness, organic ratio, and weighted Channel Quality Score. Includes date range, club, membership type, and source filters, plus CSV export.
+-   **Monthly Admin Summary Report**: Auto-generated monthly report with growth overview, acquisition breakdown, Premium insights, retention insights, referral performance, and system-generated recommendations.
 
 ## External Dependencies
 

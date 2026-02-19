@@ -122,6 +122,15 @@ export function setupAuth(app: Express) {
         }
       }
 
+      const validSources = ["FACEBOOK", "INSTAGRAM", "TIKTOK", "WEBSITE", "WORD_OF_MOUTH", "LEISURE_CENTRE", "SAW_SESSION", "THROUGH_COACH", "REFERRAL", "OTHER"];
+      const acquisitionSource = validSources.includes(req.body.acquisitionSource) ? req.body.acquisitionSource : null;
+      if (!acquisitionSource) {
+        return res.status(400).json({ message: "Please select how you heard about us" });
+      }
+      if (acquisitionSource === "OTHER" && (!req.body.acquisitionSourceOther || !req.body.acquisitionSourceOther.trim())) {
+        return res.status(400).json({ message: "Please provide details for 'Other'" });
+      }
+
       const hashedPassword = await hashPassword(req.body.password);
       const user = await storage.createUser({
         ...req.body,
@@ -132,6 +141,9 @@ export function setupAuth(app: Express) {
         isJunior,
         parentGuardianName: isJunior ? req.body.parentGuardianName : null,
         parentGuardianEmail: isJunior ? req.body.parentGuardianEmail : null,
+        acquisitionSource,
+        acquisitionSourceOther: acquisitionSource === "OTHER" ? (req.body.acquisitionSourceOther || null) : null,
+        lastActivityAt: new Date(),
       });
 
       // Store policy acceptance logs
@@ -417,6 +429,7 @@ export function setupAuth(app: Express) {
       }
       req.login(user, async (loginErr) => {
         if (loginErr) return next(loginErr);
+        try { await storage.updateUserActivity(user.id); } catch (e) { console.error("[AUTH] Failed to update activity:", e); }
         if (user.role === "OWNER") {
           try { await ensureOwnerProfilesInAllClubs(user.id); } catch (e) { console.error("[SYNC] Error syncing owner profiles on login:", e); }
         }

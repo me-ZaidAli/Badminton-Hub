@@ -12530,6 +12530,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: "You cannot use your own referral code" });
       }
 
+      // Prevent duplicate referral for same email
+      const existingReferralForEmail = await db.select().from(referrals)
+        .where(and(
+          eq(referrals.referredEmail, req.user!.email),
+          or(eq(referrals.status, "PENDING"), eq(referrals.status, "APPROVED"))
+        ));
+      if (existingReferralForEmail.length > 0) {
+        return res.status(400).json({ message: "A referral has already been submitted for this email address" });
+      }
+
       // Update referral to pending
       await db.update(referrals).set({
         status: "PENDING",
@@ -12767,6 +12777,402 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error rejecting referral:", err);
       res.status(500).json({ message: err.message || "Failed to reject referral" });
+    }
+  });
+
+  // === ACQUISITION & KPI ANALYTICS ===
+
+  // GET /api/admin/analytics/acquisition - Full acquisition and KPI analytics
+  app.get("/api/admin/analytics/acquisition", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+
+    try {
+      const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
+      const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
+      const clubFilter = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const membershipFilter = req.query.membershipType as string | undefined;
+      const sourceFilter = req.query.source as string | undefined;
+
+      // Fetch all users with filters
+      const conditions: any[] = [];
+      if (dateFrom) conditions.push(gte(users.createdAt, dateFrom));
+      if (dateTo) conditions.push(lte(users.createdAt, dateTo));
+      if (sourceFilter) conditions.push(eq(users.acquisitionSource, sourceFilter as any));
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const allUsers = await db.select().from(users).where(whereClause).orderBy(users.createdAt);
+
+      // If club filter, get user IDs that belong to that club
+      let filteredUserIds: Set<number> | null = null;
+      if (clubFilter) {
+        const clubProfiles = await db.select({ userId: playerProfiles.userId })
+          .from(playerProfiles).where(eq(playerProfiles.clubId, clubFilter));
+        filteredUserIds = new Set(clubProfiles.map(p => p.userId));
+      }
+
+      // If membership filter, get user IDs with that membership type
+      if (membershipFilter) {
+        const membershipConditions: any[] = [];
+        if (membershipFilter === "PREMIUM") {
+          const premPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
+            .where(ilike(membershipPlans.name, "%premium%"));
+          if (premPlans.length > 0) {
+            membershipConditions.push(inArray(clubMemberships.planId, premPlans.map(p => p.id)));
+          }
+        }
+        membershipConditions.push(eq(clubMemberships.status, "ACTIVE"));
+        const memberships = await db.select({ userId: clubMemberships.userId })
+          .from(clubMemberships).where(and(...membershipConditions));
+        const memberUserIds = new Set(memberships.map(m => m.userId));
+        if (filteredUserIds) {
+          filteredUserIds = new Set([...filteredUserIds].filter(id => memberUserIds.has(id)));
+        } else {
+          filteredUserIds = memberUserIds;
+        }
+      }
+
+      const filteredUsers = filteredUserIds
+        ? allUsers.filter(u => filteredUserIds!.has(u.id))
+        : allUsers;
+
+      // 30-day active threshold
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      // Get session signups for activity check
+      const recentSignups = await db.select({ playerId: sessionSignups.playerId })
+        .from(sessionSignups)
+        .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+        .where(gte(sessionSignups.createdAt, thirtyDaysAgo));
+      const activeSignupUserIds = new Set<number>();
+      const profileToUser = new Map<number, number>();
+      const allProfiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles);
+      allProfiles.forEach(p => profileToUser.set(p.id, p.userId));
+      recentSignups.forEach(s => {
+        const userId = profileToUser.get(s.playerId);
+        if (userId) activeSignupUserIds.add(userId);
+      });
+
+      // Determine active users: lastActivityAt within 30 days OR session signup within 30 days
+      const isActive = (u: typeof filteredUsers[0]) => {
+        if (u.lastActivityAt && new Date(u.lastActivityAt) >= thirtyDaysAgo) return true;
+        if (activeSignupUserIds.has(u.id)) return true;
+        return false;
+      };
+
+      // 1. Signups per month
+      const signupsPerMonth: Record<string, number> = {};
+      filteredUsers.forEach(u => {
+        const key = `${u.createdAt.getFullYear()}-${String(u.createdAt.getMonth() + 1).padStart(2, "0")}`;
+        signupsPerMonth[key] = (signupsPerMonth[key] || 0) + 1;
+      });
+
+      // 2. Signups by acquisition channel
+      const signupsByChannel: Record<string, number> = {};
+      filteredUsers.forEach(u => {
+        const ch = u.acquisitionSource || "UNKNOWN";
+        signupsByChannel[ch] = (signupsByChannel[ch] || 0) + 1;
+      });
+
+      // 3. Month-on-month growth
+      const sortedMonths = Object.keys(signupsPerMonth).sort();
+      const monthlyGrowth: { month: string; signups: number; growth: number }[] = [];
+      sortedMonths.forEach((month, i) => {
+        const current = signupsPerMonth[month];
+        const prev = i > 0 ? signupsPerMonth[sortedMonths[i - 1]] : 0;
+        const growth = prev > 0 ? ((current - prev) / prev) * 100 : 0;
+        monthlyGrowth.push({ month, signups: current, growth: Math.round(growth * 10) / 10 });
+      });
+
+      // 4. Premium conversion by channel
+      const premiumPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
+        .where(ilike(membershipPlans.name, "%premium%"));
+      const premiumPlanIds = premiumPlans.map(p => p.id);
+      const allActiveMemberships = premiumPlanIds.length > 0
+        ? await db.select({ userId: clubMemberships.userId, planId: clubMemberships.planId, createdAt: clubMemberships.createdAt })
+            .from(clubMemberships).where(inArray(clubMemberships.planId, premiumPlanIds))
+        : [];
+      const premiumUserIds = new Set(allActiveMemberships.map(m => m.userId));
+
+      const premiumConversionByChannel: Record<string, { total: number; premium: number; rate: number }> = {};
+      filteredUsers.forEach(u => {
+        const ch = u.acquisitionSource || "UNKNOWN";
+        if (!premiumConversionByChannel[ch]) premiumConversionByChannel[ch] = { total: 0, premium: 0, rate: 0 };
+        premiumConversionByChannel[ch].total++;
+        if (premiumUserIds.has(u.id)) premiumConversionByChannel[ch].premium++;
+      });
+      Object.values(premiumConversionByChannel).forEach(v => {
+        v.rate = v.total > 0 ? Math.round((v.premium / v.total) * 1000) / 10 : 0;
+      });
+
+      // 5. Average time to Premium by channel (days)
+      const userCreatedMap = new Map(filteredUsers.map(u => [u.id, u.createdAt]));
+      const avgTimeToPremiumByChannel: Record<string, number> = {};
+      const timeToPremData: Record<string, number[]> = {};
+      allActiveMemberships.forEach(m => {
+        const createdAt = userCreatedMap.get(m.userId);
+        if (createdAt && m.createdAt) {
+          const user = filteredUsers.find(u => u.id === m.userId);
+          const ch = user?.acquisitionSource || "UNKNOWN";
+          const days = Math.floor((new Date(m.createdAt).getTime() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+          if (!timeToPremData[ch]) timeToPremData[ch] = [];
+          timeToPremData[ch].push(days);
+        }
+      });
+      Object.entries(timeToPremData).forEach(([ch, days]) => {
+        avgTimeToPremiumByChannel[ch] = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+      });
+
+      // 6. Retention rate by channel (active after 90 days)
+      const retentionByChannel: Record<string, { total: number; retained: number; rate: number }> = {};
+      filteredUsers.forEach(u => {
+        if (new Date(u.createdAt) > ninetyDaysAgo) return; // too new
+        const ch = u.acquisitionSource || "UNKNOWN";
+        if (!retentionByChannel[ch]) retentionByChannel[ch] = { total: 0, retained: 0, rate: 0 };
+        retentionByChannel[ch].total++;
+        if (isActive(u)) retentionByChannel[ch].retained++;
+      });
+      Object.values(retentionByChannel).forEach(v => {
+        v.rate = v.total > 0 ? Math.round((v.retained / v.total) * 1000) / 10 : 0;
+      });
+
+      // 7. Average active lifespan per channel (days from creation to lastActivity)
+      const avgLifespanByChannel: Record<string, number> = {};
+      const lifespanData: Record<string, number[]> = {};
+      filteredUsers.forEach(u => {
+        const ch = u.acquisitionSource || "UNKNOWN";
+        const endDate = u.lastActivityAt ? new Date(u.lastActivityAt) : new Date(u.createdAt);
+        const days = Math.max(1, Math.floor((endDate.getTime() - new Date(u.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+        if (!lifespanData[ch]) lifespanData[ch] = [];
+        lifespanData[ch].push(days);
+      });
+      Object.entries(lifespanData).forEach(([ch, days]) => {
+        avgLifespanByChannel[ch] = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+      });
+
+      // 8. Referral effectiveness
+      const allReferrals = await db.select().from(referrals);
+      const totalReferralCodes = allReferrals.length;
+      const usedReferrals = allReferrals.filter(r => r.status === "APPROVED" || r.status === "PENDING");
+      const approvedReferrals = allReferrals.filter(r => r.status === "APPROVED");
+      const referralEffectiveness = {
+        totalCodes: totalReferralCodes,
+        used: usedReferrals.length,
+        approved: approvedReferrals.length,
+        conversionRate: totalReferralCodes > 0 ? Math.round((usedReferrals.length / totalReferralCodes) * 1000) / 10 : 0,
+        approvalRate: usedReferrals.length > 0 ? Math.round((approvedReferrals.length / usedReferrals.length) * 1000) / 10 : 0,
+      };
+
+      // 9. Organic acquisition ratio
+      const referralUsers = filteredUsers.filter(u => u.acquisitionSource === "REFERRAL").length;
+      const organicUsers = filteredUsers.length - referralUsers;
+      const organicRatio = filteredUsers.length > 0
+        ? Math.round((organicUsers / filteredUsers.length) * 1000) / 10
+        : 100;
+
+      // 10. Channel Quality Score (weighted: 40% Premium conversion, 30% retention, 30% activity)
+      const channelQualityScores: Record<string, number> = {};
+      const allChannels = new Set([
+        ...Object.keys(premiumConversionByChannel),
+        ...Object.keys(retentionByChannel),
+      ]);
+      allChannels.forEach(ch => {
+        const premRate = premiumConversionByChannel[ch]?.rate || 0;
+        const retRate = retentionByChannel[ch]?.rate || 0;
+        const activeCount = filteredUsers.filter(u => (u.acquisitionSource || "UNKNOWN") === ch && isActive(u)).length;
+        const totalCount = filteredUsers.filter(u => (u.acquisitionSource || "UNKNOWN") === ch).length;
+        const activeRate = totalCount > 0 ? (activeCount / totalCount) * 100 : 0;
+        channelQualityScores[ch] = Math.round((premRate * 0.4 + retRate * 0.3 + activeRate * 0.3) * 10) / 10;
+      });
+
+      // Summary stats
+      const totalUsers = filteredUsers.length;
+      const activeUsers = filteredUsers.filter(isActive).length;
+      const thisMonth = new Date();
+      const thisMonthKey = `${thisMonth.getFullYear()}-${String(thisMonth.getMonth() + 1).padStart(2, "0")}`;
+      const lastMonth = new Date(thisMonth);
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
+
+      res.json({
+        summary: {
+          totalUsers,
+          activeUsers,
+          activeRate: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 1000) / 10 : 0,
+          newThisMonth: signupsPerMonth[thisMonthKey] || 0,
+          newLastMonth: signupsPerMonth[lastMonthKey] || 0,
+          premiumUsers: premiumUserIds.size,
+          organicRatio,
+        },
+        signupsPerMonth: monthlyGrowth,
+        signupsByChannel,
+        premiumConversionByChannel,
+        avgTimeToPremiumByChannel,
+        retentionByChannel,
+        avgLifespanByChannel,
+        referralEffectiveness,
+        channelQualityScores,
+      });
+    } catch (err: any) {
+      console.error("Error fetching acquisition analytics:", err);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // GET /api/admin/analytics/acquisition/csv - Export analytics as CSV
+  app.get("/api/admin/analytics/acquisition/csv", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+
+    try {
+      const allUsersData = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        acquisitionSource: users.acquisitionSource,
+        acquisitionSourceOther: users.acquisitionSourceOther,
+        createdAt: users.createdAt,
+        lastActivityAt: users.lastActivityAt,
+        accountStatus: users.accountStatus,
+      }).from(users).orderBy(users.createdAt);
+
+      const csvHeader = "ID,Full Name,Email,Acquisition Source,Other Details,Created At,Last Activity,Account Status\n";
+      const csvRows = allUsersData.map(u =>
+        `${u.id},"${(u.fullName || "").replace(/"/g, '""')}","${u.email}",${u.acquisitionSource || "UNKNOWN"},"${(u.acquisitionSourceOther || "").replace(/"/g, '""')}",${u.createdAt.toISOString()},${u.lastActivityAt ? u.lastActivityAt.toISOString() : ""},${u.accountStatus}`
+      ).join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=acquisition-analytics.csv");
+      res.send(csvHeader + csvRows);
+    } catch (err: any) {
+      console.error("Error exporting CSV:", err);
+      res.status(500).json({ message: "Failed to export CSV" });
+    }
+  });
+
+  // GET /api/admin/analytics/monthly-report - Get or generate monthly summary report
+  app.get("/api/admin/analytics/monthly-report", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+
+    try {
+      const now = new Date();
+      const targetMonth = req.query.month ? Number(req.query.month) : now.getMonth(); // 0-based
+      const targetYear = req.query.year ? Number(req.query.year) : now.getFullYear();
+
+      const monthStart = new Date(targetYear, targetMonth, 1);
+      const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+      const prevMonthStart = new Date(targetYear, targetMonth - 1, 1);
+      const prevMonthEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+      // New signups this month
+      const newUsers = await db.select().from(users)
+        .where(and(gte(users.createdAt, monthStart), lte(users.createdAt, monthEnd)));
+      const prevUsers = await db.select().from(users)
+        .where(and(gte(users.createdAt, prevMonthStart), lte(users.createdAt, prevMonthEnd)));
+
+      // Acquisition breakdown
+      const acquisitionBreakdown: Record<string, number> = {};
+      newUsers.forEach(u => {
+        const ch = u.acquisitionSource || "UNKNOWN";
+        acquisitionBreakdown[ch] = (acquisitionBreakdown[ch] || 0) + 1;
+      });
+
+      // Growth
+      const growthRate = prevUsers.length > 0
+        ? Math.round(((newUsers.length - prevUsers.length) / prevUsers.length) * 1000) / 10
+        : 0;
+
+      // Premium insights
+      const premPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
+        .where(ilike(membershipPlans.name, "%premium%"));
+      const premPlanIds = premPlans.map(p => p.id);
+      const newPremium = premPlanIds.length > 0
+        ? await db.select().from(clubMemberships)
+            .where(and(
+              inArray(clubMemberships.planId, premPlanIds),
+              gte(clubMemberships.createdAt, monthStart),
+              lte(clubMemberships.createdAt, monthEnd)
+            ))
+        : [];
+
+      // Referral performance
+      const monthReferrals = await db.select().from(referrals)
+        .where(and(gte(referrals.createdAt, monthStart), lte(referrals.createdAt, monthEnd)));
+      const approvedThisMonth = monthReferrals.filter(r => r.status === "APPROVED").length;
+
+      // Active users (30 day window from month end)
+      const thirtyDaysBeforeEnd = new Date(monthEnd);
+      thirtyDaysBeforeEnd.setDate(thirtyDaysBeforeEnd.getDate() - 30);
+      const allUsersToDate = await db.select().from(users)
+        .where(lte(users.createdAt, monthEnd));
+      const activeCount = allUsersToDate.filter(u =>
+        u.lastActivityAt && new Date(u.lastActivityAt) >= thirtyDaysBeforeEnd
+      ).length;
+
+      // Recommendations
+      const recommendations: string[] = [];
+      const channelEntries = Object.entries(acquisitionBreakdown);
+      if (channelEntries.length > 0) {
+        const best = channelEntries.sort((a, b) => b[1] - a[1])[0];
+        recommendations.push(`Best-performing channel: ${best[0]} with ${best[1]} new signups`);
+      }
+      if (growthRate > 0) {
+        recommendations.push(`Month-on-month growth is positive at ${growthRate}%`);
+      } else if (growthRate < 0) {
+        recommendations.push(`Signups decreased by ${Math.abs(growthRate)}% compared to last month. Consider boosting marketing efforts.`);
+      }
+      if (approvedThisMonth > 0) {
+        recommendations.push(`${approvedThisMonth} referrals approved this month. Referral programme is contributing to growth.`);
+      }
+      const retentionRate = allUsersToDate.length > 0
+        ? Math.round((activeCount / allUsersToDate.length) * 1000) / 10
+        : 0;
+      if (retentionRate < 50) {
+        recommendations.push(`Retention rate is ${retentionRate}%. Consider re-engagement campaigns.`);
+      }
+
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+
+      res.json({
+        period: `${monthNames[targetMonth]} ${targetYear}`,
+        month: targetMonth,
+        year: targetYear,
+        growthOverview: {
+          newSignups: newUsers.length,
+          previousMonthSignups: prevUsers.length,
+          growthRate,
+          totalUsersToDate: allUsersToDate.length,
+        },
+        acquisitionBreakdown,
+        premiumInsights: {
+          newPremiumMembers: newPremium.length,
+          conversionRate: newUsers.length > 0
+            ? Math.round((newPremium.length / newUsers.length) * 1000) / 10
+            : 0,
+        },
+        retentionInsights: {
+          activeUsers: activeCount,
+          totalUsers: allUsersToDate.length,
+          retentionRate,
+        },
+        referralPerformance: {
+          totalReferrals: monthReferrals.length,
+          approved: approvedThisMonth,
+          pending: monthReferrals.filter(r => r.status === "PENDING").length,
+        },
+        recommendations,
+      });
+    } catch (err: any) {
+      console.error("Error generating monthly report:", err);
+      res.status(500).json({ message: "Failed to generate report" });
     }
   });
 

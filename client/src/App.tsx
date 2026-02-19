@@ -63,6 +63,7 @@ const ClubManagement = lazy(() => import("@/pages/admin/ClubManagement"));
 const ClubApprovals = lazy(() => import("@/pages/admin/ClubApprovals"));
 const PlayerProfile = lazy(() => import("@/pages/admin/PlayerProfile"));
 const Analytics = lazy(() => import("@/pages/admin/Analytics"));
+const AcquisitionAnalytics = lazy(() => import("@/pages/admin/AcquisitionAnalytics"));
 const AllRankings = lazy(() => import("@/pages/AllRankings"));
 const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
 const Venues = lazy(() => import("@/pages/Venues"));
@@ -438,6 +439,9 @@ function Router() {
       </Route>
       <Route path="/admin/analytics">
         <OwnerRoute component={Analytics} />
+      </Route>
+      <Route path="/admin/acquisition-analytics">
+        <AdminRoute component={AcquisitionAnalytics} />
       </Route>
       <Route path="/admin/import-members">
         <NonOrganiserAdminRoute component={MemberImport} />
