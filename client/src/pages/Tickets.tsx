@@ -64,6 +64,7 @@ const createTicketSchema = z.object({
   description: z.string().min(1, "Description is required"),
   category: z.enum(CATEGORIES),
   priority: z.enum(PRIORITIES),
+  onBehalfOfUserId: z.string().optional(),
 });
 
 type CreateTicketValues = z.infer<typeof createTicketSchema>;
@@ -107,8 +108,8 @@ export default function Tickets() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tickets"
-        description="Submit and track your support tickets."
+        title={isAdmin ? "Tickets" : "My Tickets"}
+        description={isAdmin ? "Manage and track support tickets." : "Submit and track your support tickets."}
         action={<CreateTicketDialog />}
       />
 
@@ -398,6 +399,8 @@ function TicketRow({ ticket, onClick, showConfidential }: { ticket: any; onClick
 function CreateTicketDialog() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+  const { data: user } = useUser();
+  const isAdmin = user?.role === "OWNER" || (user?.playerProfiles || []).some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
 
   const { data: clubs } = useQuery<any[]>({
     queryKey: ["/api/clubs"],
@@ -411,24 +414,41 @@ function CreateTicketDialog() {
       description: "",
       category: "GENERAL",
       priority: "MEDIUM",
+      onBehalfOfUserId: "",
     },
+  });
+
+  const selectedClubId = form.watch("clubId");
+
+  const { data: clubMembers } = useQuery<any[]>({
+    queryKey: ["/api/clubs", selectedClubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${selectedClubId}/members`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isAdmin && !!selectedClubId,
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: CreateTicketValues) => {
-      const res = await apiRequest("POST", "/api/tickets", {
+      const payload: any = {
         clubId: parseInt(values.clubId, 10),
         subject: values.subject,
         description: values.description,
         category: values.category,
         priority: values.priority,
-      });
+      };
+      if (values.onBehalfOfUserId && values.onBehalfOfUserId !== "self") {
+        payload.onBehalfOfUserId = parseInt(values.onBehalfOfUserId, 10);
+      }
+      const res = await apiRequest("POST", "/api/tickets", payload);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
-      toast({ title: "Ticket Created", description: "Your ticket has been submitted successfully." });
+      toast({ title: "Ticket Created", description: "The ticket has been submitted successfully." });
       form.reset();
       setOpen(false);
     },
@@ -476,6 +496,33 @@ function CreateTicketDialog() {
                 </FormItem>
               )}
             />
+            {isAdmin && selectedClubId && (
+              <FormField
+                control={form.control}
+                name="onBehalfOfUserId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Create on behalf of</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "self"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-ticket-on-behalf">
+                          <SelectValue placeholder="Myself" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="self">Myself</SelectItem>
+                        {(clubMembers || []).map((member: any) => (
+                          <SelectItem key={member.userId} value={member.userId.toString()}>
+                            {member.fullName || member.nickname || `User #${member.userId}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="subject"

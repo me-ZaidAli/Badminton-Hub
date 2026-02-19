@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -10697,6 +10697,70 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/badge-counts - Combined unread counts for sidebar badges
+  app.get("/api/badge-counts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+
+      // Unread notifications
+      const notifResult = await db.select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(and(
+          eq(notifications.userId, userId),
+          sql`${notifications.readAt} IS NULL`
+        ));
+      const notificationsCount = notifResult[0]?.count || 0;
+
+      // Open tickets (not closed) for this user
+      const ticketResult = await db.select({ count: sql<number>`count(*)::int` })
+        .from(tickets)
+        .where(and(
+          or(eq(tickets.createdByUserId, userId), eq(tickets.assignedToUserId, userId)),
+          sql`${tickets.status} != 'CLOSED'`,
+          sql`${tickets.deletedAt} IS NULL`
+        ));
+      const ticketsCount = ticketResult[0]?.count || 0;
+
+      // Unread messages
+      const msgResult = await db.select({ count: sql<number>`count(*)::int` })
+        .from(internalMessages)
+        .where(and(
+          eq(internalMessages.recipientId, userId),
+          sql`${internalMessages.readAt} IS NULL`,
+          eq(internalMessages.archivedByRecipient, false)
+        ));
+      const messagesCount = msgResult[0]?.count || 0;
+
+      // Unread announcements (not archived by user, scoped to user's clubs + global)
+      const userClubIds = (await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")))
+      ).map(p => p.clubId);
+
+      const announcementFilter = userClubIds.length > 0
+        ? or(sql`${announcements.clubId} IS NULL`, inArray(announcements.clubId, userClubIds))
+        : sql`${announcements.clubId} IS NULL`;
+
+      const totalAnnouncements = await db.select({ count: sql<number>`count(*)::int` })
+        .from(announcements)
+        .where(announcementFilter!);
+      const archivedAnnouncements = await db.select({ count: sql<number>`count(*)::int` })
+        .from(announcementArchives)
+        .where(eq(announcementArchives.userId, userId));
+      const announcementsCount = Math.max(0, (totalAnnouncements[0]?.count || 0) - (archivedAnnouncements[0]?.count || 0));
+
+      res.json({
+        notifications: notificationsCount,
+        tickets: ticketsCount,
+        messages: messagesCount,
+        announcements: announcementsCount,
+      });
+    } catch (err: any) {
+      console.error("Error fetching badge counts:", err);
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0 });
+    }
+  });
+
   app.post("/api/messages/send", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
@@ -11543,13 +11607,22 @@ export async function registerRoutes(
 
   // === TICKET SYSTEM ===
 
-  // 1. POST /api/tickets - Create ticket
+  // 1. POST /api/tickets - Create ticket (supports onBehalfOfUserId for admins)
   app.post("/api/tickets", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { clubId, subject, description, category, priority } = req.body;
+      const { clubId, subject, description, category, priority, onBehalfOfUserId } = req.body;
       if (!clubId || !subject || !description || !category) {
         return res.status(400).json({ message: "clubId, subject, description, and category are required" });
+      }
+
+      let ticketOwnerId = req.user!.id;
+      if (onBehalfOfUserId) {
+        const isStaff = req.user!.role === "OWNER" || await hasAdminAccess(req.user!.id, req.user!.role, Number(clubId));
+        if (!isStaff) return res.status(403).json({ message: "Only admins can create tickets on behalf of others" });
+        const [targetUser] = await db.select().from(users).where(eq(users.id, Number(onBehalfOfUserId)));
+        if (!targetUser) return res.status(400).json({ message: "Target user not found" });
+        ticketOwnerId = Number(onBehalfOfUserId);
       }
 
       const ticketNumber = "TK-" + randomBytes(4).toString("hex").toUpperCase();
@@ -11564,7 +11637,7 @@ export async function registerRoutes(
       const [ticket] = await db.insert(tickets).values({
         ticketNumber,
         clubId: Number(clubId),
-        createdByUserId: req.user!.id,
+        createdByUserId: ticketOwnerId,
         subject,
         description,
         category,
@@ -11576,15 +11649,16 @@ export async function registerRoutes(
       await db.insert(ticketAuditLogs).values({
         ticketId: ticket.id,
         actorUserId: req.user!.id,
-        action: "CREATED",
+        action: onBehalfOfUserId ? "CREATED_ON_BEHALF" : "CREATED",
         toStatus: "SUBMITTED",
+        metadata: onBehalfOfUserId ? { onBehalfOfUserId: ticketOwnerId, createdBy: req.user!.id } : undefined,
       });
 
       await db.insert(notifications).values({
-        userId: req.user!.id,
+        userId: ticketOwnerId,
         type: "TICKET_UPDATE",
         title: "Ticket Created",
-        message: `Your ticket ${ticketNumber} has been submitted successfully.`,
+        message: `${onBehalfOfUserId ? "A ticket has been created for you" : "Your ticket"} ${ticketNumber} has been submitted successfully.`,
         linkUrl: `/tickets/${ticket.id}`,
         status: "in_progress",
       });
@@ -11900,13 +11974,12 @@ export async function registerRoutes(
     }
   });
 
-  // 6. PATCH /api/tickets/:id/assign - Assign ticket
+  // 6. PATCH /api/tickets/:id/assign - Assign or unassign ticket
   app.patch("/api/tickets/:id/assign", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
       const { assignedToUserId } = req.body;
-      if (!assignedToUserId) return res.status(400).json({ message: "assignedToUserId is required" });
 
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
@@ -11914,6 +11987,22 @@ export async function registerRoutes(
       const isOwner = req.user!.role === "OWNER";
       const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
       if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      if (assignedToUserId === null || assignedToUserId === undefined) {
+        const [updated] = await db.update(tickets).set({
+          assignedToUserId: null,
+          lastActivityAt: new Date(),
+        }).where(eq(tickets.id, ticketId)).returning();
+
+        await db.insert(ticketAuditLogs).values({
+          ticketId: ticket.id,
+          actorUserId: req.user!.id,
+          action: "UNASSIGNED",
+          metadata: { previousAssignee: ticket.assignedToUserId },
+        });
+
+        return res.json(updated);
+      }
 
       const [updated] = await db.update(tickets).set({
         assignedToUserId: Number(assignedToUserId),

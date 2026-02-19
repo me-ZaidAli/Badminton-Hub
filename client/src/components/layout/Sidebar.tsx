@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
+import { useQuery } from "@tanstack/react-query";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { useState } from "react";
 import { 
@@ -27,29 +28,48 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
+interface BadgeCounts {
+  notifications: number;
+  tickets: number;
+  messages: number;
+  announcements: number;
+}
+
 interface NavItem {
   href: string;
   label: string;
   icon: any;
   section?: string;
+  badgeKey?: keyof BadgeCounts;
+}
+
+function useBadgeCounts() {
+  const { data: user } = useUser();
+  return useQuery<BadgeCounts>({
+    queryKey: ["/api/badge-counts"],
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
 }
 
 function useNavItems(): NavItem[] {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN" || hasClubAdminAccess || 
+    (user?.playerProfiles || []).some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+
   const navItems: NavItem[] = [
     { href: "/sessions", label: "Sessions", icon: Calendar },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck },
     { href: "/clubs", label: "Clubs", icon: Building2 },
     { href: "/rankings", label: "Rankings", icon: Trophy },
-    { href: "/announcements", label: "Announcements", icon: Megaphone },
-    { href: "/tickets", label: "Tickets", icon: Ticket },
-    { href: "/notifications", label: "Notifications", icon: Bell },
-    { href: "/inbox", label: "Inbox", icon: Mail },
+    { href: "/announcements", label: "Announcements", icon: Megaphone, badgeKey: "announcements" },
+    { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, badgeKey: "tickets" },
+    { href: "/notifications", label: "Notifications", icon: Bell, badgeKey: "notifications" },
+    { href: "/inbox", label: "Inbox", icon: Mail, badgeKey: "messages" },
   ];
-
-  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
   if (user?.role === "OWNER") {
     if (hasClubAdminAccess) {
@@ -63,11 +83,21 @@ function useNavItems(): NavItem[] {
   return navItems;
 }
 
+function BadgeCount({ count }: { count: number }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground" data-testid="badge-count">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
   const navItems = useNavItems();
+  const { data: badgeCounts } = useBadgeCounts();
 
   return (
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
@@ -92,6 +122,7 @@ export function Sidebar() {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
           const prevItem = idx > 0 ? navItems[idx - 1] : null;
           const showSectionDivider = item.section === "super-admin" && prevItem?.section !== "super-admin";
+          const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
           return (
             <div key={item.href}>
               {showSectionDivider && (
@@ -113,6 +144,7 @@ export function Sidebar() {
                 >
                   <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
                   {item.label}
+                  <BadgeCount count={badgeCount} />
                 </div>
               </Link>
             </div>
@@ -160,6 +192,7 @@ export function MobileTopNav() {
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
   const navItems = useNavItems();
+  const { data: badgeCounts } = useBadgeCounts();
   const [menuOpen, setMenuOpen] = useState(false);
 
   if (!user) return null;
@@ -206,6 +239,7 @@ export function MobileTopNav() {
           <div className="py-2 px-2 space-y-1">
             {navItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+              const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -217,6 +251,11 @@ export function MobileTopNav() {
                   >
                     <item.icon className="w-4 h-4" />
                     {item.label}
+                    {badgeCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                        {badgeCount > 99 ? "99+" : badgeCount}
+                      </span>
+                    )}
                   </Button>
                 </Link>
               );

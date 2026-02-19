@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft, Loader2, ShieldAlert, Clock, User, MessageSquare,
   AlertCircle, Send, FileText, History, StickyNote, ArrowRight,
-  XCircle, RotateCcw, Lock, CheckCircle2,
+  XCircle, RotateCcw, Lock, CheckCircle2, UserCog,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -204,6 +204,16 @@ function TicketHeader({
 }) {
   const { toast } = useToast();
 
+  const { data: clubMembers } = useQuery<any[]>({
+    queryKey: ["/api/clubs", ticket.clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${ticket.clubId}/members`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isAdmin && !!ticket.clubId,
+  });
+
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
       await apiRequest("PATCH", `/api/tickets/${ticketId}/status`, { status });
@@ -219,8 +229,42 @@ function TicketHeader({
     },
   });
 
+  const assignMutation = useMutation({
+    mutationFn: async (assignedToUserId: number) => {
+      await apiRequest("PATCH", `/api/tickets/${ticketId}/assign`, { assignedToUserId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      toast({ title: "Ticket Assigned", description: "Ticket has been assigned." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to assign ticket", variant: "destructive" });
+    },
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/tickets/${ticketId}/assign`, { assignedToUserId: null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      toast({ title: "Unassigned", description: "Ticket is now unassigned." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to unassign ticket", variant: "destructive" });
+    },
+  });
+
   const isClosed = ticket.status === "CLOSED";
   const isResolved = ticket.status === "RESOLVED";
+
+  const assignableUsers = clubMembers?.filter((m: any) => 
+    m.clubRole === "ADMIN" || m.clubRole === "OWNER"
+  ) || [];
 
   return (
     <div className="space-y-4">
@@ -254,7 +298,7 @@ function TicketHeader({
             </span>
             {assigneeName && (
               <span className="flex items-center gap-1" data-testid="text-assignee">
-                Assigned to: <span className="font-medium">{assigneeName}</span>
+                <UserCog className="h-3 w-3" /> Assigned to: <span className="font-medium">{assigneeName}</span>
               </span>
             )}
           </div>
@@ -297,7 +341,7 @@ function TicketHeader({
       </div>
 
       {isAdmin && (
-        <div className="flex items-center gap-3 flex-wrap" data-testid="admin-ticket-controls">
+        <div className="flex items-center gap-4 flex-wrap" data-testid="admin-ticket-controls">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Status:</span>
             <Select
@@ -314,6 +358,33 @@ function TicketHeader({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Assign to:</span>
+            <Select
+              value={ticket.assignedToUserId?.toString() || "unassigned"}
+              onValueChange={(value) => {
+                if (value === "unassigned") {
+                  unassignMutation.mutate();
+                } else if (value) {
+                  assignMutation.mutate(Number(value));
+                }
+              }}
+              disabled={assignMutation.isPending || unassignMutation.isPending}
+            >
+              <SelectTrigger className="w-[200px]" data-testid="select-assign-ticket">
+                <SelectValue placeholder="Unassigned" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {assignableUsers.map((member: any) => (
+                  <SelectItem key={member.userId} value={member.userId.toString()}>
+                    {member.fullName || member.nickname || `User #${member.userId}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(assignMutation.isPending || unassignMutation.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
           </div>
         </div>
       )}
