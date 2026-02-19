@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useClubs } from "@/hooks/use-clubs";
 import {
@@ -78,6 +78,8 @@ export default function Referrals() {
   const [selectedClubId, setSelectedClubId] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [premiumInfoOpen, setPremiumInfoOpen] = useState(false);
+  const [championInfoOpen, setChampionInfoOpen] = useState(false);
 
   const { data, isLoading } = useQuery<ReferralResponse>({
     queryKey: ["/api/my-referrals"],
@@ -188,7 +190,7 @@ export default function Referrals() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card data-testid="card-milestone-premium">
+        <Card data-testid="card-milestone-premium" className="cursor-pointer hover-elevate" onClick={() => setPremiumInfoOpen(true)}>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -207,7 +209,7 @@ export default function Referrals() {
             </p>
           </CardContent>
         </Card>
-        <Card data-testid="card-milestone-champion">
+        <Card data-testid="card-milestone-champion" className="cursor-pointer hover-elevate" onClick={() => setChampionInfoOpen(true)}>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -386,6 +388,183 @@ export default function Referrals() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={premiumInfoOpen} onOpenChange={setPremiumInfoOpen}>
+        <DialogContent className="bg-background max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-amber-500" />
+              Premium Rate Eligibility
+            </DialogTitle>
+            <DialogDescription>How to unlock the Premium membership rate through referrals</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">Your Progress</span>
+                {stats.premiumEligible ? (
+                  <Badge className="bg-green-500 text-white no-default-hover-elevate">Unlocked</Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">{"\u00A3"}{(stats.totalCreditsEarned / 100).toFixed(2)} / {"\u00A3"}8.00</span>
+                )}
+              </div>
+              <Progress value={premiumProgress} className="h-3" />
+            </div>
+
+            <div className="p-4 rounded-md bg-muted/50 space-y-3">
+              <h4 className="font-semibold text-sm">What is Premium Rate Eligibility?</h4>
+              <p className="text-sm text-muted-foreground">
+                When you earn {"\u00A3"}8 in referral credits (2 approved referrals), you unlock access to the special 4-month Premium membership rate. This discounted rate is only available to members who actively help grow the club through referrals.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-md bg-muted/50 space-y-3">
+              <h4 className="font-semibold text-sm">How Referrals Work</h4>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold">1</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Generate a Code</p>
+                    <p className="text-xs text-muted-foreground">Create a unique referral code (REF-XXXXXXXX format) that expires after 30 days. Each code is single-use.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold">2</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Share with a Friend</p>
+                    <p className="text-xs text-muted-foreground">Send your code or referral link to a friend. They enter it when creating their account on the registration page.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold">3</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Admin Approval</p>
+                    <p className="text-xs text-muted-foreground">Once your friend signs up, the referral goes to an admin for review. They verify it's a genuine new member.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold">4</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Earn {"\u00A3"}4 Credit</p>
+                    <p className="text-xs text-muted-foreground">When approved, {"\u00A3"}4 is added to your credit wallet. You'll also receive a notification and internal message confirming the reward.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-md bg-amber-500/10 space-y-2">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <Star className="h-4 w-4 text-amber-500" />
+                Milestone Reward
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Reach {"\u00A3"}8 in credits (2 approved referrals) to unlock the Premium 4-month membership rate -- a discounted rate reserved exclusively for active referrers.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={championInfoOpen} onOpenChange={setChampionInfoOpen}>
+        <DialogContent className="bg-background max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-purple-500" />
+              Referral Champion
+            </DialogTitle>
+            <DialogDescription>The ultimate referral achievement and recognition</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">Your Progress</span>
+                {stats.milestoneReached ? (
+                  <Badge className="bg-purple-500 text-white no-default-hover-elevate">Achieved</Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">{"\u00A3"}{(stats.totalCreditsEarned / 100).toFixed(2)} / {"\u00A3"}16.00</span>
+                )}
+              </div>
+              <Progress value={milestoneProgress} className="h-3" />
+            </div>
+
+            <div className="p-4 rounded-md bg-muted/50 space-y-3">
+              <h4 className="font-semibold text-sm">What is Referral Champion?</h4>
+              <p className="text-sm text-muted-foreground">
+                Referral Champion is the highest referral status you can achieve. It's awarded to members who earn {"\u00A3"}16 in referral credits (4 approved referrals), recognising their outstanding contribution to growing the club community.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-md bg-muted/50 space-y-3">
+              <h4 className="font-semibold text-sm">What You Get</h4>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3">
+                  <Award className="h-5 w-5 text-purple-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Champion Recognition</p>
+                    <p className="text-xs text-muted-foreground">You'll be recognised as a Referral Champion across the platform, visible to admins and other members.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <TrendingUp className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">{"\u00A3"}16+ in Credits</p>
+                    <p className="text-xs text-muted-foreground">By the time you reach this milestone, you'll have earned at least {"\u00A3"}16 in credits ({"\u00A3"}4 per approved referral) to use towards sessions and memberships.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Star className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Premium Rate Already Unlocked</p>
+                    <p className="text-xs text-muted-foreground">You'll have already unlocked Premium Rate Eligibility at the {"\u00A3"}8 mark (2 referrals), giving you access to the discounted 4-month membership rate.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-md bg-purple-500/10 space-y-3">
+              <h4 className="font-semibold text-sm">Milestones at a Glance</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${stats.totalCreditsEarned >= 400 ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                    <span>1st Referral</span>
+                  </div>
+                  <span className="text-muted-foreground">{"\u00A3"}4 credit</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${stats.premiumEligible ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
+                    <span>2nd Referral -- Premium Rate</span>
+                  </div>
+                  <span className="text-muted-foreground">{"\u00A3"}8 total</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${stats.totalCreditsEarned >= 1200 ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
+                    <span>3rd Referral</span>
+                  </div>
+                  <span className="text-muted-foreground">{"\u00A3"}12 total</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${stats.milestoneReached ? 'bg-purple-500' : 'bg-muted-foreground/30'}`} />
+                    <span className="font-medium">4th Referral -- Champion</span>
+                  </div>
+                  <span className="text-muted-foreground">{"\u00A3"}16 total</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
         <DialogContent className="bg-background max-w-md">
