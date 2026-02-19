@@ -176,6 +176,7 @@ export default function Financials() {
 
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
+  const [outstandingDialogOpen, setOutstandingDialogOpen] = useState(false);
 
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -332,6 +333,20 @@ export default function Financials() {
   const pendingTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PENDING").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const unpaidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
   const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
+
+  const outstandingByPlayer = useMemo(() => {
+    const unpaidEntries = filteredData.filter((e) => e.paymentStatus === "UNPAID");
+    const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number; totalOwed: number; sessions: { sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number }[] }> = {};
+    unpaidEntries.forEach((entry) => {
+      const key = `${entry.playerUserId}`;
+      if (!groups[key]) {
+        groups[key] = { playerName: entry.playerName, playerEmail: entry.playerEmail, playerUserId: entry.playerUserId, totalOwed: 0, sessions: [] };
+      }
+      groups[key].totalOwed += entry.fee || 0;
+      groups[key].sessions.push({ sessionId: entry.sessionId, sessionTitle: entry.sessionTitle, sessionDate: entry.sessionDate, clubName: entry.clubName, fee: entry.fee });
+    });
+    return Object.values(groups).sort((a, b) => b.totalOwed - a.totalOwed);
+  }, [filteredData]);
 
   const sessionGroups = useMemo(() => {
     const groups: Record<number, FinancialEntry[]> = {};
@@ -1299,9 +1314,22 @@ export default function Financials() {
             <div className="text-2xl font-bold text-orange-600" data-testid="text-outstanding">
               £{formatPounds(unpaidTotal)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {filteredData.filter((e) => e.paymentStatus === "UNPAID").length} unpaid
-            </p>
+            <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                {filteredData.filter((e) => e.paymentStatus === "UNPAID").length} unpaid
+              </p>
+              {unpaidTotal > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setOutstandingDialogOpen(true)}
+                  data-testid="button-view-outstanding"
+                >
+                  <Search className="h-3 w-3 mr-1" />
+                  View Details
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -2820,6 +2848,52 @@ export default function Financials() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={outstandingDialogOpen} onOpenChange={setOutstandingDialogOpen}>
+        <DialogContent className="sm:max-w-[700px]" data-testid="dialog-outstanding-details">
+          <DialogHeader>
+            <DialogTitle data-testid="text-outstanding-dialog-title">Outstanding Payments</DialogTitle>
+            <DialogDescription>
+              {outstandingByPlayer.length} player{outstandingByPlayer.length !== 1 ? "s" : ""} with unpaid sessions totalling {"\u00A3"}{formatPounds(unpaidTotal)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto space-y-3">
+            {outstandingByPlayer.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No outstanding payments</p>
+            ) : (
+              outstandingByPlayer.map((player) => (
+                <Card key={player.playerUserId} data-testid={`card-outstanding-player-${player.playerUserId}`}>
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm font-medium" data-testid={`text-outstanding-player-name-${player.playerUserId}`}>{player.playerName}</CardTitle>
+                      <p className="text-xs text-muted-foreground truncate" data-testid={`text-outstanding-player-email-${player.playerUserId}`}>{player.playerEmail}</p>
+                    </div>
+                    <Badge variant="destructive" data-testid={`badge-outstanding-total-${player.playerUserId}`}>
+                      {"\u00A3"}{formatPounds(player.totalOwed)}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-1">
+                      {player.sessions.map((session, idx) => (
+                        <div key={`${session.sessionId}-${idx}`} className="flex items-center justify-between gap-2 text-xs py-1 border-t border-border/40 flex-wrap" data-testid={`row-outstanding-session-${session.sessionId}-${player.playerUserId}`}>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-medium">{session.sessionTitle}</span>
+                            <span className="text-muted-foreground ml-2">
+                              {session.sessionDate ? format(new Date(session.sessionDate), "dd MMM yyyy") : "N/A"}
+                            </span>
+                            <span className="text-muted-foreground ml-1">({session.clubName})</span>
+                          </div>
+                          <span className="font-medium text-orange-600 whitespace-nowrap">{"\u00A3"}{formatPounds(session.fee)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
