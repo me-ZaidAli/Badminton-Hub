@@ -362,9 +362,9 @@ export default function Financials() {
     return { upcomingSessionGroups: upcoming, pastSessionGroups: past };
   }, [sessionGroups]);
 
-  const activeSessionGroups = useMemo(() => {
+  const activeSessionGroupsList = useMemo(() => {
     const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : pastSessionGroups;
-    const entries = Object.entries(base);
+    const entries: [string, FinancialEntry[]][] = Object.entries(base);
     entries.sort(([, a], [, b]) => {
       if (sessionSortOrder === "az") {
         const aTitle = (a[0]?.sessionTitle || "").toLowerCase();
@@ -375,7 +375,7 @@ export default function Financials() {
       const bDate = b[0]?.sessionDate ? new Date(b[0].sessionDate).getTime() : 0;
       return sessionSortOrder === "oldest" ? aDate - bDate : bDate - aDate;
     });
-    return Object.fromEntries(entries);
+    return entries;
   }, [sessionTimeTab, upcomingSessionGroups, pastSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
@@ -1546,13 +1546,13 @@ export default function Financials() {
                   <SelectItem value="az">A - Z</SelectItem>
                 </SelectContent>
               </Select>
-              {Object.keys(activeSessionGroups).length > 0 && (
+              {activeSessionGroupsList.length > 0 && (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const allIds = Object.keys(activeSessionGroups).map(Number);
+                      const allIds = activeSessionGroupsList.map(([id]) => Number(id));
                       if (selectedSessions.size === allIds.length) {
                         setSelectedSessions(new Set());
                       } else {
@@ -1561,7 +1561,7 @@ export default function Financials() {
                     }}
                     data-testid="button-select-all-sessions"
                   >
-                    {selectedSessions.size === Object.keys(activeSessionGroups).length && selectedSessions.size > 0 ? (
+                    {selectedSessions.size === activeSessionGroupsList.length && selectedSessions.size > 0 ? (
                       <CheckSquare className="h-4 w-4 mr-1" />
                     ) : (
                       <Square className="h-4 w-4 mr-1" />
@@ -1584,14 +1584,14 @@ export default function Financials() {
             </div>
           </div>
 
-          {Object.keys(activeSessionGroups).length === 0 ? (
+          {activeSessionGroupsList.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
                 No {sessionTimeTab === "upcoming" ? "upcoming" : "past"} sessions found for the selected filters.
               </CardContent>
             </Card>
           ) : (
-            Object.entries(activeSessionGroups).map(([sessionIdStr, entries]) => {
+            activeSessionGroupsList.map(([sessionIdStr, entries]) => {
               const sessionId = Number(sessionIdStr);
               const first = entries[0];
               const sessionPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
