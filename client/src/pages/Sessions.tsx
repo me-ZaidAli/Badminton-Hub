@@ -394,9 +394,10 @@ export default function Sessions() {
   const [joinSession, setJoinSession] = useState<any>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
+  const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
-  const editableClubIds = new Set(isSuperUser ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
+  const editableClubIds = new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
 
   const { data: memberships } = useQuery<{ clubId: number; membershipStatus: string }[]>({
     queryKey: ["/api/user/memberships"],
@@ -427,13 +428,13 @@ export default function Sessions() {
   }, [memberships]);
 
   const displayClubs = useMemo(() => {
-    if (isSuperUser || clubScope === "all") return clubs || [];
+    if (isPlatformAdmin || clubScope === "all") return clubs || [];
     return (clubs || []).filter(c => myClubIds.has(c.id));
-  }, [clubs, clubScope, myClubIds, isSuperUser]);
+  }, [clubs, clubScope, myClubIds, isPlatformAdmin]);
 
   const getSessionAccess = (clubId: number): "allowed" | "denied" => {
     if (!user) return "denied";
-    if (isSuperUser) return "allowed";
+    if (isPlatformAdmin) return "allowed";
     const m = memberships?.find(m => m.clubId === clubId);
     return m?.membershipStatus === "APPROVED" ? "allowed" : "denied";
   };
@@ -515,7 +516,7 @@ export default function Sessions() {
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
-    if (!isSuperUser && clubScope === "my") {
+    if (!isPlatformAdmin && clubScope === "my") {
       result = result.filter(s => myClubIds.has(s.clubId));
     }
     if (selectedClubId !== "all") {
@@ -526,7 +527,7 @@ export default function Sessions() {
       result = result.filter(s => s.title.toLowerCase().includes(q));
     }
     return result;
-  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isSuperUser]);
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin]);
 
   const now = useMemo(() => {
     const d = new Date();
@@ -614,7 +615,7 @@ export default function Sessions() {
       />
 
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        {!isSuperUser && (
+        {!isPlatformAdmin && (
           <div className="flex items-center gap-1">
             <Button
               variant={clubScope === "my" ? "default" : "outline"}
@@ -951,7 +952,7 @@ export default function Sessions() {
                           <Wallet className="h-4 w-4 mr-1" />
                           Finances
                         </Button>
-                        <EditSessionDialog session={session} venues={[]} adminClubs={isSuperUser ? (clubs || []) : (adminClubs || [])} />
+                        <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
                         <Button
                           size="icon"
                           variant="ghost"

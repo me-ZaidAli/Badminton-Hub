@@ -239,7 +239,7 @@ export default function SessionDetail() {
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
-  const editableClubIds = new Set(user?.role === "OWNER" ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
+  const editableClubIds = new Set((user?.role === "OWNER" || user?.role === "ADMIN") ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
   const canEditSession = session ? editableClubIds.has(session.clubId) : false;
   const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
   const parentQueuedCount = (parentMatches as any[])?.filter((m: any) => m.status === "QUEUED").length || 0;
