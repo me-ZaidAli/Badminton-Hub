@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -4425,12 +4425,14 @@ export async function registerRoutes(
   // === Get all players for a specific club (Super Admin) ===
   app.get("/api/admin/clubs/:clubId/players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER") {
+    const clubIdParam = Number(req.params.clubId);
+    const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, clubIdParam);
+    if (!isAdmin && req.user!.role !== "OWNER") {
       return res.sendStatus(403);
     }
 
     try {
-      const clubId = Number(req.params.clubId);
+      const clubId = clubIdParam;
       const players = await storage.getClubPlayersWithDetails(clubId);
       res.json(players);
     } catch (err: any) {
@@ -4641,6 +4643,319 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error merging duplicates:", err);
       res.status(500).json({ message: err.message || "Failed to merge duplicates" });
+    }
+  });
+
+  // === Merge Player Profiles (Admin/OWNER only) ===
+  app.post("/api/admin/merge-profiles/preview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { primaryProfileId, secondaryProfileId } = req.body;
+
+    if (!primaryProfileId || !secondaryProfileId) {
+      return res.status(400).json({ message: "Both profile IDs are required" });
+    }
+    if (primaryProfileId === secondaryProfileId) {
+      return res.status(400).json({ message: "Cannot merge a profile with itself" });
+    }
+
+    try {
+      const primary = await storage.getPlayerProfileById(primaryProfileId);
+      const secondary = await storage.getPlayerProfileById(secondaryProfileId);
+      if (!primary) return res.status(404).json({ message: "Primary profile not found" });
+      if (!secondary) return res.status(404).json({ message: "Secondary profile not found" });
+
+      if (primary.clubId !== secondary.clubId) {
+        return res.status(400).json({ message: "Profiles must belong to the same club" });
+      }
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, primary.clubId);
+      if (!isAdmin && req.user!.role !== "OWNER") {
+        return res.status(403).json({ message: "Only admins or super admins can merge profiles" });
+      }
+
+      const secId = secondaryProfileId;
+      const [sessionsCount] = await db.select({ count: sql<number>`count(*)::int` }).from(sessionSignups).where(eq(sessionSignups.playerId, secId));
+      const [matchesCount] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(
+        or(
+          eq(matches.teamAPlayer1Id, secId), eq(matches.teamAPlayer2Id, secId),
+          eq(matches.teamBPlayer1Id, secId), eq(matches.teamBPlayer2Id, secId)
+        )
+      );
+      const [creditCount] = await db.select({ count: sql<number>`count(*)::int` }).from(creditLedger).where(eq(creditLedger.userId, secondary.userId));
+      const [tournamentCount] = await db.select({ count: sql<number>`count(*)::int` }).from(tournamentTeams).where(
+        or(eq(tournamentTeams.player1Id, secId), eq(tournamentTeams.player2Id, secId))
+      );
+
+      const primarySignupSessionIds = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, primaryProfileId));
+      const primarySessionSet = new Set(primarySignupSessionIds.map(s => s.sessionId));
+      const secondarySignups = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, secId));
+      const duplicateSignups = secondarySignups.filter(s => primarySessionSet.has(s.sessionId)).length;
+
+      const club = await storage.getClub(primary.clubId);
+
+      const primaryMemberships = await db.select().from(clubMemberships).where(and(eq(clubMemberships.userId, primary.userId), eq(clubMemberships.clubId, primary.clubId)));
+      const secondaryMemberships = await db.select().from(clubMemberships).where(and(eq(clubMemberships.userId, secondary.userId), eq(clubMemberships.clubId, secondary.clubId)));
+
+      res.json({
+        primary: {
+          profileId: primary.id,
+          userId: primary.userId,
+          fullName: primary.user.fullName,
+          email: primary.user.email,
+          gender: primary.gender,
+          category: primary.category,
+          grade: primary.grade,
+          clubRole: primary.clubRole,
+          membershipStatus: primary.membershipStatus,
+          playerStatus: primary.playerStatus,
+          matchesPlayed: primary.matchesPlayed,
+          matchesWon: primary.matchesWon,
+          rankingPoints: primary.rankingPoints,
+          profilePictureUrl: primary.user.profilePictureUrl,
+          accountStatus: primary.user.accountStatus,
+          memberships: primaryMemberships,
+        },
+        secondary: {
+          profileId: secondary.id,
+          userId: secondary.userId,
+          fullName: secondary.user.fullName,
+          email: secondary.user.email,
+          gender: secondary.gender,
+          category: secondary.category,
+          grade: secondary.grade,
+          clubRole: secondary.clubRole,
+          membershipStatus: secondary.membershipStatus,
+          playerStatus: secondary.playerStatus,
+          matchesPlayed: secondary.matchesPlayed,
+          matchesWon: secondary.matchesWon,
+          rankingPoints: secondary.rankingPoints,
+          profilePictureUrl: secondary.user.profilePictureUrl,
+          accountStatus: secondary.user.accountStatus,
+          memberships: secondaryMemberships,
+        },
+        counts: {
+          sessionsToReassign: sessionsCount.count,
+          matchesToReassign: matchesCount.count,
+          creditEntriesToReassign: creditCount.count,
+          tournamentsToReassign: tournamentCount.count,
+          duplicateSignupsToRemove: duplicateSignups,
+        },
+        clubName: club?.name || "Unknown",
+        sameUser: primary.userId === secondary.userId,
+      });
+    } catch (err: any) {
+      console.error("Error previewing merge:", err);
+      res.status(500).json({ message: err.message || "Failed to preview merge" });
+    }
+  });
+
+  app.post("/api/admin/merge-profiles/execute", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { primaryProfileId, secondaryProfileId, keepUserId } = req.body;
+
+    if (!primaryProfileId || !secondaryProfileId) {
+      return res.status(400).json({ message: "Both profile IDs are required" });
+    }
+    if (primaryProfileId === secondaryProfileId) {
+      return res.status(400).json({ message: "Cannot merge a profile with itself" });
+    }
+
+    try {
+      const primary = await storage.getPlayerProfileById(primaryProfileId);
+      const secondary = await storage.getPlayerProfileById(secondaryProfileId);
+      if (!primary) return res.status(404).json({ message: "Primary profile not found" });
+      if (!secondary) return res.status(404).json({ message: "Secondary profile not found" });
+
+      if (primary.clubId !== secondary.clubId) {
+        return res.status(400).json({ message: "Profiles must belong to the same club" });
+      }
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, primary.clubId);
+      if (!isAdmin && req.user!.role !== "OWNER") {
+        return res.status(403).json({ message: "Only admins or super admins can merge profiles" });
+      }
+
+      if ((primary as any).deletedAt || (secondary as any).deletedAt) {
+        return res.status(400).json({ message: "Cannot merge profiles that have been soft-deleted" });
+      }
+
+      const priId = primaryProfileId;
+      const secId = secondaryProfileId;
+      const club = await storage.getClub(primary.clubId);
+      const validKeepUserIds = [primary.userId, secondary.userId];
+      const keptUserId = keepUserId && validKeepUserIds.includes(keepUserId) ? keepUserId : primary.userId;
+
+      await db.execute(sql`BEGIN`);
+      try {
+        await db.execute(sql`SELECT id FROM player_profiles WHERE id IN (${priId}, ${secId}) FOR UPDATE`);
+        
+        const recheck = await db.select().from(playerProfiles).where(eq(playerProfiles.id, secId));
+        if (recheck.length === 0 || recheck[0].deletedAt) {
+          await db.execute(sql`ROLLBACK`);
+          return res.status(409).json({ message: "Profile was already merged or deleted by another operation" });
+        }
+
+        const primarySignupSessionIds = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, priId));
+        const primarySessionSet = new Set(primarySignupSessionIds.map(s => s.sessionId));
+
+        const secondarySignupsList = await db.select().from(sessionSignups).where(eq(sessionSignups.playerId, secId));
+        let duplicateSignupsRemoved = 0;
+        let sessionsReassigned = 0;
+
+        for (const signup of secondarySignupsList) {
+          if (primarySessionSet.has(signup.sessionId)) {
+            await db.delete(sessionSignups).where(eq(sessionSignups.id, signup.id));
+            duplicateSignupsRemoved++;
+          } else {
+            await db.update(sessionSignups).set({ playerId: priId }).where(eq(sessionSignups.id, signup.id));
+            sessionsReassigned++;
+          }
+        }
+
+        const matchCols = [
+          { col: "team_a_player_1_id", ref: matches.teamAPlayer1Id },
+          { col: "team_a_player_2_id", ref: matches.teamAPlayer2Id },
+          { col: "team_b_player_1_id", ref: matches.teamBPlayer1Id },
+          { col: "team_b_player_2_id", ref: matches.teamBPlayer2Id },
+        ];
+        let matchesReassigned = 0;
+        for (const mc of matchCols) {
+          const result = await db.execute(sql`UPDATE matches SET ${sql.raw(mc.col)} = ${priId} WHERE ${sql.raw(mc.col)} = ${secId}`);
+          matchesReassigned += (result as any).rowCount || 0;
+        }
+
+        let tournamentsReassigned = 0;
+        const ttResult1 = await db.execute(sql`UPDATE tournament_teams SET player1_id = ${priId} WHERE player1_id = ${secId}`);
+        tournamentsReassigned += (ttResult1 as any).rowCount || 0;
+        const ttResult2 = await db.execute(sql`UPDATE tournament_teams SET player2_id = ${priId} WHERE player2_id = ${secId}`);
+        tournamentsReassigned += (ttResult2 as any).rowCount || 0;
+
+        let creditEntriesReassigned = 0;
+        if (primary.userId !== secondary.userId) {
+          const creditResult = await db.execute(sql`UPDATE credit_ledger SET user_id = ${keptUserId} WHERE user_id = ${secondary.userId} AND club_id = ${primary.clubId}`);
+          creditEntriesReassigned = (creditResult as any).rowCount || 0;
+        }
+
+        const betterRole = secondary.clubRole === "ADMIN" || secondary.clubRole === "OWNER"
+          ? (primary.clubRole === "OWNER" ? primary.clubRole : secondary.clubRole)
+          : primary.clubRole;
+        const betterStatus = secondary.membershipStatus === "APPROVED" ? "APPROVED" : primary.membershipStatus;
+        const betterGrade = primary.grade || secondary.grade;
+        const betterGender = primary.gender || secondary.gender;
+        const totalRankingPoints = (primary.rankingPoints || 0) + (secondary.rankingPoints || 0);
+
+        const [matchStats] = await db.select({
+          played: sql<number>`count(DISTINCT id)::int`,
+          won: sql<number>`count(DISTINCT CASE
+            WHEN (team_a_player_1_id = ${priId} OR team_a_player_2_id = ${priId}) AND score_a > score_b THEN id
+            WHEN (team_b_player_1_id = ${priId} OR team_b_player_2_id = ${priId}) AND score_b > score_a THEN id
+          END)::int`,
+        }).from(matches).where(
+          and(
+            eq(matches.isCompleted, true),
+            or(
+              eq(matches.teamAPlayer1Id, priId), eq(matches.teamAPlayer2Id, priId),
+              eq(matches.teamBPlayer1Id, priId), eq(matches.teamBPlayer2Id, priId)
+            )
+          )
+        );
+
+        await db.update(playerProfiles).set({
+          clubRole: betterRole,
+          membershipStatus: betterStatus,
+          grade: betterGrade,
+          gender: betterGender,
+          rankingPoints: totalRankingPoints,
+          matchesPlayed: matchStats.played || 0,
+          matchesWon: matchStats.won || 0,
+          userId: keptUserId,
+        }).where(eq(playerProfiles.id, priId));
+
+        if (primary.userId !== secondary.userId) {
+          await db.execute(sql`UPDATE club_memberships SET user_id = ${keptUserId} WHERE user_id = ${secondary.userId} AND club_id = ${primary.clubId} AND club_id NOT IN (SELECT club_id FROM club_memberships WHERE user_id = ${keptUserId} AND club_id = ${primary.clubId})`);
+          await db.execute(sql`DELETE FROM club_memberships WHERE user_id = ${secondary.userId} AND club_id = ${primary.clubId}`);
+        }
+
+        await db.update(playerProfiles).set({
+          deletedAt: new Date(),
+          playerStatus: "ARCHIVED",
+        }).where(eq(playerProfiles.id, secId));
+
+        const keptEmail = keptUserId === primary.userId ? primary.user.email : secondary.user.email;
+        await db.insert(profileMergeLogs).values({
+          primaryProfileId: priId,
+          secondaryProfileId: secId,
+          mergedByUserId: req.user!.id,
+          keptEmail,
+          keptUserId,
+          mergeDetails: {
+            sessionsReassigned,
+            matchesReassigned,
+            creditEntriesReassigned,
+            tournamentsReassigned,
+            duplicateSignupsRemoved,
+            primaryUserName: primary.user.fullName,
+            secondaryUserName: secondary.user.fullName,
+            primaryUserId: primary.userId,
+            secondaryUserId: secondary.userId,
+            clubId: primary.clubId,
+            clubName: club?.name || "Unknown",
+          },
+        });
+
+        await db.execute(sql`COMMIT`);
+
+        console.log(`[ADMIN] Profile merge: ${primary.user.fullName} (${priId}) absorbed ${secondary.user.fullName} (${secId}) in club ${club?.name}. By user ${req.user!.id}`);
+
+        res.json({
+          message: `Successfully merged "${secondary.user.fullName}" into "${primary.user.fullName}"`,
+          details: {
+            sessionsReassigned,
+            matchesReassigned,
+            creditEntriesReassigned,
+            tournamentsReassigned,
+            duplicateSignupsRemoved,
+          },
+        });
+      } catch (txErr) {
+        await db.execute(sql`ROLLBACK`);
+        throw txErr;
+      }
+    } catch (err: any) {
+      console.error("Error executing merge:", err);
+      res.status(500).json({ message: err.message || "Failed to merge profiles" });
+    }
+  });
+
+  app.get("/api/admin/merge-logs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      const adminClubs = await db.select().from(playerProfiles).where(
+        and(eq(playerProfiles.userId, req.user!.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER")))
+      );
+      if (adminClubs.length === 0) return res.sendStatus(403);
+    }
+
+    try {
+      const logs = await db.select({
+        id: profileMergeLogs.id,
+        primaryProfileId: profileMergeLogs.primaryProfileId,
+        secondaryProfileId: profileMergeLogs.secondaryProfileId,
+        mergedByUserId: profileMergeLogs.mergedByUserId,
+        keptEmail: profileMergeLogs.keptEmail,
+        keptUserId: profileMergeLogs.keptUserId,
+        mergeDetails: profileMergeLogs.mergeDetails,
+        createdAt: profileMergeLogs.createdAt,
+        mergedByName: users.fullName,
+      }).from(profileMergeLogs)
+        .leftJoin(users, eq(profileMergeLogs.mergedByUserId, users.id))
+        .orderBy(desc(profileMergeLogs.createdAt))
+        .limit(50);
+
+      res.json(logs);
+    } catch (err: any) {
+      console.error("Error fetching merge logs:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch merge logs" });
     }
   });
 

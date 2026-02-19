@@ -263,6 +263,7 @@ export const playerProfiles = pgTable("player_profiles", {
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
   membershipId: integer("membership_id").references(() => membershipPlans.id),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // === VENUES ===
@@ -867,6 +868,32 @@ export type PolicyAcceptance = typeof policyAcceptances.$inferSelect;
 export type InternalMessage = typeof internalMessages.$inferSelect;
 export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
 export type InsertPolicyAcceptance = z.infer<typeof insertPolicyAcceptanceSchema>;
+
+// === PROFILE MERGE LOGS ===
+export const profileMergeLogs = pgTable("profile_merge_logs", {
+  id: serial("id").primaryKey(),
+  primaryProfileId: integer("primary_profile_id").references(() => playerProfiles.id).notNull(),
+  secondaryProfileId: integer("secondary_profile_id").notNull(),
+  mergedByUserId: integer("merged_by_user_id").references(() => users.id).notNull(),
+  keptEmail: text("kept_email"),
+  keptUserId: integer("kept_user_id").references(() => users.id),
+  mergeDetails: jsonb("merge_details").$type<{
+    sessionsReassigned: number;
+    matchesReassigned: number;
+    creditEntriesReassigned: number;
+    tournamentsReassigned: number;
+    duplicateSignupsRemoved: number;
+    primaryUserName: string;
+    secondaryUserName: string;
+    primaryUserId: number;
+    secondaryUserId: number;
+    clubId: number;
+    clubName: string;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ProfileMergeLog = typeof profileMergeLogs.$inferSelect;
 
 // === DISCOUNT CODES ===
 export const discountCodes = pgTable("discount_codes", {

@@ -17,8 +17,9 @@ import { Link } from "wouter";
 import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, DollarSign,
-  Package, CreditCard, Upload, ChevronRight
+  Package, CreditCard, Upload, ChevronRight, Merge
 } from "lucide-react";
+import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 
 const controlItems = [
   { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -960,6 +961,7 @@ export default function GodMode() {
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [editVenue, setEditVenue] = useState<VenueRecord | null>(null);
   const [venueModalOpen, setVenueModalOpen] = useState(false);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
 
   const { data: clubs, isLoading: clubsLoading } = useQuery<ClubRecord[]>({
     queryKey: ["/api/admin/clubs"],
@@ -1093,6 +1095,16 @@ export default function GodMode() {
             >
               {mergeDuplicatesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
               Merge Duplicate Accounts
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMergeModalOpen(true)}
+              data-testid="button-merge-profiles"
+              className="ml-2"
+            >
+              <Merge className="w-4 h-4 mr-2" />
+              Merge Player Profiles
             </Button>
           </div>
         </CardContent>
@@ -1312,6 +1324,25 @@ export default function GodMode() {
         open={venueModalOpen}
         onClose={() => { setVenueModalOpen(false); setEditVenue(null); }}
       />
+
+      <MergeProfilesModal
+        open={mergeModalOpen}
+        onClose={() => setMergeModalOpen(false)}
+      />
+
+      {!clubId && (
+        <Card className="mt-4" data-testid="card-merge-logs">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Merge className="w-5 h-5 text-primary" />
+              Profile Merge History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MergeLogsPanel />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
