@@ -38,6 +38,7 @@ import {
   History,
   Building2,
   ArrowDownAZ,
+  ArrowUpDown,
   AlertTriangle,
   CheckSquare,
   Square,
@@ -125,6 +126,7 @@ export default function Financials() {
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships">("session");
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "past">("upcoming");
+  const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -360,7 +362,21 @@ export default function Financials() {
     return { upcomingSessionGroups: upcoming, pastSessionGroups: past };
   }, [sessionGroups]);
 
-  const activeSessionGroups = sessionTimeTab === "upcoming" ? upcomingSessionGroups : pastSessionGroups;
+  const activeSessionGroups = useMemo(() => {
+    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : pastSessionGroups;
+    const entries = Object.entries(base);
+    entries.sort(([, a], [, b]) => {
+      if (sessionSortOrder === "az") {
+        const aTitle = (a[0]?.sessionTitle || "").toLowerCase();
+        const bTitle = (b[0]?.sessionTitle || "").toLowerCase();
+        return aTitle.localeCompare(bTitle);
+      }
+      const aDate = a[0]?.sessionDate ? new Date(a[0].sessionDate).getTime() : 0;
+      const bDate = b[0]?.sessionDate ? new Date(b[0].sessionDate).getTime() : 0;
+      return sessionSortOrder === "oldest" ? aDate - bDate : bDate - aDate;
+    });
+    return Object.fromEntries(entries);
+  }, [sessionTimeTab, upcomingSessionGroups, pastSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
     const groups: Record<string, FinancialEntry[]> = {};
@@ -1519,6 +1535,17 @@ export default function Financials() {
               </Button>
             </div>
             <div className="flex items-center gap-1 flex-wrap">
+              <Select value={sessionSortOrder} onValueChange={(v) => setSessionSortOrder(v as "recent" | "oldest" | "az")}>
+                <SelectTrigger className="w-[150px]" data-testid="select-session-sort">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1 shrink-0" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Recent First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="az">A - Z</SelectItem>
+                </SelectContent>
+              </Select>
               {Object.keys(activeSessionGroups).length > 0 && (
                 <>
                   <Button
