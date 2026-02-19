@@ -138,6 +138,7 @@ export default function MembershipBoard() {
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activePlanFilter, setActivePlanFilter] = useState<string>("all");
 
   const [selectedMemberships, setSelectedMemberships] = useState<number[]>([]);
 
@@ -261,13 +262,24 @@ export default function MembershipBoard() {
   }, [addMemberStartDate, addMemberDurationDays]);
 
   const filteredClubMembers = useMemo(() => {
-    if (!addMemberSearch) return clubMembers;
-    const lower = addMemberSearch.toLowerCase();
-    return clubMembers.filter((m: any) => {
-      const name = m.user?.fullName || m.fullName || "";
-      return name.toLowerCase().includes(lower);
+    const activeMemberUserIds = new Set(
+      memberships
+        .filter((m) => m.status === "ACTIVE" || m.status === "APPROVED" || m.status === "PENDING")
+        .map((m) => m.userId)
+    );
+    let filtered = clubMembers.filter((m: any) => {
+      const userId = m.user?.id || m.userId;
+      return !activeMemberUserIds.has(userId);
     });
-  }, [clubMembers, addMemberSearch]);
+    if (addMemberSearch) {
+      const lower = addMemberSearch.toLowerCase();
+      filtered = filtered.filter((m: any) => {
+        const name = m.user?.fullName || m.fullName || "";
+        return name.toLowerCase().includes(lower);
+      });
+    }
+    return filtered;
+  }, [clubMembers, addMemberSearch, memberships]);
 
   const filteredRequests = useMemo(() => {
     let filtered = requests;
@@ -292,6 +304,16 @@ export default function MembershipBoard() {
     }
     return filtered;
   }, [memberships, searchQuery]);
+
+  const uniquePlanNames = useMemo(() => {
+    const names = [...new Set(filteredMemberships.map(m => m.planName).filter(Boolean))];
+    return names;
+  }, [filteredMemberships]);
+
+  const planFilteredMemberships = useMemo(() => {
+    if (activePlanFilter === "all") return filteredMemberships;
+    return filteredMemberships.filter(m => m.planName === activePlanFilter);
+  }, [filteredMemberships, activePlanFilter]);
 
   const membershipSummary = useMemo(() => {
     const getMembershipFee = (m: ClubMembership) => m.proratedPrice ?? m.planAnnualPrice ?? 0;
@@ -685,10 +707,16 @@ export default function MembershipBoard() {
   };
 
   const handleSelectAll = () => {
-    if (selectedMemberships.length === filteredMemberships.length) {
-      setSelectedMemberships([]);
+    const visibleIds = planFilteredMemberships.map((m) => m.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedMemberships.includes(id));
+    if (allVisibleSelected) {
+      setSelectedMemberships((prev) => prev.filter((id) => !visibleIds.includes(id)));
     } else {
-      setSelectedMemberships(filteredMemberships.map((m) => m.id));
+      setSelectedMemberships((prev) => {
+        const existing = new Set(prev);
+        visibleIds.forEach((id) => existing.add(id));
+        return Array.from(existing);
+      });
     }
   };
 
@@ -971,10 +999,32 @@ export default function MembershipBoard() {
             </div>
           )}
 
+          {uniquePlanNames.length > 0 && (
+            <div className="mb-4 overflow-x-auto">
+              <Tabs value={activePlanFilter} onValueChange={setActivePlanFilter}>
+                <TabsList>
+                  <TabsTrigger value="all" data-testid="tab-plan-all">
+                    All
+                    <Badge variant="secondary" className="ml-1 no-default-hover-elevate">{filteredMemberships.length}</Badge>
+                  </TabsTrigger>
+                  {uniquePlanNames.map((name) => {
+                    const count = filteredMemberships.filter(m => m.planName === name).length;
+                    return (
+                      <TabsTrigger key={name} value={name} data-testid={`tab-plan-${name}`}>
+                        {name}
+                        <Badge variant="secondary" className="ml-1 no-default-hover-elevate">{count}</Badge>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-lg" data-testid="text-memberships-count">
-                Active Memberships ({filteredMemberships.length})
+                Active Memberships ({planFilteredMemberships.length})
               </CardTitle>
               {clubId && (
                 <Button
@@ -1007,7 +1057,7 @@ export default function MembershipBoard() {
                 <div className="h-64 flex items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" data-testid="loader-memberships" />
                 </div>
-              ) : filteredMemberships.length === 0 ? (
+              ) : planFilteredMemberships.length === 0 ? (
                 <div className="h-64 flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -1021,7 +1071,7 @@ export default function MembershipBoard() {
                       <TableRow>
                         <TableHead className="w-12">
                           <Checkbox
-                            checked={selectedMemberships.length > 0 && selectedMemberships.length === filteredMemberships.length}
+                            checked={planFilteredMemberships.length > 0 && planFilteredMemberships.every((m) => selectedMemberships.includes(m.id))}
                             onCheckedChange={handleSelectAll}
                             data-testid="checkbox-select-all"
                           />
@@ -1038,7 +1088,7 @@ export default function MembershipBoard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredMemberships.map((membership) => {
+                      {planFilteredMemberships.map((membership) => {
                         const daysRemaining = membership.endDate ? getDaysRemaining(membership.endDate) : 0;
                         const daysColor = getDaysRemainingColor(daysRemaining);
 
@@ -1711,6 +1761,36 @@ export default function MembershipBoard() {
                   data-testid="input-add-member-search"
                 />
               </div>
+              {filteredClubMembers.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{filteredClubMembers.length} members available</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const allIds = filteredClubMembers.map((m: any) => String(m.user?.id || m.userId));
+                        setAddMemberUserIds(prev => {
+                          const existing = new Set(prev);
+                          allIds.forEach((id: string) => existing.add(id));
+                          return Array.from(existing);
+                        });
+                      }}
+                      data-testid="button-select-all-members"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddMemberUserIds([])}
+                      data-testid="button-clear-all-members"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="border rounded-md max-h-[160px] overflow-y-auto">
                 {filteredClubMembers.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">No members found</p>
