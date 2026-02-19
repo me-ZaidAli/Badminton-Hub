@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Trophy, Search, Filter, ArrowUp, ArrowDown, Minus,
-  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, ChevronDown, Pencil, Info, ArrowUpDown
+  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, ChevronDown, Pencil, Info, ArrowUpDown,
+  Crown, Shield, Sparkles
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -77,6 +78,46 @@ function getAchievements(player: LeaderboardPlayer): { icon: any; label: string;
   if (player.winPercentage === 100 && player.matchesPlayed >= 3) {
     badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-500" });
   }
+  return badges;
+}
+
+function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string; color: string; bgColor: string }> {
+  const badges = new Map<number, { icon: any; label: string; color: string; bgColor: string }>();
+  if (players.length === 0) return badges;
+
+  const maxWins = Math.max(...players.map(p => p.matchesWon));
+  if (maxWins > 0) {
+    const champion = players.find(p => p.matchesWon === maxWins);
+    if (champion) badges.set(champion.id || champion.profileId, { icon: Crown, label: "Champion", color: "text-amber-500", bgColor: "bg-amber-500/15" });
+  }
+
+  const eligible = players.filter(p => p.matchesPlayed >= 5);
+  if (eligible.length > 0) {
+    const maxPct = Math.max(...eligible.map(p => p.winPercentage));
+    if (maxPct > 0) {
+      const sharpshooter = eligible.find(p => p.winPercentage === maxPct);
+      const id = sharpshooter.id || sharpshooter.profileId;
+      if (sharpshooter && !badges.has(id)) badges.set(id, { icon: Target, label: "Sharpshooter", color: "text-red-500", bgColor: "bg-red-500/15" });
+    }
+  }
+
+  const maxMatches = Math.max(...players.map(p => p.matchesPlayed));
+  if (maxMatches > 0) {
+    const ironman = players.find(p => p.matchesPlayed === maxMatches);
+    const id = ironman.id || ironman.profileId;
+    if (ironman && !badges.has(id)) badges.set(id, { icon: Shield, label: "Ironman", color: "text-blue-500", bgColor: "bg-blue-500/15" });
+  }
+
+  const newcomers = players.filter(p => p.matchesPlayed >= 3 && p.matchesPlayed <= 10);
+  if (newcomers.length > 0) {
+    const maxNewPct = Math.max(...newcomers.map(p => p.winPercentage));
+    if (maxNewPct > 0) {
+      const star = newcomers.find(p => p.winPercentage === maxNewPct);
+      const id = star.id || star.profileId;
+      if (star && !badges.has(id)) badges.set(id, { icon: Sparkles, label: "Rising Star", color: "text-pink-500", bgColor: "bg-pink-500/15" });
+    }
+  }
+
   return badges;
 }
 
@@ -310,6 +351,8 @@ export default function Rankings() {
     });
   }, [filteredLeaderboard]);
 
+  const uniqueBadgesMap = useMemo(() => getUniqueBadges(rankedLeaderboard), [rankedLeaderboard]);
+
   const hasActiveFilters = selectedClubId !== "all" || category !== "all" || gender !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
 
   const resetFilters = () => {
@@ -492,6 +535,7 @@ export default function Rankings() {
               const achievements = getAchievements(player);
               const isMe = playerProfile?.id === player.id;
               const isNewEntry = player.matchesPlayed <= 3;
+              const uniqueBadge = uniqueBadgesMap.get(player.id);
 
               return (
                 <TableRow
@@ -519,6 +563,11 @@ export default function Rankings() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
+                      {uniqueBadge && (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${uniqueBadge.bgColor}`} title={uniqueBadge.label} data-testid={`badge-unique-${player.id}`}>
+                          <uniqueBadge.icon className={`w-6 h-6 ${uniqueBadge.color}`} />
+                        </div>
+                      )}
                       <Avatar className="h-9 w-9 border border-border">
                         <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
                         <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
@@ -599,6 +648,80 @@ export default function Rankings() {
           </TableBody>
         </Table>
       </div>
+
+      {rankedLeaderboard.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="h-4 w-4 text-muted-foreground" />
+              <h4 className="text-sm font-semibold">Badge Guide</h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-500/15 shrink-0">
+                  <Crown className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">Champion</div>
+                  <div className="text-xs text-muted-foreground">Most wins overall</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/15 shrink-0">
+                  <Target className="w-4 h-4 text-red-500" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">Sharpshooter</div>
+                  <div className="text-xs text-muted-foreground">Highest win rate (min 5 matches)</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-500/15 shrink-0">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">Ironman</div>
+                  <div className="text-xs text-muted-foreground">Most matches played</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-pink-500/15 shrink-0">
+                  <Sparkles className="w-4 h-4 text-pink-500" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium">Rising Star</div>
+                  <div className="text-xs text-muted-foreground">Best newcomer (3-10 matches)</div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-border">
+              <div className="text-xs font-medium mb-2 text-muted-foreground">Achievement Badges</div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <span className="text-xs text-muted-foreground">5+ Wins</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs text-muted-foreground">10+ Matches</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-purple-500" />
+                  <span className="text-xs text-muted-foreground">Top Performer (75%+ win rate)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">First Win</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Medal className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs text-muted-foreground">Undefeated (3+ matches)</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {rankedLeaderboard.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground px-1">
