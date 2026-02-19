@@ -1261,211 +1261,212 @@ export default function Financials() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-        <Card data-testid="card-total-revenue">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+        <Card className="min-w-0" data-testid="card-total-revenue">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 shrink-0 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-revenue">
+            <div className="text-lg sm:text-2xl font-bold truncate" data-testid="text-total-revenue">
               £{formatPounds(totalRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{filteredData.length} signups</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">{filteredData.length} signups</p>
           </CardContent>
         </Card>
 
-        <Card data-testid="card-collected">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Collected</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+        <Card className="min-w-0" data-testid="card-collected">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Collected</CardTitle>
+            <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600" data-testid="text-collected">
+            <div className="text-lg sm:text-2xl font-bold text-green-600 truncate" data-testid="text-collected">
               £{formatPounds(paidTotal)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
               {filteredData.filter((e) => e.paymentStatus === "PAID").length} paid
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="card-pending-transfers">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Transfers</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
+        <Card className="min-w-0" data-testid="card-pending-transfers">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Pending</CardTitle>
+            <Clock className="h-4 w-4 shrink-0 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600" data-testid="text-pending-transfers">
+            <div className="text-lg sm:text-2xl font-bold text-yellow-600 truncate" data-testid="text-pending-transfers">
               £{formatPounds(pendingTotal)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {filteredData.filter((e) => e.paymentStatus === "PENDING").length} awaiting verification
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
+              {filteredData.filter((e) => e.paymentStatus === "PENDING").length} awaiting
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="card-outstanding">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
+        <Card className="min-w-0" data-testid="card-outstanding">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Outstanding</CardTitle>
+            <AlertCircle className="h-4 w-4 shrink-0 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600" data-testid="text-outstanding">
+            <div className="text-lg sm:text-2xl font-bold text-orange-600 truncate" data-testid="text-outstanding">
               £{formatPounds(unpaidTotal)}
             </div>
-            <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-1 mt-1 flex-wrap">
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                 {filteredData.filter((e) => e.paymentStatus === "UNPAID").length} unpaid
               </p>
               {unpaidTotal > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-6 text-[10px] sm:text-xs px-1.5 sm:px-2"
                   onClick={() => setOutstandingDialogOpen(true)}
                   data-testid="button-view-outstanding"
                 >
-                  <Search className="h-3 w-3 mr-1" />
-                  View Details
+                  <Search className="h-3 w-3 mr-0.5" />
+                  Details
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card data-testid="card-collection-rate">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
-            <Percent className="h-4 w-4 text-muted-foreground" />
+        <Card className="min-w-0" data-testid="card-collection-rate">
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Collection Rate</CardTitle>
+            <Percent className="h-4 w-4 shrink-0 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-collection-rate">
+            <div className="text-lg sm:text-2xl font-bold truncate" data-testid="text-collection-rate">
               {collectionRate}%
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Paid vs total</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">Paid vs total</p>
           </CardContent>
         </Card>
       </div>
 
       {dashboardData && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card data-testid="card-total-income">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Income</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <Card className="min-w-0" data-testid="card-total-income">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Income</CardTitle>
+              <TrendingUp className="h-4 w-4 shrink-0 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="text-total-income">
+              <div className="text-lg sm:text-2xl font-bold text-green-600 truncate" data-testid="text-total-income">
                 {"\u00A3"}{formatPounds(dashboardData.totalIncome)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 break-words">
                 Sessions: {"\u00A3"}{formatPounds(dashboardData.sessionIncome)}
-                {dashboardData.inventorySales > 0 && <> + Sales: {"\u00A3"}{formatPounds(dashboardData.inventorySales)}</>}
-                {dashboardData.membershipPaid > 0 && <> + Memberships: {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</>}
+                {dashboardData.inventorySales > 0 && <><br />Sales: {"\u00A3"}{formatPounds(dashboardData.inventorySales)}</>}
+                {dashboardData.membershipPaid > 0 && <><br />Memberships: {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</>}
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-total-expenses">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-500" />
+          <Card className="min-w-0" data-testid="card-total-expenses">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Expenses</CardTitle>
+              <TrendingDown className="h-4 w-4 shrink-0 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600" data-testid="text-total-expenses-dash">
+              <div className="text-lg sm:text-2xl font-bold text-red-600 truncate" data-testid="text-total-expenses-dash">
                 {"\u00A3"}{formatPounds(dashboardData.totalExpenses)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {dashboardData.inventoryPurchases > 0 && <>Inventory: {"\u00A3"}{formatPounds(dashboardData.inventoryPurchases)} </>}
-                {dashboardData.generalExpenses > 0 && <>General: {"\u00A3"}{formatPounds(dashboardData.generalExpenses)}</>}
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 break-words">
+                {dashboardData.inventoryPurchases > 0 && <>Inventory: {"\u00A3"}{formatPounds(dashboardData.inventoryPurchases)}</>}
+                {dashboardData.generalExpenses > 0 && <><br />General: {"\u00A3"}{formatPounds(dashboardData.generalExpenses)}</>}
                 {dashboardData.totalExpenses === 0 && "No expenses"}
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-net-revenue">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Net Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <Card className="min-w-0" data-testid="card-net-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Net Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 shrink-0 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${dashboardData.netRevenue >= 0 ? "text-green-600" : "text-red-600"}`} data-testid="text-net-revenue">
+              <div className={`text-lg sm:text-2xl font-bold truncate ${dashboardData.netRevenue >= 0 ? "text-green-600" : "text-red-600"}`} data-testid="text-net-revenue">
                 {dashboardData.netRevenue < 0 ? "-" : ""}{"\u00A3"}{formatPounds(Math.abs(dashboardData.netRevenue))}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Income minus expenses</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">Income minus expenses</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-stock-usage">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Stock Used</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+          <Card className="min-w-0" data-testid="card-stock-usage">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Stock Used</CardTitle>
+              <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-stock-used">
+              <div className="text-lg sm:text-2xl font-bold truncate" data-testid="text-stock-used">
                 {dashboardData.stockUsed}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Items used in sessions</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">Items used in sessions</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       {dashboardData && dashboardData.membershipActiveCount > 0 && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card data-testid="card-membership-revenue">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Revenue</CardTitle>
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <Card className="min-w-0" data-testid="card-membership-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Membership Revenue</CardTitle>
+              <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-membership-revenue">
+              <div className="text-lg sm:text-2xl font-bold truncate" data-testid="text-membership-revenue">
                 {"\u00A3"}{formatPounds(dashboardData.membershipTotalRevenue)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{dashboardData.membershipActiveCount} active memberships</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">{dashboardData.membershipActiveCount} active memberships</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-membership-paid">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Collected</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
+          <Card className="min-w-0" data-testid="card-membership-paid">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Membership Collected</CardTitle>
+              <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="text-membership-paid">
+              <div className="text-lg sm:text-2xl font-bold text-green-600 truncate" data-testid="text-membership-paid">
                 {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
                 {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "PAID").length} paid
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-membership-unpaid">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Membership Outstanding</CardTitle>
-              <AlertCircle className="h-4 w-4 text-orange-500" />
+          <Card className="min-w-0" data-testid="card-membership-unpaid">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Membership Outstanding</CardTitle>
+              <AlertCircle className="h-4 w-4 shrink-0 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600" data-testid="text-membership-unpaid">
+              <div className="text-lg sm:text-2xl font-bold text-orange-600 truncate" data-testid="text-membership-unpaid">
                 {"\u00A3"}{formatPounds(dashboardData.membershipUnpaid)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
                 {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "UNPAID").length} unpaid
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-membership-overdue">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Overdue</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+          <Card className="min-w-0" data-testid="card-membership-overdue">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Overdue</CardTitle>
+              <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600" data-testid="text-membership-overdue">
+              <div className="text-lg sm:text-2xl font-bold text-red-600 truncate" data-testid="text-membership-overdue">
                 {dashboardData.membershipOverdue}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Unpaid past due date</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">Unpaid past due date</p>
             </CardContent>
           </Card>
         </div>
@@ -1519,18 +1520,18 @@ export default function Financials() {
             <Building2 className="h-5 w-5" />
             Revenue by Club
           </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {clubRevenueData.map(club => (
-              <Card key={club.clubId} className="hover-elevate cursor-pointer" onClick={() => setRevenueClubDialog({ clubId: club.clubId, clubName: club.clubName })} data-testid={`card-club-revenue-${club.clubId}`}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
-                  <CardTitle className="text-sm font-medium" data-testid={`text-club-name-${club.clubId}`}>{club.clubName}</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Card key={club.clubId} className="hover-elevate cursor-pointer min-w-0" onClick={() => setRevenueClubDialog({ clubId: club.clubId, clubName: club.clubName })} data-testid={`card-club-revenue-${club.clubId}`}>
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2 space-y-0">
+                  <CardTitle className="text-xs sm:text-sm font-medium truncate" data-testid={`text-club-name-${club.clubId}`}>{club.clubName}</CardTitle>
+                  <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold" data-testid={`text-club-total-revenue-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalRevenue)}</div>
-                  <div className="flex items-center justify-between gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
-                    <span className="text-green-600" data-testid={`text-club-paid-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalPaid)} paid</span>
-                    <span data-testid={`text-club-members-${club.clubId}`}>{club.memberCount} members</span>
+                  <div className="text-lg sm:text-2xl font-bold truncate" data-testid={`text-club-total-revenue-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalRevenue)}</div>
+                  <div className="flex items-center justify-between gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                    <span className="text-green-600 truncate" data-testid={`text-club-paid-${club.clubId}`}>{"\u00A3"}{formatPounds(club.totalPaid)} paid</span>
+                    <span className="truncate" data-testid={`text-club-members-${club.clubId}`}>{club.memberCount} members</span>
                   </div>
                 </CardContent>
               </Card>
