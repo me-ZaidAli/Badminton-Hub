@@ -520,6 +520,7 @@ function MemberDetailDialog({
                     <SelectContent>
                       <SelectItem value="OWNER">Owner</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="ORGANISER">Organiser</SelectItem>
                       <SelectItem value="PLAYER">Player</SelectItem>
                     </SelectContent>
                   </Select>
@@ -542,6 +543,7 @@ function MemberDetailDialog({
                     <SelectContent>
                       <SelectItem value="OWNER">Owner</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="ORGANISER">Organiser</SelectItem>
                       <SelectItem value="PLAYER">Player</SelectItem>
                     </SelectContent>
                   </Select>
@@ -775,6 +777,7 @@ function MembersManagementDialog({
                     <SelectItem value="ALL">All Role</SelectItem>
                     <SelectItem value="OWNER">Owner</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="ORGANISER">Organiser</SelectItem>
                     <SelectItem value="PLAYER">Player</SelectItem>
                   </SelectContent>
                 </Select>

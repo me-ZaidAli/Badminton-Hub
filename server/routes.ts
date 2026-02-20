@@ -1407,6 +1407,7 @@ export async function registerRoutes(
         ...input, 
         createdBy: req.user!.id 
       });
+      console.log(`[AUDIT] SESSION_CREATE: sessionId=${session.id} clubId=${input.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       if (inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0) {
         try {
@@ -2585,6 +2586,7 @@ export async function registerRoutes(
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
 
       const updated = await storage.updateSession(sessionId, updates);
+      console.log(`[AUDIT] SESSION_UPDATE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} changes=${JSON.stringify(Object.keys(updates))} at ${new Date().toISOString()}`);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating session:", err);
@@ -2604,6 +2606,7 @@ export async function registerRoutes(
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can restart sessions" });
       }
+      console.log(`[AUDIT] SESSION_RESTART: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       const matches = await storage.getSessionMatches(sessionId);
       for (const match of matches) {
@@ -2643,6 +2646,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
+      console.log(`[AUDIT] SESSION_DELETE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
       await storage.deleteSession(sessionId);
       res.json({ message: "Session deleted" });
     } catch (err: any) {
@@ -5522,7 +5526,7 @@ export async function registerRoutes(
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
-      if (clubRole && !["OWNER", "ADMIN", "PLAYER"].includes(clubRole)) {
+      if (clubRole && !["OWNER", "ADMIN", "ORGANISER", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
       }
       const gradeInput = gradeField || category;
@@ -5551,6 +5555,9 @@ export async function registerRoutes(
 
       const updated = await storage.updatePlayerProfileWithFullName(profileId, updates, fullName);
       console.log(`[MEMBERSHIP] ${membershipStatus || "UPDATE"}: profileId=${profileId} clubId=${clubId} by userId=${req.user!.id} updates=${JSON.stringify(updates)}`);
+      if (updates.clubRole) {
+        console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${updates.clubRole} by userId=${req.user!.id} at ${new Date().toISOString()}`);
+      }
       res.json(updated);
     } catch (err: any) {
       console.error("[MEMBERSHIP] ERROR:", err);
@@ -11313,7 +11320,13 @@ export async function registerRoutes(
       if (gradeValue !== undefined) {
         profileUpdates.grade = gradeValue;
       }
-      if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
+      if (clubRole !== undefined) {
+        if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
+          return res.status(400).json({ message: "Invalid club role" });
+        }
+        profileUpdates.clubRole = clubRole;
+        console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${clubRole} by userId=${user.id} at ${new Date().toISOString()}`);
+      }
       if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
       if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
       if (rankingPoints !== undefined) profileUpdates.rankingPoints = Number(rankingPoints);

@@ -352,6 +352,7 @@ function MembersManagementDialog({
                   <SelectContent>
                     <SelectItem value="ALL">All Role</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="ORGANISER">Organiser</SelectItem>
                     <SelectItem value="PLAYER">Player</SelectItem>
                   </SelectContent>
                 </Select>
@@ -814,6 +815,7 @@ function UserDetailDialog({
                     <SelectTrigger data-testid="select-detail-club-role"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="ORGANISER">Organiser</SelectItem>
                       <SelectItem value="PLAYER">Player</SelectItem>
                     </SelectContent>
                   </Select>
@@ -837,6 +839,7 @@ function UserDetailDialog({
                     <SelectContent>
                       <SelectItem value="OWNER">Owner</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="ORGANISER">Organiser</SelectItem>
                       <SelectItem value="PLAYER">Player</SelectItem>
                     </SelectContent>
                   </Select>

@@ -919,6 +919,7 @@ export default function SuperAdminUsersManagement() {
                           <SelectTrigger data-testid="select-assign-role"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="PLAYER">Player</SelectItem>
+                            <SelectItem value="ORGANISER">Organiser</SelectItem>
                             <SelectItem value="ADMIN">Admin</SelectItem>
                             <SelectItem value="OWNER">Owner</SelectItem>
                           </SelectContent>
@@ -1088,6 +1089,7 @@ export default function SuperAdminUsersManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="PLAYER">Player</SelectItem>
+                        <SelectItem value="ORGANISER">Organiser</SelectItem>
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="OWNER">Super Admin</SelectItem>
                       </SelectContent>
@@ -1186,6 +1188,7 @@ export default function SuperAdminUsersManagement() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="PLAYER">Player</SelectItem>
+                                <SelectItem value="ORGANISER">Organiser</SelectItem>
                                 <SelectItem value="ADMIN">Admin</SelectItem>
                                 <SelectItem value="OWNER">Owner</SelectItem>
                               </SelectContent>

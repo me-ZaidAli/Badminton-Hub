@@ -227,6 +227,7 @@ export default function SuperAdminUsers() {
                 <SelectItem value="ALL">All Roles</SelectItem>
                 <SelectItem value="OWNER">Owner</SelectItem>
                 <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="ORGANISER">Organiser</SelectItem>
                 <SelectItem value="PLAYER">Player</SelectItem>
               </SelectContent>
             </Select>
@@ -470,6 +471,7 @@ export default function SuperAdminUsers() {
                       <SelectContent>
                         <SelectItem value="OWNER">Owner (God's Mode)</SelectItem>
                         <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="ORGANISER">Organiser</SelectItem>
                         <SelectItem value="PLAYER">Player</SelectItem>
                       </SelectContent>
                     </Select>
