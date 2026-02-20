@@ -79,6 +79,9 @@ export const users = pgTable("users", {
   acquisitionSource: acquisitionSourceEnum("acquisition_source"),
   acquisitionSourceOther: text("acquisition_source_other"),
   lastActivityAt: timestamp("last_activity_at"),
+  deletionScheduledAt: timestamp("deletion_scheduled_at"),
+  deletionScheduledBy: integer("deletion_scheduled_by"),
+  deletionReason: text("deletion_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1390,3 +1393,19 @@ export const clubAnniversarySettingsRelations = relations(clubAnniversarySetting
 export const insertClubAnniversarySettingsSchema = createInsertSchema(clubAnniversarySettings).omit({ id: true, createdAt: true, updatedAt: true });
 export type ClubAnniversarySetting = typeof clubAnniversarySettings.$inferSelect;
 export type InsertClubAnniversarySetting = z.infer<typeof insertClubAnniversarySettingsSchema>;
+
+// === ADMIN AUDIT LOGS ===
+export const adminAuditLogs = pgTable("admin_audit_logs", {
+  id: serial("id").primaryKey(),
+  actorId: integer("actor_id").references(() => users.id).notNull(),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: integer("target_id"),
+  clubId: integer("club_id").references(() => clubs.id),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAdminAuditLogSchema = createInsertSchema(adminAuditLogs).omit({ id: true, createdAt: true });
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type InsertAdminAuditLog = z.infer<typeof insertAdminAuditLogSchema>;
