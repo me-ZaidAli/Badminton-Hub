@@ -17,7 +17,7 @@ import { Link } from "wouter";
 import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, DollarSign,
-  Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell
+  Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 
@@ -31,6 +31,7 @@ const controlItems = [
   { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
   { href: "/admin/acquisition-analytics", label: "Acquisition & KPI Analytics", icon: BarChart3, color: "text-amber-500", bg: "bg-amber-500/10" },
   { href: "/admin/notifications", label: "Notification Settings", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+  { href: "/admin/rewards", label: "Club Rewards", icon: Gift, color: "text-emerald-500", bg: "bg-emerald-500/10" },
 ];
 
 interface ClubRecord {

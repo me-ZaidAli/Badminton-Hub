@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink, Gift
+  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -90,6 +90,99 @@ function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AnniversaryCountdown() {
+  const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!anniversaryData || anniversaryData.length === 0) return null;
+
+  return (
+    <>
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 30%, 50%, 70%, 90% { transform: rotate(-8deg); }
+          20%, 40%, 60%, 80% { transform: rotate(8deg); }
+        }
+      `}</style>
+      {anniversaryData.map((info: any) => {
+        const now = Date.now();
+        const target = new Date(info.nextAnniversary).getTime();
+        const diff = target - now;
+        const isCelebration = info.progress >= 0.99 || diff <= 0;
+
+        let countdownText = "";
+        if (!isCelebration && diff > 0) {
+          const totalSeconds = Math.floor(diff / 1000);
+          const totalMinutes = Math.floor(totalSeconds / 60);
+          const totalHours = Math.floor(totalMinutes / 60);
+          const totalDays = Math.floor(totalHours / 24);
+          const months = Math.floor(totalDays / 30);
+          const days = totalDays - months * 30;
+          const hours = totalHours % 24;
+          const parts: string[] = [];
+          if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
+          if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+          parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+          countdownText = `${parts.join(", ")} to your ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary`;
+        }
+
+        return (
+          <Card key={info.clubId} data-testid="card-anniversary-countdown">
+            <CardContent className="py-3 px-4 space-y-3">
+              <div className="flex items-center gap-3">
+                {isCelebration ? (
+                  <div className="p-2 rounded-lg bg-amber-500/10">
+                    <PartyPopper className="h-5 w-5 text-amber-500" />
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Gift className="h-5 w-5 text-primary" style={{ animation: "shake 1.5s ease-in-out infinite" }} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">{info.clubName}</div>
+                  {isCelebration ? (
+                    <div className="text-sm font-bold text-amber-600 dark:text-amber-400" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                      Happy {info.upcomingYear}{info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!
+                    </div>
+                  ) : (
+                    <div className="text-sm font-semibold" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                      {countdownText}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="w-full h-2 rounded-full bg-muted overflow-hidden" data-testid={`progress-anniversary-${info.clubId}`}>
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(info.progress * 100, 100)}%` }}
+                />
+              </div>
+              {info.hasReward && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Gift className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>
+                    {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
+                    {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
+                    {info.rewardGifts ? info.rewardGifts : ""}
+                    {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </>
   );
 }
 
@@ -1216,6 +1309,8 @@ export default function Profile() {
       {primaryProfile?.joinedAt && (
         <ProfileMembershipDuration joinedAt={primaryProfile.joinedAt} />
       )}
+
+      <AnniversaryCountdown />
 
       {/* Financial Summary */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4">

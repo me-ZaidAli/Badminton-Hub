@@ -1288,7 +1288,7 @@ export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
 
 // === REWARDS SYSTEM ===
-export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL"]);
+export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY"]);
 export const rewardStatusEnum = pgEnum("reward_status", ["AVAILABLE", "USED", "REQUESTED"]);
 
 export interface ReferralLevel {
@@ -1370,3 +1370,23 @@ export type SessionAttendanceReward = typeof sessionAttendanceRewards.$inferSele
 export type InsertSessionAttendanceReward = z.infer<typeof insertSessionAttendanceRewardSchema>;
 export type PlayerRewardLedgerEntry = typeof playerRewardLedger.$inferSelect;
 export type InsertPlayerRewardLedgerEntry = z.infer<typeof insertPlayerRewardLedgerSchema>;
+
+// === CLUB ANNIVERSARY SETTINGS ===
+export const clubAnniversarySettings = pgTable("club_anniversary_settings", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  credits: integer("credits").default(1600).notNull(),
+  gifts: text("gifts"),
+  message: text("message").default("Happy Club Anniversary! Thank you for being a valued member.").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const clubAnniversarySettingsRelations = relations(clubAnniversarySettings, ({ one }) => ({
+  club: one(clubs, { fields: [clubAnniversarySettings.clubId], references: [clubs.id] }),
+}));
+
+export const insertClubAnniversarySettingsSchema = createInsertSchema(clubAnniversarySettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type ClubAnniversarySetting = typeof clubAnniversarySettings.$inferSelect;
+export type InsertClubAnniversarySetting = z.infer<typeof insertClubAnniversarySettingsSchema>;

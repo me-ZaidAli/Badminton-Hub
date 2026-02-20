@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -14046,6 +14046,223 @@ export async function registerRoutes(
 
       console.log(`[AUDIT] Reward issued: id=${reward.id}, player=${playerId}, club=${clubId}, credits=${credits || 0}, by user=${user.id}`);
       res.json(reward);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === CLUB ANNIVERSARY SETTINGS ===
+
+  // GET /api/clubs/:clubId/anniversary-settings
+  app.get("/api/clubs/:clubId/anniversary-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Admin access required" });
+      const [settings] = await db.select().from(clubAnniversarySettings).where(eq(clubAnniversarySettings.clubId, clubId));
+      res.json(settings || null);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/clubs/:clubId/anniversary-settings - Create or update
+  app.put("/api/clubs/:clubId/anniversary-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Admin access required" });
+
+      const { isActive, credits, gifts, message } = req.body;
+      const [existing] = await db.select().from(clubAnniversarySettings).where(eq(clubAnniversarySettings.clubId, clubId));
+
+      if (existing) {
+        const [updated] = await db.update(clubAnniversarySettings)
+          .set({ isActive: isActive ?? existing.isActive, credits: credits ?? existing.credits, gifts: gifts !== undefined ? gifts : existing.gifts, message: message ?? existing.message, updatedAt: new Date() })
+          .where(eq(clubAnniversarySettings.id, existing.id))
+          .returning();
+        console.log(`[AUDIT] Anniversary settings updated: club=${clubId}, by user=${user.id}`);
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(clubAnniversarySettings).values({
+          clubId,
+          isActive: isActive ?? true,
+          credits: credits ?? 1600,
+          gifts: gifts || null,
+          message: message || "Happy Club Anniversary! Thank you for being a valued member.",
+        }).returning();
+        console.log(`[AUDIT] Anniversary settings created: club=${clubId}, by user=${user.id}`);
+        res.json(created);
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/super-admin/anniversary-settings - All clubs' anniversary settings
+  app.get("/api/super-admin/anniversary-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const settings = await db.select({
+        setting: clubAnniversarySettings,
+        clubName: clubs.name,
+      }).from(clubAnniversarySettings)
+        .leftJoin(clubs, eq(clubAnniversarySettings.clubId, clubs.id))
+        .orderBy(clubs.name);
+      res.json(settings.map(s => ({ ...s.setting, clubName: s.clubName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-anniversary-info - Get anniversary countdown for current user
+  app.get("/api/my-anniversary-info", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = await db.select({
+        profile: playerProfiles,
+        clubName: clubs.name,
+      }).from(playerProfiles)
+        .leftJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .where(eq(playerProfiles.userId, user.id));
+
+      const results = [];
+      for (const { profile, clubName } of profiles) {
+        if (!profile.joinedAt) continue;
+        const joinDate = new Date(profile.joinedAt);
+        const now = new Date();
+
+        // Calculate next anniversary
+        let nextAnniversary = new Date(joinDate);
+        nextAnniversary.setFullYear(now.getFullYear());
+        if (nextAnniversary <= now) {
+          nextAnniversary.setFullYear(now.getFullYear() + 1);
+        }
+
+        // Calculate years of membership
+        const yearsSinceJoined = now.getFullYear() - joinDate.getFullYear();
+        const upcomingYear = nextAnniversary.getFullYear() - joinDate.getFullYear();
+
+        // Calculate progress through current year
+        const prevAnniversary = new Date(nextAnniversary);
+        prevAnniversary.setFullYear(nextAnniversary.getFullYear() - 1);
+        const totalMs = nextAnniversary.getTime() - prevAnniversary.getTime();
+        const elapsedMs = now.getTime() - prevAnniversary.getTime();
+        const progress = Math.min(Math.max(elapsedMs / totalMs, 0), 1);
+
+        // Get anniversary settings for this club
+        const [settings] = await db.select().from(clubAnniversarySettings).where(
+          and(eq(clubAnniversarySettings.clubId, profile.clubId), eq(clubAnniversarySettings.isActive, true))
+        );
+
+        results.push({
+          clubId: profile.clubId,
+          clubName,
+          joinedAt: profile.joinedAt,
+          nextAnniversary: nextAnniversary.toISOString(),
+          upcomingYear,
+          progress,
+          hasReward: !!settings,
+          rewardCredits: settings?.credits || 0,
+          rewardGifts: settings?.gifts || null,
+          rewardMessage: settings?.message || null,
+        });
+      }
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/check-anniversaries - Check and process anniversaries (called by scheduler or manually)
+  app.post("/api/check-anniversaries", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const allSettings = await db.select().from(clubAnniversarySettings).where(eq(clubAnniversarySettings.isActive, true));
+      let processed = 0;
+
+      for (const settings of allSettings) {
+        const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.clubId, settings.clubId));
+
+        for (const profile of profiles) {
+          if (!profile.joinedAt || !profile.userId) continue;
+          const joinDate = new Date(profile.joinedAt);
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const anniversaryThisYear = new Date(joinDate);
+          anniversaryThisYear.setFullYear(now.getFullYear());
+          const annivDay = new Date(anniversaryThisYear.getFullYear(), anniversaryThisYear.getMonth(), anniversaryThisYear.getDate());
+
+          if (annivDay.getTime() === today.getTime() && now.getFullYear() > joinDate.getFullYear()) {
+            const yearNum = now.getFullYear() - joinDate.getFullYear();
+            // Check for duplicate
+            const existing = await db.select().from(playerRewardLedger).where(
+              and(
+                eq(playerRewardLedger.playerId, profile.userId),
+                eq(playerRewardLedger.clubId, settings.clubId),
+                eq(playerRewardLedger.rewardType, "ANNIVERSARY"),
+                eq(playerRewardLedger.sourceMilestone, yearNum)
+              )
+            ).then(r => r[0]);
+
+            if (!existing) {
+              const clubData = await db.select().from(clubs).where(eq(clubs.id, settings.clubId)).then(r => r[0]);
+              const clubName = clubData?.name || "your club";
+
+              await db.insert(playerRewardLedger).values({
+                playerId: profile.userId,
+                clubId: settings.clubId,
+                rewardType: "ANNIVERSARY",
+                sourceMilestone: yearNum,
+                description: `${yearNum} year anniversary at ${clubName}`,
+                credits: settings.credits || 0,
+                gifts: settings.gifts || null,
+                freeSessions: 0,
+                status: "AVAILABLE",
+              });
+
+              if (settings.credits > 0) {
+                await db.insert(creditLedger).values({
+                  userId: profile.userId,
+                  clubId: settings.clubId,
+                  amount: settings.credits,
+                  reason: `Club anniversary reward: ${yearNum} year(s) at ${clubName}`,
+                  createdById: user.id,
+                });
+              }
+
+              // Send notification
+              await db.insert(notifications).values({
+                userId: profile.userId,
+                type: "ANNIVERSARY",
+                title: `Happy ${yearNum} Year Anniversary!`,
+                message: settings.message || `Happy ${yearNum} year anniversary at ${clubName}! ${settings.credits > 0 ? `You've earned £${(settings.credits / 100).toFixed(2)} credit.` : ""}${settings.gifts ? ` Gift: ${settings.gifts}` : ""}`,
+              });
+
+              // Send internal message
+              await db.insert(internalMessages).values({
+                senderId: user.id,
+                recipientId: profile.userId,
+                content: `🎉 ${settings.message || `Happy ${yearNum} year anniversary at ${clubName}!`}\n\n${settings.credits > 0 ? `You've been awarded £${(settings.credits / 100).toFixed(2)} in club credits.` : ""}${settings.gifts ? `\nGift: ${settings.gifts}` : ""}`,
+              });
+
+              console.log(`[AUDIT] Anniversary reward issued: user=${profile.userId}, club=${settings.clubId}, year=${yearNum}, credits=${settings.credits}`);
+              processed++;
+            }
+          }
+        }
+      }
+
+      res.json({ message: `Processed ${processed} anniversary rewards` });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

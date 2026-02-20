@@ -319,19 +319,19 @@ export default function AdminDashboard() {
 
         {!isOrganiserOnly && (
           <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
-            <Link href="/admin/attendance-rewards">
+            <Link href="/admin/rewards">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Trophy className="h-5 w-5 text-amber-500" />
-                    Rewards
+                    Club Rewards
                   </span>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Configure session attendance milestone rewards for players.
+                  Manage anniversary, attendance milestones, and referral reward programs.
                 </p>
               </CardContent>
             </Link>
