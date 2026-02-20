@@ -280,6 +280,10 @@ export async function registerRoutes(
   app.get("/api/my-session-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
+      // Only platform-level OWNER or ADMIN users can manage sessions
+      if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+        return res.json([]);
+      }
       if (req.user!.role === "OWNER") {
         const allClubs = await storage.getClubs();
         return res.json(allClubs.filter(c => c.isActive));
