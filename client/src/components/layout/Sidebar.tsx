@@ -40,8 +40,15 @@ interface NavItem {
   href: string;
   label: string;
   icon: any;
-  section?: string;
+  group: string;
   badgeKey?: keyof BadgeCounts;
+  isGodMode?: boolean;
+}
+
+interface NavGroup {
+  key: string;
+  label: string;
+  items: NavItem[];
 }
 
 function useBadgeCounts() {
@@ -53,7 +60,7 @@ function useBadgeCounts() {
   });
 }
 
-function useNavItems(): NavItem[] {
+function useNavGroups(): NavGroup[] {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
@@ -62,29 +69,48 @@ function useNavItems(): NavItem[] {
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN" || hasClubAdminAccess || 
     (user?.playerProfiles || []).some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
 
-  const navItems: NavItem[] = [
-    { href: "/sessions", label: "Sessions", icon: Calendar },
-    { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck },
-    { href: "/clubs", label: "Clubs", icon: Building2 },
-    { href: "/rankings", label: "Rankings", icon: Trophy },
-    { href: "/announcements", label: "Announcements", icon: Megaphone, badgeKey: "announcements" },
-    { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, badgeKey: "tickets" },
-    { href: "/referrals", label: "Refer & Earn", icon: Gift },
-    { href: "/notifications", label: "Notifications", icon: Bell, badgeKey: "notifications" },
-    { href: "/inbox", label: "Inbox", icon: Mail, badgeKey: "messages" },
+  const items: NavItem[] = [
+    { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity" },
+    { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity" },
+    { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
+
+    { href: "/clubs", label: "Clubs", icon: Building2, group: "club" },
+    { href: "/announcements", label: "Announcements", icon: Megaphone, group: "club", badgeKey: "announcements" },
+    { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club" },
+
+    { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications" },
+    { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
+    { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
   ];
 
   if (user?.role === "OWNER") {
     if (hasClubAdminAccess) {
-      navItems.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck });
+      items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
     }
-    navItems.push({ href: "/super-admin/god-mode", label: "God Mode Control", icon: Zap, section: "super-admin" });
+    items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
-    navItems.push({ href: "/admin", label: panelLabel, icon: ShieldCheck });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
   }
 
-  return navItems;
+  const groupOrder = ["activity", "club", "comms", "admin", "godmode"];
+  const groupLabels: Record<string, string> = {
+    activity: "Activity",
+    club: "Club",
+    comms: "Communication",
+    admin: "Management",
+    godmode: "Super Admin",
+  };
+
+  const groups: NavGroup[] = [];
+  for (const key of groupOrder) {
+    const groupItems = items.filter(i => i.group === key);
+    if (groupItems.length > 0) {
+      groups.push({ key, label: groupLabels[key], items: groupItems });
+    }
+  }
+
+  return groups;
 }
 
 function BadgeCount({ count }: { count: number }) {
@@ -100,7 +126,7 @@ export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const navItems = useNavItems();
+  const navGroups = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
 
   return (
@@ -121,39 +147,66 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item, idx) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-          const prevItem = idx > 0 ? navItems[idx - 1] : null;
-          const showSectionDivider = item.section === "super-admin" && prevItem?.section !== "super-admin";
-          const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-          return (
-            <div key={item.href}>
-              {showSectionDivider && (
-                <div className="pt-3 pb-1 px-4 mt-2 border-t border-border/50">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5" data-testid="label-super-admin-section">
-                    <Zap className="w-3 h-3" /> God Mode
-                  </span>
+      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.key}>
+            {group.key === "godmode" ? (
+              <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="section-god-mode">
+                <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-destructive" data-testid="label-super-admin-section">
+                  <Zap className="w-3 h-3" /> Super Admin
+                </span>
+                {group.items.map((item) => {
+                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          isActive
+                            ? "bg-destructive text-destructive-foreground shadow-sm"
+                            : "text-destructive hover:bg-destructive/15"
+                        )}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <item.icon className="h-5 w-5" />
+                        {item.label}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
+                <span className="flex items-center px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70" data-testid={`label-section-${group.key}`}>
+                  {group.label}
+                </span>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                    const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                    return (
+                      <Link key={item.href} href={item.href}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer group",
+                            isActive
+                              ? "bg-primary/10 text-primary shadow-sm"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                          <span className="truncate">{item.label}</span>
+                          <BadgeCount count={badgeCount} />
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
-              )}
-              <Link href={item.href}>
-                <div 
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
-                    isActive 
-                      ? "bg-primary/10 text-primary shadow-sm" 
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    item.section === "super-admin" && !isActive && "text-muted-foreground/80"
-                  )}
-                >
-                  <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-                  {item.label}
-                  <BadgeCount count={badgeCount} />
-                </div>
-              </Link>
-            </div>
-          );
-        })}
+              </>
+            )}
+          </div>
+        ))}
       </nav>
 
       <div className="p-4 border-t border-border/50 bg-muted/20">
@@ -168,7 +221,7 @@ export function Sidebar() {
               <p className="text-xs text-muted-foreground truncate capitalize">{user.role.toLowerCase()}</p>
             </div>
             <Link href="/profile">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon">
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>
@@ -178,8 +231,9 @@ export function Sidebar() {
         <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
-            className="flex-1 justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20"
+            className="flex-1 justify-start text-muted-foreground"
             onClick={() => logout()}
+            data-testid="button-logout"
           >
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
@@ -195,7 +249,7 @@ export function MobileTopNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const navItems = useNavItems();
+  const navGroups = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -240,30 +294,69 @@ export function MobileTopNav() {
               </div>
             </div>
           </div>
-          <div className="py-2 px-2 space-y-1">
-            {navItems.map((item) => {
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-              const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    className="w-full justify-start gap-3"
-                    size="sm"
-                    onClick={() => setMenuOpen(false)}
-                    data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                    {badgeCount > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                        {badgeCount > 99 ? "99+" : badgeCount}
-                      </span>
-                    )}
-                  </Button>
-                </Link>
-              );
-            })}
+          <div className="py-2 px-2 space-y-3">
+            {navGroups.map((group) => (
+              <div key={group.key}>
+                {group.key === "godmode" ? (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
+                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
+                      <Zap className="w-3 h-3" /> Super Admin
+                    </span>
+                    {group.items.map((item) => {
+                      const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <Button
+                            variant={isActive ? "destructive" : "ghost"}
+                            className={cn(
+                              "w-full justify-start gap-3",
+                              !isActive && "text-destructive"
+                            )}
+                            size="sm"
+                            onClick={() => setMenuOpen(false)}
+                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.label}
+                          </Button>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
+                    <span className="flex items-center px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      {group.label}
+                    </span>
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => {
+                        const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                        const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                        return (
+                          <Link key={item.href} href={item.href}>
+                            <Button
+                              variant={isActive ? "secondary" : "ghost"}
+                              className="w-full justify-start gap-3"
+                              size="sm"
+                              onClick={() => setMenuOpen(false)}
+                              data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                            >
+                              <item.icon className="w-4 h-4" />
+                              {item.label}
+                              {badgeCount > 0 && (
+                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                                  {badgeCount > 99 ? "99+" : badgeCount}
+                                </span>
+                              )}
+                            </Button>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
           <div className="border-t border-border/40 p-2 space-y-1">
             <Link href="/profile">
