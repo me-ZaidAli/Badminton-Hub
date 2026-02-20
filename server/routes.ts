@@ -11411,20 +11411,22 @@ export async function registerRoutes(
       if (profile.length === 0) return res.status(404).json({ message: "Profile not found" });
       const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role, acquisitionSource, acquisitionSourceOther, rankingPoints, matchesPlayed, matchesWon, joinedAt } = req.body;
       const profileUpdates: any = {};
-      if (gender !== undefined) profileUpdates.gender = gender;
+      if (gender !== undefined) profileUpdates.gender = gender || null;
       const gradeValue = gradeField || category;
       if (gradeValue !== undefined) {
-        profileUpdates.grade = gradeValue;
+        profileUpdates.grade = gradeValue || null;
       }
       if (clubRole !== undefined) {
-        if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
+        if (clubRole && !["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(clubRole)) {
           return res.status(400).json({ message: "Invalid club role" });
         }
-        profileUpdates.clubRole = clubRole;
-        console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${clubRole} by userId=${user.id} at ${new Date().toISOString()}`);
+        if (clubRole) {
+          profileUpdates.clubRole = clubRole;
+          console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${clubRole} by userId=${user.id} at ${new Date().toISOString()}`);
+        }
       }
-      if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
-      if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
+      if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus || null;
+      if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus || null;
       if (rankingPoints !== undefined) profileUpdates.rankingPoints = Number(rankingPoints);
       if (matchesPlayed !== undefined) profileUpdates.matchesPlayed = Number(matchesPlayed);
       if (matchesWon !== undefined) profileUpdates.matchesWon = Number(matchesWon);
