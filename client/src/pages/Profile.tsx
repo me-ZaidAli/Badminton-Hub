@@ -77,26 +77,17 @@ function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
   const formattedDate = joinDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <Card data-testid="card-profile-membership-duration">
-      <CardContent className="flex items-center gap-4 py-3 px-4">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Clock className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs text-muted-foreground">Club Member Since: {formattedDate}</div>
-          <div className="text-base font-bold font-mono tracking-wider" data-testid="text-profile-duration-counter">
-            {elapsed}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <CollapsibleSection title="Club Member Since" icon={Clock} badge={formattedDate} testId="card-profile-membership-duration">
+      <div className="text-base font-bold font-mono tracking-wider" data-testid="text-profile-duration-counter">
+        {elapsed}
+      </div>
+    </CollapsibleSection>
   );
 }
 
 function AnniversaryCountdown() {
   const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
   const [, setTick] = useState(0);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -106,7 +97,7 @@ function AnniversaryCountdown() {
   if (!anniversaryData || anniversaryData.length === 0) return null;
 
   return (
-    <Card data-testid="card-anniversary-section">
+    <CollapsibleSection title="Club Anniversaries" icon={Gift} badge={anniversaryData.length} testId="card-anniversary-section">
       <style>{`
         @keyframes shake {
           0%, 100% { transform: rotate(0deg); }
@@ -114,90 +105,76 @@ function AnniversaryCountdown() {
           20%, 40%, 60%, 80% { transform: rotate(8deg); }
         }
       `}</style>
-      <button
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
-        onClick={() => setExpanded(!expanded)}
-        data-testid="button-toggle-anniversary"
-      >
-        <div className="flex items-center gap-2">
-          <Gift className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Club Anniversaries</span>
-          <Badge variant="secondary" className="text-xs">{anniversaryData.length}</Badge>
-        </div>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-      </button>
-      {expanded && (
-        <CardContent className="pt-0 px-4 pb-3 space-y-3">
-          {anniversaryData.map((info: any) => {
-            const now = Date.now();
-            const target = new Date(info.nextAnniversary).getTime();
-            const diff = target - now;
-            const isCelebration = info.progress >= 0.99 || diff <= 0;
+      <div className="space-y-3">
+        {anniversaryData.map((info: any) => {
+          const now = Date.now();
+          const target = new Date(info.nextAnniversary).getTime();
+          const diff = target - now;
+          const isCelebration = info.progress >= 0.99 || diff <= 0;
 
-            let countdownText = "";
-            if (!isCelebration && diff > 0) {
-              const totalSeconds = Math.floor(diff / 1000);
-              const totalMinutes = Math.floor(totalSeconds / 60);
-              const totalHours = Math.floor(totalMinutes / 60);
-              const totalDays = Math.floor(totalHours / 24);
-              const months = Math.floor(totalDays / 30);
-              const days = totalDays - months * 30;
-              const hours = totalHours % 24;
-              const parts: string[] = [];
-              if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-              if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-              parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
-              countdownText = `${parts.join(", ")} to your ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary`;
-            }
+          let countdownText = "";
+          if (!isCelebration && diff > 0) {
+            const totalSeconds = Math.floor(diff / 1000);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const totalDays = Math.floor(totalHours / 24);
+            const months = Math.floor(totalDays / 30);
+            const days = totalDays - months * 30;
+            const hours = totalHours % 24;
+            const parts: string[] = [];
+            if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
+            if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+            parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+            countdownText = `${parts.join(", ")} to your ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary`;
+          }
 
-            return (
-              <div key={info.clubId} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2" data-testid={`card-anniversary-countdown-${info.clubId}`}>
-                <div className="flex items-center gap-3">
-                  {isCelebration ? (
-                    <div className="p-1.5 rounded-md bg-amber-500/10">
-                      <PartyPopper className="h-4 w-4 text-amber-500" />
-                    </div>
-                  ) : (
-                    <div className="p-1.5 rounded-md bg-primary/10">
-                      <Gift className="h-4 w-4 text-primary" style={{ animation: "shake 1.5s ease-in-out infinite" }} />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-muted-foreground">{info.clubName}</div>
-                    {isCelebration ? (
-                      <div className="text-sm font-bold text-amber-600 dark:text-amber-400" data-testid={`text-anniversary-timer-${info.clubId}`}>
-                        Happy {info.upcomingYear}{info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!
-                      </div>
-                    ) : (
-                      <div className="text-sm font-semibold" data-testid={`text-anniversary-timer-${info.clubId}`}>
-                        {countdownText}
-                      </div>
-                    )}
+          return (
+            <div key={info.clubId} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2" data-testid={`card-anniversary-countdown-${info.clubId}`}>
+              <div className="flex items-center gap-3">
+                {isCelebration ? (
+                  <div className="p-1.5 rounded-md bg-amber-500/10">
+                    <PartyPopper className="h-4 w-4 text-amber-500" />
                   </div>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden" data-testid={`progress-anniversary-${info.clubId}`}>
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${Math.min(info.progress * 100, 100)}%` }}
-                  />
-                </div>
-                {info.hasReward && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Gift className="h-3 w-3 text-emerald-500" />
-                    <span>
-                      {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
-                      {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
-                      {info.rewardGifts ? info.rewardGifts : ""}
-                      {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
-                    </span>
+                ) : (
+                  <div className="p-1.5 rounded-md bg-primary/10">
+                    <Gift className="h-4 w-4 text-primary" style={{ animation: "shake 1.5s ease-in-out infinite" }} />
                   </div>
                 )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">{info.clubName}</div>
+                  {isCelebration ? (
+                    <div className="text-sm font-bold text-amber-600 dark:text-amber-400" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                      Happy {info.upcomingYear}{info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!
+                    </div>
+                  ) : (
+                    <div className="text-sm font-semibold" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                      {countdownText}
+                    </div>
+                  )}
+                </div>
               </div>
-            );
-          })}
-        </CardContent>
-      )}
-    </Card>
+              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden" data-testid={`progress-anniversary-${info.clubId}`}>
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(info.progress * 100, 100)}%` }}
+                />
+              </div>
+              {info.hasReward && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Gift className="h-3 w-3 text-emerald-500" />
+                  <span>
+                    {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
+                    {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
+                    {info.rewardGifts ? info.rewardGifts : ""}
+                    {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -239,20 +216,14 @@ function ProfileRewardsSection() {
   };
 
   return (
-    <Card data-testid="card-profile-rewards">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Gift className="h-5 w-5 text-emerald-500" />
-            My Rewards
-            {summary && summary.totalRewards > 0 && (
-              <Badge variant="secondary" className="text-xs">{summary.totalRewards}</Badge>
-            )}
-          </CardTitle>
-        </div>
-        <CardDescription>Track your earned rewards, credits, and free sessions</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <CollapsibleSection
+      title="My Rewards"
+      icon={Gift}
+      iconColor="text-emerald-500"
+      badge={summary?.totalRewards || undefined}
+      testId="card-profile-rewards"
+    >
+      <div className="space-y-4">
         {summary && (
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-emerald-500/5 rounded-lg p-3 text-center">
@@ -325,8 +296,8 @@ function ProfileRewardsSection() {
             <p className="text-xs mt-1">Attend sessions and use referral codes to earn rewards</p>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -357,18 +328,47 @@ function MetricCard({ icon: Icon, label, value, subtext, onClick, className = ""
   );
 }
 
+function CollapsibleSection({ title, icon: Icon, badge, defaultOpen = false, children, testId, iconColor = "text-primary", className = "" }: {
+  title: string;
+  icon: typeof Trophy;
+  badge?: string | number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  testId?: string;
+  iconColor?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className={className} data-testid={testId}>
+      <button
+        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
+        onClick={() => setOpen(!open)}
+        data-testid={testId ? `button-toggle-${testId}` : undefined}
+      >
+        <div className="flex items-center gap-2">
+          <Icon className={`h-4 w-4 ${iconColor}`} />
+          <span className="text-sm font-semibold">{title}</span>
+          {badge !== undefined && badge !== null && (
+            <Badge variant="secondary" className="text-xs">{badge}</Badge>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <CardContent className="pt-0 px-4 pb-4">
+          {children}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function DisplayAccessibilitySection() {
   const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();
   return (
-    <Card data-testid="card-display-accessibility">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Display & Accessibility
-        </CardTitle>
-        <CardDescription>Choose a display mode that works best for you.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <CollapsibleSection title="Display & Accessibility" icon={Settings} testId="card-display-accessibility">
+      <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {DISPLAY_MODES.map((mode) => {
             const Icon = MODE_ICONS[mode.value];
@@ -398,8 +398,8 @@ function DisplayAccessibilitySection() {
             <Switch checked={reducedMotion} onCheckedChange={setReducedMotion} data-testid="switch-reduced-motion" />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -1341,21 +1341,9 @@ export default function Profile() {
       {/* My Rewards */}
       <ProfileRewardsSection />
 
-      {/* Performance Stats - Single card with chart */}
-      <Card className="cursor-pointer hover-elevate" onClick={() => setPerformanceModalOpen(true)} data-testid="card-performance">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-md bg-primary/10">
-                <BarChart3 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Match Performance</p>
-                <p className="text-xs text-muted-foreground">{performance.played} matches played</p>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          </div>
+      {/* Performance Stats */}
+      <CollapsibleSection title="Match Performance" icon={BarChart3} badge={`${performance.played} played`} testId="card-performance">
+        <div className="cursor-pointer" onClick={() => setPerformanceModalOpen(true)}>
           <div className="flex items-center gap-4">
             <div className="w-24 h-24 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -1401,39 +1389,32 @@ export default function Profile() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center justify-center gap-1 mt-3 text-xs text-muted-foreground">
+            <span>Tap for details</span>
+            <ChevronRight className="h-3 w-3" />
+          </div>
+        </div>
+      </CollapsibleSection>
 
       {/* Club Ranking Card */}
       {matchPerformance && matchPerformance.clubs.length > 0 && (
-        <Card data-testid="card-club-ranking">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-md bg-amber-500/10">
-                  <Trophy className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="font-semibold">Club Rankings</p>
-                  <p className="text-xs text-muted-foreground">Your position in each club</p>
-                </div>
-              </div>
-              {matchPerformance.clubs.length > 1 && (
-                <Select value={rankingClubFilter} onValueChange={setRankingClubFilter}>
-                  <SelectTrigger className="w-[180px]" data-testid="select-ranking-club">
-                    <SelectValue placeholder="All Clubs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clubs</SelectItem>
-                    {matchPerformance.clubs.map((c) => (
-                      <SelectItem key={c.clubId} value={c.clubId.toString()}>
-                        {c.clubName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+        <CollapsibleSection title="Club Rankings" icon={Trophy} iconColor="text-amber-500" badge={matchPerformance.clubs.length} testId="card-club-ranking">
+          <div className="space-y-3">
+            {matchPerformance.clubs.length > 1 && (
+              <Select value={rankingClubFilter} onValueChange={setRankingClubFilter}>
+                <SelectTrigger className="w-[180px]" data-testid="select-ranking-club">
+                  <SelectValue placeholder="All Clubs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clubs</SelectItem>
+                  {matchPerformance.clubs.map((c) => (
+                    <SelectItem key={c.clubId} value={c.clubId.toString()}>
+                      {c.clubName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="space-y-3">
               {(rankingClubFilter === "all" ? matchPerformance.clubs : matchPerformance.clubs.filter(c => c.clubId.toString() === rankingClubFilter)).map((club) => (
                 <div key={club.clubId} className="rounded-md bg-muted/40 p-4" data-testid={`ranking-club-${club.clubId}`}>
@@ -1483,16 +1464,18 @@ export default function Profile() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CollapsibleSection>
       )}
 
       {/* Session Activity */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
-        <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
-        <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
-        <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />
-      </div>
+      <CollapsibleSection title="Session Activity" icon={CalendarDays} testId="card-session-activity">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
+          <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
+          <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
+          <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />
+        </div>
+      </CollapsibleSection>
 
       {/* Credit History */}
       {creditHistory && creditHistory.length > 0 && (
@@ -1581,28 +1564,18 @@ export default function Profile() {
 
       {/* Membership Benefits - only for clubs without active membership */}
       {clubsWithoutMembership.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Star className="h-5 w-5 text-primary" />
-            Membership Benefits
-          </h2>
+        <CollapsibleSection title="Membership Benefits" icon={Star} testId="card-membership-benefits">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {clubsWithoutMembership.map((club) => (
               <MembershipBenefitsCard key={club.clubId} clubId={club.clubId} clubName={club.clubName} sessionFee={club.sessionFee} />
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* Account Settings */}
-      <Card data-testid="card-account-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Account Settings
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection title="Account Settings" icon={Settings} testId="card-account-settings">
+        <div>
           {isEditing ? (
             <div className="space-y-4">
               <div>
@@ -1653,19 +1626,12 @@ export default function Profile() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleSection>
 
       {/* Privacy Settings */}
-      <Card data-testid="card-privacy">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            Privacy & Display
-          </CardTitle>
-          <CardDescription>Control how your name appears publicly</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection title="Privacy & Display" icon={Eye} testId="card-privacy">
+        <div>
           {isEditingPrivacy ? (
             <div className="space-y-5">
               <div className="space-y-2">
@@ -1715,25 +1681,19 @@ export default function Profile() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleSection>
 
       <DisplayAccessibilitySection />
 
       {/* Junior Accounts */}
-      <Card data-testid="card-junior-accounts">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div>
-              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Junior Accounts</CardTitle>
-              <CardDescription>Manage your children's accounts</CardDescription>
-            </div>
+      <CollapsibleSection title="Junior Accounts" icon={Users} testId="card-junior-accounts">
+        <div className="space-y-3">
+          <div className="flex justify-end">
             <Button size="sm" onClick={openAddJuniorDialog} data-testid="button-add-junior">
               <Plus className="h-4 w-4 mr-1" />Add Junior
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
           {juniorsLoading ? (
             <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : juniors && juniors.length > 0 ? (
@@ -1754,41 +1714,33 @@ export default function Profile() {
           ) : (
             <p className="text-sm text-muted-foreground" data-testid="text-no-juniors">No junior accounts added yet.</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleSection>
 
       {/* Danger Zone */}
-      <Card className="border-destructive/20" data-testid="card-danger-zone">
-        <CardHeader>
-          <CardTitle className="text-destructive flex items-center gap-2">
-            <XCircle className="h-5 w-5" />
-            Danger Zone
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" data-testid="button-delete-account">
-                <XCircle className="h-4 w-4 mr-1" />
-                Delete My Account
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="bg-background">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to delete your account?</AlertDialogTitle>
-                <AlertDialogDescription>This will permanently delete your account and all your data. You can create a new account in the future using the same email.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => deleteAccountMutation.mutate()} disabled={deleteAccountMutation.isPending} data-testid="button-confirm-delete">
-                  {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Yes, Delete My Account
-                </AlertDialogAction>
-              </AlertDialogFooter>
+      <CollapsibleSection title="Danger Zone" icon={XCircle} iconColor="text-destructive" className="border-destructive/20" testId="card-danger-zone">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" data-testid="button-delete-account">
+              <XCircle className="h-4 w-4 mr-1" />
+              Delete My Account
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="bg-background">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to delete your account?</AlertDialogTitle>
+              <AlertDialogDescription>This will permanently delete your account and all your data. You can create a new account in the future using the same email.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => deleteAccountMutation.mutate()} disabled={deleteAccountMutation.isPending} data-testid="button-confirm-delete">
+                {deleteAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Yes, Delete My Account
+              </AlertDialogAction>
+            </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </CardContent>
-      </Card>
+      </CollapsibleSection>
 
       {/* Modals */}
       <CreditsModal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} creditBalances={creditBalances} memberships={memberships} />
