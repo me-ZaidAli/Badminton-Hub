@@ -1549,67 +1549,78 @@ export default function Profile() {
       )}
 
       <CollapsibleSection title="Membership Benefits" icon={Star} testId="card-membership-benefits">
-        <div className="space-y-4">
+        <div className="space-y-6">
           {clubsWithoutMembership.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {clubsWithoutMembership.map((club) => (
-                <MembershipBenefitsCard key={club.clubId} clubId={club.clubId} clubName={club.clubName} sessionFee={club.sessionFee} />
-              ))}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Membership Plans</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {clubsWithoutMembership.map((club) => (
+                  <MembershipBenefitsCard key={club.clubId} clubId={club.clubId} clubName={club.clubName} sessionFee={club.sessionFee} />
+                ))}
+              </div>
             </div>
           )}
 
-          <Link href="/referrals">
-            <Card className="cursor-pointer hover-elevate border-emerald-200 dark:border-emerald-800" data-testid="card-membership-refer-earn">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-emerald-500/10">
-                    <Gift className="h-5 w-5 text-emerald-500" />
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Referral Programme</p>
+            <Link href="/referrals">
+              <Card className="cursor-pointer hover-elevate border-emerald-200 dark:border-emerald-800" data-testid="card-membership-refer-earn">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10">
+                      <Gift className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm">Refer & Earn</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Invite friends and unlock rewards</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm">Refer & Earn</p>
-                    <p className="text-xs text-muted-foreground">Invite friends and unlock rewards</p>
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge variant="outline" className="text-[10px] px-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400">2 Referrals</Badge>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">Premium rate for 2 months</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge variant="outline" className="text-[10px] px-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400">4 Referrals</Badge>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">1 free session credit</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">After 2 months at Premium rate, you can revert to standard or upgrade to a 1-year Premium membership.</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </div>
-                <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Badge variant="outline" className="text-[10px] px-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400">2 Referrals</Badge>
-                    <span className="text-emerald-700 dark:text-emerald-400 font-medium">Premium rate for 2 months</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Badge variant="outline" className="text-[10px] px-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400">4 Referrals</Badge>
-                    <span className="text-emerald-700 dark:text-emerald-400 font-medium">1 free session credit</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">After 2 months at Premium rate, you can revert to standard or upgrade to a 1-year Premium membership.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
 
-          <Card className="border-amber-200 dark:border-amber-800" data-testid="card-membership-anniversary">
-            <CardContent className="p-4 space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-amber-500/10">
-                  <PartyPopper className="h-5 w-5 text-amber-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm">Club Anniversary Rewards</p>
-                  <p className="text-xs text-muted-foreground">Celebrate your membership milestones</p>
-                </div>
-              </div>
-              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-3 space-y-1.5">
-                <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">Every year on the date you joined a club, you'll receive:</p>
-                <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-disc list-inside">
-                  <li>Anniversary credit reward added to your account</li>
-                  <li>Special anniversary gifts (if set by your club)</li>
-                  <li>A personalised congratulations message</li>
-                </ul>
-                <p className="text-[11px] text-muted-foreground mt-1">Rewards are set by each club's admin. See your countdown below to check when your next anniversary is due.</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Anniversary Rewards</p>
+            <div className="space-y-4">
+              <Card className="border-amber-200 dark:border-amber-800" data-testid="card-membership-anniversary">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-amber-500/10">
+                      <PartyPopper className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm">Club Anniversary Rewards</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Celebrate your membership milestones</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3.5 space-y-2">
+                    <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">Every year on the date you joined a club, you'll receive:</p>
+                    <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1.5 list-disc list-inside">
+                      <li>Anniversary credit reward added to your account</li>
+                      <li>Special anniversary gifts (if set by your club)</li>
+                      <li>A personalised congratulations message</li>
+                    </ul>
+                    <p className="text-[11px] text-muted-foreground mt-2">Rewards are set by each club's admin. See your countdown below to check when your next anniversary is due.</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <AnniversaryCountdown />
+              <AnniversaryCountdown />
+            </div>
+          </div>
         </div>
       </CollapsibleSection>
 
