@@ -68,6 +68,8 @@ const ClubApprovals = lazy(() => import("@/pages/admin/ClubApprovals"));
 const PlayerProfile = lazy(() => import("@/pages/admin/PlayerProfile"));
 const Analytics = lazy(() => import("@/pages/admin/Analytics"));
 const AcquisitionAnalytics = lazy(() => import("@/pages/admin/AcquisitionAnalytics"));
+const AttendanceAnalytics = lazy(() => import("@/pages/admin/AttendanceAnalytics"));
+const InactiveMembers = lazy(() => import("@/pages/admin/InactiveMembers"));
 const AllRankings = lazy(() => import("@/pages/AllRankings"));
 const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
 const Venues = lazy(() => import("@/pages/Venues"));
@@ -456,6 +458,12 @@ function Router() {
       </Route>
       <Route path="/admin/acquisition-analytics">
         <AdminRoute component={AcquisitionAnalytics} />
+      </Route>
+      <Route path="/admin/attendance-analytics">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceAnalytics /></Suspense>} />
+      </Route>
+      <Route path="/admin/inactive-members">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><InactiveMembers /></Suspense>} />
       </Route>
       <Route path="/admin/import-members">
         <NonOrganiserAdminRoute component={MemberImport} />

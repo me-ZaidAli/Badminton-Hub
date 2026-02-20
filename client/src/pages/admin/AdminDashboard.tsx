@@ -318,6 +318,48 @@ export default function AdminDashboard() {
         )}
 
         {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-analytics">
+            <Link href="/admin/attendance-analytics">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-emerald-500" />
+                    Attendance Analytics
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Track session attendance, member engagement, and performance metrics.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-inactive-members">
+            <Link href="/admin/inactive-members">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-orange-500" />
+                    Inactive Members
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Identify and manage inactive members, send re-engagement messages, and handle account deletions.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {!isOrganiserOnly && (
           <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
             <Link href="/admin/rewards">
               <CardHeader>

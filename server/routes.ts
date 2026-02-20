@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, adminAuditLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -14280,6 +14280,1079 @@ export async function registerRoutes(
       res.json({ message: `Processed ${processed} anniversary rewards` });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === ATTENDANCE ANALYTICS & INACTIVE MEMBERS ===
+
+  app.get("/api/admin/attendance-analytics", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json({ kpis: { totalSessions: 0, totalAttendances: 0, uniqueMembers: 0, avgAttendance: 0, growthPercent: 0, noShowRate: 0, noShowCount: 0, previousPeriodAttendances: 0 }, topMembers: [], distribution: [], overTime: [], sessionPerformance: [] });
+
+      const { dateFrom, dateTo, clubId, sessionType, membershipStatus } = req.query;
+      const now = new Date();
+      const fromDate = dateFrom ? new Date(dateFrom as string) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const toDate = dateTo ? new Date(dateTo as string) : now;
+      const periodMs = toDate.getTime() - fromDate.getTime();
+      const prevFrom = new Date(fromDate.getTime() - periodMs);
+      const prevTo = new Date(fromDate.getTime());
+
+      let filteredClubIds = adminClubIds;
+      if (clubId) {
+        const cid = Number(clubId);
+        if (adminClubIds.includes(cid)) filteredClubIds = [cid];
+        else return res.status(403).json({ message: "Access denied to this club" });
+      }
+
+      const allSessions = await db.select().from(sessions)
+        .where(and(
+          inArray(sessions.clubId, filteredClubIds),
+          gte(sessions.date, fromDate),
+          lte(sessions.date, toDate),
+          sql`${sessions.status} != 'CANCELLED'`,
+          ...(sessionType ? [eq(sessions.sessionType, sessionType as any)] : [])
+        ));
+
+      const sessionIds = allSessions.map(s => s.id);
+      if (sessionIds.length === 0) return res.json({ kpis: { totalSessions: 0, totalAttendances: 0, uniqueMembers: 0, avgAttendance: 0, growthPercent: 0, noShowRate: 0, noShowCount: 0, previousPeriodAttendances: 0 }, topMembers: [], distribution: [], overTime: [], sessionPerformance: [] });
+
+      const allSignups = await db.select().from(sessionSignups)
+        .where(inArray(sessionSignups.sessionId, sessionIds));
+
+      let filteredSignups = allSignups;
+      if (membershipStatus) {
+        const profilesForFilter = await db.select({ id: playerProfiles.id })
+          .from(playerProfiles)
+          .where(eq(playerProfiles.membershipStatus, membershipStatus as any));
+        const profileIds = new Set(profilesForFilter.map(p => p.id));
+        filteredSignups = allSignups.filter(s => profileIds.has(s.playerId));
+      }
+
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const attended = filteredSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+      const totalSessions = allSessions.length;
+      const totalAttendances = attended.length;
+      const uniqueMemberIds = new Set(attended.map(s => s.playerId));
+      const uniqueMembers = uniqueMemberIds.size;
+      const avgAttendance = totalSessions > 0 ? Math.round((totalAttendances / totalSessions) * 10) / 10 : 0;
+
+      const prevSessions = await db.select({ id: sessions.id }).from(sessions)
+        .where(and(
+          inArray(sessions.clubId, filteredClubIds),
+          gte(sessions.date, prevFrom),
+          lte(sessions.date, prevTo),
+          sql`${sessions.status} != 'CANCELLED'`
+        ));
+      const prevSessionIds = prevSessions.map(s => s.id);
+      let previousPeriodAttendances = 0;
+      if (prevSessionIds.length > 0) {
+        const prevSignups = await db.select().from(sessionSignups)
+          .where(and(
+            inArray(sessionSignups.sessionId, prevSessionIds),
+            inArray(sessionSignups.attendanceStatus, attendedStatuses as any)
+          ));
+        previousPeriodAttendances = prevSignups.length;
+      }
+      const growthPercent = previousPeriodAttendances > 0
+        ? Math.round(((totalAttendances - previousPeriodAttendances) / previousPeriodAttendances) * 100)
+        : totalAttendances > 0 ? 100 : 0;
+
+      const noShows = filteredSignups.filter(s =>
+        s.signupStatus === "CONFIRMED" &&
+        (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED")
+      ).filter(s => {
+        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        return sess && sess.date < now;
+      });
+      const noShowCount = noShows.length;
+      const confirmedPast = filteredSignups.filter(s => {
+        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        return s.signupStatus === "CONFIRMED" && sess && sess.date < now;
+      });
+      const noShowRate = confirmedPast.length > 0 ? Math.round((noShowCount / confirmedPast.length) * 100) : 0;
+
+      const memberAttendanceCounts = new Map<number, { attended: number; total: number }>();
+      for (const s of filteredSignups) {
+        if (!memberAttendanceCounts.has(s.playerId)) memberAttendanceCounts.set(s.playerId, { attended: 0, total: 0 });
+        const entry = memberAttendanceCounts.get(s.playerId)!;
+        entry.total++;
+        if (attendedStatuses.includes(s.attendanceStatus)) entry.attended++;
+      }
+
+      const topPlayerIds = Array.from(memberAttendanceCounts.entries())
+        .sort((a, b) => b[1].attended - a[1].attended)
+        .slice(0, 20)
+        .map(([id]) => id);
+
+      let topMembers: any[] = [];
+      if (topPlayerIds.length > 0) {
+        const profileData = await db.select({
+          id: playerProfiles.id,
+          userId: playerProfiles.userId,
+          clubId: playerProfiles.clubId,
+        }).from(playerProfiles).where(inArray(playerProfiles.id, topPlayerIds));
+
+        const userIds = profileData.map(p => p.userId);
+        const userData = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)) : [];
+        const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, filteredClubIds));
+
+        const userMap = new Map(userData.map(u => [u.id, u]));
+        const clubMap = new Map(clubData.map(c => [c.id, c]));
+        const profileMap = new Map(profileData.map(p => [p.id, p]));
+
+        topMembers = topPlayerIds.map(pid => {
+          const stats = memberAttendanceCounts.get(pid)!;
+          const profile = profileMap.get(pid);
+          const u = profile ? userMap.get(profile.userId) : null;
+          const c = profile ? clubMap.get(profile.clubId) : null;
+          return {
+            profileId: pid,
+            name: u?.fullName || "Unknown",
+            clubName: c?.name || "Unknown",
+            totalAttendances: stats.attended,
+            totalBookings: stats.total,
+            attendanceRate: stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 0,
+          };
+        });
+      }
+
+      const buckets = [
+        { label: "1-2", min: 1, max: 2 },
+        { label: "3-5", min: 3, max: 5 },
+        { label: "6-10", min: 6, max: 10 },
+        { label: "11+", min: 11, max: Infinity },
+      ];
+      const distribution = buckets.map(b => {
+        const count = Array.from(memberAttendanceCounts.values()).filter(v => v.attended >= b.min && v.attended <= b.max).length;
+        return { bucket: b.label, count };
+      });
+
+      const dateMap = new Map<string, { attendances: number; sessions: Set<number>; members: Set<number> }>();
+      for (const sess of allSessions) {
+        const dateKey = sess.date.toISOString().split("T")[0];
+        if (!dateMap.has(dateKey)) dateMap.set(dateKey, { attendances: 0, sessions: new Set(), members: new Set() });
+        dateMap.get(dateKey)!.sessions.add(sess.id);
+      }
+      for (const s of attended) {
+        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        if (sess) {
+          const dateKey = sess.date.toISOString().split("T")[0];
+          const entry = dateMap.get(dateKey)!;
+          entry.attendances++;
+          entry.members.add(s.playerId);
+        }
+      }
+      const overTime = Array.from(dateMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({
+          date,
+          attendances: data.attendances,
+          sessions: data.sessions.size,
+          uniqueMembers: data.members.size,
+        }));
+
+      const modeMap = new Map<string, { sessions: any[]; attended: number; signups: any[] }>();
+      for (const sess of allSessions) {
+        const mode = sess.matchMode;
+        if (!modeMap.has(mode)) modeMap.set(mode, { sessions: [], attended: 0, signups: [] });
+        modeMap.get(mode)!.sessions.push(sess);
+      }
+      for (const s of filteredSignups) {
+        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        if (sess) {
+          const entry = modeMap.get(sess.matchMode)!;
+          entry.signups.push(s);
+          if (attendedStatuses.includes(s.attendanceStatus)) entry.attended++;
+        }
+      }
+
+      const firstAttendanceMap = new Map<number, string>();
+      for (const s of attended) {
+        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        if (sess) {
+          const dateKey = sess.date.toISOString().split("T")[0];
+          if (!firstAttendanceMap.has(s.playerId) || dateKey < firstAttendanceMap.get(s.playerId)!) {
+            firstAttendanceMap.set(s.playerId, dateKey);
+          }
+        }
+      }
+
+      const sessionPerformance = Array.from(modeMap.entries()).map(([mode, data]) => {
+        const totalMaxPlayers = data.sessions.reduce((sum: number, s: any) => sum + (s.maxPlayers || 0), 0);
+        const avgAtt = data.sessions.length > 0 ? Math.round(data.attended / data.sessions.length * 10) / 10 : 0;
+        const fillRate = totalMaxPlayers > 0 ? Math.round((data.attended / totalMaxPlayers) * 100) : 0;
+
+        const attendedPlayerIds = new Set<number>();
+        const firstTimerIds = new Set<number>();
+        const repeatIds = new Set<number>();
+        for (const s of data.signups) {
+          if (attendedStatuses.includes(s.attendanceStatus)) {
+            if (attendedPlayerIds.has(s.playerId)) {
+              repeatIds.add(s.playerId);
+            } else {
+              attendedPlayerIds.add(s.playerId);
+            }
+            const firstDate = firstAttendanceMap.get(s.playerId);
+            const sess = allSessions.find(ss => ss.id === s.sessionId);
+            if (firstDate && sess && sess.date.toISOString().split("T")[0] === firstDate) {
+              firstTimerIds.add(s.playerId);
+            }
+          }
+        }
+
+        return {
+          sessionType: mode,
+          totalSessions: data.sessions.length,
+          avgAttendance: avgAtt,
+          fillRate,
+          repeatPercent: attendedPlayerIds.size > 0 ? Math.round((repeatIds.size / attendedPlayerIds.size) * 100) : 0,
+          firstTimerPercent: attendedPlayerIds.size > 0 ? Math.round((firstTimerIds.size / attendedPlayerIds.size) * 100) : 0,
+        };
+      });
+
+      res.json({
+        kpis: { totalSessions, totalAttendances, uniqueMembers, avgAttendance, growthPercent, noShowRate, noShowCount, previousPeriodAttendances },
+        topMembers,
+        distribution,
+        overTime,
+        sessionPerformance,
+      });
+    } catch (err: any) {
+      console.error("Error in attendance analytics:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch attendance analytics" });
+    }
+  });
+
+  app.get("/api/admin/attendance-analytics/kpi-detail/:metric", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json([]);
+
+      const { dateFrom, dateTo, clubId } = req.query;
+      const now = new Date();
+      const fromDate = dateFrom ? new Date(dateFrom as string) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const toDate = dateTo ? new Date(dateTo as string) : now;
+      let filteredClubIds = adminClubIds;
+      if (clubId) {
+        const cid = Number(clubId);
+        if (adminClubIds.includes(cid)) filteredClubIds = [cid];
+        else return res.status(403).json({ message: "Access denied" });
+      }
+
+      const metric = req.params.metric;
+      const allSessions = await db.select().from(sessions)
+        .where(and(
+          inArray(sessions.clubId, filteredClubIds),
+          gte(sessions.date, fromDate),
+          lte(sessions.date, toDate),
+          sql`${sessions.status} != 'CANCELLED'`
+        ));
+      const sessionIds = allSessions.map(s => s.id);
+      const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, filteredClubIds));
+      const clubMap = new Map(clubData.map(c => [c.id, c]));
+
+      if (metric === "totalSessions") {
+        const result = allSessions.map(s => ({
+          id: s.id,
+          title: s.title,
+          date: s.date,
+          clubName: clubMap.get(s.clubId)?.name || "Unknown",
+          maxPlayers: s.maxPlayers,
+          matchMode: s.matchMode,
+        }));
+        return res.json(result);
+      }
+
+      if (sessionIds.length === 0) return res.json([]);
+      const allSignups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+
+      if (metric === "totalAttendances") {
+        const attended = allSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+        const playerIds = [...new Set(attended.map(s => s.playerId))];
+        const profileData = playerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, playerIds)) : [];
+        const userIds = profileData.map(p => p.userId);
+        const userData = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)) : [];
+        const userMap = new Map(userData.map(u => [u.id, u]));
+        const profileMap = new Map(profileData.map(p => [p.id, p]));
+
+        const grouped = new Map<number, number>();
+        for (const s of attended) {
+          grouped.set(s.playerId, (grouped.get(s.playerId) || 0) + 1);
+        }
+        const result = Array.from(grouped.entries()).map(([pid, count]) => {
+          const profile = profileMap.get(pid);
+          const u = profile ? userMap.get(profile.userId) : null;
+          return { profileId: pid, name: u?.fullName || "Unknown", totalAttendances: count, clubName: profile ? clubMap.get(profile.clubId)?.name || "Unknown" : "Unknown" };
+        }).sort((a, b) => b.totalAttendances - a.totalAttendances);
+        return res.json(result);
+      }
+
+      if (metric === "uniqueMembers") {
+        const attended = allSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+        const uniquePlayerIds = [...new Set(attended.map(s => s.playerId))];
+        const profileData = uniquePlayerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, uniquePlayerIds)) : [];
+        const userIds = profileData.map(p => p.userId);
+        const userData = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds)) : [];
+        const userMap = new Map(userData.map(u => [u.id, u]));
+        const profileMap = new Map(profileData.map(p => [p.id, p]));
+
+        const result = uniquePlayerIds.map(pid => {
+          const profile = profileMap.get(pid);
+          const u = profile ? userMap.get(profile.userId) : null;
+          return { profileId: pid, name: u?.fullName || "Unknown", email: u?.email || "", clubName: profile ? clubMap.get(profile.clubId)?.name || "Unknown" : "Unknown" };
+        });
+        return res.json(result);
+      }
+
+      if (metric === "noShows") {
+        const noShows = allSignups.filter(s => {
+          const sess = allSessions.find(ss => ss.id === s.sessionId);
+          return s.signupStatus === "CONFIRMED" && (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED") && sess && sess.date < now;
+        });
+        const playerIds = [...new Set(noShows.map(s => s.playerId))];
+        const profileData = playerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, playerIds)) : [];
+        const userIds = profileData.map(p => p.userId);
+        const userData = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)) : [];
+        const userMap = new Map(userData.map(u => [u.id, u]));
+        const profileMap = new Map(profileData.map(p => [p.id, p]));
+
+        const result = noShows.map(s => {
+          const sess = allSessions.find(ss => ss.id === s.sessionId);
+          const profile = profileMap.get(s.playerId);
+          const u = profile ? userMap.get(profile.userId) : null;
+          return {
+            signupId: s.id,
+            profileId: s.playerId,
+            name: u?.fullName || "Unknown",
+            sessionTitle: sess?.title || "Unknown",
+            sessionDate: sess?.date,
+            attendanceStatus: s.attendanceStatus,
+            clubName: profile ? clubMap.get(profile.clubId)?.name || "Unknown" : "Unknown",
+          };
+        });
+        return res.json(result);
+      }
+
+      res.status(400).json({ message: "Invalid metric" });
+    } catch (err: any) {
+      console.error("Error in KPI detail:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch KPI detail" });
+    }
+  });
+
+  app.get("/api/admin/attendance-analytics/member/:profileId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const profileId = Number(req.params.profileId);
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, profileId));
+      if (!profile || !adminClubIds.includes(profile.clubId)) return res.status(404).json({ message: "Profile not found" });
+
+      const [memberUser] = await db.select({ id: users.id, fullName: users.fullName, email: users.email }).from(users).where(eq(users.id, profile.userId));
+
+      const memberSessions = await db.select().from(sessions).where(and(
+        eq(sessions.clubId, profile.clubId),
+        sql`${sessions.status} != 'CANCELLED'`
+      ));
+      const memberSessionIds = memberSessions.map(s => s.id);
+
+      let signups: any[] = [];
+      if (memberSessionIds.length > 0) {
+        signups = await db.select().from(sessionSignups).where(and(
+          eq(sessionSignups.playerId, profileId),
+          inArray(sessionSignups.sessionId, memberSessionIds)
+        ));
+      }
+
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const attendedSignups = signups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+      const totalAttendances = attendedSignups.length;
+      const totalBookings = signups.length;
+      const attendanceRate = totalBookings > 0 ? Math.round((totalAttendances / totalBookings) * 100) : 0;
+      const noShowCount = signups.filter(s => s.signupStatus === "CONFIRMED" && (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED") && memberSessions.find(ss => ss.id === s.sessionId)?.date! < new Date()).length;
+
+      const sessionTypeCount = new Map<string, number>();
+      for (const s of attendedSignups) {
+        const sess = memberSessions.find(ss => ss.id === s.sessionId);
+        if (sess) {
+          sessionTypeCount.set(sess.matchMode, (sessionTypeCount.get(sess.matchMode) || 0) + 1);
+        }
+      }
+      const mostFrequentSessionType = sessionTypeCount.size > 0 ? Array.from(sessionTypeCount.entries()).sort((a, b) => b[1] - a[1])[0][0] : null;
+
+      const attendedDates = attendedSignups.map(s => {
+        const sess = memberSessions.find(ss => ss.id === s.sessionId);
+        return sess?.date;
+      }).filter(Boolean).sort((a, b) => a!.getTime() - b!.getTime());
+
+      const firstAttendance = attendedDates.length > 0 ? attendedDates[0] : null;
+      const lastAttendance = attendedDates.length > 0 ? attendedDates[attendedDates.length - 1] : null;
+      const daysSinceLastAttendance = lastAttendance ? Math.floor((Date.now() - lastAttendance!.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+      let engagementScore = 0;
+      if (totalAttendances > 0) {
+        const frequencyScore = Math.min(totalAttendances / 20, 1) * 40;
+        const recencyScore = daysSinceLastAttendance !== null ? Math.max(0, 1 - daysSinceLastAttendance / 90) * 30 : 0;
+        const consistencyScore = attendanceRate / 100 * 30;
+        engagementScore = Math.round(frequencyScore + recencyScore + consistencyScore);
+      }
+
+      res.json({
+        profileId,
+        name: memberUser?.fullName || "Unknown",
+        email: memberUser?.email || "",
+        totalAttendances,
+        totalBookings,
+        attendanceRate,
+        noShowCount,
+        mostFrequentSessionType,
+        firstAttendance,
+        lastAttendance,
+        daysSinceLastAttendance,
+        engagementScore,
+      });
+    } catch (err: any) {
+      console.error("Error in member analytics:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch member analytics" });
+    }
+  });
+
+  app.get("/api/admin/attendance-analytics/date-detail/:date", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json([]);
+
+      const dateStr = req.params.date;
+      const startOfDay = new Date(dateStr + "T00:00:00.000Z");
+      const endOfDay = new Date(dateStr + "T23:59:59.999Z");
+
+      const daySessions = await db.select().from(sessions).where(and(
+        inArray(sessions.clubId, adminClubIds),
+        gte(sessions.date, startOfDay),
+        lte(sessions.date, endOfDay),
+        sql`${sessions.status} != 'CANCELLED'`
+      ));
+
+      const sessionIds = daySessions.map(s => s.id);
+      if (sessionIds.length === 0) return res.json([]);
+
+      const signups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
+      const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, adminClubIds));
+      const clubMap = new Map(clubData.map(c => [c.id, c]));
+
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const result = daySessions.map(s => {
+        const sessSignups = signups.filter(su => su.sessionId === s.id);
+        const attendedCount = sessSignups.filter(su => attendedStatuses.includes(su.attendanceStatus)).length;
+        return {
+          id: s.id,
+          title: s.title,
+          date: s.date,
+          startTime: s.startTime,
+          maxPlayers: s.maxPlayers,
+          matchMode: s.matchMode,
+          clubName: clubMap.get(s.clubId)?.name || "Unknown",
+          totalSignups: sessSignups.length,
+          totalAttended: attendedCount,
+          fillRate: s.maxPlayers > 0 ? Math.round((attendedCount / s.maxPlayers) * 100) : 0,
+        };
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error in date detail:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch date detail" });
+    }
+  });
+
+  app.get("/api/admin/attendance-analytics/distribution/:bucket", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json([]);
+
+      const { dateFrom, dateTo } = req.query;
+      const now = new Date();
+      const fromDate = dateFrom ? new Date(dateFrom as string) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const toDate = dateTo ? new Date(dateTo as string) : now;
+
+      const allSessions = await db.select().from(sessions).where(and(
+        inArray(sessions.clubId, adminClubIds),
+        gte(sessions.date, fromDate),
+        lte(sessions.date, toDate),
+        sql`${sessions.status} != 'CANCELLED'`
+      ));
+      const sessionIds = allSessions.map(s => s.id);
+      if (sessionIds.length === 0) return res.json([]);
+
+      const allSignups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+
+      const memberCounts = new Map<number, number>();
+      for (const s of allSignups) {
+        if (attendedStatuses.includes(s.attendanceStatus)) {
+          memberCounts.set(s.playerId, (memberCounts.get(s.playerId) || 0) + 1);
+        }
+      }
+
+      const bucket = req.params.bucket;
+      const bucketRanges: Record<string, [number, number]> = {
+        "1-2": [1, 2],
+        "3-5": [3, 5],
+        "6-10": [6, 10],
+        "11+": [11, Infinity],
+      };
+      const range = bucketRanges[bucket];
+      if (!range) return res.status(400).json({ message: "Invalid bucket" });
+
+      const matchingPlayerIds = Array.from(memberCounts.entries())
+        .filter(([, count]) => count >= range[0] && count <= range[1])
+        .map(([id]) => id);
+
+      if (matchingPlayerIds.length === 0) return res.json([]);
+
+      const profileData = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, matchingPlayerIds));
+      const userIds = profileData.map(p => p.userId);
+      const userData = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds)) : [];
+      const userMap = new Map(userData.map(u => [u.id, u]));
+      const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, adminClubIds));
+      const clubMap = new Map(clubData.map(c => [c.id, c]));
+
+      const result = profileData.map(p => {
+        const u = userMap.get(p.userId);
+        return {
+          profileId: p.id,
+          name: u?.fullName || "Unknown",
+          email: u?.email || "",
+          clubName: clubMap.get(p.clubId)?.name || "Unknown",
+          totalAttendances: memberCounts.get(p.id) || 0,
+        };
+      }).sort((a, b) => b.totalAttendances - a.totalAttendances);
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error in distribution detail:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch distribution detail" });
+    }
+  });
+
+  app.get("/api/admin/attendance-analytics/session-type/:type", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json([]);
+
+      const { dateFrom, dateTo } = req.query;
+      const now = new Date();
+      const fromDate = dateFrom ? new Date(dateFrom as string) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const toDate = dateTo ? new Date(dateTo as string) : now;
+      const sessionType = req.params.type;
+
+      const typeSessions = await db.select().from(sessions).where(and(
+        inArray(sessions.clubId, adminClubIds),
+        gte(sessions.date, fromDate),
+        lte(sessions.date, toDate),
+        eq(sessions.matchMode, sessionType as any),
+        sql`${sessions.status} != 'CANCELLED'`
+      ));
+
+      const sessionIds = typeSessions.map(s => s.id);
+      if (sessionIds.length === 0) return res.json([]);
+
+      const signups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
+      const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, adminClubIds));
+      const clubMap = new Map(clubData.map(c => [c.id, c]));
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+
+      const result = typeSessions.map(s => {
+        const sessSignups = signups.filter(su => su.sessionId === s.id);
+        const attendedCount = sessSignups.filter(su => attendedStatuses.includes(su.attendanceStatus)).length;
+        return {
+          id: s.id,
+          title: s.title,
+          date: s.date,
+          startTime: s.startTime,
+          maxPlayers: s.maxPlayers,
+          matchMode: s.matchMode,
+          clubName: clubMap.get(s.clubId)?.name || "Unknown",
+          totalSignups: sessSignups.length,
+          totalAttended: attendedCount,
+          fillRate: s.maxPlayers > 0 ? Math.round((attendedCount / s.maxPlayers) * 100) : 0,
+        };
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error in session type detail:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch session type detail" });
+    }
+  });
+
+  app.get("/api/admin/inactive-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.json([]);
+
+      const threshold = Number(req.query.threshold) || 30;
+      const clubIdFilter = req.query.clubId ? Number(req.query.clubId) : null;
+
+      let filteredClubIds = adminClubIds;
+      if (clubIdFilter) {
+        if (!adminClubIds.includes(clubIdFilter)) return res.status(403).json({ message: "Access denied" });
+        filteredClubIds = [clubIdFilter];
+      }
+
+      const cutoffDate = new Date(Date.now() - threshold * 24 * 60 * 60 * 1000);
+
+      const allProfiles = await db.select().from(playerProfiles)
+        .where(and(
+          inArray(playerProfiles.clubId, filteredClubIds),
+          eq(playerProfiles.membershipStatus, "APPROVED"),
+          sql`${playerProfiles.deletedAt} IS NULL`
+        ));
+
+      if (allProfiles.length === 0) return res.json([]);
+
+      const profileIds = allProfiles.map(p => p.id);
+      const allSessions2 = await db.select().from(sessions)
+        .where(and(
+          inArray(sessions.clubId, filteredClubIds),
+          sql`${sessions.status} != 'CANCELLED'`
+        ));
+      const sessionIds = allSessions2.map(s => s.id);
+
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      let allSignups: any[] = [];
+      if (sessionIds.length > 0) {
+        allSignups = await db.select().from(sessionSignups)
+          .where(and(
+            inArray(sessionSignups.playerId, profileIds),
+            inArray(sessionSignups.sessionId, sessionIds),
+            inArray(sessionSignups.attendanceStatus, attendedStatuses as any)
+          ));
+      }
+
+      const lastAttendanceMap = new Map<number, Date>();
+      for (const s of allSignups) {
+        const sess = allSessions2.find(ss => ss.id === s.sessionId);
+        if (sess) {
+          const current = lastAttendanceMap.get(s.playerId);
+          if (!current || sess.date > current) {
+            lastAttendanceMap.set(s.playerId, sess.date);
+          }
+        }
+      }
+
+      const inactiveProfiles = allProfiles.filter(p => {
+        const lastAtt = lastAttendanceMap.get(p.id);
+        return !lastAtt || lastAtt < cutoffDate;
+      });
+
+      if (inactiveProfiles.length === 0) return res.json([]);
+
+      const userIds = inactiveProfiles.map(p => p.userId);
+      const userData = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        deletionScheduledAt: users.deletionScheduledAt,
+      }).from(users).where(inArray(users.id, userIds));
+      const userMap = new Map(userData.map(u => [u.id, u]));
+
+      const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, filteredClubIds));
+      const clubMap = new Map(clubData.map(c => [c.id, c]));
+
+      const result = inactiveProfiles.map(p => {
+        const u = userMap.get(p.userId);
+        const lastAtt = lastAttendanceMap.get(p.id);
+        const daysInactive = lastAtt ? Math.floor((Date.now() - lastAtt.getTime()) / (1000 * 60 * 60 * 24)) : null;
+        return {
+          userId: p.userId,
+          profileId: p.id,
+          name: u?.fullName || "Unknown",
+          email: u?.email || "",
+          lastAttendance: lastAtt || null,
+          daysInactive,
+          membershipStatus: p.membershipStatus,
+          clubName: clubMap.get(p.clubId)?.name || "Unknown",
+          clubId: p.clubId,
+          deletionScheduledAt: u?.deletionScheduledAt || null,
+        };
+      }).sort((a, b) => (b.daysInactive || 9999) - (a.daysInactive || 9999));
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error fetching inactive members:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch inactive members" });
+    }
+  });
+
+  app.post("/api/admin/inactive-members/:userId/message", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const targetUserId = Number(req.params.userId);
+      const { subject, body, clubId } = req.body;
+      if (!subject || !body) return res.status(400).json({ message: "Subject and body are required" });
+
+      const msgClubId = clubId ? Number(clubId) : null;
+      if (msgClubId && !adminClubIds.includes(msgClubId)) return res.status(403).json({ message: "Access denied to this club" });
+
+      await db.insert(internalMessages).values({
+        senderId: user.id,
+        recipientId: targetUserId,
+        subject,
+        body,
+        clubId: msgClubId,
+      });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "SEND_MESSAGE",
+        targetType: "USER",
+        targetId: targetUserId,
+        clubId: msgClubId,
+        metadata: { subject },
+      });
+
+      res.json({ message: "Message sent" });
+    } catch (err: any) {
+      console.error("Error sending message:", err);
+      res.status(500).json({ message: err.message || "Failed to send message" });
+    }
+  });
+
+  app.post("/api/admin/inactive-members/:userId/add-note", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const targetUserId = Number(req.params.userId);
+      const { note, clubId } = req.body;
+      if (!note) return res.status(400).json({ message: "Note is required" });
+
+      const noteClubId = clubId ? Number(clubId) : null;
+      if (noteClubId && !adminClubIds.includes(noteClubId)) return res.status(403).json({ message: "Access denied to this club" });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "ADD_NOTE",
+        targetType: "USER",
+        targetId: targetUserId,
+        clubId: noteClubId,
+        metadata: { note },
+      });
+
+      res.json({ message: "Note added" });
+    } catch (err: any) {
+      console.error("Error adding note:", err);
+      res.status(500).json({ message: err.message || "Failed to add note" });
+    }
+  });
+
+  app.post("/api/admin/inactive-members/:userId/schedule-deletion", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const targetUserId = Number(req.params.userId);
+      const { reason } = req.body;
+      const deletionDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+      await db.update(users).set({
+        deletionScheduledAt: deletionDate,
+        deletionScheduledBy: user.id,
+        deletionReason: reason || "Inactive account",
+      }).where(eq(users.id, targetUserId));
+
+      await db.insert(internalMessages).values({
+        senderId: user.id,
+        recipientId: targetUserId,
+        subject: "Account Deletion Scheduled",
+        body: `Your account has been scheduled for deletion on ${deletionDate.toLocaleDateString()}. Reason: ${reason || "Inactive account"}. If you believe this is a mistake, please contact your club administrator.`,
+        clubId: null,
+      });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "SCHEDULE_DELETION",
+        targetType: "USER",
+        targetId: targetUserId,
+        metadata: { reason: reason || "Inactive account", deletionDate: deletionDate.toISOString() },
+      });
+
+      res.json({ message: "Deletion scheduled", deletionDate });
+    } catch (err: any) {
+      console.error("Error scheduling deletion:", err);
+      res.status(500).json({ message: err.message || "Failed to schedule deletion" });
+    }
+  });
+
+  app.post("/api/admin/inactive-members/:userId/cancel-deletion", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const targetUserId = Number(req.params.userId);
+
+      await db.update(users).set({
+        deletionScheduledAt: null,
+        deletionScheduledBy: null,
+        deletionReason: null,
+      }).where(eq(users.id, targetUserId));
+
+      await db.insert(internalMessages).values({
+        senderId: user.id,
+        recipientId: targetUserId,
+        subject: "Account Deletion Cancelled",
+        body: "Your account deletion has been cancelled. Your account is safe and will not be deleted.",
+        clubId: null,
+      });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "CANCEL_DELETION",
+        targetType: "USER",
+        targetId: targetUserId,
+      });
+
+      res.json({ message: "Deletion cancelled" });
+    } catch (err: any) {
+      console.error("Error cancelling deletion:", err);
+      res.status(500).json({ message: err.message || "Failed to cancel deletion" });
+    }
+  });
+
+  app.delete("/api/admin/inactive-members/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      if (user.role !== "OWNER") return res.status(403).json({ message: "Only OWNER can permanently delete users" });
+
+      const targetUserId = Number(req.params.userId);
+      const [targetUser] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, targetUserId));
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "PERMANENT_DELETE",
+        targetType: "USER",
+        targetId: targetUserId,
+        metadata: { userName: targetUser.fullName },
+      });
+
+      await db.update(users).set({
+        closedAt: new Date(),
+        closedReason: "Permanently deleted by admin",
+        accountStatus: "REJECTED",
+      }).where(eq(users.id, targetUserId));
+
+      await db.update(playerProfiles).set({
+        deletedAt: new Date(),
+        playerStatus: "ARCHIVED",
+      }).where(eq(playerProfiles.userId, targetUserId));
+
+      res.json({ message: "User account deleted" });
+    } catch (err: any) {
+      console.error("Error deleting user:", err);
+      res.status(500).json({ message: err.message || "Failed to delete user" });
+    }
+  });
+
+  app.post("/api/admin/audit-log", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+      if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
+
+      const { action, targetType, targetId, clubId, metadata } = req.body;
+      if (!action || !targetType) return res.status(400).json({ message: "Action and targetType are required" });
+
+      const auditClubId = clubId ? Number(clubId) : null;
+      if (auditClubId && !adminClubIds.includes(auditClubId)) return res.status(403).json({ message: "Access denied to this club" });
+
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action,
+        targetType,
+        targetId: targetId ? Number(targetId) : null,
+        clubId: auditClubId,
+        metadata: metadata || null,
+      });
+
+      res.json({ message: "Audit log created" });
+    } catch (err: any) {
+      console.error("Error creating audit log:", err);
+      res.status(500).json({ message: err.message || "Failed to create audit log" });
     }
   });
 
