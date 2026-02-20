@@ -26,9 +26,10 @@ import {
   MessageCircle, Send, Loader2, Search, Plus, ArrowLeft, Users, Lock, Pin,
   MoreVertical, Volume2, VolumeX, UserPlus, UserMinus, Shield, Flag,
   Trash2, Settings, AlertTriangle, Star, Info, X, SmilePlus, ChevronDown,
+  ThumbsUp, Heart, Laugh, Zap, Frown, Trophy, Target, Flame,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface ChatItem {
   id: number;
@@ -110,9 +111,9 @@ function getInitials(name: string) {
 }
 
 function getRoleBadge(role: string | null, userRole?: string | null) {
-  if (role === "ADMIN" || userRole === "OWNER") return { label: "Admin", icon: Shield, variant: "default" as const };
-  if (role === "ORGANISER") return { label: "Organiser", icon: Settings, variant: "secondary" as const };
-  if (role === "COACH") return { label: "Coach", icon: Star, variant: "outline" as const };
+  if (role === "ADMIN" || userRole === "OWNER") return { label: "Admin", icon: Shield, color: "text-blue-500", bg: "bg-blue-500" };
+  if (role === "ORGANISER") return { label: "Organiser", icon: Settings, color: "text-amber-500", bg: "bg-amber-500" };
+  if (role === "COACH") return { label: "Coach", icon: Star, color: "text-emerald-500", bg: "bg-emerald-500" };
   return null;
 }
 
@@ -128,7 +129,54 @@ function getChatTypeLabel(type: string) {
   }
 }
 
-const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🏸", "💪"];
+function getChatTypeColor(type: string) {
+  switch (type) {
+    case "SESSION": return { bg: "bg-blue-500", text: "text-blue-500", light: "bg-blue-500/10" };
+    case "CLUB": return { bg: "bg-emerald-500", text: "text-emerald-500", light: "bg-emerald-500/10" };
+    case "PREMIUM": return { bg: "bg-purple-500", text: "text-purple-500", light: "bg-purple-500/10" };
+    case "STAFF": return { bg: "bg-amber-500", text: "text-amber-500", light: "bg-amber-500/10" };
+    case "EVENT": return { bg: "bg-pink-500", text: "text-pink-500", light: "bg-pink-500/10" };
+    default: return { bg: "bg-slate-500", text: "text-slate-500", light: "bg-slate-500/10" };
+  }
+}
+
+function getAvatarColor(chatRole: string | null, senderRole: string | null) {
+  if (chatRole === "ADMIN" || senderRole === "OWNER") return "bg-blue-500 text-white";
+  if (chatRole === "COACH") return "bg-emerald-500 text-white";
+  if (chatRole === "ORGANISER") return "bg-amber-500 text-white";
+  return "bg-slate-400 text-white";
+}
+
+function getBubbleRoleClass(chatRole: string | null, senderRole: string | null) {
+  if (chatRole === "ADMIN" || senderRole === "OWNER") return "chat-bubble-admin";
+  if (chatRole === "COACH") return "chat-bubble-coach";
+  if (chatRole === "ORGANISER") return "chat-bubble-organiser";
+  return "";
+}
+
+function renderMessageBody(body: string) {
+  const parts = body.split(/(@\w+)/g);
+  return parts.map((part, i) =>
+    part.startsWith("@") ? <span key={i} className="mention-highlight">{part}</span> : part
+  );
+}
+
+const REACTION_OPTIONS = [
+  { key: "like", Icon: ThumbsUp, label: "Like" },
+  { key: "love", Icon: Heart, label: "Love" },
+  { key: "laugh", Icon: Laugh, label: "Laugh" },
+  { key: "fire", Icon: Flame, label: "Fire" },
+  { key: "sad", Icon: Frown, label: "Sad" },
+  { key: "trophy", Icon: Trophy, label: "Trophy" },
+  { key: "target", Icon: Target, label: "Target" },
+  { key: "energy", Icon: Zap, label: "Energy" },
+];
+
+function getReactionIcon(key: string) {
+  const opt = REACTION_OPTIONS.find(o => o.key === key);
+  if (opt) return opt.Icon;
+  return ThumbsUp;
+}
 
 export default function GroupChats() {
   const { data: user } = useUser();
@@ -446,15 +494,15 @@ export default function GroupChats() {
             {chatsLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3 animate-pulse">
-                    <div className="h-10 w-10 rounded-full bg-muted" />
+                  <div key={i} className="flex items-center gap-3 animate-pulse p-2">
+                    <div className="h-11 w-11 rounded-full bg-muted" />
                     <div className="flex-1"><div className="h-4 w-24 bg-muted rounded mb-1" /><div className="h-3 w-40 bg-muted rounded" /></div>
                   </div>
                 ))}
               </div>
             ) : filteredChats.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <MessageCircle className="h-10 w-10 mx-auto mb-3 text-primary/30" />
                 <p className="text-sm">No group chats yet</p>
                 {(user.role === "OWNER" || user.role === "ADMIN" || user.role === "ORGANISER") && (
                   <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateChatOpen(true)} data-testid="button-create-chat-empty">
@@ -463,49 +511,54 @@ export default function GroupChats() {
                 )}
               </div>
             ) : (
-              filteredChats.map(chat => (
-                <div
-                  key={chat.id}
-                  className={`flex items-center gap-3 px-3 py-3 cursor-pointer hover-elevate ${activeChat === chat.id ? "bg-accent/50" : ""}`}
-                  onClick={() => { setActiveChat(chat.id); setMobileShowThread(true); }}
-                  data-testid={`group-chat-item-${chat.id}`}
-                >
-                  <Avatar className="h-10 w-10 flex-shrink-0">
-                    <AvatarFallback className="text-xs">
-                      {chat.isLocked ? <Lock className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate" data-testid={`text-chat-name-${chat.id}`}>{chat.name}</span>
-                        {chat.isMuted && <VolumeX className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
-                        {chat.isLocked && <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+              filteredChats.map(chat => {
+                const typeColor = getChatTypeColor(chat.type);
+                return (
+                  <div
+                    key={chat.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer chat-list-item hover-elevate ${activeChat === chat.id ? "border-l-2 border-l-blue-500 bg-blue-500/5" : "border-l-2 border-l-transparent"} ${chat.isMuted ? "opacity-60" : ""}`}
+                    onClick={() => { setActiveChat(chat.id); setMobileShowThread(true); }}
+                    data-testid={`group-chat-item-${chat.id}`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-11 w-11">
+                        <AvatarFallback className={`${typeColor.bg} text-white text-sm font-semibold`}>
+                          {chat.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${typeColor.bg}`} data-testid={`chat-type-dot-${chat.id}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="font-medium text-sm truncate" data-testid={`text-chat-name-${chat.id}`}>{chat.name}</span>
+                          {chat.isMuted && <VolumeX className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                          {chat.isLocked && <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {chat.lastMessage && (
+                            <span className="text-[11px] text-muted-foreground">{formatMessageTime(chat.lastMessage.createdAt)}</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Badge variant="secondary" className="text-[9px] no-default-hover-elevate no-default-active-elevate">{getChatTypeLabel(chat.type)}</Badge>
-                        {chat.lastMessage && (
-                          <span className="text-[11px] text-muted-foreground">{formatMessageTime(chat.lastMessage.createdAt)}</span>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {chat.lastMessage
+                            ? chat.lastMessage.messageType === "SYSTEM"
+                              ? chat.lastMessage.body
+                              : <><span className="font-medium">{chat.lastMessage.senderName || "Unknown"}</span>: {chat.lastMessage.body}</>
+                            : `${chat.memberCount} members`}
+                        </p>
+                        {chat.unreadCount > 0 && (
+                          <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid={`badge-group-unread-${chat.id}`}>
+                            {chat.unreadCount}
+                          </Badge>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground truncate">
-                        {chat.lastMessage
-                          ? chat.lastMessage.messageType === "SYSTEM"
-                            ? chat.lastMessage.body
-                            : `${chat.lastMessage.senderName || "Unknown"}: ${chat.lastMessage.body}`
-                          : `${chat.memberCount} members`}
-                      </p>
-                      {chat.unreadCount > 0 && (
-                        <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center no-default-hover-elevate no-default-active-elevate" data-testid={`badge-group-unread-${chat.id}`}>
-                          {chat.unreadCount}
-                        </Badge>
-                      )}
-                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -515,23 +568,28 @@ export default function GroupChats() {
           {activeChat && chatDetail ? (
             <>
               {/* Chat Header */}
-              <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
+              <div className="flex items-center gap-3 px-4 py-3 border-b chat-header-gradient">
                 <Button size="icon" variant="ghost" className="md:hidden" onClick={() => { setMobileShowThread(false); setActiveChat(null); }} data-testid="button-back-to-chat-list">
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="text-xs"><Users className="h-4 w-4" /></AvatarFallback>
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className={`${getChatTypeColor(chatDetail.type).bg} text-white font-semibold`}>
+                    {chatDetail.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-sm truncate" data-testid="text-active-chat-name">{chatDetail.name}</h3>
+                    <h3 className="font-bold text-sm truncate" data-testid="text-active-chat-name">{chatDetail.name}</h3>
                     {chatDetail.isJuniorLinked && (
                       <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
                         <Shield className="h-3 w-3 mr-1" />Safeguarded
                       </Badge>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">{chatDetail.members.length} members</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] text-muted-foreground">{chatDetail.members.length} members</p>
+                    <span className={`text-[10px] font-medium ${getChatTypeColor(chatDetail.type).text}`}>{getChatTypeLabel(chatDetail.type)}</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="ghost" onClick={() => setChatInfoOpen(true)} data-testid="button-chat-info">
@@ -569,10 +627,10 @@ export default function GroupChats() {
 
               {/* Pinned Message Banner */}
               {chatDetail.pinnedMessage && (
-                <div className="flex items-center gap-2 px-4 py-2 border-b bg-accent/30" data-testid="pinned-message-banner">
-                  <Pin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-2 px-4 py-2 border-b pinned-banner" data-testid="pinned-message-banner">
+                  <Pin className="h-4 w-4 text-primary flex-shrink-0" />
                   <p className="text-xs text-muted-foreground truncate flex-1">
-                    <span className="font-medium">{chatDetail.pinnedMessage.senderName || "System"}:</span> {chatDetail.pinnedMessage.body}
+                    <span className="font-medium">{chatDetail.pinnedMessage.senderName || "System"}</span>: {chatDetail.pinnedMessage.body}
                   </p>
                 </div>
               )}
@@ -594,7 +652,7 @@ export default function GroupChats() {
               )}
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-4 py-3" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--muted)) 1px, transparent 0)", backgroundSize: "24px 24px" }} data-testid="group-chat-messages-area">
+              <div className="flex-1 overflow-y-auto px-4 py-3 chat-bg-default" data-testid="group-chat-messages-area">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -602,15 +660,16 @@ export default function GroupChats() {
                 ) : chatMessages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-center text-muted-foreground">
                     <div>
-                      <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <MessageCircle className="h-10 w-10 mx-auto mb-2 text-primary/30" />
                       <p className="text-sm">No messages yet in this group</p>
+                      <p className="text-xs mt-1">Be the first to say something!</p>
                     </div>
                   </div>
                 ) : (
                   groupedMessages.map((group, gi) => (
                     <div key={gi}>
-                      <div className="flex justify-center my-3">
-                        <span className="text-[11px] text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                      <div className="flex justify-center my-4">
+                        <span className="text-[11px] text-muted-foreground bg-muted/80 px-3 py-1 rounded-full shadow-sm">
                           {formatDateSeparator(group.date)}
                         </span>
                       </div>
@@ -618,8 +677,9 @@ export default function GroupChats() {
                         if (msg.messageType === "SYSTEM") {
                           return (
                             <div key={msg.id} className="flex justify-center my-2" data-testid={`system-message-${msg.id}`}>
-                              <div className="bg-muted/80 px-4 py-2 rounded-lg max-w-[85%] text-center">
-                                <p className="text-xs text-muted-foreground">{msg.body}</p>
+                              <div className="system-message-bubble system-msg-animate px-4 py-2 rounded-full max-w-[85%] text-center flex items-center gap-1.5">
+                                <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <p className="text-xs text-muted-foreground italic">{msg.body}</p>
                               </div>
                             </div>
                           );
@@ -629,58 +689,44 @@ export default function GroupChats() {
                         const roleBadge = getRoleBadge(msg.chatRole, msg.senderRole);
 
                         return (
-                          <div key={msg.id} className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`} data-testid={`group-message-${msg.id}`}>
+                          <div key={msg.id} className={`flex mb-3 ${isMine ? "justify-end" : "justify-start"}`} data-testid={`group-message-${msg.id}`}>
+                            {!isMine && (
+                              <Avatar className="h-7 w-7 flex-shrink-0 mr-2 mt-5">
+                                <AvatarFallback className={`text-[10px] font-medium ${getAvatarColor(msg.chatRole, msg.senderRole)}`}>
+                                  {(msg.senderName || "?").charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
                             <div className="max-w-[75%]">
                               {!isMine && (
-                                <div className="flex items-center gap-1 mb-0.5 ml-1">
-                                  <span className="text-[11px] font-medium text-muted-foreground">{msg.senderName || "Unknown"}</span>
+                                <div className="flex items-center gap-1.5 mb-1 ml-1">
                                   {roleBadge && (
-                                    <Badge variant={roleBadge.variant} className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">
-                                      {roleBadge.label}
-                                    </Badge>
+                                    <roleBadge.icon className={`h-3 w-3 ${roleBadge.color}`} />
+                                  )}
+                                  <span className="text-[11px] font-semibold text-muted-foreground">{msg.senderName || "Unknown"}</span>
+                                  {roleBadge && (
+                                    <span className={`text-[10px] font-medium ${roleBadge.color}`}>{roleBadge.label}</span>
                                   )}
                                 </div>
                               )}
-                              <div className={`group relative px-3 py-2 rounded-lg text-sm ${
-                                isMine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card border rounded-bl-sm"
+                              <div className={`group relative px-3 py-2 text-sm shadow-sm ${
+                                isMine
+                                  ? "bg-primary text-primary-foreground rounded-2xl rounded-br-sm chat-bubble-right"
+                                  : `bg-card border rounded-2xl rounded-bl-sm chat-bubble-left ${getBubbleRoleClass(msg.chatRole, msg.senderRole)}`
                               }`}>
                                 {msg.isPinned && (
                                   <Pin className={`absolute -top-1 -right-1 h-3 w-3 ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`} />
                                 )}
-                                <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                                <p className="whitespace-pre-wrap break-words">{renderMessageBody(msg.body)}</p>
 
-                                {/* Reactions */}
-                                {msg.reactions.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {Object.entries(msg.reactions.reduce((acc: Record<string, { count: number; users: string[] }>, r) => {
-                                      if (!acc[r.emoji]) acc[r.emoji] = { count: 0, users: [] };
-                                      acc[r.emoji].count++;
-                                      acc[r.emoji].users.push(r.userName);
-                                      return acc;
-                                    }, {})).map(([emoji, data]) => (
-                                      <button
-                                        key={emoji}
-                                        onClick={() => reactionMutation.mutate({ messageId: msg.id, emoji })}
-                                        className={`text-[11px] px-1.5 py-0.5 rounded-full border ${
-                                          msg.reactions.some(r => r.emoji === emoji && r.userId === user.id) ? "bg-accent border-accent" : "bg-background"
-                                        }`}
-                                        title={data.users.join(", ")}
-                                        data-testid={`reaction-${msg.id}-${emoji}`}
-                                      >
-                                        {emoji} {data.count}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                                <div className="flex items-center justify-end mt-1">
                                   <span className={`text-[10px] ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                                     {formatChatTime(msg.createdAt)}
                                   </span>
                                 </div>
 
                                 {/* Message Actions */}
-                                <div className="invisible group-hover:visible absolute -top-2 right-0 flex items-center gap-0.5 bg-background border rounded-md shadow-sm p-0.5">
+                                <div className="invisible group-hover:visible absolute -top-3 right-0 flex items-center gap-0.5 bg-background border rounded-md shadow-sm p-0.5 z-10">
                                   <button
                                     onClick={() => setReactionPickerMsgId(reactionPickerMsgId === msg.id ? null : msg.id)}
                                     className="p-1 rounded hover-elevate"
@@ -718,16 +764,44 @@ export default function GroupChats() {
                                 </div>
                               </div>
 
+                              {/* Reactions */}
+                              {msg.reactions.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1 ml-1">
+                                  {Object.entries(msg.reactions.reduce((acc: Record<string, { count: number; users: string[] }>, r) => {
+                                    if (!acc[r.emoji]) acc[r.emoji] = { count: 0, users: [] };
+                                    acc[r.emoji].count++;
+                                    acc[r.emoji].users.push(r.userName);
+                                    return acc;
+                                  }, {})).map(([reactionKey, data]) => {
+                                    const ReactionIcon = getReactionIcon(reactionKey);
+                                    return (
+                                      <button
+                                        key={reactionKey}
+                                        onClick={() => reactionMutation.mutate({ messageId: msg.id, emoji: reactionKey })}
+                                        className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full border hover-elevate ${
+                                          msg.reactions.some(r => r.emoji === reactionKey && r.userId === user.id) ? "reaction-chip-active" : "bg-background"
+                                        }`}
+                                        title={data.users.join(", ")}
+                                        data-testid={`reaction-${msg.id}-${reactionKey}`}
+                                      >
+                                        <ReactionIcon className="h-3 w-3" /> {data.count}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
                               {/* Reaction Picker */}
                               {reactionPickerMsgId === msg.id && (
                                 <div className="flex flex-wrap gap-1 mt-1 bg-background border rounded-md p-1.5 shadow-sm" data-testid={`reaction-picker-${msg.id}`}>
-                                  {REACTION_EMOJIS.map(emoji => (
+                                  {REACTION_OPTIONS.map(opt => (
                                     <button
-                                      key={emoji}
-                                      onClick={() => reactionMutation.mutate({ messageId: msg.id, emoji })}
-                                      className="text-sm p-1 rounded hover-elevate"
+                                      key={opt.key}
+                                      onClick={() => reactionMutation.mutate({ messageId: msg.id, emoji: opt.key })}
+                                      className="p-1.5 rounded hover-elevate"
+                                      title={opt.label}
                                     >
-                                      {emoji}
+                                      <opt.Icon className="h-4 w-4 text-muted-foreground" />
                                     </button>
                                   ))}
                                 </div>
@@ -751,10 +825,10 @@ export default function GroupChats() {
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      className="flex-1"
+                      className="flex-1 rounded-full"
                       data-testid="input-group-message"
                     />
-                    <Button size="icon" onClick={handleSend} disabled={!messageInput.trim() || sendMutation.isPending} data-testid="button-send-group-message">
+                    <Button size="icon" className="rounded-full" onClick={handleSend} disabled={!messageInput.trim() || sendMutation.isPending} data-testid="button-send-group-message">
                       {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
                   </div>
@@ -771,7 +845,7 @@ export default function GroupChats() {
           ) : (
             <div className="flex items-center justify-center h-full text-center text-muted-foreground">
               <div>
-                <Users className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <MessageCircle className="h-16 w-16 mx-auto mb-4 text-primary/20" />
                 <h3 className="text-lg font-medium mb-1">Group Chats</h3>
                 <p className="text-sm mb-4">Select a group chat to view messages</p>
                 {(user.role === "OWNER" || user.role === "ADMIN" || user.role === "ORGANISER") && (
@@ -857,7 +931,10 @@ export default function GroupChats() {
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="text-sm font-medium truncate">{member.fullName}</span>
                             {roleBadge && (
-                              <Badge variant={roleBadge.variant} className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">{roleBadge.label}</Badge>
+                              <Badge variant="outline" className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">
+                                <roleBadge.icon className={`h-2.5 w-2.5 mr-0.5 ${roleBadge.color}`} />
+                                {roleBadge.label}
+                              </Badge>
                             )}
                             {member.isMuted && (
                               <Badge variant="destructive" className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">Muted</Badge>

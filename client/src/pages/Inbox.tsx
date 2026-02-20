@@ -57,6 +57,7 @@ import {
   Plus,
   ArrowLeft,
   Check,
+  CheckCheck,
   Shield,
   ChevronDown,
   User,
@@ -64,6 +65,11 @@ import {
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+function getRoleColor(role: string) {
+  if (role === "OWNER") return "bg-blue-500 text-white";
+  return "bg-emerald-500 text-white";
+}
 
 interface Conversation {
   contactId: number;
@@ -350,7 +356,7 @@ export default function InboxPage() {
               <h2 className="font-semibold text-lg" data-testid="text-chats-title">Chats</h2>
               <div className="flex items-center gap-1">
                 {unreadCount && unreadCount.count > 0 && (
-                  <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-total-unread">
+                  <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid="badge-total-unread">
                     {unreadCount.count}
                   </Badge>
                 )}
@@ -365,7 +371,7 @@ export default function InboxPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                className="pl-8 rounded-full"
                 data-testid="input-search-conversations"
               />
             </div>
@@ -375,10 +381,10 @@ export default function InboxPage() {
             {convoLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3 animate-pulse">
-                    <div className="h-10 w-10 rounded-full bg-muted" />
+                  <div key={i} className="flex items-center gap-3 animate-pulse px-3 py-3">
+                    <div className="h-11 w-11 rounded-full bg-muted" />
                     <div className="flex-1">
-                      <div className="h-4 w-24 bg-muted rounded mb-1" />
+                      <div className="h-4 w-24 bg-muted rounded mb-1.5" />
                       <div className="h-3 w-40 bg-muted rounded" />
                     </div>
                   </div>
@@ -386,9 +392,12 @@ export default function InboxPage() {
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No conversations yet</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={handleStartNewChat} data-testid="button-start-chat-empty">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                  <MessageCircle className="h-7 w-7 text-primary/50" />
+                </div>
+                <p className="text-sm font-medium mb-1">No conversations yet</p>
+                <p className="text-xs text-muted-foreground mb-3">Start chatting with a club member</p>
+                <Button variant="outline" size="sm" className="mt-1" onClick={handleStartNewChat} data-testid="button-start-chat-empty">
                   Start a conversation
                 </Button>
               </div>
@@ -396,35 +405,31 @@ export default function InboxPage() {
               filteredConversations.map(convo => (
                 <div
                   key={convo.contactId}
-                  className={`flex items-center gap-3 px-3 py-3 cursor-pointer hover-elevate ${activeConversation === convo.contactId ? "bg-accent/50" : ""}`}
+                  className={`flex items-center gap-3 px-3 py-3 cursor-pointer chat-list-item hover-elevate ${activeConversation === convo.contactId ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"}`}
                   onClick={() => handleOpenConversation(convo)}
                   data-testid={`conversation-item-${convo.contactId}`}
                 >
-                  <Avatar className="h-10 w-10 flex-shrink-0">
-                    <AvatarFallback className="text-xs">
-                      {convo.contactRole === "OWNER" ? (
-                        <Shield className="h-4 w-4" />
-                      ) : (
-                        getInitials(convo.contactName)
-                      )}
+                  <Avatar className="h-11 w-11 flex-shrink-0">
+                    <AvatarFallback className={`text-xs font-semibold ${getRoleColor(convo.contactRole)}`}>
+                      {getInitials(convo.contactName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-sm truncate" data-testid={`text-contact-name-${convo.contactId}`}>
+                      <span className="font-semibold text-sm truncate flex items-center gap-1.5" data-testid={`text-contact-name-${convo.contactId}`}>
                         {convo.contactName}
                         {convo.contactRole === "OWNER" && (
-                          <Badge variant="secondary" className="ml-1 text-[10px] no-default-hover-elevate no-default-active-elevate">Admin</Badge>
+                          <Shield className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
                         )}
                       </span>
                       <span className="text-[11px] text-muted-foreground flex-shrink-0">
                         {formatMessageTime(convo.lastMessageAt)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
                       <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
                       {convo.unreadCount > 0 && (
-                        <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center no-default-hover-elevate no-default-active-elevate" data-testid={`badge-unread-${convo.contactId}`}>
+                        <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center rounded-full no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid={`badge-unread-${convo.contactId}`}>
                           {convo.unreadCount}
                         </Badge>
                       )}
@@ -436,10 +441,10 @@ export default function InboxPage() {
           </div>
         </div>
 
-        <div className={`flex-1 flex flex-col bg-background ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
+        <div className={`flex-1 flex flex-col ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
           {activeConversation && activeContact ? (
             <>
-              <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
+              <div className="flex items-center gap-3 px-4 py-3 border-b chat-header-gradient">
                 <Button
                   size="icon"
                   variant="ghost"
@@ -449,16 +454,21 @@ export default function InboxPage() {
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="text-xs">
-                    {activeContact.role === "OWNER" ? <Shield className="h-4 w-4" /> : getInitials(activeContact.name)}
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className={`text-xs font-semibold ${getRoleColor(activeContact.role)}`}>
+                    {getInitials(activeContact.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
-                  {activeContact.role === "OWNER" && (
-                    <p className="text-[11px] text-muted-foreground">Super Admin</p>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-semibold text-sm truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
+                    {activeContact.role === "OWNER" && (
+                      <Shield className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {activeContact.role === "OWNER" ? "Super Admin" : "Direct Message"}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -475,7 +485,7 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-3" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--muted)) 1px, transparent 0)", backgroundSize: "24px 24px" }} data-testid="chat-messages-area">
+              <div className="flex-1 overflow-y-auto px-4 py-3 chat-bg-default" data-testid="chat-messages-area">
                 {threadLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -483,15 +493,18 @@ export default function InboxPage() {
                 ) : threadMessages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-center text-muted-foreground">
                     <div>
-                      <MessageCircle className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No messages yet. Say hello!</p>
+                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                        <MessageCircle className="h-8 w-8 text-primary/40" />
+                      </div>
+                      <p className="text-sm font-medium mb-1">No messages yet</p>
+                      <p className="text-xs text-muted-foreground">Say hello to start the conversation</p>
                     </div>
                   </div>
                 ) : (
                   groupedMessages.map((group, gi) => (
                     <div key={gi}>
-                      <div className="flex justify-center my-3">
-                        <span className="text-[11px] text-muted-foreground bg-muted px-3 py-1 rounded-full" data-testid={`text-date-separator-${gi}`}>
+                      <div className="flex justify-center my-4">
+                        <span className="text-[11px] text-muted-foreground bg-muted/80 px-4 py-1 rounded-full shadow-sm" data-testid={`text-date-separator-${gi}`}>
                           {formatDateSeparator(group.date)}
                         </span>
                       </div>
@@ -500,23 +513,34 @@ export default function InboxPage() {
                         return (
                           <div
                             key={msg.id}
-                            className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}
+                            className={`flex mb-3 items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}
                             data-testid={`message-bubble-${msg.id}`}
                           >
+                            {!isMine && activeContact && (
+                              <Avatar className="h-7 w-7 flex-shrink-0 mb-0.5">
+                                <AvatarFallback className={`text-[10px] font-semibold ${getRoleColor(activeContact.role)}`}>
+                                  {getInitials(activeContact.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
                             <div
-                              className={`max-w-[75%] px-3 py-2 rounded-lg text-sm relative ${
+                              className={`max-w-[75%] px-3.5 py-2.5 text-sm shadow-sm ${
                                 isMine
-                                  ? "bg-primary text-primary-foreground rounded-br-sm"
-                                  : "bg-card border rounded-bl-sm"
+                                  ? "bg-primary text-primary-foreground rounded-2xl rounded-br-sm chat-bubble-right"
+                                  : "bg-card border rounded-2xl rounded-bl-sm chat-bubble-left"
                               }`}
                             >
                               <p className="whitespace-pre-wrap break-words" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
-                              <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
-                                <span className={`text-[10px] ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                              <div className={`flex items-center gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                                <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                   {formatChatTime(msg.createdAt)}
                                 </span>
-                                {isMine && msg.readAt && (
-                                  <Check className={`h-3 w-3 ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`} />
+                                {isMine && (
+                                  msg.readAt ? (
+                                    <CheckCheck className={`h-3.5 w-3.5 text-primary-foreground/70`} />
+                                  ) : (
+                                    <Check className={`h-3 w-3 text-primary-foreground/50`} />
+                                  )
                                 )}
                               </div>
                             </div>
@@ -530,17 +554,18 @@ export default function InboxPage() {
               </div>
 
               <div className="border-t p-3 bg-background">
-                <div className="flex items-end gap-2">
+                <div className="flex items-center gap-2">
                   <Input
                     placeholder="Type a message..."
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="flex-1"
+                    className="flex-1 rounded-full"
                     data-testid="input-message"
                   />
                   <Button
                     size="icon"
+                    className="rounded-full flex-shrink-0"
                     onClick={handleSend}
                     disabled={!messageInput.trim() || sendMutation.isPending}
                     data-testid="button-send-message"
@@ -555,10 +580,12 @@ export default function InboxPage() {
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+            <div className="flex items-center justify-center h-full text-center text-muted-foreground chat-bg-default">
               <div>
-                <MessageCircle className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                <h3 className="text-lg font-medium mb-1">Your Messages</h3>
+                <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <MessageCircle className="h-10 w-10 text-primary/30" />
+                </div>
+                <h3 className="text-lg font-semibold mb-1 text-foreground">Your Messages</h3>
                 <p className="text-sm mb-4">Select a conversation or start a new chat</p>
                 <Button onClick={handleStartNewChat} data-testid="button-start-chat-main">
                   <Plus className="h-4 w-4 mr-2" />
