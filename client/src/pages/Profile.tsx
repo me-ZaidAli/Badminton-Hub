@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper
+  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -96,6 +96,7 @@ function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
 function AnniversaryCountdown() {
   const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
   const [, setTick] = useState(0);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -105,7 +106,7 @@ function AnniversaryCountdown() {
   if (!anniversaryData || anniversaryData.length === 0) return null;
 
   return (
-    <>
+    <Card data-testid="card-anniversary-section">
       <style>{`
         @keyframes shake {
           0%, 100% { transform: rotate(0deg); }
@@ -113,76 +114,90 @@ function AnniversaryCountdown() {
           20%, 40%, 60%, 80% { transform: rotate(8deg); }
         }
       `}</style>
-      {anniversaryData.map((info: any) => {
-        const now = Date.now();
-        const target = new Date(info.nextAnniversary).getTime();
-        const diff = target - now;
-        const isCelebration = info.progress >= 0.99 || diff <= 0;
+      <button
+        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
+        onClick={() => setExpanded(!expanded)}
+        data-testid="button-toggle-anniversary"
+      >
+        <div className="flex items-center gap-2">
+          <Gift className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">Club Anniversaries</span>
+          <Badge variant="secondary" className="text-xs">{anniversaryData.length}</Badge>
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {expanded && (
+        <CardContent className="pt-0 px-4 pb-3 space-y-3">
+          {anniversaryData.map((info: any) => {
+            const now = Date.now();
+            const target = new Date(info.nextAnniversary).getTime();
+            const diff = target - now;
+            const isCelebration = info.progress >= 0.99 || diff <= 0;
 
-        let countdownText = "";
-        if (!isCelebration && diff > 0) {
-          const totalSeconds = Math.floor(diff / 1000);
-          const totalMinutes = Math.floor(totalSeconds / 60);
-          const totalHours = Math.floor(totalMinutes / 60);
-          const totalDays = Math.floor(totalHours / 24);
-          const months = Math.floor(totalDays / 30);
-          const days = totalDays - months * 30;
-          const hours = totalHours % 24;
-          const parts: string[] = [];
-          if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
-          if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-          parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
-          countdownText = `${parts.join(", ")} to your ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary`;
-        }
+            let countdownText = "";
+            if (!isCelebration && diff > 0) {
+              const totalSeconds = Math.floor(diff / 1000);
+              const totalMinutes = Math.floor(totalSeconds / 60);
+              const totalHours = Math.floor(totalMinutes / 60);
+              const totalDays = Math.floor(totalHours / 24);
+              const months = Math.floor(totalDays / 30);
+              const days = totalDays - months * 30;
+              const hours = totalHours % 24;
+              const parts: string[] = [];
+              if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
+              if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+              parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+              countdownText = `${parts.join(", ")} to your ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary`;
+            }
 
-        return (
-          <Card key={info.clubId} data-testid="card-anniversary-countdown">
-            <CardContent className="py-3 px-4 space-y-3">
-              <div className="flex items-center gap-3">
-                {isCelebration ? (
-                  <div className="p-2 rounded-lg bg-amber-500/10">
-                    <PartyPopper className="h-5 w-5 text-amber-500" />
-                  </div>
-                ) : (
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Gift className="h-5 w-5 text-primary" style={{ animation: "shake 1.5s ease-in-out infinite" }} />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">{info.clubName}</div>
+            return (
+              <div key={info.clubId} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2" data-testid={`card-anniversary-countdown-${info.clubId}`}>
+                <div className="flex items-center gap-3">
                   {isCelebration ? (
-                    <div className="text-sm font-bold text-amber-600 dark:text-amber-400" data-testid={`text-anniversary-timer-${info.clubId}`}>
-                      Happy {info.upcomingYear}{info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!
+                    <div className="p-1.5 rounded-md bg-amber-500/10">
+                      <PartyPopper className="h-4 w-4 text-amber-500" />
                     </div>
                   ) : (
-                    <div className="text-sm font-semibold" data-testid={`text-anniversary-timer-${info.clubId}`}>
-                      {countdownText}
+                    <div className="p-1.5 rounded-md bg-primary/10">
+                      <Gift className="h-4 w-4 text-primary" style={{ animation: "shake 1.5s ease-in-out infinite" }} />
                     </div>
                   )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-muted-foreground">{info.clubName}</div>
+                    {isCelebration ? (
+                      <div className="text-sm font-bold text-amber-600 dark:text-amber-400" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                        Happy {info.upcomingYear}{info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold" data-testid={`text-anniversary-timer-${info.clubId}`}>
+                        {countdownText}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="w-full h-2 rounded-full bg-muted overflow-hidden" data-testid={`progress-anniversary-${info.clubId}`}>
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(info.progress * 100, 100)}%` }}
-                />
-              </div>
-              {info.hasReward && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Gift className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>
-                    {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
-                    {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
-                    {info.rewardGifts ? info.rewardGifts : ""}
-                    {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
-                  </span>
+                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden" data-testid={`progress-anniversary-${info.clubId}`}>
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.min(info.progress * 100, 100)}%` }}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </>
+                {info.hasReward && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Gift className="h-3 w-3 text-emerald-500" />
+                    <span>
+                      {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
+                      {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
+                      {info.rewardGifts ? info.rewardGifts : ""}
+                      {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

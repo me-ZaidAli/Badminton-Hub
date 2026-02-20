@@ -153,7 +153,7 @@ function getBadgeHolders(players: any[]): BadgeHolder[] {
       const id = ironman.id || ironman.profileId;
       if (!usedIds.has(id)) {
         usedIds.add(id);
-        holders.push({ id, icon: Shield, label: "Ironman", description: "Most matches played", color: "text-blue-500", bgColor: "bg-blue-500/15", holderName: ironman.displayName || ironman.fullName || "Unknown" });
+        holders.push({ id, icon: Shield, label: ironman.gender === "FEMALE" ? "Iron Woman" : "Iron Man", description: "Most matches played", color: "text-blue-500", bgColor: "bg-blue-500/15", holderName: ironman.displayName || ironman.fullName || "Unknown" });
       }
     }
   }
