@@ -242,24 +242,6 @@ function DashboardContent({
         description="Your badminton dashboard overview."
       />
 
-      {clubs.length > 0 && (
-        <div className="flex items-center gap-2" data-testid="club-filter">
-          <label className="text-sm font-medium text-muted-foreground">Club:</label>
-          <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
-            <SelectTrigger className="w-[200px]" data-testid="select-dashboard-club">
-              <SelectValue placeholder="Select club" />
-            </SelectTrigger>
-            <SelectContent>
-              {clubs.map(club => (
-                <SelectItem key={club.id} value={club.id.toString()}>
-                  {club.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       {activeAnnouncements.length > 0 && (
         <Card data-testid="card-announcements-preview">
           <CardHeader className="pb-3">
@@ -391,6 +373,24 @@ function DashboardContent({
           )}
         </CardContent>
       </Card>
+
+      {clubs.length > 0 && (
+        <div className="flex items-center gap-2" data-testid="club-filter">
+          <label className="text-sm font-medium text-muted-foreground">Club:</label>
+          <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
+            <SelectTrigger className="w-[200px]" data-testid="select-dashboard-club">
+              <SelectValue placeholder="Select club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubs.map(club => (
+                <SelectItem key={club.id} value={club.id.toString()}>
+                  {club.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
         <Card>
