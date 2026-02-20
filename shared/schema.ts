@@ -275,6 +275,7 @@ export const playerProfiles = pgTable("player_profiles", {
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
   membershipId: integer("membership_id").references(() => membershipPlans.id),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
 });
 
@@ -764,7 +765,7 @@ export const tournamentStandingsRelations = relations(tournamentStandings, ({ on
 // === SCHEMAS ===
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, emailVerified: true });
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });
-export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true });
+export const insertPlayerProfileSchema = createInsertSchema(playerProfiles).omit({ id: true, rankingPoints: true, matchesPlayed: true, matchesWon: true, joinedAt: true });
 export const insertVenueSchema = createInsertSchema(venues).omit({ id: true, createdAt: true });
 export const insertRecurringEventSchema = createInsertSchema(recurringEvents).omit({ id: true, createdBy: true, createdAt: true }).extend({
   startDate: z.coerce.date(),
