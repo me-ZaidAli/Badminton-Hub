@@ -101,11 +101,9 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
   const [championInfoOpen, setChampionInfoOpen] = useState(false);
   const settings = clubStats.settings;
   const creditDisplay = `\u00A3${(settings.creditAmountPence / 100).toFixed(2)}`;
-  const premiumDisplay = `\u00A3${(settings.premiumThresholdPence / 100).toFixed(2)}`;
-  const championDisplay = `\u00A3${(settings.championThresholdPence / 100).toFixed(2)}`;
   const creditsEarnedDisplay = `\u00A3${(clubStats.totalCreditsEarned / 100).toFixed(2)}`;
-  const premiumProgress = settings.premiumThresholdPence > 0 ? Math.min((clubStats.totalCreditsEarned / settings.premiumThresholdPence) * 100, 100) : 100;
-  const championProgress = settings.championThresholdPence > 0 ? Math.min((clubStats.totalCreditsEarned / settings.championThresholdPence) * 100, 100) : 100;
+  const premiumProgress = Math.min((clubStats.approvedReferrals / 2) * 100, 100);
+  const championProgress = Math.min((clubStats.approvedReferrals / 4) * 100, 100);
 
   const activeRefs = clubReferrals.filter(r => r.status === "ACTIVE");
   const pendingRefs = clubReferrals.filter(r => r.status === "PENDING");
@@ -152,12 +150,12 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
               {clubStats.premiumEligible ? (
                 <Badge className="bg-green-500 text-white no-default-hover-elevate">Unlocked</Badge>
               ) : (
-                <span className="text-xs text-muted-foreground">{`\u00A3${((settings.premiumThresholdPence - clubStats.totalCreditsEarned) / 100).toFixed(2)}`} to go</span>
+                <span className="text-xs text-muted-foreground">{2 - clubStats.approvedReferrals} more referral{2 - clubStats.approvedReferrals !== 1 ? "s" : ""} to go</span>
               )}
             </div>
             <Progress value={premiumProgress} className="h-2" data-testid={`progress-premium-${clubStats.clubId}`} />
             <p className="text-xs text-muted-foreground">
-              Earn {premiumDisplay} in referral credits to unlock the Premium rate
+              Get 2 approved referrals to unlock Premium rate for 2 months
             </p>
           </CardContent>
         </Card>
@@ -171,12 +169,12 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
               {clubStats.milestoneReached ? (
                 <Badge className="bg-purple-500 text-white no-default-hover-elevate">Achieved</Badge>
               ) : (
-                <span className="text-xs text-muted-foreground">{`\u00A3${((settings.championThresholdPence - clubStats.totalCreditsEarned) / 100).toFixed(2)}`} to go</span>
+                <span className="text-xs text-muted-foreground">{Math.max(4 - clubStats.approvedReferrals, 0)} more referral{Math.max(4 - clubStats.approvedReferrals, 0) !== 1 ? "s" : ""} to go</span>
               )}
             </div>
             <Progress value={championProgress} className="h-2" data-testid={`progress-champion-${clubStats.clubId}`} />
             <p className="text-xs text-muted-foreground">
-              Earn {championDisplay} to become a Referral Champion
+              Get 4 approved referrals to earn 1 free session credit
             </p>
           </CardContent>
         </Card>
@@ -327,7 +325,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
                 {clubStats.premiumEligible ? (
                   <Badge className="bg-green-500 text-white no-default-hover-elevate">Unlocked</Badge>
                 ) : (
-                  <span className="text-sm text-muted-foreground">{creditsEarnedDisplay} / {premiumDisplay}</span>
+                  <span className="text-sm text-muted-foreground">{clubStats.approvedReferrals} / 2 referrals</span>
                 )}
               </div>
               <Progress value={premiumProgress} className="h-3" />
@@ -376,10 +374,10 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
             <div className="p-4 rounded-md bg-amber-500/10 space-y-2">
               <h4 className="font-semibold text-sm flex items-center gap-2">
                 <Star className="h-4 w-4 text-amber-500" />
-                Premium Milestone
+                Premium Milestone (2 Referrals)
               </h4>
               <p className="text-sm text-muted-foreground">
-                Reach {premiumDisplay} in credits to unlock the Premium membership rate at {clubStats.clubName}.
+                Get 2 approved referrals to unlock the Premium membership rate at {clubStats.clubName} for 2 months. After 2 months, you can revert to the standard rate or upgrade to a 1-year Premium membership.
               </p>
             </div>
           </div>
@@ -402,7 +400,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
                 {clubStats.milestoneReached ? (
                   <Badge className="bg-purple-500 text-white no-default-hover-elevate">Achieved</Badge>
                 ) : (
-                  <span className="text-sm text-muted-foreground">{creditsEarnedDisplay} / {championDisplay}</span>
+                  <span className="text-sm text-muted-foreground">{clubStats.approvedReferrals} / 4 referrals</span>
                 )}
               </div>
               <Progress value={championProgress} className="h-3" />
@@ -410,7 +408,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
             <div className="p-4 rounded-md bg-muted/50 space-y-3">
               <h4 className="font-semibold text-sm">What is Referral Champion?</h4>
               <p className="text-sm text-muted-foreground">
-                Referral Champion is the highest referral status at {clubStats.clubName}. It's awarded when you earn {championDisplay} in referral credits.
+                Referral Champion is the highest referral status at {clubStats.clubName}. It's awarded when you get 4 approved referrals. You'll earn 1 free session credit added directly to your account.
               </p>
             </div>
             <div className="p-4 rounded-md bg-purple-500/10 space-y-3">
@@ -418,24 +416,24 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${clubStats.totalCreditsEarned >= settings.creditAmountPence ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                    <div className={`w-3 h-3 rounded-full ${clubStats.approvedReferrals >= 1 ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                     <span>1st Referral</span>
                   </div>
-                  <span className="text-muted-foreground">{creditDisplay}</span>
+                  <span className="text-muted-foreground">{creditDisplay} credit</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${clubStats.premiumEligible ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
                     <span>Premium Rate</span>
                   </div>
-                  <span className="text-muted-foreground">{premiumDisplay}</span>
+                  <span className="text-muted-foreground">2 referrals (2 months)</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${clubStats.milestoneReached ? 'bg-purple-500' : 'bg-muted-foreground/30'}`} />
                     <span className="font-medium">Champion</span>
                   </div>
-                  <span className="text-muted-foreground">{championDisplay}</span>
+                  <span className="text-muted-foreground">4 referrals (1 free session)</span>
                 </div>
               </div>
             </div>

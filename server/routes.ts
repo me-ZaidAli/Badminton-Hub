@@ -12868,15 +12868,16 @@ export async function registerRoutes(
         const clubRefs = myReferrals.filter(r => r.clubId === cid);
         const clubSettings = clubSettingsMap[cid];
         const totalCreditsEarned = clubRefs.reduce((sum, r) => sum + (r.creditAwarded || 0), 0);
+        const clubApprovedCount = clubRefs.filter(r => r.status === "APPROVED").length;
         perClubStats[cid] = {
           clubId: cid,
           clubName: clubRefs[0]?.clubName || "Unknown",
           totalReferrals: clubRefs.length,
-          approvedReferrals: clubRefs.filter(r => r.status === "APPROVED").length,
+          approvedReferrals: clubApprovedCount,
           pendingReferrals: clubRefs.filter(r => r.status === "PENDING").length,
           totalCreditsEarned,
-          premiumEligible: totalCreditsEarned >= clubSettings.premiumThresholdPence,
-          milestoneReached: totalCreditsEarned >= clubSettings.championThresholdPence,
+          premiumEligible: clubApprovedCount >= 2,
+          milestoneReached: clubApprovedCount >= 4,
           settings: clubSettings,
         };
       }
@@ -12893,8 +12894,8 @@ export async function registerRoutes(
           approvedReferrals,
           pendingReferrals,
           totalCreditsEarned,
-          premiumEligible: totalCreditsEarned >= 800,
-          milestoneReached: totalCreditsEarned >= 1600,
+          premiumEligible: approvedReferrals >= 2,
+          milestoneReached: approvedReferrals >= 4,
         },
         perClubStats: Object.values(perClubStats),
       });
@@ -13275,14 +13276,25 @@ export async function registerRoutes(
           eq(referrals.status, "APPROVED"),
           referral.clubId ? eq(referrals.clubId, referral.clubId) : sql`true`,
         ));
-      const totalClubCredits = allApprovedForClub.reduce((sum, r) => sum + (r.creditAwarded || 0), 0) + creditAmount;
+      const approvedCount = allApprovedForClub.length;
 
       let notifMessage = `Your referral of ${referral.referredName || "a new member"} for ${clubName} has been approved! \u00A3${(creditAmount / 100).toFixed(2)} credit has been added to your wallet.`;
-      
-      if (totalClubCredits >= clubSettings.championThresholdPence && totalClubCredits - creditAmount < clubSettings.championThresholdPence) {
-        notifMessage += ` You've reached the \u00A3${(clubSettings.championThresholdPence / 100).toFixed(2)} milestone for ${clubName} -- Referral Champion!`;
-      } else if (totalClubCredits >= clubSettings.premiumThresholdPence && totalClubCredits - creditAmount < clubSettings.premiumThresholdPence) {
-        notifMessage += ` You've reached \u00A3${(clubSettings.premiumThresholdPence / 100).toFixed(2)} in referral credits for ${clubName} and are now eligible for the premium member rate!`;
+
+      if (approvedCount === 4 && referral.clubId) {
+        const defaultSessionFee = 700;
+        let sessionFeeForClub = defaultSessionFee;
+        const [clubData] = await db.select({ sessionFee: clubs.sessionFee }).from(clubs).where(eq(clubs.id, referral.clubId));
+        if (clubData?.sessionFee) sessionFeeForClub = clubData.sessionFee;
+        await db.insert(creditLedger).values({
+          userId: referral.referrerId,
+          clubId: referral.clubId,
+          amount: sessionFeeForClub,
+          reason: `Free session reward - 4 approved referrals for ${clubName}`,
+          createdById: user.id,
+        });
+        notifMessage += ` Congratulations! You've reached 4 approved referrals for ${clubName} and earned 1 free session (\u00A3${(sessionFeeForClub / 100).toFixed(2)} credit added)!`;
+      } else if (approvedCount === 2) {
+        notifMessage += ` Great news! You've reached 2 approved referrals for ${clubName} and earned the Premium member rate for 2 months! After 2 months you can revert to the standard rate or upgrade to a 1-year Premium membership.`;
       }
 
       await db.insert(notifications).values({
