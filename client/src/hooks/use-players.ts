@@ -72,6 +72,18 @@ export function useUpdatePlayer() {
       parentGuardianEmail?: string | null;
       password?: string;
       clubId?: number;
+      nickname?: string;
+      city?: string;
+      country?: string;
+      region?: string;
+      continent?: string;
+      acquisitionSource?: string;
+      acquisitionSourceOther?: string;
+      clubRole?: string;
+      playerStatus?: string;
+      membershipStatus?: string;
+      matchesPlayed?: number;
+      matchesWon?: number;
     }) => {
       const { id, ...updates } = data;
       const res = await fetch(`/api/admin/players/${id}`, {

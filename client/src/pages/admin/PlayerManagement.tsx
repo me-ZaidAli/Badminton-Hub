@@ -16,12 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Users, Shield, Mail, Trophy, Search, Trash2, Ban, Archive, UserPlus, Building2, Pencil, MoreHorizontal, CheckCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { UnifiedMemberEditDialog, MemberEditData } from "@/components/UnifiedMemberEditDialog";
 
 type ProfileData = {
   id: number;
@@ -710,11 +710,11 @@ export default function PlayerManagement() {
       </Dialog>
 
       {editPlayer && (
-        <EditMemberDialog
+        <AdminEditMemberWrapper
           player={editPlayer}
           clubs={clubs || []}
           open={!!editPlayer}
-          onOpenChange={(open) => { if (!open) setEditPlayer(null); }}
+          onClose={() => setEditPlayer(null)}
           selectedClubFilter={clubFilter}
         />
       )}
@@ -722,23 +722,21 @@ export default function PlayerManagement() {
   );
 }
 
-function EditMemberDialog({
+function AdminEditMemberWrapper({
   player,
   clubs,
   open,
-  onOpenChange,
+  onClose,
   selectedClubFilter,
 }: {
   player: PlayerData;
   clubs: { id: number; name: string }[];
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   selectedClubFilter: string;
 }) {
   const { toast } = useToast();
-  const { mutate: updatePlayer, isPending } = useUpdatePlayer();
-  const [banConfirmOpen, setBanConfirmOpen] = useState(false);
-  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const { mutateAsync: updatePlayer, isPending } = useUpdatePlayer();
 
   const activeProfile = (selectedClubFilter !== "all"
     ? player.playerProfiles.find(p => p.clubId === Number(selectedClubFilter))
@@ -751,9 +749,8 @@ function EditMemberDialog({
     },
     onSuccess: () => {
       toast({ title: "Player banned from club" });
-      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
-      setBanConfirmOpen(false);
-      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
+      onClose();
     },
     onError: (err: any) => {
       toast({ title: "Failed to ban player", description: err.message, variant: "destructive" });
@@ -767,317 +764,100 @@ function EditMemberDialog({
     },
     onSuccess: () => {
       toast({ title: "Player removed from club" });
-      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
-      setRemoveConfirmOpen(false);
-      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
+      onClose();
     },
     onError: (err: any) => {
       toast({ title: "Failed to remove player", description: err.message, variant: "destructive" });
     },
   });
 
-  const [fullName, setFullName] = useState(player.fullName);
-  const [email, setEmail] = useState(player.email);
-  const [phone, setPhone] = useState(player.phone || "");
-  const [gender, setGender] = useState(activeProfile?.gender || "");
-  const [category, setCategory] = useState(activeProfile?.grade || activeProfile?.category || "C3");
-  const [clubId, setClubId] = useState(activeProfile?.clubId?.toString() || "");
-  const [dateOfBirth, setDateOfBirth] = useState(
-    player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : ""
-  );
-  const [isJunior, setIsJunior] = useState(player.isJunior || false);
-  const [parentGuardianName, setParentGuardianName] = useState(player.parentGuardianName || "");
-  const [parentGuardianEmail, setParentGuardianEmail] = useState(player.parentGuardianEmail || "");
-  const [newPassword, setNewPassword] = useState("");
+  const editData: MemberEditData = {
+    userId: player.id,
+    fullName: player.fullName,
+    email: player.email,
+    phone: (player as any).phone || "",
+    nickname: (player as any).nickname || "",
+    dateOfBirth: player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : "",
+    gender: activeProfile?.gender || "",
+    category: activeProfile?.grade || activeProfile?.category || "C3",
+    isJunior: player.isJunior || false,
+    parentGuardianName: player.parentGuardianName || "",
+    parentGuardianEmail: player.parentGuardianEmail || "",
+    city: (player as any).city || "",
+    country: (player as any).country || "",
+    region: (player as any).region || "",
+    continent: (player as any).continent || "",
+    acquisitionSource: (player as any).acquisitionSource || "",
+    acquisitionSourceOther: (player as any).acquisitionSourceOther || "",
+    clubRole: (activeProfile as any)?.clubRole || "PLAYER",
+    playerStatus: activeProfile?.playerStatus || "ACTIVE",
+    membershipStatus: (activeProfile as any)?.membershipStatus || "APPROVED",
+    role: player.role,
+    accountStatus: "APPROVED",
+    rankingPoints: String(activeProfile?.rankingPoints || 0),
+    matchesPlayed: String(activeProfile?.matchesPlayed || 0),
+    matchesWon: String(activeProfile?.matchesWon || 0),
+    joinedAt: "",
+    profileId: activeProfile?.id,
+    clubId: activeProfile?.clubId,
+    clubName: clubs.find(c => c.id === activeProfile?.clubId)?.name,
+  };
 
-  const handleSave = () => {
+  const handleSave = async (formData: MemberEditData & { password?: string }) => {
     const updates: any = { id: player.id };
 
-    if (fullName !== player.fullName) updates.fullName = fullName;
-    if (email !== player.email) updates.email = email;
-    if (phone !== (player.phone || "")) updates.phone = phone || null;
-    if (gender !== (activeProfile?.gender || "")) updates.gender = gender;
-    if (category !== (activeProfile?.grade || activeProfile?.category || "C3")) updates.category = category;
-    if (clubId && Number(clubId) !== activeProfile?.clubId) updates.clubId = Number(clubId);
+    if (formData.fullName !== player.fullName) updates.fullName = formData.fullName;
+    if (formData.email !== player.email) updates.email = formData.email;
+    if (formData.phone !== ((player as any).phone || "")) updates.phone = formData.phone || null;
+    if (formData.nickname !== ((player as any).nickname || "")) updates.nickname = formData.nickname;
+    if (formData.gender !== (activeProfile?.gender || "")) updates.gender = formData.gender;
+    if (formData.category !== (activeProfile?.grade || activeProfile?.category || "C3")) updates.category = formData.category;
+    if (formData.clubId && formData.clubId !== activeProfile?.clubId) updates.clubId = formData.clubId;
 
     const origDob = player.dateOfBirth ? format(new Date(player.dateOfBirth), "yyyy-MM-dd") : "";
-    if (dateOfBirth !== origDob) updates.dateOfBirth = dateOfBirth || null;
+    if (formData.dateOfBirth !== origDob) updates.dateOfBirth = formData.dateOfBirth || null;
 
-    if (isJunior !== (player.isJunior || false)) updates.isJunior = isJunior;
-    if (parentGuardianName !== (player.parentGuardianName || "")) updates.parentGuardianName = parentGuardianName || null;
-    if (parentGuardianEmail !== (player.parentGuardianEmail || "")) updates.parentGuardianEmail = parentGuardianEmail || null;
-    if (newPassword.trim()) updates.password = newPassword;
+    if (formData.isJunior !== (player.isJunior || false)) updates.isJunior = formData.isJunior;
+    if (formData.parentGuardianName !== (player.parentGuardianName || "")) updates.parentGuardianName = formData.parentGuardianName || null;
+    if (formData.parentGuardianEmail !== (player.parentGuardianEmail || "")) updates.parentGuardianEmail = formData.parentGuardianEmail || null;
 
-    updatePlayer(updates, {
-      onSuccess: () => onOpenChange(false),
-    });
+    if (formData.city !== ((player as any).city || "")) updates.city = formData.city;
+    if (formData.country !== ((player as any).country || "")) updates.country = formData.country;
+    if (formData.region !== ((player as any).region || "")) updates.region = formData.region;
+    if (formData.continent !== ((player as any).continent || "")) updates.continent = formData.continent;
+    if (formData.acquisitionSource !== ((player as any).acquisitionSource || "")) updates.acquisitionSource = formData.acquisitionSource;
+    if (formData.acquisitionSourceOther !== ((player as any).acquisitionSourceOther || "")) updates.acquisitionSourceOther = formData.acquisitionSourceOther;
+    if (formData.clubRole !== ((activeProfile as any)?.clubRole || "PLAYER")) updates.clubRole = formData.clubRole;
+    if (formData.playerStatus !== (activeProfile?.playerStatus || "ACTIVE")) updates.playerStatus = formData.playerStatus;
+    if (formData.membershipStatus !== ((activeProfile as any)?.membershipStatus || "APPROVED")) updates.membershipStatus = formData.membershipStatus;
+
+    if (Number(formData.rankingPoints) !== (activeProfile?.rankingPoints || 0)) updates.rankingPoints = Number(formData.rankingPoints);
+    if (Number(formData.matchesPlayed) !== (activeProfile?.matchesPlayed || 0)) updates.matchesPlayed = Number(formData.matchesPlayed);
+    if (Number(formData.matchesWon) !== (activeProfile?.matchesWon || 0)) updates.matchesWon = Number(formData.matchesWon);
+
+    if (formData.password) updates.password = formData.password;
+
+    await updatePlayer(updates);
+    onClose();
   };
 
   return (
-  <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-5 w-5" />
-            Edit Member
-          </DialogTitle>
-          <DialogDescription>
-            Update {player.fullName}'s details. Changes are saved immediately.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <div className="flex items-center gap-4 mb-4">
-            <Avatar className="h-12 w-12 border-2 border-primary">
-              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-              <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold">{player.fullName}</p>
-              <p className="text-sm text-muted-foreground">{player.email}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-fullName">Full Name</Label>
-              <Input
-                id="edit-fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                data-testid="input-edit-fullname"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                data-testid="input-edit-email"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-phone">Phone Number</Label>
-              <Input
-                id="edit-phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="07xxx xxxxxx"
-                data-testid="input-edit-phone"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-dob">Date of Birth</Label>
-              <Input
-                id="edit-dob"
-                type="date"
-                value={dateOfBirth}
-                onChange={(e) => setDateOfBirth(e.target.value)}
-                data-testid="input-edit-dob"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Gender</Label>
-              <Select value={gender} onValueChange={setGender}>
-                <SelectTrigger data-testid="select-edit-gender">
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MALE">Male</SelectItem>
-                  <SelectItem value="FEMALE">Female</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Category / Grade</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger data-testid="select-edit-category">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Club</Label>
-            <Select value={clubId} onValueChange={setClubId}>
-              <SelectTrigger data-testid="select-edit-club">
-                <SelectValue placeholder="Select club" />
-              </SelectTrigger>
-              <SelectContent>
-                {clubs.map(club => (
-                  <SelectItem key={club.id} value={club.id.toString()}>
-                    {club.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
-            <div>
-              <Label htmlFor="edit-isJunior" className="font-medium">Junior Player</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">Under 18 years old</p>
-            </div>
-            <Switch
-              id="edit-isJunior"
-              checked={isJunior}
-              onCheckedChange={setIsJunior}
-              data-testid="switch-edit-junior"
-            />
-          </div>
-
-          {isJunior && (
-            <div className="grid grid-cols-2 gap-4 pl-3 border-l-2 border-primary/30">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-guardian-name">Parent/Guardian Name</Label>
-                <Input
-                  id="edit-guardian-name"
-                  value={parentGuardianName}
-                  onChange={(e) => setParentGuardianName(e.target.value)}
-                  placeholder="Guardian name"
-                  data-testid="input-edit-guardian-name"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-guardian-email">Parent/Guardian Email</Label>
-                <Input
-                  id="edit-guardian-email"
-                  type="email"
-                  value={parentGuardianEmail}
-                  onChange={(e) => setParentGuardianEmail(e.target.value)}
-                  placeholder="guardian@email.com"
-                  data-testid="input-edit-guardian-email"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-password">Reset Password</Label>
-            <Input
-              id="edit-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Leave blank to keep current password"
-              data-testid="input-edit-password"
-            />
-            <p className="text-xs text-muted-foreground">Only fill this if you want to change the member's password.</p>
-          </div>
-        </div>
-
-        {activeProfile && (
-          <div className="border-t pt-4 mt-2">
-            <p className="text-sm font-semibold text-muted-foreground mb-3">Club Actions</p>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 text-destructive border-destructive/30"
-                onClick={() => setRemoveConfirmOpen(true)}
-                data-testid="button-remove-from-club"
-              >
-                <Trash2 className="w-3 h-3" />
-                Remove from Club
-              </Button>
-              {activeProfile.playerStatus !== "BANNED" && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setBanConfirmOpen(true)}
-                  data-testid="button-ban-player"
-                >
-                  <Ban className="w-3 h-3" />
-                  Ban Player
-                </Button>
-              )}
-              {activeProfile.playerStatus === "BANNED" && (
-                <Badge variant="destructive" className="no-default-hover-elevate">Currently Banned</Badge>
-              )}
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-edit">
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isPending} data-testid="button-save-member">
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Save Changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <AlertDialog open={removeConfirmOpen} onOpenChange={setRemoveConfirmOpen}>
-      <AlertDialogContent data-testid="dialog-remove-confirm">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
-            <Trash2 className="w-5 h-5 text-destructive" />
-            Remove from Club
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            This will completely remove <strong>{player.fullName}</strong>'s profile from this club, including all club-specific data. They will be able to rejoin the club in the future.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground"
-            onClick={() => removeMutation.mutate()}
-            disabled={removeMutation.isPending}
-            data-testid="button-confirm-remove"
-          >
-            {removeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            Remove
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
-    <AlertDialog open={banConfirmOpen} onOpenChange={setBanConfirmOpen}>
-      <AlertDialogContent data-testid="dialog-ban-confirm">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
-            <Ban className="w-5 h-5 text-destructive" />
-            Ban Player
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            This will ban <strong>{player.fullName}</strong> from this club. They will not be able to join sessions or participate in matches. This action can be reversed by changing their player status.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground"
-            onClick={() => banMutation.mutate()}
-            disabled={banMutation.isPending}
-            data-testid="button-confirm-ban"
-          >
-            {banMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            Ban Player
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </>
+    <UnifiedMemberEditDialog
+      open={open}
+      onClose={onClose}
+      data={editData}
+      onSave={handleSave}
+      isSaving={isPending}
+      context="admin"
+      clubs={clubs}
+      showKPIs={true}
+      showClubActions={!!activeProfile}
+      playerStatusValue={activeProfile?.playerStatus}
+      onBan={() => banMutation.mutate()}
+      isBanning={banMutation.isPending}
+      onRemove={() => removeMutation.mutate()}
+      isRemoving={removeMutation.isPending}
+    />
   );
 }

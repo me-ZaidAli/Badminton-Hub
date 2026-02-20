@@ -4543,9 +4543,10 @@ export async function registerRoutes(
       const userId = Number(req.params.id);
       const { fullName, email, role: newRole, gender, category, rankingPoints,
               phone, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail,
-              password, clubId } = req.body;
+              password, clubId, nickname, city, country, region, continent,
+              acquisitionSource, acquisitionSourceOther,
+              matchesPlayed, matchesWon, playerStatus, membershipStatus, clubRole } = req.body;
 
-      // Check email uniqueness if changing email
       if (email) {
         const existingUser = await storage.getUserByUsername(email);
         if (existingUser && existingUser.id !== userId) {
@@ -4553,12 +4554,16 @@ export async function registerRoutes(
         }
       }
 
-      // Update user
       const userUpdates: any = {};
       if (fullName) userUpdates.fullName = fullName;
       if (email) userUpdates.email = email;
       if (newRole) userUpdates.role = newRole;
       if (phone !== undefined) userUpdates.phone = phone || null;
+      if (nickname !== undefined) userUpdates.nickname = nickname || null;
+      if (city !== undefined) userUpdates.city = city || null;
+      if (country !== undefined) userUpdates.country = country || null;
+      if (region !== undefined) userUpdates.region = region || null;
+      if (continent !== undefined) userUpdates.continent = continent || null;
       if (dateOfBirth !== undefined) userUpdates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
       if (isJunior !== undefined) {
         userUpdates.isJunior = isJunior;
@@ -4569,6 +4574,8 @@ export async function registerRoutes(
       }
       if (parentGuardianName !== undefined) userUpdates.parentGuardianName = parentGuardianName || null;
       if (parentGuardianEmail !== undefined) userUpdates.parentGuardianEmail = parentGuardianEmail || null;
+      if (acquisitionSource !== undefined) userUpdates.acquisitionSource = acquisitionSource || null;
+      if (acquisitionSourceOther !== undefined) userUpdates.acquisitionSourceOther = acquisitionSourceOther || null;
       if (password) {
         const hashedPassword = await hashPassword(password);
         userUpdates.password = hashedPassword;
@@ -4578,13 +4585,17 @@ export async function registerRoutes(
         await storage.updateUser(userId, userUpdates);
       }
 
-      // Update profile - create if it doesn't exist
       let profile = await storage.getPlayerProfile(userId);
       if (profile) {
         const profileUpdates: any = {};
         if (gender) profileUpdates.gender = gender;
         if (category) profileUpdates.category = category;
         if (rankingPoints !== undefined) profileUpdates.rankingPoints = rankingPoints;
+        if (matchesPlayed !== undefined) profileUpdates.matchesPlayed = matchesPlayed;
+        if (matchesWon !== undefined) profileUpdates.matchesWon = matchesWon;
+        if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
+        if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
+        if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
         if (clubId && clubId !== profile.clubId) profileUpdates.clubId = clubId;
         
         if (Object.keys(profileUpdates).length > 0) {
@@ -8790,7 +8801,8 @@ export async function registerRoutes(
     try {
       const userId = parseInt(req.params.id);
       const { role, fullName, email, emailVerified, accountStatus, phone, city, country,
-        dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, continent, region } = req.body;
+        dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, continent, region,
+        nickname, acquisitionSource, acquisitionSourceOther } = req.body;
       const updateData: Record<string, any> = {};
       if (role !== undefined) updateData.role = role;
       if (fullName !== undefined) updateData.fullName = fullName;
@@ -8798,6 +8810,7 @@ export async function registerRoutes(
       if (emailVerified !== undefined) updateData.emailVerified = emailVerified;
       if (accountStatus !== undefined) updateData.accountStatus = accountStatus;
       if (phone !== undefined) updateData.phone = phone;
+      if (nickname !== undefined) updateData.nickname = nickname || null;
       if (city !== undefined) updateData.city = city;
       if (country !== undefined) updateData.country = country;
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
@@ -8806,6 +8819,8 @@ export async function registerRoutes(
       if (parentGuardianEmail !== undefined) updateData.parentGuardianEmail = parentGuardianEmail || null;
       if (continent !== undefined) updateData.continent = continent || null;
       if (region !== undefined) updateData.region = region || null;
+      if (acquisitionSource !== undefined) updateData.acquisitionSource = acquisitionSource || null;
+      if (acquisitionSourceOther !== undefined) updateData.acquisitionSourceOther = acquisitionSourceOther || null;
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ message: "No fields to update" });

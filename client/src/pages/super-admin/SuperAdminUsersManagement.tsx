@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { BanMemberModal } from "@/components/BanMemberModal";
+import { UnifiedMemberEditDialog, MemberEditData } from "@/components/UnifiedMemberEditDialog";
 import {
   Users, Shield, ArrowLeft, Search, Loader2, Trophy, Clock,
   KeyRound, CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
@@ -53,6 +54,8 @@ interface ComprehensiveUser {
   city: string | null;
   nickname: string | null;
   showPublicName: boolean;
+  acquisitionSource: string | null;
+  acquisitionSourceOther: string | null;
   createdAt: string;
   profiles: PlayerProfile[];
   totalMatchesWon: number;
@@ -105,16 +108,13 @@ export default function SuperAdminUsersManagement() {
   const [selectedPlayer, setSelectedPlayer] = useState<ComprehensiveUser | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, any>>({});
-  const [profileEditForm, setProfileEditForm] = useState<Record<number, Record<string, any>>>({});
   const [passwordMode, setPasswordMode] = useState<"none" | "set" | "link">("none");
   const [playerNewPassword, setPlayerNewPassword] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
+  const [showAssignClub, setShowAssignClub] = useState(false);
   const [assignClubId, setAssignClubId] = useState("");
   const [assignClubRole, setAssignClubRole] = useState("PLAYER");
   const [assignGrade, setAssignGrade] = useState("C3");
-  const [showAssignClub, setShowAssignClub] = useState(false);
-  const [selectedProfileClub, setSelectedProfileClub] = useState<string>("all");
   const [banConfirmProfile, setBanConfirmProfile] = useState<PlayerProfile | null>(null);
   const [removeConfirmProfile, setRemoveConfirmProfile] = useState<PlayerProfile | null>(null);
 
@@ -364,56 +364,6 @@ export default function SuperAdminUsersManagement() {
     setPlayerNewPassword("");
     setGeneratedLink("");
     setShowAssignClub(false);
-    setSelectedProfileClub("all");
-    setEditForm({
-      fullName: player.fullName,
-      email: player.email,
-      phone: player.phone || "",
-      city: player.city || "",
-      country: player.country || "",
-      region: player.region || "",
-      continent: player.continent || "",
-      nickname: player.nickname || "",
-      role: player.role,
-      accountStatus: player.accountStatus,
-      dateOfBirth: player.dateOfBirth ? new Date(player.dateOfBirth).toISOString().split("T")[0] : "",
-      isJunior: player.isJunior,
-      parentGuardianName: player.parentGuardianName || "",
-      parentGuardianEmail: player.parentGuardianEmail || "",
-      showPublicName: player.showPublicName,
-    });
-    const pf: Record<number, Record<string, any>> = {};
-    player.profiles.forEach(pr => {
-      pf[pr.id] = { gender: pr.gender || "", category: pr.grade || pr.category || "C3", clubRole: pr.clubRole || "PLAYER", membershipStatus: pr.membershipStatus || "PENDING", playerStatus: pr.playerStatus || "ACTIVE" };
-    });
-    setProfileEditForm(pf);
-  };
-
-  const savePlayerEdits = async () => {
-    if (!selectedPlayer) return;
-    await updateUserMutation.mutateAsync({
-      id: selectedPlayer.id,
-      data: {
-        fullName: editForm.fullName,
-        email: editForm.email,
-        phone: editForm.phone || null,
-        city: editForm.city || null,
-        country: editForm.country || null,
-        region: editForm.region || null,
-        continent: editForm.continent || null,
-        role: editForm.role,
-        accountStatus: editForm.accountStatus,
-        dateOfBirth: editForm.dateOfBirth || null,
-        isJunior: editForm.isJunior,
-        parentGuardianName: editForm.parentGuardianName || null,
-        parentGuardianEmail: editForm.parentGuardianEmail || null,
-      },
-    });
-    for (const [profileIdStr, updates] of Object.entries(profileEditForm)) {
-      const profileId = parseInt(profileIdStr);
-      await updateProfileMutation.mutateAsync({ id: profileId, data: updates });
-    }
-    setEditMode(false);
   };
 
   const handleApproveAndNext = (userId: number) => {
@@ -1040,198 +990,8 @@ export default function SuperAdminUsersManagement() {
             </div>
           )}
 
-          {selectedPlayer && editMode && (
-            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-              <div>
-                <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Personal Information</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Full Name</Label>
-                    <Input value={editForm.fullName} onChange={(e) => setEditForm(f => ({ ...f, fullName: e.target.value }))} data-testid="input-edit-fullname" />
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} data-testid="input-edit-email" />
-                  </div>
-                  <div>
-                    <Label>Phone</Label>
-                    <Input value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} data-testid="input-edit-phone" />
-                  </div>
-                  <div>
-                    <Label>Nickname</Label>
-                    <Input value={editForm.nickname} onChange={(e) => setEditForm(f => ({ ...f, nickname: e.target.value }))} data-testid="input-edit-nickname" />
-                  </div>
-                  <div>
-                    <Label>City</Label>
-                    <Input value={editForm.city} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} data-testid="input-edit-city" />
-                  </div>
-                  <div>
-                    <Label>Country</Label>
-                    <Input value={editForm.country} onChange={(e) => setEditForm(f => ({ ...f, country: e.target.value }))} data-testid="input-edit-country" />
-                  </div>
-                  <div>
-                    <Label>Region</Label>
-                    <Input value={editForm.region} onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))} data-testid="input-edit-region" />
-                  </div>
-                  <div>
-                    <Label>Continent</Label>
-                    <Input value={editForm.continent} onChange={(e) => setEditForm(f => ({ ...f, continent: e.target.value }))} data-testid="input-edit-continent" />
-                  </div>
-                  <div>
-                    <Label>Date of Birth</Label>
-                    <Input type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm(f => ({ ...f, dateOfBirth: e.target.value }))} data-testid="input-edit-dob" />
-                  </div>
-                  <div>
-                    <Label>Platform Role</Label>
-                    <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
-                      <SelectTrigger data-testid="select-edit-role">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PLAYER">Player</SelectItem>
-                        <SelectItem value="ORGANISER">Organiser</SelectItem>
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="OWNER">Super Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Account Status</Label>
-                    <Select value={editForm.accountStatus} onValueChange={(v) => setEditForm(f => ({ ...f, accountStatus: v }))}>
-                      <SelectTrigger data-testid="select-edit-account-status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="APPROVED">Approved</SelectItem>
-                        <SelectItem value="REJECTED">Rejected</SelectItem>
-                        <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2 col-span-2">
-                    <Checkbox id="editJunior" checked={editForm.isJunior} onCheckedChange={(v) => setEditForm(f => ({ ...f, isJunior: !!v }))} data-testid="checkbox-edit-junior" />
-                    <Label htmlFor="editJunior" className="cursor-pointer">Junior Player</Label>
-                  </div>
-                  {editForm.isJunior && (
-                    <>
-                      <div>
-                        <Label>Guardian Name</Label>
-                        <Input value={editForm.parentGuardianName} onChange={(e) => setEditForm(f => ({ ...f, parentGuardianName: e.target.value }))} data-testid="input-edit-guardian-name" />
-                      </div>
-                      <div>
-                        <Label>Guardian Email</Label>
-                        <Input value={editForm.parentGuardianEmail} onChange={(e) => setEditForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} data-testid="input-edit-guardian-email" />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {selectedPlayer.profiles.length > 0 && (
-                <div>
-                  <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Club Profiles</div>
-                  {selectedPlayer.profiles.length > 1 && (
-                    <div className="mb-3">
-                      <Label className="text-xs">Filter by Club</Label>
-                      <Select value={selectedProfileClub} onValueChange={setSelectedProfileClub}>
-                        <SelectTrigger data-testid="select-filter-profile-club"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Clubs</SelectItem>
-                          {selectedPlayer.profiles.map(pr => (
-                            <SelectItem key={pr.id} value={String(pr.clubId)}>{pr.clubName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <div className="space-y-4">
-                    {selectedPlayer.profiles
-                      .filter(pr => selectedProfileClub === "all" || String(pr.clubId) === selectedProfileClub)
-                      .map(pr => (
-                      <div key={pr.id} className="p-3 rounded-lg border border-border/50">
-                        <div className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-muted-foreground" />
-                          {pr.clubName}
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Gender</Label>
-                            <Select value={profileEditForm[pr.id]?.gender || ""} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], gender: v } }))}>
-                              <SelectTrigger data-testid={`select-profile-gender-${pr.id}`}>
-                                <SelectValue placeholder="Select gender" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="MALE">Male</SelectItem>
-                                <SelectItem value="FEMALE">Female</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Grade</Label>
-                            <Select value={profileEditForm[pr.id]?.category || "C3"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], category: v } }))}>
-                              <SelectTrigger data-testid={`select-profile-grade-${pr.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
-                                  <SelectItem key={g} value={g}>{g}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Club Role</Label>
-                            <Select value={profileEditForm[pr.id]?.clubRole || "PLAYER"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], clubRole: v } }))}>
-                              <SelectTrigger data-testid={`select-profile-role-${pr.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="PLAYER">Player</SelectItem>
-                                <SelectItem value="ORGANISER">Organiser</SelectItem>
-                                <SelectItem value="ADMIN">Admin</SelectItem>
-                                <SelectItem value="OWNER">Owner</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Membership</Label>
-                            <Select value={profileEditForm[pr.id]?.membershipStatus || "PENDING"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], membershipStatus: v } }))}>
-                              <SelectTrigger data-testid={`select-profile-membership-${pr.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="PENDING">Pending</SelectItem>
-                                <SelectItem value="APPROVED">Approved</SelectItem>
-                                <SelectItem value="REJECTED">Rejected</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Player Status</Label>
-                            <Select value={profileEditForm[pr.id]?.playerStatus || "ACTIVE"} onValueChange={(v) => setProfileEditForm(pf => ({ ...pf, [pr.id]: { ...pf[pr.id], playerStatus: v } }))}>
-                              <SelectTrigger data-testid={`select-profile-player-status-${pr.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="ACTIVE">Active</SelectItem>
-                                <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                                <SelectItem value="BANNED">Banned</SelectItem>
-                                <SelectItem value="ARCHIVED">Archived</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {!editMode && selectedPlayer && (
+            {selectedPlayer && (
               <>
                 <Button variant="destructive" size="sm" className="gap-2" onClick={() => setDeleteConfirmOpen(true)} data-testid="button-delete-player">
                   <Trash2 className="w-3 h-3" /> Delete Profile
@@ -1240,15 +1000,6 @@ export default function SuperAdminUsersManagement() {
                 <Button variant="outline" onClick={() => setSelectedPlayer(null)}>Close</Button>
                 <Button onClick={() => setEditMode(true)} className="gap-2" data-testid="button-edit-player">
                   <Pencil className="w-4 h-4" /> Edit Details
-                </Button>
-              </>
-            )}
-            {editMode && (
-              <>
-                <Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
-                <Button onClick={savePlayerEdits} disabled={updateUserMutation.isPending || updateProfileMutation.isPending} data-testid="button-save-player">
-                  {(updateUserMutation.isPending || updateProfileMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Save All Changes
                 </Button>
               </>
             )}
@@ -1318,6 +1069,195 @@ export default function SuperAdminUsersManagement() {
           clubName={banConfirmProfile.clubName || "Unknown Club"}
         />
       )}
+
+      {selectedPlayer && editMode && (
+        <SuperAdminEditWrapper
+          player={selectedPlayer}
+          clubs={allClubs || []}
+          open={editMode}
+          onClose={() => setEditMode(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function SuperAdminEditWrapper({
+  player,
+  clubs,
+  open,
+  onClose,
+}: {
+  player: ComprehensiveUser;
+  clubs: { id: number; name: string; status: string }[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+
+  const activeProfile = player.profiles[0] || null;
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
+      const res = await apiRequest("PATCH", `/api/super-admin/users/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, any> }) => {
+      const res = await apiRequest("PATCH", `/api/super-admin/player-profiles/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const playerSetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
+      const res = await apiRequest("POST", "/api/admin/set-password", { userId, password });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Password Set", description: "Password has been updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const playerResetLinkMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/super-admin/users/${userId}/reset-password`);
+      return res.json();
+    },
+  });
+
+  const assignToClubMutation = useMutation({
+    mutationFn: async ({ userId, clubId, clubRole, grade }: { userId: number; clubId: number; clubRole: string; grade: string }) => {
+      const res = await apiRequest("POST", "/api/god-mode/assign-user-to-club", { userId, clubId, clubRole, grade });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/players-comprehensive"] });
+      toast({ title: "Assigned", description: "User has been assigned to the club." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const editData: MemberEditData = {
+    userId: player.id,
+    fullName: player.fullName,
+    email: player.email,
+    phone: player.phone || "",
+    nickname: player.nickname || "",
+    dateOfBirth: player.dateOfBirth ? new Date(player.dateOfBirth).toISOString().split("T")[0] : "",
+    gender: activeProfile?.gender || "",
+    category: activeProfile?.grade || activeProfile?.category || "C3",
+    isJunior: player.isJunior,
+    parentGuardianName: player.parentGuardianName || "",
+    parentGuardianEmail: player.parentGuardianEmail || "",
+    city: player.city || "",
+    country: player.country || "",
+    region: player.region || "",
+    continent: player.continent || "",
+    acquisitionSource: player.acquisitionSource || "",
+    acquisitionSourceOther: player.acquisitionSourceOther || "",
+    clubRole: activeProfile?.clubRole || "PLAYER",
+    playerStatus: activeProfile?.playerStatus || "ACTIVE",
+    membershipStatus: activeProfile?.membershipStatus || "APPROVED",
+    role: player.role,
+    accountStatus: player.accountStatus,
+    rankingPoints: String(activeProfile?.rankingPoints || 0),
+    matchesPlayed: String(activeProfile?.matchesPlayed || 0),
+    matchesWon: String(activeProfile?.matchesWon || 0),
+    joinedAt: "",
+    profileId: activeProfile?.id,
+    clubId: activeProfile?.clubId,
+    clubName: activeProfile?.clubName,
+  };
+
+  const handleSave = async (formData: MemberEditData & { password?: string }) => {
+    const userData: Record<string, any> = {
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone || null,
+      nickname: formData.nickname,
+      city: formData.city || null,
+      country: formData.country || null,
+      region: formData.region || null,
+      continent: formData.continent || null,
+      role: formData.role,
+      accountStatus: formData.accountStatus,
+      dateOfBirth: formData.dateOfBirth || null,
+      isJunior: formData.isJunior,
+      parentGuardianName: formData.parentGuardianName || null,
+      parentGuardianEmail: formData.parentGuardianEmail || null,
+      acquisitionSource: formData.acquisitionSource || null,
+      acquisitionSourceOther: formData.acquisitionSourceOther || null,
+    };
+
+    if (formData.password) {
+      userData.password = formData.password;
+    }
+
+    await updateUserMutation.mutateAsync({ id: player.id, data: userData });
+
+    if (activeProfile) {
+      const profileData: Record<string, any> = {
+        gender: formData.gender || null,
+        category: formData.category,
+        clubRole: formData.clubRole,
+        membershipStatus: formData.membershipStatus,
+        playerStatus: formData.playerStatus,
+      };
+      await updateProfileMutation.mutateAsync({ id: activeProfile.id, data: profileData });
+    }
+
+    toast({ title: "Updated", description: "User details have been saved." });
+    onClose();
+  };
+
+  return (
+    <UnifiedMemberEditDialog
+      open={open}
+      onClose={onClose}
+      data={editData}
+      onSave={handleSave}
+      isSaving={updateUserMutation.isPending || updateProfileMutation.isPending}
+      context="super-admin"
+      clubs={clubs}
+      showKPIs={true}
+      showSystemRole={true}
+      showAssignToClub={true}
+      onAssignToClub={async (clubId, role, grade) => {
+        await assignToClubMutation.mutateAsync({ userId: player.id, clubId, clubRole: role, grade });
+      }}
+      isAssigning={assignToClubMutation.isPending}
+      onResetPassword={async (password) => {
+        await playerSetPasswordMutation.mutateAsync({ userId: player.id, password });
+      }}
+      isResettingPassword={playerSetPasswordMutation.isPending}
+      onGenerateResetLink={async () => {
+        const data = await playerResetLinkMutation.mutateAsync(player.id);
+        if (data?.resetLink) {
+          return window.location.origin + data.resetLink;
+        }
+        return null;
+      }}
+      isGeneratingLink={playerResetLinkMutation.isPending}
+    />
   );
 }

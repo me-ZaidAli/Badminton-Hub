@@ -20,6 +20,7 @@ import {
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
+import { UnifiedMemberEditDialog, type MemberEditData } from "@/components/UnifiedMemberEditDialog";
 
 const controlItems = [
   { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -1436,12 +1437,23 @@ export default function GodMode() {
         </Card>
       )}
 
-      <MemberEditModal
-        member={editMember}
-        clubId={clubId || 0}
-        open={memberModalOpen}
-        onClose={() => { setMemberModalOpen(false); setEditMember(null); }}
-      />
+      {memberModalOpen && !editMember && (
+        <MemberEditModal
+          member={null}
+          clubId={clubId || 0}
+          open={memberModalOpen}
+          onClose={() => { setMemberModalOpen(false); setEditMember(null); }}
+        />
+      )}
+
+      {memberModalOpen && editMember && (
+        <GodModeEditWrapper
+          member={editMember}
+          clubId={clubId || 0}
+          open={memberModalOpen}
+          onClose={() => { setMemberModalOpen(false); setEditMember(null); }}
+        />
+      )}
 
       <SessionEditModal
         session={editSession}
@@ -1477,5 +1489,139 @@ export default function GodMode() {
         </Card>
       )}
     </div>
+  );
+}
+
+function GodModeEditWrapper({
+  member,
+  clubId,
+  open,
+  onClose,
+}: {
+  member: MemberRecord;
+  clubId: number;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+
+  const { data: allClubs } = useQuery<{ id: number; name: string; status: string }[]>({
+    queryKey: ["/api/admin/clubs"],
+    enabled: open,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: Record<string, any>) => {
+      const res = await apiRequest("PATCH", `/api/clubs/${clubId}/members/${member.id}/comprehensive`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "members-comprehensive"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const assignToClubMutation = useMutation({
+    mutationFn: async ({ userId, targetClubId, role, grade }: { userId: number; targetClubId: number; role: string; grade: string }) => {
+      const res = await apiRequest("POST", "/api/god-mode/assign-user-to-club", { userId, clubId: targetClubId, clubRole: role, grade });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs"] });
+      toast({ title: "Assigned", description: "User has been assigned to the club." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const editData: MemberEditData = {
+    userId: member.userId,
+    fullName: member.user?.fullName || "",
+    email: member.user?.email || "",
+    phone: member.user?.phone || "",
+    nickname: member.user?.nickname || "",
+    dateOfBirth: member.user?.dateOfBirth ? member.user.dateOfBirth.split("T")[0] : "",
+    gender: member.gender || "",
+    category: member.grade || member.category || "C3",
+    isJunior: member.user?.isJunior || false,
+    parentGuardianName: member.user?.parentGuardianName || "",
+    parentGuardianEmail: member.user?.parentGuardianEmail || "",
+    city: member.user?.city || "",
+    country: member.user?.country || "",
+    region: member.user?.region || "",
+    continent: member.user?.continent || "",
+    acquisitionSource: member.user?.acquisitionSource || "",
+    acquisitionSourceOther: member.user?.acquisitionSourceOther || "",
+    clubRole: member.clubRole || "PLAYER",
+    playerStatus: member.playerStatus || "ACTIVE",
+    membershipStatus: member.membershipStatus || "APPROVED",
+    role: member.user?.role || "PLAYER",
+    accountStatus: member.user?.accountStatus || "ACTIVE",
+    rankingPoints: String(member.rankingPoints || 0),
+    matchesPlayed: String(member.matchesPlayed || 0),
+    matchesWon: String(member.matchesWon || 0),
+    joinedAt: member.joinedAt ? new Date(member.joinedAt).toISOString().split("T")[0] : "",
+    profileId: member.id,
+    clubId: clubId,
+  };
+
+  const handleSave = async (formData: MemberEditData & { password?: string }) => {
+    const payload: Record<string, any> = {
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone || null,
+      nickname: formData.nickname,
+      gender: formData.gender || null,
+      category: formData.category,
+      clubRole: formData.clubRole,
+      playerStatus: formData.playerStatus,
+      membershipStatus: formData.membershipStatus,
+      role: formData.role,
+      city: formData.city || null,
+      country: formData.country || null,
+      region: formData.region || null,
+      continent: formData.continent || null,
+      dateOfBirth: formData.dateOfBirth || null,
+      isJunior: formData.isJunior,
+      parentGuardianName: formData.parentGuardianName || null,
+      parentGuardianEmail: formData.parentGuardianEmail || null,
+      acquisitionSource: formData.acquisitionSource || null,
+      acquisitionSourceOther: formData.acquisitionSourceOther || null,
+      rankingPoints: Number(formData.rankingPoints),
+      matchesPlayed: Number(formData.matchesPlayed),
+      matchesWon: Number(formData.matchesWon),
+      joinedAt: formData.joinedAt || undefined,
+    };
+
+    if (formData.password) {
+      payload.password = formData.password;
+    }
+
+    await saveMutation.mutateAsync(payload);
+    toast({ title: "Updated", description: "Member details have been saved." });
+    onClose();
+  };
+
+  return (
+    <UnifiedMemberEditDialog
+      open={open}
+      onClose={onClose}
+      data={editData}
+      onSave={handleSave}
+      isSaving={saveMutation.isPending}
+      context="god-mode"
+      clubs={allClubs || []}
+      showKPIs={true}
+      showSystemRole={true}
+      showAssignToClub={true}
+      showJoinedDate={true}
+      onAssignToClub={async (targetClubId, role, grade) => {
+        await assignToClubMutation.mutateAsync({ userId: member.userId, targetClubId, role, grade });
+      }}
+      isAssigning={assignToClubMutation.isPending}
+    />
   );
 }
