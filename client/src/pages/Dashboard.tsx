@@ -237,29 +237,28 @@ function DashboardContent({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageHeader
-          title={`Welcome back, ${user?.fullName.split(' ')[0]}!`}
-          description="Your badminton dashboard overview."
-        />
-        {clubs.length > 0 && (
-          <div className="flex items-center gap-2" data-testid="club-filter">
-            <label className="text-sm font-medium text-muted-foreground">Club:</label>
-            <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
-              <SelectTrigger className="w-[200px]" data-testid="select-dashboard-club">
-                <SelectValue placeholder="Select club" />
-              </SelectTrigger>
-              <SelectContent>
-                {clubs.map(club => (
-                  <SelectItem key={club.id} value={club.id.toString()}>
-                    {club.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title={`Welcome back, ${user?.fullName.split(' ')[0]}!`}
+        description="Your badminton dashboard overview."
+      />
+
+      {clubs.length > 0 && (
+        <div className="flex items-center gap-2" data-testid="club-filter">
+          <label className="text-sm font-medium text-muted-foreground">Club:</label>
+          <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
+            <SelectTrigger className="w-[200px]" data-testid="select-dashboard-club">
+              <SelectValue placeholder="Select club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubs.map(club => (
+                <SelectItem key={club.id} value={club.id.toString()}>
+                  {club.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {activeAnnouncements.length > 0 && (
         <Card data-testid="card-announcements-preview">
@@ -305,6 +304,25 @@ function DashboardContent({
           </CardContent>
         </Card>
       )}
+
+      <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-500/20 rounded-lg shrink-0">
+              <Gift className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-sm">Refer & Earn</h3>
+              <p className="text-xs text-muted-foreground">Invite friends and earn {"\u00A3"}4 credit for each approved referral</p>
+            </div>
+          </div>
+          <Link href="/referrals">
+            <Button size="sm" className="w-full mt-3" data-testid="button-go-referrals">
+              <Gift className="h-4 w-4 mr-1" /> Start Referring
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
 
       <Card data-testid="card-my-upcoming-sessions">
         <CardHeader className="pb-3">
@@ -424,25 +442,6 @@ function DashboardContent({
           </CardContent>
         </Card>
       </div>
-
-      <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/20 rounded-lg shrink-0">
-              <Gift className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm">Refer & Earn</h3>
-              <p className="text-xs text-muted-foreground">Invite friends and earn {"\u00A3"}4 credit for each approved referral</p>
-            </div>
-          </div>
-          <Link href="/referrals">
-            <Button size="sm" className="w-full mt-3" data-testid="button-go-referrals">
-              <Gift className="h-4 w-4 mr-1" /> Start Referring
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
 
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
         <CardContent className="p-5">
