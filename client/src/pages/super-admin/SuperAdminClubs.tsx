@@ -1074,9 +1074,9 @@ export default function SuperAdminClubs() {
         socialGameTimings: editClub.socialGameTimings || "",
         providesTraining: editClub.providesTraining || false,
         trainingDetails: editClub.trainingDetails || "",
-        sessionFee: editClub.sessionFee != null ? String(editClub.sessionFee) : "",
+        sessionFee: editClub.sessionFee != null ? (editClub.sessionFee / 100).toFixed(2) : "",
         hasMembership: editClub.hasMembership || false,
-        membershipFee: editClub.membershipFee != null ? String(editClub.membershipFee) : "",
+        membershipFee: editClub.membershipFee != null ? (editClub.membershipFee / 100).toFixed(2) : "",
         shuttlecockType: editClub.shuttlecockType || "",
         providesClubTShirts: editClub.providesClubTShirts || false,
         isRegisteredWithBE: editClub.isRegisteredWithBE || false,
@@ -1191,9 +1191,9 @@ export default function SuperAdminClubs() {
         socialGameTimings: data.form.socialGameTimings,
         providesTraining: data.form.providesTraining,
         trainingDetails: data.form.trainingDetails,
-        sessionFee: data.form.sessionFee ? parseInt(data.form.sessionFee) : null,
+        sessionFee: data.form.sessionFee ? Math.round(parseFloat(data.form.sessionFee) * 100) : null,
         hasMembership: data.form.hasMembership,
-        membershipFee: data.form.membershipFee ? parseInt(data.form.membershipFee) : null,
+        membershipFee: data.form.membershipFee ? Math.round(parseFloat(data.form.membershipFee) * 100) : null,
         shuttlecockType: data.form.shuttlecockType,
         providesClubTShirts: data.form.providesClubTShirts,
         isRegisteredWithBE: data.form.isRegisteredWithBE,
@@ -1614,9 +1614,10 @@ export default function SuperAdminClubs() {
               <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Fees</div>
               <div className="space-y-3">
                 <div>
-                  <Label>Session Fee (pence)</Label>
+                  <Label>Session Fee (£)</Label>
                   <Input
                     type="number"
+                    step="0.01"
                     value={editClubForm.sessionFee}
                     onChange={(e) => setEditClubForm(f => ({ ...f, sessionFee: e.target.value }))}
                     data-testid="input-edit-club-session-fee"
@@ -1632,9 +1633,10 @@ export default function SuperAdminClubs() {
                   <Label htmlFor="edit-hasMembership" className="cursor-pointer">Has Membership</Label>
                 </div>
                 <div>
-                  <Label>Membership Fee (pence)</Label>
+                  <Label>Membership Fee (£)</Label>
                   <Input
                     type="number"
+                    step="0.01"
                     value={editClubForm.membershipFee}
                     onChange={(e) => setEditClubForm(f => ({ ...f, membershipFee: e.target.value }))}
                     data-testid="input-edit-club-membership-fee"

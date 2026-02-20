@@ -84,7 +84,7 @@ export default function SuperAdminReferrals() {
     setFormClubId(String(program.clubId));
     setFormLevels(
       program.levels && program.levels.length > 0
-        ? program.levels.map((l) => ({ ...l }))
+        ? program.levels.map((l) => ({ ...l, credits: l.credits / 100 }))
         : [{ ...emptyLevel }]
     );
     setDialogOpen(true);
@@ -117,7 +117,7 @@ export default function SuperAdminReferrals() {
         name: formName.trim(),
         description: formDescription.trim(),
         isActive: formIsActive,
-        levels: formLevels,
+        levels: formLevels.map(l => ({ ...l, credits: Math.round(l.credits * 100) })),
       });
       return res.json();
     },
@@ -139,7 +139,7 @@ export default function SuperAdminReferrals() {
         name: formName.trim(),
         description: formDescription.trim(),
         isActive: formIsActive,
-        levels: formLevels,
+        levels: formLevels.map(l => ({ ...l, credits: Math.round(l.credits * 100) })),
       });
       return res.json();
     },
@@ -416,12 +416,13 @@ export default function SuperAdminReferrals() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Credits (pence)</Label>
+                      <Label className="text-xs">Credits ({"\u00A3"})</Label>
                       <Input
                         type="number"
                         min="0"
+                        step="0.01"
                         value={lvl.credits}
-                        onChange={(e) => updateLevel(idx, "credits", parseInt(e.target.value) || 0)}
+                        onChange={(e) => updateLevel(idx, "credits", parseFloat(e.target.value) || 0)}
                         data-testid={`input-credits-${idx}`}
                       />
                     </div>

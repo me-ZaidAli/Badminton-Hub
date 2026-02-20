@@ -672,7 +672,7 @@ function SessionEditModal({ session, clubId, venues, open, onClose }: { session:
         playersPerSide: String(session.playersPerSide || 2),
         matchGenderType: session.matchGenderType || "MIXED",
         status: session.status || "UPCOMING",
-        sessionFee: session.sessionFee != null ? String(session.sessionFee) : "",
+        sessionFee: session.sessionFee != null ? (session.sessionFee / 100).toFixed(2) : "",
         shuttlecockType: session.shuttlecockType || "",
         venueId: session.venueId ? String(session.venueId) : "",
         defaultPointsToPlayTo: String(session.defaultPointsToPlayTo || 21),
@@ -723,7 +723,7 @@ function SessionEditModal({ session, clubId, venues, open, onClose }: { session:
         defaultPointsToPlayTo: parseInt(form.defaultPointsToPlayTo),
         numberOfSets: parseInt(form.numberOfSets),
         autoGenerateActive: form.autoGenerateActive,
-        sessionFee: form.sessionFee ? parseInt(form.sessionFee) : null,
+        sessionFee: form.sessionFee ? Math.round(parseFloat(form.sessionFee) * 100) : null,
         shuttlecockType: form.shuttlecockType || null,
         venueId: form.venueId ? parseInt(form.venueId) : null,
         liveStreamUrl: form.liveStreamUrl || null,
@@ -928,8 +928,8 @@ function SessionEditModal({ session, clubId, venues, open, onClose }: { session:
             <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Fees & Equipment</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Session Fee (pence)</Label>
-                <Input type="number" value={form.sessionFee} onChange={(e) => setForm(f => ({ ...f, sessionFee: e.target.value }))} data-testid="input-god-session-fee" />
+                <Label>Session Fee (£)</Label>
+                <Input type="number" step="0.01" value={form.sessionFee} onChange={(e) => setForm(f => ({ ...f, sessionFee: e.target.value }))} data-testid="input-god-session-fee" />
               </div>
               <div>
                 <Label>Shuttlecock Type</Label>

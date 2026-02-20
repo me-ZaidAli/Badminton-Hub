@@ -66,7 +66,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
       const res = await apiRequest("POST", `/api/clubs/${clubId}/attendance-rewards`, {
         sessionsRequired: data.sessionsRequired,
         rewardConfig: {
-          credits: data.credits,
+          credits: Math.round(data.credits * 100),
           gifts: data.gifts,
           freeSessions: data.freeSessions,
         },
@@ -90,7 +90,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
       const res = await apiRequest("PUT", `/api/attendance-rewards/${id}`, {
         sessionsRequired: data.sessionsRequired,
         rewardConfig: {
-          credits: data.credits,
+          credits: Math.round(data.credits * 100),
           gifts: data.gifts,
           freeSessions: data.freeSessions,
         },
@@ -153,7 +153,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
     setEditingReward(reward);
     setFormData({
       sessionsRequired: reward.sessionsRequired,
-      credits: reward.rewardConfig.credits ?? 0,
+      credits: (reward.rewardConfig.credits ?? 0) / 100,
       gifts: reward.rewardConfig.gifts ?? "",
       freeSessions: reward.rewardConfig.freeSessions ?? 0,
       isActive: reward.isActive,
@@ -307,20 +307,16 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credits">Credits (pence)</Label>
+              <Label htmlFor="credits">Credits (£)</Label>
               <Input
                 id="credits"
                 type="number"
                 min={0}
+                step="0.01"
                 value={formData.credits}
-                onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setFormData({ ...formData, credits: parseFloat(e.target.value) || 0 })}
                 data-testid="input-credits"
               />
-              {formData.credits > 0 && (
-                <p className="text-xs text-muted-foreground" data-testid="text-credits-preview">
-                  = {formatGBP(formData.credits)}
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="gifts">Gifts</Label>

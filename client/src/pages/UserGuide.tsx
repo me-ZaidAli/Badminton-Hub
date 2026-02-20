@@ -482,7 +482,7 @@ const ownerSections: GuideSection[] = [
     steps: [
       "Go to 'Referral Programs' in the Super Admin section of the sidebar.",
       "Create multi-level referral programmes with configurable rewards at each level.",
-      "Set the number of referrals required, credits (in pence), gifts, free sessions, and unlock descriptions for each level.",
+      "Set the number of referrals required, credits (in £), gifts, free sessions, and unlock descriptions for each level.",
       "Each club has independent referral settings - configure credit amounts, premium/champion thresholds, code expiry, and active/inactive toggle.",
       "View referral analytics including approval rates and total credits issued.",
     ],
@@ -607,7 +607,7 @@ const faqItems: FAQItem[] = [
   },
   {
     question: "How do I set up multi-level referral rewards?",
-    answer: "Go to Referral Programs in the Super Admin section. Create a programme with multiple levels, each requiring a certain number of referrals. For each level, set the credit reward (in pence), gifts, free sessions, and a description of what the player unlocks.",
+    answer: "Go to Referral Programs in the Super Admin section. Create a programme with multiple levels, each requiring a certain number of referrals. For each level, set the credit reward (in £), gifts, free sessions, and a description of what the player unlocks.",
     roles: ["owner"],
   },
   {

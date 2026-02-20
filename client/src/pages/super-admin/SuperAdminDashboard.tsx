@@ -299,16 +299,16 @@ function ClubFormFields({ form, setForm, users }: { form: ClubEditForm; setForm:
         <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Fees</div>
         <div className="space-y-3">
           <div>
-            <Label>Session Fee (pence)</Label>
-            <Input type="number" value={form.sessionFee} onChange={(e) => setForm(f => ({ ...f, sessionFee: e.target.value }))} data-testid="input-session-fee" />
+            <Label>Session Fee (£)</Label>
+            <Input type="number" step="0.01" value={form.sessionFee} onChange={(e) => setForm(f => ({ ...f, sessionFee: e.target.value }))} data-testid="input-session-fee" />
           </div>
           <div className="flex items-center gap-2">
             <Checkbox id="hasMembership" checked={form.hasMembership} onCheckedChange={(v) => setForm(f => ({ ...f, hasMembership: !!v }))} data-testid="checkbox-has-membership" />
             <Label htmlFor="hasMembership" className="cursor-pointer">Has Membership</Label>
           </div>
           <div>
-            <Label>Membership Fee (pence)</Label>
-            <Input type="number" value={form.membershipFee} onChange={(e) => setForm(f => ({ ...f, membershipFee: e.target.value }))} data-testid="input-membership-fee" />
+            <Label>Membership Fee (£)</Label>
+            <Input type="number" step="0.01" value={form.membershipFee} onChange={(e) => setForm(f => ({ ...f, membershipFee: e.target.value }))} data-testid="input-membership-fee" />
           </div>
         </div>
       </div>
@@ -943,9 +943,9 @@ export default function SuperAdminDashboard() {
         socialGameTimings: editClub.socialGameTimings || "",
         providesTraining: editClub.providesTraining || false,
         trainingDetails: editClub.trainingDetails || "",
-        sessionFee: editClub.sessionFee != null ? String(editClub.sessionFee) : "",
+        sessionFee: editClub.sessionFee != null ? (editClub.sessionFee / 100).toFixed(2) : "",
         hasMembership: editClub.hasMembership || false,
-        membershipFee: editClub.membershipFee != null ? String(editClub.membershipFee) : "",
+        membershipFee: editClub.membershipFee != null ? (editClub.membershipFee / 100).toFixed(2) : "",
         shuttlecockType: editClub.shuttlecockType || "",
         providesClubTShirts: editClub.providesClubTShirts || false,
         isRegisteredWithBE: editClub.isRegisteredWithBE || false,
@@ -975,9 +975,9 @@ export default function SuperAdminDashboard() {
         socialGameTimings: data.form.socialGameTimings,
         providesTraining: data.form.providesTraining,
         trainingDetails: data.form.trainingDetails,
-        sessionFee: data.form.sessionFee ? parseInt(data.form.sessionFee) : null,
+        sessionFee: data.form.sessionFee ? Math.round(parseFloat(data.form.sessionFee) * 100) : null,
         hasMembership: data.form.hasMembership,
-        membershipFee: data.form.membershipFee ? parseInt(data.form.membershipFee) : null,
+        membershipFee: data.form.membershipFee ? Math.round(parseFloat(data.form.membershipFee) * 100) : null,
         shuttlecockType: data.form.shuttlecockType,
         providesClubTShirts: data.form.providesClubTShirts,
         isRegisteredWithBE: data.form.isRegisteredWithBE,
@@ -1038,9 +1038,9 @@ export default function SuperAdminDashboard() {
         socialGameTimings: form.socialGameTimings,
         providesTraining: form.providesTraining,
         trainingDetails: form.trainingDetails,
-        sessionFee: form.sessionFee,
+        sessionFee: form.sessionFee ? Math.round(parseFloat(form.sessionFee) * 100) : null,
         hasMembership: form.hasMembership,
-        membershipFee: form.membershipFee,
+        membershipFee: form.membershipFee ? Math.round(parseFloat(form.membershipFee) * 100) : null,
         shuttlecockType: form.shuttlecockType,
         providesClubTShirts: form.providesClubTShirts,
         adminUserId: form.adminUserId,

@@ -67,8 +67,8 @@ function clubToEditState(club: ClubWithStatus): ClubEditState {
     socialGameTimings: (club as any).socialGameTimings || "",
     providesTraining: !!(club as any).providesTraining,
     trainingDetails: (club as any).trainingDetails || "",
-    sessionFee: (club as any).sessionFee != null ? String((club as any).sessionFee) : "",
-    membershipFee: (club as any).membershipFee != null ? String((club as any).membershipFee) : "",
+    sessionFee: (club as any).sessionFee != null ? ((club as any).sessionFee / 100).toFixed(2) : "",
+    membershipFee: (club as any).membershipFee != null ? ((club as any).membershipFee / 100).toFixed(2) : "",
     shuttlecockType: (club as any).shuttlecockType || "",
     providesClubTShirts: !!(club as any).providesClubTShirts,
     contactFullName: (club as any).contactFullName || "",
@@ -240,8 +240,8 @@ export default function ClubManagement() {
       socialGameTimings: editDetails.socialGameTimings || null,
       providesTraining: editDetails.providesTraining,
       trainingDetails: editDetails.trainingDetails || null,
-      sessionFee: editDetails.sessionFee ? Number(editDetails.sessionFee) : null,
-      membershipFee: editDetails.membershipFee ? Number(editDetails.membershipFee) : null,
+      sessionFee: editDetails.sessionFee ? Math.round(parseFloat(editDetails.sessionFee) * 100) : null,
+      membershipFee: editDetails.membershipFee ? Math.round(parseFloat(editDetails.membershipFee) * 100) : null,
       shuttlecockType: editDetails.shuttlecockType || null,
       providesClubTShirts: editDetails.providesClubTShirts,
       contactFullName: editDetails.contactFullName || null,
@@ -693,22 +693,24 @@ export default function ClubManagement() {
                 <h3 className="font-semibold flex items-center gap-2 border-b pb-2">Fees & Equipment</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>Session Fee (pence)</Label>
+                    <Label>Session Fee (£)</Label>
                     <Input
                       type="number"
+                      step="0.01"
                       value={editDetails.sessionFee}
                       onChange={(e) => setEditDetails({ ...editDetails, sessionFee: e.target.value })}
-                      placeholder="e.g., 500 for £5.00"
+                      placeholder="e.g., 5.00"
                       data-testid="input-session-fee"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Membership Fee (pence)</Label>
+                    <Label>Membership Fee (£)</Label>
                     <Input
                       type="number"
+                      step="0.01"
                       value={editDetails.membershipFee}
                       onChange={(e) => setEditDetails({ ...editDetails, membershipFee: e.target.value })}
-                      placeholder="e.g., 2000 for £20.00"
+                      placeholder="e.g., 20.00"
                       data-testid="input-membership-fee"
                     />
                   </div>

@@ -146,11 +146,6 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
                 placeholder="0.00"
                 data-testid="input-anniversary-credits"
               />
-              {parseFloat(formCreditsGBP || "0") > 0 && (
-                <p className="text-xs text-muted-foreground" data-testid="text-credits-pence-preview">
-                  = {Math.round(parseFloat(formCreditsGBP || "0") * 100)} pence
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="anniversary-gifts">Gifts</Label>
