@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -177,6 +178,7 @@ export default function Financials() {
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
   const [outstandingDialogOpen, setOutstandingDialogOpen] = useState(false);
+  const [finKpiDetail, setFinKpiDetail] = useState<string | null>(null);
   const [outstandingEditingFee, setOutstandingEditingFee] = useState<number | null>(null);
   const [outstandingFeeValue, setOutstandingFeeValue] = useState("");
 
@@ -1271,7 +1273,7 @@ export default function Financials() {
       </Card>
 
       <div className="grid gap-2 grid-cols-3 sm:grid-cols-3 md:grid-cols-5">
-        <Card className="min-w-0" data-testid="card-total-revenue">
+        <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-total-revenue" onClick={() => setFinKpiDetail("revenue")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Revenue</CardTitle>
             <DollarSign className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1284,7 +1286,7 @@ export default function Financials() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0" data-testid="card-collected">
+        <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-collected" onClick={() => setFinKpiDetail("collected")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Collected</CardTitle>
             <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
@@ -1299,7 +1301,7 @@ export default function Financials() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0" data-testid="card-pending-transfers">
+        <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-pending-transfers" onClick={() => setFinKpiDetail("pending")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Pending</CardTitle>
             <Clock className="h-3 w-3 shrink-0 text-yellow-500" />
@@ -1314,7 +1316,7 @@ export default function Financials() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0" data-testid="card-outstanding">
+        <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-outstanding" onClick={() => setOutstandingDialogOpen(true)}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
             <AlertCircle className="h-3 w-3 shrink-0 text-orange-500" />
@@ -1343,7 +1345,7 @@ export default function Financials() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0" data-testid="card-collection-rate">
+        <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-collection-rate" onClick={() => setFinKpiDetail("collection-rate")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Collection</CardTitle>
             <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1359,7 +1361,7 @@ export default function Financials() {
 
       {dashboardData && (
         <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-          <Card className="min-w-0" data-testid="card-total-income">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-total-income" onClick={() => setFinKpiDetail("total-income")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Income</CardTitle>
               <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
@@ -1376,7 +1378,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-total-expenses">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-total-expenses" onClick={() => setFinKpiDetail("total-expenses")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Expenses</CardTitle>
               <TrendingDown className="h-3 w-3 shrink-0 text-red-500" />
@@ -1393,7 +1395,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-net-revenue">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-net-revenue" onClick={() => setFinKpiDetail("net-revenue")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Net Revenue</CardTitle>
               <DollarSign className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1406,7 +1408,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-stock-usage">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-stock-usage" onClick={() => setFinKpiDetail("stock-usage")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Stock Used</CardTitle>
               <Package className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1423,7 +1425,7 @@ export default function Financials() {
 
       {dashboardData && dashboardData.membershipActiveCount > 0 && (
         <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-          <Card className="min-w-0" data-testid="card-membership-revenue">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-membership-revenue" onClick={() => setFinKpiDetail("membership-revenue")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Membership Rev.</CardTitle>
               <CreditCard className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1436,7 +1438,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-membership-paid">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-membership-paid" onClick={() => setFinKpiDetail("membership-paid")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Membership Paid</CardTitle>
               <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
@@ -1451,7 +1453,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-membership-unpaid">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-membership-unpaid" onClick={() => setFinKpiDetail("membership-unpaid")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Membership Owed</CardTitle>
               <AlertCircle className="h-3 w-3 shrink-0 text-orange-500" />
@@ -1466,7 +1468,7 @@ export default function Financials() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0" data-testid="card-membership-overdue">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-membership-overdue" onClick={() => setFinKpiDetail("membership-overdue")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Overdue</CardTitle>
               <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />
@@ -3056,6 +3058,302 @@ export default function Financials() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "revenue"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Revenue Breakdown"
+        description={`Total revenue: £${formatPounds(totalRevenue)}`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(paidTotal)}</div>
+              <div className="text-xs text-muted-foreground">Collected ({filteredData.filter(e => e.paymentStatus === "PAID").length})</div>
+            </div>
+            <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+              <div className="text-lg font-bold text-yellow-600">{"\u00A3"}{formatPounds(pendingTotal)}</div>
+              <div className="text-xs text-muted-foreground">Pending ({filteredData.filter(e => e.paymentStatus === "PENDING").length})</div>
+            </div>
+            <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <div className="text-lg font-bold text-orange-600">{"\u00A3"}{formatPounds(unpaidTotal)}</div>
+              <div className="text-xs text-muted-foreground">Unpaid ({filteredData.filter(e => e.paymentStatus === "UNPAID").length})</div>
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Total from {filteredData.length} signups across all sessions
+          </div>
+        </div>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "collected"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Collected Payments"
+        description={`${filteredData.filter(e => e.paymentStatus === "PAID").length} paid entries totalling £${formatPounds(paidTotal)}`}
+      >
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Player</TableHead><TableHead>Session</TableHead><TableHead className="text-right">Fee</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {filteredData.filter(e => e.paymentStatus === "PAID").slice(0, 15).map(e => (
+              <TableRow key={e.signupId}>
+                <TableCell className="font-medium">{e.playerName}</TableCell>
+                <TableCell>{e.sessionTitle}</TableCell>
+                <TableCell className="text-right">{"\u00A3"}{formatPounds(e.fee)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "pending"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Pending Payments"
+        description={`${filteredData.filter(e => e.paymentStatus === "PENDING").length} pending entries totalling £${formatPounds(pendingTotal)}`}
+      >
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Player</TableHead><TableHead>Session</TableHead><TableHead className="text-right">Fee</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {filteredData.filter(e => e.paymentStatus === "PENDING").slice(0, 15).map(e => (
+              <TableRow key={e.signupId}>
+                <TableCell className="font-medium">{e.playerName}</TableCell>
+                <TableCell>{e.sessionTitle}</TableCell>
+                <TableCell className="text-right">{"\u00A3"}{formatPounds(e.fee)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "collection-rate"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Collection Rate"
+        description={`Current rate: ${collectionRate}%`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(paidTotal)}</div>
+              <div className="text-xs text-muted-foreground">Collected</div>
+            </div>
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className="text-lg font-bold">{"\u00A3"}{formatPounds(totalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">Total Revenue</div>
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Collection rate is calculated as the percentage of total revenue that has been collected (paid). Formula: (Collected / Total Revenue) x 100 = {collectionRate}%
+          </div>
+        </div>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "total-income"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Total Income Breakdown"
+        description={dashboardData ? `Total: £${formatPounds(dashboardData.totalIncome)}` : ""}
+      >
+        {dashboardData && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <span className="text-sm font-medium">Session Income</span>
+                <span className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(dashboardData.sessionIncome)}</span>
+              </div>
+              {dashboardData.inventorySales > 0 && (
+                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <span className="text-sm font-medium">Inventory Sales</span>
+                  <span className="text-lg font-bold text-blue-600">{"\u00A3"}{formatPounds(dashboardData.inventorySales)}</span>
+                </div>
+              )}
+              {dashboardData.membershipPaid > 0 && (
+                <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                  <span className="text-sm font-medium">Membership Paid</span>
+                  <span className="text-lg font-bold text-purple-600">{"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "total-expenses"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Total Expenses Breakdown"
+        description={dashboardData ? `Total: £${formatPounds(dashboardData.totalExpenses)}` : ""}
+      >
+        {dashboardData && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3">
+              {dashboardData.inventoryPurchases > 0 && (
+                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <span className="text-sm font-medium">Inventory Purchases</span>
+                  <span className="text-lg font-bold text-red-600">{"\u00A3"}{formatPounds(dashboardData.inventoryPurchases)}</span>
+                </div>
+              )}
+              {dashboardData.generalExpenses > 0 && (
+                <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                  <span className="text-sm font-medium">General Expenses</span>
+                  <span className="text-lg font-bold text-orange-600">{"\u00A3"}{formatPounds(dashboardData.generalExpenses)}</span>
+                </div>
+              )}
+              {dashboardData.totalExpenses === 0 && (
+                <div className="text-sm text-muted-foreground p-3">No expenses recorded</div>
+              )}
+            </div>
+          </div>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "net-revenue"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Net Revenue"
+        description={dashboardData ? `${dashboardData.netRevenue >= 0 ? "Profit" : "Loss"}: £${formatPounds(Math.abs(dashboardData.netRevenue))}` : ""}
+      >
+        {dashboardData && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(dashboardData.totalIncome)}</div>
+                <div className="text-xs text-muted-foreground">Total Income</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <div className="text-lg font-bold text-red-600">{"\u00A3"}{formatPounds(dashboardData.totalExpenses)}</div>
+                <div className="text-xs text-muted-foreground">Total Expenses</div>
+              </div>
+            </div>
+            <div className={`text-center p-3 rounded-lg ${dashboardData.netRevenue >= 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+              <div className={`text-xl font-bold ${dashboardData.netRevenue >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {dashboardData.netRevenue < 0 ? "-" : ""}{"\u00A3"}{formatPounds(Math.abs(dashboardData.netRevenue))}
+              </div>
+              <div className="text-xs text-muted-foreground">Net Revenue</div>
+            </div>
+          </div>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "stock-usage"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Stock Usage"
+        description={dashboardData ? `${dashboardData.stockUsed} items used` : ""}
+      >
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Stock used represents the total number of inventory items that have been consumed or allocated during sessions. This includes shuttlecocks, equipment, and other consumables tracked through the inventory system.
+          </div>
+        </div>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "membership-revenue"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Membership Members"
+        description={dashboardData ? `${dashboardData.membershipActiveCount} active members - Total: £${formatPounds(dashboardData.membershipTotalRevenue)}` : ""}
+      >
+        {dashboardData && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead>Plan</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {dashboardData.membershipMembers.map(m => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.fullName}</TableCell>
+                  <TableCell>{m.planName}</TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{formatPounds(m.planPrice)}</TableCell>
+                  <TableCell>
+                    <Badge variant={m.paymentStatus === "PAID" ? "default" : "destructive"} className="text-[10px]">
+                      {m.paymentStatus}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "membership-paid"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Paid Members"
+        description={dashboardData ? `${dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "PAID").length} paid members` : ""}
+      >
+        {dashboardData && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead>Plan</TableHead><TableHead className="text-right">Amount</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "PAID").map(m => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.fullName}</TableCell>
+                  <TableCell>{m.planName}</TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{formatPounds(m.planPrice)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "membership-unpaid"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Unpaid Members"
+        description={dashboardData ? `${dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "UNPAID").length} unpaid members` : ""}
+      >
+        {dashboardData && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead>Plan</TableHead><TableHead className="text-right">Amount</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {dashboardData.membershipMembers.filter(m => m.status === "ACTIVE" && m.paymentStatus === "UNPAID").map(m => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.fullName}</TableCell>
+                  <TableCell>{m.planName}</TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{formatPounds(m.planPrice)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "membership-overdue"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Overdue Members"
+        description={dashboardData ? `${dashboardData.membershipMembers.filter(m => m.isOverdue).length} overdue members` : ""}
+      >
+        {dashboardData && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Name</TableHead><TableHead>Plan</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>End Date</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {dashboardData.membershipMembers.filter(m => m.isOverdue).map(m => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.fullName}</TableCell>
+                  <TableCell>{m.planName}</TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{formatPounds(m.planPrice)}</TableCell>
+                  <TableCell>{m.endDate ? format(new Date(m.endDate), "dd MMM yyyy") : "-"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </KpiDetailDialog>
     </div>
   );
 }

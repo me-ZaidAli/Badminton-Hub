@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page-header";
+import { ExpandableChartDialog, KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import {
   BarChart3, Users, TrendingUp, Target, Download, Loader2,
   Activity, Award, ArrowUpRight, ArrowDownRight, Minus,
@@ -96,6 +97,7 @@ export default function AcquisitionAnalytics() {
   const [clubId, setClubId] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("overview");
+  const [kpiDetail, setKpiDetail] = useState<string | null>(null);
 
   const queryParams = new URLSearchParams();
   if (dateFrom) queryParams.set("dateFrom", dateFrom);
@@ -278,7 +280,7 @@ export default function AcquisitionAnalytics() {
           {data && (
             <>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card data-testid="card-total-users">
+                <Card data-testid="card-total-users" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("total-users")}>
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
                     <Users className="h-4 w-4 text-muted-foreground" />
@@ -290,7 +292,7 @@ export default function AcquisitionAnalytics() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card data-testid="card-new-this-month">
+                <Card data-testid="card-new-this-month" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("new-this-month")}>
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">New This Month</CardTitle>
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -311,7 +313,7 @@ export default function AcquisitionAnalytics() {
                     </div>
                   </CardContent>
                 </Card>
-                <Card data-testid="card-premium-users">
+                <Card data-testid="card-premium-users" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("premium-users")}>
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
                       {data.summary.membershipPlanNames && data.summary.membershipPlanNames.length > 0
@@ -329,7 +331,7 @@ export default function AcquisitionAnalytics() {
                     )}
                   </CardContent>
                 </Card>
-                <Card data-testid="card-organic-ratio">
+                <Card data-testid="card-organic-ratio" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("organic-ratio")}>
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Organic Ratio</CardTitle>
                     <Activity className="h-4 w-4 text-muted-foreground" />
@@ -351,22 +353,44 @@ export default function AcquisitionAnalytics() {
                   </CardHeader>
                   <CardContent className="overflow-hidden">
                     {data.signupsPerMonth.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={280}>
-                        <LineChart data={data.signupsPerMonth}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Legend />
-                          <Line type="monotone" dataKey="signups" stroke="hsl(var(--primary))" strokeWidth={2} name="Signups" />
-                        </LineChart>
-                      </ResponsiveContainer>
+                      <ExpandableChartDialog
+                        title="Monthly Signups & Growth"
+                        expandedChart={
+                          <ResponsiveContainer width="100%" height={550}>
+                            <LineChart data={data.signupsPerMonth}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                              <XAxis dataKey="month" tick={{ fontSize: 13 }} />
+                              <YAxis tick={{ fontSize: 13 }} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "hsl(var(--card))",
+                                  border: "1px solid hsl(var(--border))",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: "14px" }} />
+                              <Line type="monotone" dataKey="signups" stroke="hsl(var(--primary))" strokeWidth={3} name="Signups" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        }
+                      >
+                        <ResponsiveContainer width="100%" height={280}>
+                          <LineChart data={data.signupsPerMonth}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 11 }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <Legend />
+                            <Line type="monotone" dataKey="signups" stroke="hsl(var(--primary))" strokeWidth={2} name="Signups" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </ExpandableChartDialog>
                     ) : (
                       <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
                         No signup data yet
@@ -384,37 +408,69 @@ export default function AcquisitionAnalytics() {
                   </CardHeader>
                   <CardContent className="overflow-hidden">
                     {channelPieData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={320}>
-                        <PieChart>
-                          <Pie
-                            data={channelPieData}
-                            cx="50%"
-                            cy="40%"
-                            outerRadius={80}
-                            innerRadius={30}
-                            dataKey="value"
-                            label={false}
-                          >
-                            {channelPieData.map((_, index) => (
-                              <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
-                              borderRadius: "8px",
-                            }}
-                            formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
-                          />
-                          <Legend
-                            layout="horizontal"
-                            verticalAlign="bottom"
-                            align="center"
-                            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <ExpandableChartDialog
+                        title="Signups by Channel"
+                        expandedChart={
+                          <ResponsiveContainer width="100%" height={550}>
+                            <PieChart>
+                              <Pie
+                                data={channelPieData}
+                                cx="50%"
+                                cy="45%"
+                                outerRadius={180}
+                                innerRadius={70}
+                                dataKey="value"
+                                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              >
+                                {channelPieData.map((_, index) => (
+                                  <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "hsl(var(--card))",
+                                  border: "1px solid hsl(var(--border))",
+                                  borderRadius: "8px",
+                                }}
+                                formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
+                              />
+                              <Legend wrapperStyle={{ fontSize: "14px", paddingTop: "12px" }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        }
+                      >
+                        <ResponsiveContainer width="100%" height={320}>
+                          <PieChart>
+                            <Pie
+                              data={channelPieData}
+                              cx="50%"
+                              cy="40%"
+                              outerRadius={80}
+                              innerRadius={30}
+                              dataKey="value"
+                              label={false}
+                            >
+                              {channelPieData.map((_, index) => (
+                                <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
+                            />
+                            <Legend
+                              layout="horizontal"
+                              verticalAlign="bottom"
+                              align="center"
+                              wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </ExpandableChartDialog>
                     ) : (
                       <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
                         No channel data yet
@@ -442,6 +498,28 @@ export default function AcquisitionAnalytics() {
                 </CardHeader>
                 <CardContent className="overflow-hidden">
                   {qualityScoreData.length > 0 ? (
+                    <ExpandableChartDialog
+                      title="Channel Quality Scores"
+                      description="Weighted score: 40% Membership conversion + 30% Retention + 30% Activity"
+                      expandedChart={
+                        <ResponsiveContainer width="100%" height={Math.max(400, qualityScoreData.length * 55)}>
+                          <BarChart data={qualityScoreData} layout="vertical" margin={{ left: 10, right: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis type="number" tick={{ fontSize: 13 }} domain={[0, 100]} />
+                            <YAxis dataKey="channel" type="category" tick={{ fontSize: 13 }} width={120} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: number) => [`${value}`, "Quality Score"]}
+                            />
+                            <Bar dataKey="score" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      }
+                    >
                     <ResponsiveContainer width="100%" height={Math.max(200, qualityScoreData.length * 40)}>
                       <BarChart data={qualityScoreData} layout="vertical" margin={{ left: 10, right: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -458,6 +536,7 @@ export default function AcquisitionAnalytics() {
                         <Bar dataKey="score" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                    </ExpandableChartDialog>
                   ) : (
                     <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
                       No data available yet
@@ -535,6 +614,28 @@ export default function AcquisitionAnalytics() {
               <CardContent className="overflow-hidden">
                 {retentionData.length > 0 ? (
                   <>
+                    <ExpandableChartDialog
+                      title="Retention by Acquisition Channel"
+                      description="Users active within 30 days, for accounts older than 90 days"
+                      expandedChart={
+                        <ResponsiveContainer width="100%" height={500}>
+                          <BarChart data={retentionData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis dataKey="channel" tick={{ fontSize: 13, angle: -20, textAnchor: "end" }} height={60} interval={0} />
+                            <YAxis tick={{ fontSize: 13 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: number) => [`${value}%`, "Retention"]}
+                            />
+                            <Bar dataKey="rate" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      }
+                    >
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={retentionData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -551,6 +652,7 @@ export default function AcquisitionAnalytics() {
                         <Bar dataKey="rate" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                    </ExpandableChartDialog>
                     <div className="mt-4 overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -591,7 +693,7 @@ export default function AcquisitionAnalytics() {
         <TabsContent value="referrals" className="space-y-6">
           {data && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <Card data-testid="card-ref-total">
+              <Card data-testid="card-ref-total" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("ref-total")}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Codes Generated</CardTitle>
                 </CardHeader>
@@ -599,7 +701,7 @@ export default function AcquisitionAnalytics() {
                   <div className="text-3xl font-bold">{data.referralEffectiveness.totalCodes}</div>
                 </CardContent>
               </Card>
-              <Card data-testid="card-ref-used">
+              <Card data-testid="card-ref-used" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("ref-used")}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Codes Used</CardTitle>
                 </CardHeader>
@@ -607,7 +709,7 @@ export default function AcquisitionAnalytics() {
                   <div className="text-3xl font-bold">{data.referralEffectiveness.used}</div>
                 </CardContent>
               </Card>
-              <Card data-testid="card-ref-approved">
+              <Card data-testid="card-ref-approved" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("ref-approved")}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Approved</CardTitle>
                 </CardHeader>
@@ -615,7 +717,7 @@ export default function AcquisitionAnalytics() {
                   <div className="text-3xl font-bold">{data.referralEffectiveness.approved}</div>
                 </CardContent>
               </Card>
-              <Card data-testid="card-ref-conversion">
+              <Card data-testid="card-ref-conversion" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("ref-conversion")}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Usage Rate</CardTitle>
                 </CardHeader>
@@ -623,7 +725,7 @@ export default function AcquisitionAnalytics() {
                   <div className="text-3xl font-bold">{data.referralEffectiveness.conversionRate}%</div>
                 </CardContent>
               </Card>
-              <Card data-testid="card-ref-approval-rate">
+              <Card data-testid="card-ref-approval-rate" className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("ref-approval-rate")}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Approval Rate</CardTitle>
                 </CardHeader>
@@ -735,6 +837,175 @@ export default function AcquisitionAnalytics() {
           )}
         </TabsContent>
       </Tabs>
+
+      {data && (
+        <>
+          <KpiDetailDialog
+            open={kpiDetail === "total-users"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Total Users Breakdown"
+            description="User distribution across acquisition channels"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Channel</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                  <TableHead className="text-right">Share</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(data.signupsByChannel).map(([ch, count]) => (
+                  <TableRow key={ch}>
+                    <TableCell>{CHANNEL_LABELS[ch] || ch}</TableCell>
+                    <TableCell className="text-right">{count}</TableCell>
+                    <TableCell className="text-right">{data.summary.totalUsers > 0 ? ((count / data.summary.totalUsers) * 100).toFixed(1) : 0}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "new-this-month"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Monthly Signups Trend"
+            description="Signup counts and month-over-month growth"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Month</TableHead>
+                  <TableHead className="text-right">Signups</TableHead>
+                  <TableHead className="text-right">Growth</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.signupsPerMonth.map((row) => (
+                  <TableRow key={row.month}>
+                    <TableCell>{row.month}</TableCell>
+                    <TableCell className="text-right">{row.signups}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={row.growth > 0 ? "default" : row.growth < 0 ? "destructive" : "secondary"}>
+                        {row.growth > 0 ? "+" : ""}{row.growth}%
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "premium-users"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Membership Conversion by Channel"
+            description="Breakdown of membership conversions across acquisition channels"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Channel</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Members</TableHead>
+                  <TableHead className="text-right">Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(data.premiumConversionByChannel).map(([ch, val]) => (
+                  <TableRow key={ch}>
+                    <TableCell>{CHANNEL_LABELS[ch] || ch}</TableCell>
+                    <TableCell className="text-right">{val.total}</TableCell>
+                    <TableCell className="text-right">{val.premium}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={val.rate > 20 ? "default" : "secondary"}>
+                        {val.rate}%
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "organic-ratio"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Organic vs Referral Breakdown"
+            description="Channel breakdown showing organic (non-referral) and referral sources"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Channel</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                  <TableHead className="text-right">Share</TableHead>
+                  <TableHead className="text-right">Organic?</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(data.signupsByChannel).map(([ch, count]) => (
+                  <TableRow key={ch}>
+                    <TableCell>{CHANNEL_LABELS[ch] || ch}</TableCell>
+                    <TableCell className="text-right">{count}</TableCell>
+                    <TableCell className="text-right">{data.summary.totalUsers > 0 ? ((count / data.summary.totalUsers) * 100).toFixed(1) : 0}%</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={ch !== "REFERRAL" ? "default" : "secondary"}>
+                        {ch !== "REFERRAL" ? "Yes" : "No"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "ref-total"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Total Codes Generated"
+            description="The total number of unique referral codes that have been generated by members. Each member can create referral codes to invite new users to join."
+          >
+            <p className="text-sm text-muted-foreground">Current total: <span className="font-semibold text-foreground">{data.referralEffectiveness.totalCodes}</span> codes generated across all members.</p>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "ref-used"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Codes Used"
+            description="The number of referral codes that have been redeemed by new users during signup. This shows how many invitations have been acted upon."
+          >
+            <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{data.referralEffectiveness.used}</span> out of <span className="font-semibold text-foreground">{data.referralEffectiveness.totalCodes}</span> codes have been used by new signups.</p>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "ref-approved"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Approved Referrals"
+            description="The number of referred users who have been approved by an admin. Approval confirms the referral is valid and the new member meets club requirements."
+          >
+            <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{data.referralEffectiveness.approved}</span> referrals have been reviewed and approved by administrators.</p>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "ref-conversion"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Usage Rate"
+            description="The percentage of generated referral codes that have actually been used by new users. A higher usage rate indicates referrers are effectively sharing their codes."
+          >
+            <p className="text-sm text-muted-foreground">Usage rate: <span className="font-semibold text-foreground">{data.referralEffectiveness.conversionRate}%</span> ({data.referralEffectiveness.used} used out of {data.referralEffectiveness.totalCodes} generated).</p>
+          </KpiDetailDialog>
+
+          <KpiDetailDialog
+            open={kpiDetail === "ref-approval-rate"}
+            onOpenChange={(open) => !open && setKpiDetail(null)}
+            title="Approval Rate"
+            description="The percentage of used referral codes that have been approved. This measures the quality of referred users and how many pass the approval process."
+          >
+            <p className="text-sm text-muted-foreground">Approval rate: <span className="font-semibold text-foreground">{data.referralEffectiveness.approvalRate}%</span> ({data.referralEffectiveness.approved} approved out of {data.referralEffectiveness.used} used).</p>
+          </KpiDetailDialog>
+        </>
+      )}
     </div>
   );
 }

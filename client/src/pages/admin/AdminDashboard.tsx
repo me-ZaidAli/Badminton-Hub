@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, Gift, BarChart3, Bell } from "lucide-react";
 import { useState } from "react";
 
@@ -43,6 +45,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [downloadingUsers, setDownloadingUsers] = useState(false);
   const [downloadingAttendance, setDownloadingAttendance] = useState(false);
+  const [kpiDetail, setKpiDetail] = useState<string | null>(null);
 
   const isOwner = user?.role === "OWNER";
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
@@ -102,7 +105,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/50" data-testid="card-total-clubs">
+        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-clubs" onClick={() => setKpiDetail("total-clubs")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Clubs</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -116,7 +119,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50" data-testid="card-total-members">
+        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-members" onClick={() => setKpiDetail("total-members")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Players</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -130,7 +133,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50" data-testid="card-total-sessions">
+        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-sessions" onClick={() => setKpiDetail("total-sessions")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -144,7 +147,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50" data-testid="card-total-matches">
+        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-matches" onClick={() => setKpiDetail("total-matches")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Matches</CardTitle>
             <Trophy className="h-4 w-4 text-muted-foreground" />
@@ -158,7 +161,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50" data-testid="card-pending-approvals">
+        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-pending-approvals" onClick={() => setKpiDetail("pending-approvals")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approvals</CardTitle>
             <UserCheck className="h-4 w-4 text-muted-foreground" />
@@ -422,6 +425,108 @@ export default function AdminDashboard() {
           </Card>
         )}
       </div>
+
+      <KpiDetailDialog
+        open={kpiDetail !== null}
+        onOpenChange={(open) => { if (!open) setKpiDetail(null); }}
+        title={
+          kpiDetail === "total-clubs" ? "All Clubs" :
+          kpiDetail === "total-members" ? "Players by Club" :
+          kpiDetail === "total-sessions" ? "Sessions by Club" :
+          kpiDetail === "total-matches" ? "Matches by Club" :
+          kpiDetail === "pending-approvals" ? "Pending Approvals" : ""
+        }
+        description={
+          kpiDetail === "total-clubs" ? `${totalClubs} clubs registered` :
+          kpiDetail === "total-members" ? `${totalPlayers} total players across all clubs` :
+          kpiDetail === "total-sessions" ? `${totalSessions} total sessions, ${upcomingSessions} upcoming` :
+          kpiDetail === "total-matches" ? `${totalMatches} total matches played` :
+          kpiDetail === "pending-approvals" ? `${pendingCount} users awaiting approval` : undefined
+        }
+      >
+        {kpiDetail === "total-clubs" && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Club Name</TableHead><TableHead className="text-right">Players</TableHead><TableHead className="text-right">Sessions</TableHead><TableHead>Status</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {analytics?.clubs?.map((club) => (
+                <TableRow key={club.clubId}>
+                  <TableCell className="font-medium">{club.clubName}</TableCell>
+                  <TableCell className="text-right">{club.totalPlayers}</TableCell>
+                  <TableCell className="text-right">{club.totalSessions}</TableCell>
+                  <TableCell><Badge variant={club.status === "APPROVED" ? "default" : "secondary"}>{club.status}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {kpiDetail === "total-members" && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Club Name</TableHead><TableHead className="text-right">Players</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {analytics?.clubs?.map((club) => (
+                <TableRow key={club.clubId}>
+                  <TableCell className="font-medium">{club.clubName}</TableCell>
+                  <TableCell className="text-right">{club.totalPlayers}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {kpiDetail === "total-sessions" && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Club Name</TableHead><TableHead className="text-right">Sessions</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {analytics?.clubs?.map((club) => (
+                <TableRow key={club.clubId}>
+                  <TableCell className="font-medium">{club.clubName}</TableCell>
+                  <TableCell className="text-right">{club.totalSessions}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {kpiDetail === "total-matches" && (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Club Name</TableHead><TableHead className="text-right">Total Matches</TableHead><TableHead className="text-right">Revenue</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {analytics?.clubs?.map((club) => (
+                <TableRow key={club.clubId}>
+                  <TableCell className="font-medium">{club.clubName}</TableCell>
+                  <TableCell className="text-right">{club.totalMatches}</TableCell>
+                  <TableCell className="text-right">{club.totalRevenue.toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {kpiDetail === "pending-approvals" && (
+          pendingUsers && pendingUsers.length > 0 ? (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Name</TableHead><TableHead>Email</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {pendingUsers.map((u: any) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.fullName}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-muted-foreground text-sm py-4 text-center">No pending approvals</p>
+          )
+        )}
+      </KpiDetailDialog>
 
       {isOwner && (
         <div className="space-y-4">

@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ExpandableChartDialog } from "@/components/ExpandableChartDialog";
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -517,20 +518,15 @@ export default function AttendanceAnalytics() {
                   By Attendance Rate
                 </Button>
               </div>
-              <Card data-testid="card-top-members-chart">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <BarChart3 className="h-4 w-4" />
-                    Top Members by {topSortBy === "total" ? "Attendances" : "Attendance Rate"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="overflow-hidden">
-                  {sortedTopMembers.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(280, sortedTopMembers.length * 32)}>
-                      <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 10 }}>
+              <ExpandableChartDialog
+                title={`Top Members by ${topSortBy === "total" ? "Attendances" : "Attendance Rate"}`}
+                expandedChart={
+                  sortedTopMembers.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={Math.max(500, sortedTopMembers.length * 40)}>
+                      <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis type="number" tick={{ fontSize: 11 }} />
-                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
+                        <XAxis type="number" tick={{ fontSize: 12 }} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={140} />
                         <Tooltip contentStyle={tooltipStyle} />
                         <Bar
                           dataKey={topSortBy === "total" ? "totalAttendances" : "attendanceRate"}
@@ -546,12 +542,46 @@ export default function AttendanceAnalytics() {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                      No attendance data yet
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div className="h-[500px] flex items-center justify-center text-muted-foreground">No data</div>
+                  )
+                }
+              >
+                <Card data-testid="card-top-members-chart">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BarChart3 className="h-4 w-4" />
+                      Top Members by {topSortBy === "total" ? "Attendances" : "Attendance Rate"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="overflow-hidden">
+                    {sortedTopMembers.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={Math.max(280, sortedTopMembers.length * 32)}>
+                        <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} />
+                          <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Bar
+                            dataKey={topSortBy === "total" ? "totalAttendances" : "attendanceRate"}
+                            fill="hsl(var(--primary))"
+                            radius={[0, 4, 4, 0]}
+                            cursor="pointer"
+                            onClick={(entry: any) => {
+                              if (entry?.profileId) {
+                                setMemberModal(entry.profileId);
+                              }
+                            }}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
+                        No attendance data yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </ExpandableChartDialog>
             </>
           )}
         </TabsContent>
@@ -559,21 +589,15 @@ export default function AttendanceAnalytics() {
         {/* Distribution Tab */}
         <TabsContent value="distribution" className="space-y-6">
           {data && (
-            <Card data-testid="card-distribution-chart">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <BarChart3 className="h-4 w-4" />
-                  Attendance Frequency Distribution
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Members grouped by attendance frequency</p>
-              </CardHeader>
-              <CardContent className="overflow-hidden">
-                {data.distribution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
+            <ExpandableChartDialog
+              title="Attendance Frequency Distribution"
+              expandedChart={
+                data.distribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={500}>
                     <BarChart data={data.distribution}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
+                      <XAxis dataKey="bucket" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value}`, "Members"]} />
                       <Bar
                         dataKey="count"
@@ -591,12 +615,49 @@ export default function AttendanceAnalytics() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-                    No distribution data yet
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  <div className="h-[500px] flex items-center justify-center text-muted-foreground">No data</div>
+                )
+              }
+            >
+              <Card data-testid="card-distribution-chart">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BarChart3 className="h-4 w-4" />
+                    Attendance Frequency Distribution
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Members grouped by attendance frequency</p>
+                </CardHeader>
+                <CardContent className="overflow-hidden">
+                  {data.distribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={data.distribution}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value}`, "Members"]} />
+                        <Bar
+                          dataKey="count"
+                          fill="hsl(220, 70%, 55%)"
+                          radius={[4, 4, 0, 0]}
+                          cursor="pointer"
+                          onClick={(entry: any) => {
+                            if (entry?.bucket) {
+                              setDistBucket(entry.bucket);
+                              setDistSearch("");
+                              setDistPage(0);
+                            }
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                      No distribution data yet
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </ExpandableChartDialog>
           )}
         </TabsContent>
 
@@ -624,16 +685,11 @@ export default function AttendanceAnalytics() {
                   Show Unique Members
                 </Button>
               </div>
-              <Card data-testid="card-over-time-chart">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4" />
-                    Attendance Over Time
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="overflow-hidden">
-                  {data.overTime.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
+              <ExpandableChartDialog
+                title="Attendance Over Time"
+                expandedChart={
+                  data.overTime.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={500}>
                       <LineChart
                         data={data.overTime}
                         onClick={(e: any) => {
@@ -645,8 +701,8 @@ export default function AttendanceAnalytics() {
                         }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
+                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 12 }} />
                         <Tooltip contentStyle={tooltipStyle} />
                         <Legend />
                         <Line type="monotone" dataKey="attendances" stroke="hsl(var(--primary))" strokeWidth={2} name="Attendances" />
@@ -659,12 +715,52 @@ export default function AttendanceAnalytics() {
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-                      No time series data yet
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div className="h-[500px] flex items-center justify-center text-muted-foreground">No data</div>
+                  )
+                }
+              >
+                <Card data-testid="card-over-time-chart">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <TrendingUp className="h-4 w-4" />
+                      Attendance Over Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="overflow-hidden">
+                    {data.overTime.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart
+                          data={data.overTime}
+                          onClick={(e: any) => {
+                            if (e?.activeLabel) {
+                              setDateDetailModal(e.activeLabel);
+                              setDateSearch("");
+                              setDatePage(0);
+                            }
+                          }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Legend />
+                          <Line type="monotone" dataKey="attendances" stroke="hsl(var(--primary))" strokeWidth={2} name="Attendances" />
+                          {showSessions && (
+                            <Line type="monotone" dataKey="sessions" stroke="hsl(220, 70%, 55%)" strokeWidth={2} name="Sessions Held" />
+                          )}
+                          {showUniqueMembers && (
+                            <Line type="monotone" dataKey="uniqueMembers" stroke="hsl(160, 60%, 45%)" strokeWidth={2} name="Unique Members" />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
+                        No time series data yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </ExpandableChartDialog>
             </>
           )}
         </TabsContent>

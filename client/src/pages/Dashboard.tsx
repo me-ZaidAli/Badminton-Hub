@@ -18,6 +18,8 @@ import {
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift
 } from "lucide-react";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
+import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
@@ -164,6 +166,7 @@ function DashboardContent({
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [kpiDetail, setKpiDetail] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -393,7 +396,7 @@ function DashboardContent({
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
-        <Card>
+        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("club-sessions")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
@@ -405,7 +408,7 @@ function DashboardContent({
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">in this club</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("my-sessions")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10">
@@ -417,7 +420,7 @@ function DashboardContent({
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover-elevate" onClick={() => navigate("/my-sessions")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Upcoming</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
@@ -429,7 +432,7 @@ function DashboardContent({
             <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("played")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Played</CardTitle>
             <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/10">
@@ -442,6 +445,71 @@ function DashboardContent({
           </CardContent>
         </Card>
       </div>
+
+      <KpiDetailDialog open={kpiDetail === "club-sessions"} onOpenChange={(o) => !o && setKpiDetail(null)} title="Club Sessions" description={`${totalSessionsCount} sessions in this club`}>
+        {filteredSessions.length > 0 ? (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Title</TableHead><TableHead>Date</TableHead><TableHead>Time</TableHead><TableHead className="text-right">Courts</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {filteredSessions.slice(0, 20).map((s: any) => (
+                <TableRow key={s.id}>
+                  <TableCell className="font-medium">{s.title || "Untitled"}</TableCell>
+                  <TableCell>{format(new Date(s.date), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{s.startTime}</TableCell>
+                  <TableCell className="text-right">{s.courtsAvailable}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-muted-foreground text-sm py-4 text-center">No sessions found</p>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog open={kpiDetail === "my-sessions"} onOpenChange={(o) => !o && setKpiDetail(null)} title="My Sessions" description={`${mySessionsList.length} sessions signed up`}>
+        {mySessionsList.length > 0 ? (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Title</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Fee</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {mySessionsList.slice(0, 20).map((s: any) => (
+                <TableRow key={s.sessionId}>
+                  <TableCell className="font-medium">{s.sessionTitle || "Untitled"}</TableCell>
+                  <TableCell>{format(new Date(s.sessionDate), "MMM d, yyyy")}</TableCell>
+                  <TableCell><Badge variant="outline" className="text-[10px]">{s.signupStatus}</Badge></TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{s.fee ?? 0}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-muted-foreground text-sm py-4 text-center">No sessions found</p>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog open={kpiDetail === "played"} onOpenChange={(o) => !o && setKpiDetail(null)} title="Sessions Played" description={`${myPlayedCount} sessions completed`}>
+        {myPlayedCount > 0 ? (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Title</TableHead><TableHead>Date</TableHead><TableHead>Payment</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {mySessionsList.filter((s: any) => isPast(new Date(s.sessionDate)) && s.sessionStatus !== "ACTIVE").slice(0, 20).map((s: any) => (
+                <TableRow key={s.sessionId}>
+                  <TableCell className="font-medium">{s.sessionTitle || "Untitled"}</TableCell>
+                  <TableCell>{format(new Date(s.sessionDate), "MMM d, yyyy")}</TableCell>
+                  <TableCell><Badge variant="outline" className="text-[10px]">{s.paymentStatus || "N/A"}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-muted-foreground text-sm py-4 text-center">No completed sessions</p>
+        )}
+      </KpiDetailDialog>
 
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
         <CardContent className="p-5">
