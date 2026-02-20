@@ -34,7 +34,7 @@ function useNavItems() {
         items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
       }
       items.push({ label: "God's Mode", href: "/super-admin", icon: Shield });
-    } else if (user.role === "ADMIN" || hasClubAdminAccess) {
+    } else if (user.role === "ADMIN") {
       items.push({ label: "Admin Panel", href: "/admin", icon: ShieldCheck });
     }
 

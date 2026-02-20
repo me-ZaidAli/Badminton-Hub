@@ -68,8 +68,7 @@ function useNavGroups(): NavGroup[] {
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
-  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN" || hasClubAdminAccess || 
-    (user?.playerProfiles || []).some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
 
   const items: NavItem[] = [
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity" },
@@ -94,7 +93,7 @@ function useNavGroups(): NavGroup[] {
     }
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
     items.push({ href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, group: "godmode" });
-  } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
+  } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
   }
