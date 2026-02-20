@@ -12836,6 +12836,8 @@ export async function registerRoutes(
         expiresAt: referrals.expiresAt,
         referredName: referrals.referredName,
         referredEmail: referrals.referredEmail,
+        friendLevel: referrals.friendLevel,
+        friendExperience: referrals.friendExperience,
         referrerName: users.fullName,
         clubId: referrals.clubId,
         clubName: clubs.name,
@@ -12869,6 +12871,8 @@ export async function registerRoutes(
         referrerName: referral.referrerName,
         referredName: referral.referredName,
         referredEmail: referral.referredEmail,
+        friendLevel: referral.friendLevel,
+        friendExperience: referral.friendExperience,
         clubId: referral.clubId,
         clubName: referral.clubName,
       });
