@@ -23,6 +23,7 @@ import {
   Megaphone,
   Ticket,
   Gift,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -81,6 +82,8 @@ function useNavGroups(): NavGroup[] {
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications" },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
+
+    { href: "/guide", label: "User Guide", icon: BookOpen, group: "help" },
   ];
 
   if (user?.role === "OWNER") {
@@ -94,11 +97,12 @@ function useNavGroups(): NavGroup[] {
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
   }
 
-  const groupOrder = ["activity", "club", "comms", "admin", "godmode"];
+  const groupOrder = ["activity", "club", "comms", "help", "admin", "godmode"];
   const groupLabels: Record<string, string> = {
     activity: "Activity",
     club: "Club",
     comms: "Communication",
+    help: "Help",
     admin: "Management",
     godmode: "Super Admin",
   };

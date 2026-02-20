@@ -87,6 +87,7 @@ const PolicyPage = lazy(() => import("@/pages/PolicyPage"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TermsConditions = lazy(() => import("@/pages/TermsConditions"));
 const JuniorConsentPolicy = lazy(() => import("@/pages/JuniorConsentPolicy"));
+const UserGuide = lazy(() => import("@/pages/UserGuide"));
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -387,6 +388,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         <PrivateRoute component={Profile} />
+      </Route>
+      <Route path="/guide">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><UserGuide /></Suspense>} />
       </Route>
       <Route path="/memberships">
         <PrivateRoute component={Memberships} />
