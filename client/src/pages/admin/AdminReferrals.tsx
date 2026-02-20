@@ -29,6 +29,8 @@ interface AdminReferral {
   referrerEmail: string;
   referredName: string | null;
   referredEmail: string | null;
+  friendLevel: string | null;
+  friendExperience: string | null;
   referredUserId: number | null;
   referredUserName: string | null;
   clubId: number | null;
@@ -406,6 +408,16 @@ export default function AdminReferrals() {
                               <div className="text-muted-foreground text-xs">Not yet used</div>
                             )}
                           </div>
+                          {(ref.friendLevel || ref.friendExperience) && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              {ref.friendLevel && (
+                                <span>Level: <span className="font-medium text-foreground">{ref.friendLevel}</span></span>
+                              )}
+                              {ref.friendExperience && (
+                                <span>Experience: <span className="font-medium text-foreground">{ref.friendExperience}</span></span>
+                              )}
+                            </div>
+                          )}
                           {ref.clubName && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Building2 className="h-3 w-3" />

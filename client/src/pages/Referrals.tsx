@@ -453,6 +453,8 @@ export default function Referrals() {
   const [generateDialog, setGenerateDialog] = useState(false);
   const [referredName, setReferredName] = useState("");
   const [referredEmail, setReferredEmail] = useState("");
+  const [friendLevel, setFriendLevel] = useState("");
+  const [friendExperience, setFriendExperience] = useState("");
   const [selectedClubId, setSelectedClubId] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -467,7 +469,7 @@ export default function Referrals() {
   const perClubStats = data?.perClubStats || [];
 
   const generateMutation = useMutation({
-    mutationFn: async (data: { referredName?: string; referredEmail?: string; clubId: number }) => {
+    mutationFn: async (data: { referredName: string; referredEmail: string; friendLevel: string; friendExperience: string; clubId: number }) => {
       const res = await apiRequest("POST", "/api/referrals/generate", data);
       return res.json();
     },
@@ -476,6 +478,8 @@ export default function Referrals() {
       setGenerateDialog(false);
       setReferredName("");
       setReferredEmail("");
+      setFriendLevel("");
+      setFriendExperience("");
       setSelectedClubId("");
       toast({ title: "Referral Code Generated", description: "Your new referral code is ready to share." });
     },
@@ -639,7 +643,7 @@ export default function Referrals() {
               <p className="text-xs text-muted-foreground">Each code is linked to a specific club's referral program</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="referred-name">Friend's Name (optional)</Label>
+              <Label htmlFor="referred-name">Friend's Name <span className="text-destructive">*</span></Label>
               <Input
                 id="referred-name"
                 placeholder="e.g. John Smith"
@@ -649,7 +653,7 @@ export default function Referrals() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="referred-email">Friend's Email (optional)</Label>
+              <Label htmlFor="referred-email">Friend's Email <span className="text-destructive">*</span></Label>
               <Input
                 id="referred-email"
                 type="email"
@@ -658,6 +662,35 @@ export default function Referrals() {
                 onChange={(e) => setReferredEmail(e.target.value)}
                 data-testid="input-referred-email"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Friend's Playing Level <span className="text-destructive">*</span></Label>
+              <Select value={friendLevel} onValueChange={setFriendLevel}>
+                <SelectTrigger data-testid="select-friend-level">
+                  <SelectValue placeholder="Select their level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Beginner">Beginner</SelectItem>
+                  <SelectItem value="Intermediate">Intermediate</SelectItem>
+                  <SelectItem value="Advanced">Advanced</SelectItem>
+                  <SelectItem value="Expert">Expert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>How Long Have They Been Playing? <span className="text-destructive">*</span></Label>
+              <Select value={friendExperience} onValueChange={setFriendExperience}>
+                <SelectTrigger data-testid="select-friend-experience">
+                  <SelectValue placeholder="Select experience" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Less than 6 months">Less than 6 months</SelectItem>
+                  <SelectItem value="6 months - 1 year">6 months - 1 year</SelectItem>
+                  <SelectItem value="1 - 2 years">1 - 2 years</SelectItem>
+                  <SelectItem value="2 - 5 years">2 - 5 years</SelectItem>
+                  <SelectItem value="5+ years">5+ years</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="p-3 rounded-md bg-muted/50 space-y-1">
               <p className="text-sm font-medium">How it works</p>
@@ -679,13 +712,31 @@ export default function Referrals() {
                   toast({ title: "Club Required", description: "Please select a club for the referral code.", variant: "destructive" });
                   return;
                 }
+                if (!referredName.trim()) {
+                  toast({ title: "Name Required", description: "Please enter your friend's name.", variant: "destructive" });
+                  return;
+                }
+                if (!referredEmail.trim()) {
+                  toast({ title: "Email Required", description: "Please enter your friend's email address.", variant: "destructive" });
+                  return;
+                }
+                if (!friendLevel) {
+                  toast({ title: "Level Required", description: "Please select your friend's playing level.", variant: "destructive" });
+                  return;
+                }
+                if (!friendExperience) {
+                  toast({ title: "Experience Required", description: "Please select how long your friend has been playing.", variant: "destructive" });
+                  return;
+                }
                 generateMutation.mutate({
-                  referredName: referredName || undefined,
-                  referredEmail: referredEmail || undefined,
+                  referredName: referredName.trim(),
+                  referredEmail: referredEmail.trim(),
+                  friendLevel,
+                  friendExperience,
                   clubId: Number(selectedClubId),
                 });
               }}
-              disabled={generateMutation.isPending || !selectedClubId}
+              disabled={generateMutation.isPending || !selectedClubId || !referredName.trim() || !referredEmail.trim() || !friendLevel || !friendExperience}
               data-testid="button-generate-confirm"
             >
               {generateMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}

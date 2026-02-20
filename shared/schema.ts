@@ -1089,6 +1089,8 @@ export const referrals = pgTable("referrals", {
   code: text("code").notNull().unique(),
   referredName: text("referred_name"),
   referredEmail: text("referred_email"),
+  friendLevel: text("friend_level"),
+  friendExperience: text("friend_experience"),
   referredUserId: integer("referred_user_id").references(() => users.id),
   clubId: integer("club_id").references(() => clubs.id),
   status: referralStatusEnum("status").default("ACTIVE").notNull(),

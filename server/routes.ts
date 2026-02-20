@@ -12709,6 +12709,8 @@ export async function registerRoutes(
         code: referrals.code,
         referredName: referrals.referredName,
         referredEmail: referrals.referredEmail,
+        friendLevel: referrals.friendLevel,
+        friendExperience: referrals.friendExperience,
         referredUserId: referrals.referredUserId,
         clubId: referrals.clubId,
         status: referrals.status,
@@ -12783,8 +12785,10 @@ export async function registerRoutes(
     try {
       const userId = req.user!.id;
       const body = z.object({
-        referredName: z.string().min(1).optional(),
-        referredEmail: z.string().email().optional(),
+        referredName: z.string().min(1),
+        referredEmail: z.string().email(),
+        friendLevel: z.string().min(1),
+        friendExperience: z.string().min(1),
         clubId: z.number().int(),
       }).parse(req.body);
 
@@ -12805,8 +12809,10 @@ export async function registerRoutes(
       const [newReferral] = await db.insert(referrals).values({
         referrerId: userId,
         code,
-        referredName: body.referredName || null,
-        referredEmail: body.referredEmail || null,
+        referredName: body.referredName,
+        referredEmail: body.referredEmail,
+        friendLevel: body.friendLevel,
+        friendExperience: body.friendExperience,
         clubId: body.clubId,
         status: "ACTIVE",
         expiresAt,
@@ -12991,6 +12997,8 @@ export async function registerRoutes(
         referrerId: referrals.referrerId,
         referredName: referrals.referredName,
         referredEmail: referrals.referredEmail,
+        friendLevel: referrals.friendLevel,
+        friendExperience: referrals.friendExperience,
         referredUserId: referrals.referredUserId,
         clubId: referrals.clubId,
         status: referrals.status,
