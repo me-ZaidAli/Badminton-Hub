@@ -46,6 +46,7 @@ const SuperAdminClubs = lazy(() => import("@/pages/super-admin/SuperAdminClubs")
 const SuperAdminSessions = lazy(() => import("@/pages/super-admin/SuperAdminSessions"));
 const SuperAdminUsersManagement = lazy(() => import("@/pages/super-admin/SuperAdminUsersManagement"));
 const GodMode = lazy(() => import("@/pages/super-admin/GodMode"));
+const SuperAdminReferrals = lazy(() => import("@/pages/super-admin/SuperAdminReferrals"));
 
 const PlayerManagement = lazy(() => import("@/pages/admin/PlayerManagement"));
 const Financials = lazy(() => import("@/pages/admin/Financials"));
@@ -55,6 +56,7 @@ const Memberships = lazy(() => import("@/pages/Memberships"));
 const Referrals = lazy(() => import("@/pages/Referrals"));
 const AdminReferrals = lazy(() => import("@/pages/admin/AdminReferrals"));
 const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
+const AttendanceRewards = lazy(() => import("@/pages/admin/AttendanceRewards"));
 const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
@@ -421,6 +423,9 @@ function Router() {
       <Route path="/admin/notifications">
         <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminNotifications /></Suspense>} />
       </Route>
+      <Route path="/admin/attendance-rewards">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceRewards /></Suspense>} />
+      </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={AdminAnnouncements} />
       </Route>
@@ -480,6 +485,9 @@ function Router() {
       </Route>
       <Route path="/super-admin/god-mode">
         <OwnerRoute component={GodMode} />
+      </Route>
+      <Route path="/super-admin/referrals">
+        <OwnerRoute component={SuperAdminReferrals} />
       </Route>
       
       {/* Fallback */}

@@ -1286,3 +1286,87 @@ export type NotificationScheduleSettings = typeof notificationScheduleSettings.$
 export type InsertNotificationScheduleSettings = z.infer<typeof insertNotificationScheduleSettingsSchema>;
 export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+
+// === REWARDS SYSTEM ===
+export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL"]);
+export const rewardStatusEnum = pgEnum("reward_status", ["AVAILABLE", "USED", "REQUESTED"]);
+
+export interface ReferralLevel {
+  level: number;
+  referralsRequired: number;
+  credits: number;
+  gifts: string;
+  freeSessions: number;
+  unlockDescription: string;
+}
+
+export interface AttendanceRewardConfig {
+  credits: number;
+  gifts: string;
+  freeSessions: number;
+}
+
+export const referralPrograms = pgTable("referral_programs", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  levels: jsonb("levels").$type<ReferralLevel[]>().default([]).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const referralProgramRelations = relations(referralPrograms, ({ one }) => ({
+  club: one(clubs, { fields: [referralPrograms.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [referralPrograms.createdById], references: [users.id] }),
+}));
+
+export const sessionAttendanceRewards = pgTable("session_attendance_rewards", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  sessionsRequired: integer("sessions_required").notNull(),
+  rewardConfig: jsonb("reward_config").$type<AttendanceRewardConfig>().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const sessionAttendanceRewardRelations = relations(sessionAttendanceRewards, ({ one }) => ({
+  club: one(clubs, { fields: [sessionAttendanceRewards.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [sessionAttendanceRewards.createdById], references: [users.id] }),
+}));
+
+export const playerRewardLedger = pgTable("player_reward_ledger", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  rewardType: rewardTypeEnum("reward_type").notNull(),
+  sourceId: integer("source_id"),
+  sourceMilestone: integer("source_milestone"),
+  description: text("description"),
+  credits: integer("credits").default(0).notNull(),
+  gifts: text("gifts"),
+  freeSessions: integer("free_sessions").default(0).notNull(),
+  status: rewardStatusEnum("status").default("AVAILABLE").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const playerRewardLedgerRelations = relations(playerRewardLedger, ({ one }) => ({
+  player: one(users, { fields: [playerRewardLedger.playerId], references: [users.id] }),
+  club: one(clubs, { fields: [playerRewardLedger.clubId], references: [clubs.id] }),
+}));
+
+export const insertReferralProgramSchema = createInsertSchema(referralPrograms).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSessionAttendanceRewardSchema = createInsertSchema(sessionAttendanceRewards).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPlayerRewardLedgerSchema = createInsertSchema(playerRewardLedger).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ReferralProgram = typeof referralPrograms.$inferSelect;
+export type InsertReferralProgram = z.infer<typeof insertReferralProgramSchema>;
+export type SessionAttendanceReward = typeof sessionAttendanceRewards.$inferSelect;
+export type InsertSessionAttendanceReward = z.infer<typeof insertSessionAttendanceRewardSchema>;
+export type PlayerRewardLedgerEntry = typeof playerRewardLedger.$inferSelect;
+export type InsertPlayerRewardLedgerEntry = z.infer<typeof insertPlayerRewardLedgerSchema>;

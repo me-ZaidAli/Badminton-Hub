@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -2491,10 +2491,86 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updateAttendance.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401); 
-    // Add role check here (ADMIN+)
     
     const status = req.body;
-    const updated = await storage.updateSignupStatus(Number(req.params.signupId), status);
+    const signupId = Number(req.params.signupId);
+    const updated = await storage.updateSignupStatus(signupId, status);
+
+    if (status.attendanceStatus === "ATTENDED" && updated) {
+      try {
+        const signup = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId)).then(r => r[0]);
+        if (signup) {
+          const session = await db.select().from(sessions).where(eq(sessions.id, signup.sessionId)).then(r => r[0]);
+          if (session) {
+            const clubId = session.clubId;
+            const profile = await db.select().from(playerProfiles).where(
+              and(eq(playerProfiles.id, signup.profileId))
+            ).then(r => r[0]);
+            if (profile) {
+              const userId = profile.userId;
+              const attendedCount = await db.select({ count: sql<number>`count(*)` })
+                .from(sessionSignups)
+                .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+                .innerJoin(playerProfiles, eq(sessionSignups.profileId, playerProfiles.id))
+                .where(and(
+                  eq(playerProfiles.userId, userId),
+                  eq(sessions.clubId, clubId),
+                  eq(sessionSignups.attendanceStatus, "ATTENDED")
+                )).then(r => Number(r[0]?.count || 0));
+
+              const activeRewards = await db.select().from(sessionAttendanceRewards).where(
+                and(eq(sessionAttendanceRewards.clubId, clubId), eq(sessionAttendanceRewards.isActive, true))
+              );
+
+              for (const reward of activeRewards) {
+                if (reward.sessionsRequired > 0 && attendedCount > 0 && attendedCount % reward.sessionsRequired === 0) {
+                  const milestoneNum = Math.floor(attendedCount / reward.sessionsRequired);
+                  const existingReward = await db.select().from(playerRewardLedger).where(
+                    and(
+                      eq(playerRewardLedger.playerId, userId),
+                      eq(playerRewardLedger.clubId, clubId),
+                      eq(playerRewardLedger.rewardType, "SESSION_ATTENDANCE"),
+                      eq(playerRewardLedger.sourceId, reward.id),
+                      eq(playerRewardLedger.sourceMilestone, milestoneNum)
+                    )
+                  ).then(r => r[0]);
+
+                  if (!existingReward) {
+                    const config = reward.rewardConfig as any;
+                    await db.insert(playerRewardLedger).values({
+                      playerId: userId,
+                      clubId,
+                      rewardType: "SESSION_ATTENDANCE",
+                      sourceId: reward.id,
+                      sourceMilestone: milestoneNum,
+                      description: `Attended ${attendedCount} sessions (milestone ${milestoneNum})`,
+                      credits: config.credits || 0,
+                      gifts: config.gifts || null,
+                      freeSessions: config.freeSessions || 0,
+                      status: "AVAILABLE",
+                    });
+
+                    if (config.credits && config.credits > 0) {
+                      await db.insert(creditLedger).values({
+                        userId,
+                        clubId,
+                        amount: config.credits,
+                        reason: `Session attendance reward: ${attendedCount} sessions milestone`,
+                        createdById: req.user!.id,
+                      });
+                    }
+                    console.log(`[AUDIT] Attendance reward issued: user=${userId}, club=${clubId}, milestone=${milestoneNum}, sessions=${attendedCount}`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error checking attendance milestones:", err);
+      }
+    }
+
     res.json(updated);
   });
 
@@ -13644,6 +13720,334 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error generating monthly report:", err);
       res.status(500).json({ message: "Failed to generate report" });
+    }
+  });
+
+  // === REWARDS SYSTEM ROUTES ===
+
+  // GET /api/clubs/:clubId/referral-programs - List referral programs for a club
+  app.get("/api/clubs/:clubId/referral-programs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const programs = await db.select().from(referralPrograms).where(eq(referralPrograms.clubId, clubId)).orderBy(desc(referralPrograms.createdAt));
+      res.json(programs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/clubs/:clubId/referral-programs - Create referral program (admin/owner only)
+  app.post("/api/clubs/:clubId/referral-programs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { name, description, levels, isActive } = req.body;
+      const [program] = await db.insert(referralPrograms).values({
+        clubId,
+        name,
+        description: description || null,
+        levels: levels || [],
+        isActive: isActive !== false,
+        createdById: user.id,
+      }).returning();
+      console.log(`[AUDIT] Referral program created: id=${program.id}, club=${clubId}, by user=${user.id}`);
+      res.json(program);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/referral-programs/:id - Update referral program
+  app.put("/api/referral-programs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(referralPrograms).where(eq(referralPrograms.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { name, description, levels, isActive } = req.body;
+      const [updated] = await db.update(referralPrograms).set({
+        name: name !== undefined ? name : existing.name,
+        description: description !== undefined ? description : existing.description,
+        levels: levels !== undefined ? levels : existing.levels,
+        isActive: isActive !== undefined ? isActive : existing.isActive,
+        updatedAt: new Date(),
+      }).where(eq(referralPrograms.id, id)).returning();
+      console.log(`[AUDIT] Referral program updated: id=${id}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/referral-programs/:id - Delete referral program
+  app.delete("/api/referral-programs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(referralPrograms).where(eq(referralPrograms.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      await db.delete(referralPrograms).where(eq(referralPrograms.id, id));
+      console.log(`[AUDIT] Referral program deleted: id=${id}, by user=${user.id}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/super-admin/referral-programs - List all referral programs (super admin)
+  app.get("/api/super-admin/referral-programs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.status(403).json({ message: "Super admin only" });
+    try {
+      const programs = await db.select({
+        program: referralPrograms,
+        clubName: clubs.name,
+      }).from(referralPrograms)
+        .leftJoin(clubs, eq(referralPrograms.clubId, clubs.id))
+        .orderBy(desc(referralPrograms.createdAt));
+      res.json(programs.map(p => ({ ...p.program, clubName: p.clubName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/clubs/:clubId/attendance-rewards - List attendance rewards for a club
+  app.get("/api/clubs/:clubId/attendance-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const rewards = await db.select().from(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.clubId, clubId)).orderBy(sessionAttendanceRewards.sessionsRequired);
+      res.json(rewards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/clubs/:clubId/attendance-rewards - Create attendance reward (admin only)
+  app.post("/api/clubs/:clubId/attendance-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { sessionsRequired, rewardConfig, isActive } = req.body;
+      const [reward] = await db.insert(sessionAttendanceRewards).values({
+        clubId,
+        sessionsRequired,
+        rewardConfig,
+        isActive: isActive !== false,
+        createdById: user.id,
+      }).returning();
+      console.log(`[AUDIT] Attendance reward created: id=${reward.id}, club=${clubId}, sessions=${sessionsRequired}, by user=${user.id}`);
+      res.json(reward);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/attendance-rewards/:id - Update attendance reward
+  app.put("/api/attendance-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { sessionsRequired, rewardConfig, isActive } = req.body;
+      const [updated] = await db.update(sessionAttendanceRewards).set({
+        sessionsRequired: sessionsRequired !== undefined ? sessionsRequired : existing.sessionsRequired,
+        rewardConfig: rewardConfig !== undefined ? rewardConfig : existing.rewardConfig,
+        isActive: isActive !== undefined ? isActive : existing.isActive,
+        updatedAt: new Date(),
+      }).where(eq(sessionAttendanceRewards.id, id)).returning();
+      console.log(`[AUDIT] Attendance reward updated: id=${id}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/attendance-rewards/:id - Delete attendance reward
+  app.delete("/api/attendance-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      await db.delete(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.id, id));
+      console.log(`[AUDIT] Attendance reward deleted: id=${id}, by user=${user.id}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-rewards - Get current user's reward ledger
+  app.get("/api/my-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const rewards = await db.select({
+        reward: playerRewardLedger,
+        clubName: clubs.name,
+      }).from(playerRewardLedger)
+        .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
+        .where(eq(playerRewardLedger.playerId, user.id))
+        .orderBy(desc(playerRewardLedger.createdAt));
+      res.json(rewards.map(r => ({ ...r.reward, clubName: r.clubName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-rewards/summary - Get aggregated reward summary
+  app.get("/api/my-rewards/summary", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const rewards = await db.select().from(playerRewardLedger).where(eq(playerRewardLedger.playerId, user.id));
+      const available = rewards.filter(r => r.status === "AVAILABLE");
+      const used = rewards.filter(r => r.status === "USED");
+      const requested = rewards.filter(r => r.status === "REQUESTED");
+      res.json({
+        totalCredits: available.reduce((sum, r) => sum + r.credits, 0),
+        totalFreeSessions: available.reduce((sum, r) => sum + r.freeSessions, 0),
+        totalGifts: available.filter(r => r.gifts).length,
+        usedCredits: used.reduce((sum, r) => sum + r.credits, 0),
+        usedFreeSessions: used.reduce((sum, r) => sum + r.freeSessions, 0),
+        requestedCount: requested.length,
+        totalRewards: rewards.length,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/rewards/:id/request - Request/redeem a reward
+  app.post("/api/rewards/:id/request", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [reward] = await db.select().from(playerRewardLedger).where(and(eq(playerRewardLedger.id, id), eq(playerRewardLedger.playerId, user.id)));
+      if (!reward) return res.status(404).json({ message: "Reward not found" });
+      if (reward.status !== "AVAILABLE") return res.status(400).json({ message: "Reward is not available" });
+
+      const [updated] = await db.update(playerRewardLedger).set({
+        status: "REQUESTED",
+        updatedAt: new Date(),
+      }).where(eq(playerRewardLedger.id, id)).returning();
+      console.log(`[AUDIT] Reward requested: id=${id}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/admin/rewards/:id/status - Admin update reward status
+  app.put("/api/admin/rewards/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [reward] = await db.select().from(playerRewardLedger).where(eq(playerRewardLedger.id, id));
+      if (!reward) return res.status(404).json({ message: "Reward not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { status } = req.body;
+      if (!["AVAILABLE", "USED", "REQUESTED"].includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+      const [updated] = await db.update(playerRewardLedger).set({
+        status,
+        updatedAt: new Date(),
+      }).where(eq(playerRewardLedger.id, id)).returning();
+      console.log(`[AUDIT] Reward status updated: id=${id}, status=${status}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/rewards/issue - Admin manually issue a reward to a player
+  app.post("/api/admin/rewards/issue", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const { playerId, clubId, rewardType, description, credits, gifts, freeSessions } = req.body;
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const [reward] = await db.insert(playerRewardLedger).values({
+        playerId,
+        clubId,
+        rewardType: rewardType || "MANUAL",
+        description: description || "Manually issued reward",
+        credits: credits || 0,
+        gifts: gifts || null,
+        freeSessions: freeSessions || 0,
+        status: "AVAILABLE",
+      }).returning();
+
+      if (credits && credits > 0) {
+        await db.insert(creditLedger).values({
+          userId: playerId,
+          clubId,
+          amount: credits,
+          reason: `Reward: ${description || "Manual reward"}`,
+          createdById: user.id,
+        });
+      }
+
+      console.log(`[AUDIT] Reward issued: id=${reward.id}, player=${playerId}, club=${clubId}, credits=${credits || 0}, by user=${user.id}`);
+      res.json(reward);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

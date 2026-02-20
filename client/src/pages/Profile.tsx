@@ -93,6 +93,135 @@ function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
   );
 }
 
+function ProfileRewardsSection() {
+  const { data: rewards } = useQuery<any[]>({ queryKey: ["/api/my-rewards"] });
+  const { data: summary } = useQuery<any>({ queryKey: ["/api/my-rewards/summary"] });
+  const { toast } = useToast();
+  const [showAll, setShowAll] = useState(false);
+
+  const requestMutation = useMutation({
+    mutationFn: async (rewardId: number) => {
+      await apiRequest("POST", `/api/rewards/${rewardId}/request`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-rewards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-rewards/summary"] });
+      toast({ title: "Reward Requested", description: "Your reward request has been submitted for admin approval." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (!rewards || rewards.length === 0) {
+    if (!summary || summary.totalRewards === 0) return null;
+  }
+
+  const displayedRewards = showAll ? (rewards || []) : (rewards || []).slice(0, 4);
+  const statusColors: Record<string, string> = {
+    AVAILABLE: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    USED: "bg-muted text-muted-foreground",
+    REQUESTED: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  };
+  const typeIcons: Record<string, string> = {
+    REFERRAL: "Referral",
+    SESSION_ATTENDANCE: "Attendance",
+    GIFT: "Gift",
+    MANUAL: "Manual",
+  };
+
+  return (
+    <Card data-testid="card-profile-rewards">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gift className="h-5 w-5 text-emerald-500" />
+            My Rewards
+            {summary && summary.totalRewards > 0 && (
+              <Badge variant="secondary" className="text-xs">{summary.totalRewards}</Badge>
+            )}
+          </CardTitle>
+        </div>
+        <CardDescription>Track your earned rewards, credits, and free sessions</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {summary && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-emerald-500/5 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-reward-credits">
+                {"\u00A3"}{((summary.totalCredits || 0) / 100).toFixed(2)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Available Credits</div>
+            </div>
+            <div className="bg-blue-500/5 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400" data-testid="text-reward-free-sessions">
+                {summary.totalFreeSessions || 0}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Free Sessions</div>
+            </div>
+            <div className="bg-purple-500/5 rounded-lg p-3 text-center">
+              <div className="text-lg font-bold text-purple-600 dark:text-purple-400" data-testid="text-reward-gifts">
+                {summary.totalGifts || 0}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Gifts</div>
+            </div>
+          </div>
+        )}
+
+        {displayedRewards.length > 0 && (
+          <div className="space-y-2">
+            {displayedRewards.map((reward: any) => (
+              <div key={reward.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30" data-testid={`reward-item-${reward.id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium truncate">{reward.description || typeIcons[reward.rewardType]}</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">{typeIcons[reward.rewardType]}</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                    {reward.credits > 0 && <span>{"\u00A3"}{(reward.credits / 100).toFixed(2)} credit</span>}
+                    {reward.freeSessions > 0 && <span>{reward.freeSessions} free session{reward.freeSessions > 1 ? "s" : ""}</span>}
+                    {reward.gifts && <span>{reward.gifts}</span>}
+                    {reward.clubName && <span className="text-muted-foreground/60">- {reward.clubName}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge className={`text-[10px] ${statusColors[reward.status] || ""}`}>{reward.status}</Badge>
+                  {reward.status === "AVAILABLE" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => requestMutation.mutate(reward.id)}
+                      disabled={requestMutation.isPending}
+                      data-testid={`button-request-reward-${reward.id}`}
+                    >
+                      Request
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {rewards && rewards.length > 4 && (
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAll(!showAll)} data-testid="button-toggle-all-rewards">
+            {showAll ? "Show Less" : `View All ${rewards.length} Rewards`}
+            <ChevronRight className={`w-4 h-4 ml-1 transition-transform ${showAll ? "rotate-90" : ""}`} />
+          </Button>
+        )}
+
+        {(!rewards || rewards.length === 0) && (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            <Gift className="h-6 w-6 mx-auto mb-2 opacity-40" />
+            <p>No rewards earned yet</p>
+            <p className="text-xs mt-1">Attend sessions and use referral codes to earn rewards</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function MetricCard({ icon: Icon, label, value, subtext, onClick, className = "" }: {
   icon: typeof Trophy; label: string; value: string | number; subtext?: string;
   onClick?: () => void; className?: string;
@@ -1098,6 +1227,9 @@ export default function Profile() {
           onClick={() => setOutstandingModalOpen(true)}
           className={totalOutstanding > 0 ? "border-amber-300/50 dark:border-amber-700/50" : ""} />
       </div>
+
+      {/* My Rewards */}
+      <ProfileRewardsSection />
 
       {/* Performance Stats - Single card with chart */}
       <Card className="cursor-pointer hover-elevate" onClick={() => setPerformanceModalOpen(true)} data-testid="card-performance">

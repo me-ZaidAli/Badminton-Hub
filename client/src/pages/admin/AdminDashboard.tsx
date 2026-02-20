@@ -318,6 +318,27 @@ export default function AdminDashboard() {
         )}
 
         {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
+            <Link href="/admin/attendance-rewards">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-amber-500" />
+                    Rewards
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Configure session attendance milestone rewards for players.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {!isOrganiserOnly && (
           <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
             <Link href="/admin/memberships">
               <CardHeader>

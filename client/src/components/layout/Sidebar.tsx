@@ -88,6 +88,7 @@ function useNavGroups(): NavGroup[] {
       items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
     }
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
+    items.push({ href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, group: "godmode" });
   } else if (user?.role === "ADMIN" || hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
@@ -150,7 +151,34 @@ export function Sidebar() {
       <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
         {navGroups.map((group) => (
           <div key={group.key}>
-            {group.key === "godmode" ? (
+            {group.key === "admin" ? (
+              <div className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="section-admin-panel">
+                <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400" data-testid="label-admin-section">
+                  <ShieldCheck className="w-3 h-3" /> {group.label}
+                </span>
+                {group.items.map((item) => {
+                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                  const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          isActive
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
+                        )}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <item.icon className="h-5 w-5" />
+                        {item.label}
+                        <BadgeCount count={badgeCount} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : group.key === "godmode" ? (
               <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="section-god-mode">
                 <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-destructive" data-testid="label-super-admin-section">
                   <Zap className="w-3 h-3" /> Super Admin
@@ -297,7 +325,33 @@ export function MobileTopNav() {
           <div className="py-2 px-2 space-y-3">
             {navGroups.map((group) => (
               <div key={group.key}>
-                {group.key === "godmode" ? (
+                {group.key === "admin" ? (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
+                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      <ShieldCheck className="w-3 h-3" /> {group.label}
+                    </span>
+                    {group.items.map((item) => {
+                      const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <Button
+                            variant={isActive ? "default" : "ghost"}
+                            className={cn(
+                              "w-full justify-start gap-3",
+                              isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-emerald-700 dark:text-emerald-400"
+                            )}
+                            size="sm"
+                            onClick={() => setMenuOpen(false)}
+                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.label}
+                          </Button>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : group.key === "godmode" ? (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
                     <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
                       <Zap className="w-3 h-3" /> Super Admin
