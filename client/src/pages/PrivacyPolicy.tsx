@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
             Privacy Policy
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground">Badminton Master App &mdash; Version 1.0 &mdash; Last updated February 2026</p>
+        <p className="text-sm text-muted-foreground">Club Master App &mdash; Version 2.0 &mdash; Last updated February 2026</p>
       </div>
 
       <Card>
@@ -31,8 +31,9 @@ export default function PrivacyPolicy() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            Badminton Master is operated by Dragon Badminton Club &ndash; BPG Ltd, a UK registered company.
-            This app is used to book badminton sessions, manage attendance, process payments, and communicate club information.
+            Club Master is operated by Dragon Badminton Club &ndash; BPG Ltd, a company registered in England and Wales (Company No.{" "}
+            <a href="https://find-and-update.company-information.service.gov.uk/company/16964545" target="_blank" rel="noopener noreferrer" className="text-primary underline">16964545</a>
+            ). This app is used to book badminton sessions, manage attendance, process payments, and communicate club information.
           </p>
         </CardContent>
       </Card>
@@ -42,7 +43,7 @@ export default function PrivacyPolicy() {
           <CardTitle className="text-base">What Data We Collect</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-          <p>We collect and process the following personal data when you use Badminton Master:</p>
+          <p>We collect and process the following personal data when you use Club Master:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>Name and contact details (email address, phone number)</li>
             <li>Date of birth (for age grouping and safeguarding purposes)</li>
@@ -72,6 +73,7 @@ export default function PrivacyPolicy() {
             <li>Improve how the app works and provide support</li>
             <li>Connect coach seekers with qualified coaches</li>
           </ul>
+          <p className="mt-2">For full details on our lawful bases for processing, data retention, and your rights, please refer to <a href="/terms-conditions" className="text-primary underline">Section 7 of our Terms &amp; Conditions</a>.</p>
         </CardContent>
       </Card>
 
@@ -179,7 +181,7 @@ export default function PrivacyPolicy() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            Badminton Master uses essential cookies and session data to keep you logged in and manage your preferences.
+            Club Master uses essential cookies and session data to keep you logged in and manage your preferences.
             We do not use advertising cookies or third-party tracking.
           </p>
         </CardContent>
