@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -12394,7 +12394,74 @@ export async function registerRoutes(
 
   // === REFERRAL SYSTEM ===
 
-  // GET /api/my-referrals - Get current user's referral codes and stats
+  async function getClubReferralSettingsOrDefaults(clubId: number) {
+    const [settings] = await db.select().from(clubReferralSettings).where(eq(clubReferralSettings.clubId, clubId));
+    if (settings) return settings;
+    return {
+      id: 0,
+      clubId,
+      isActive: true,
+      creditAmountPence: 400,
+      premiumThresholdPence: 800,
+      championThresholdPence: 1600,
+      codeExpiryDays: 30,
+      updatedAt: new Date(),
+    };
+  }
+
+  // GET /api/clubs/:clubId/referral-settings - Get referral settings for a club
+  app.get("/api/clubs/:clubId/referral-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const settings = await getClubReferralSettingsOrDefaults(clubId);
+      const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+      res.json({ ...settings, clubName: club?.name || "Unknown Club" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch referral settings" });
+    }
+  });
+
+  // PUT /api/clubs/:clubId/referral-settings - Update referral settings for a club (admin only)
+  app.put("/api/clubs/:clubId/referral-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const clubId = Number(req.params.clubId);
+      if (user.role !== "OWNER") {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const body = z.object({
+        isActive: z.boolean().optional(),
+        creditAmountPence: z.number().int().min(0).optional(),
+        premiumThresholdPence: z.number().int().min(0).optional(),
+        championThresholdPence: z.number().int().min(0).optional(),
+        codeExpiryDays: z.number().int().min(1).max(365).optional(),
+      }).parse(req.body);
+
+      const [existing] = await db.select().from(clubReferralSettings).where(eq(clubReferralSettings.clubId, clubId));
+      if (existing) {
+        const [updated] = await db.update(clubReferralSettings).set({
+          ...body,
+          updatedAt: new Date(),
+        }).where(eq(clubReferralSettings.clubId, clubId)).returning();
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(clubReferralSettings).values({
+          clubId,
+          ...body,
+          updatedAt: new Date(),
+        } as any).returning();
+        res.json(created);
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update referral settings" });
+    }
+  });
+
+  // GET /api/my-referrals - Get current user's referral codes and stats (grouped by club)
   app.get("/api/my-referrals", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -12418,13 +12485,36 @@ export async function registerRoutes(
         .where(eq(referrals.referrerId, userId))
         .orderBy(desc(referrals.createdAt));
 
-      // Auto-expire any active codes past their expiry date
       const now = new Date();
       for (const ref of myReferrals) {
         if (ref.status === "ACTIVE" && new Date(ref.expiresAt) < now) {
           await db.update(referrals).set({ status: "EXPIRED" }).where(eq(referrals.id, ref.id));
           ref.status = "EXPIRED";
         }
+      }
+
+      const clubIds = [...new Set(myReferrals.map(r => r.clubId).filter(Boolean))] as number[];
+      const clubSettingsMap: Record<number, any> = {};
+      for (const cid of clubIds) {
+        clubSettingsMap[cid] = await getClubReferralSettingsOrDefaults(cid);
+      }
+
+      const perClubStats: Record<number, any> = {};
+      for (const cid of clubIds) {
+        const clubRefs = myReferrals.filter(r => r.clubId === cid);
+        const clubSettings = clubSettingsMap[cid];
+        const totalCreditsEarned = clubRefs.reduce((sum, r) => sum + (r.creditAwarded || 0), 0);
+        perClubStats[cid] = {
+          clubId: cid,
+          clubName: clubRefs[0]?.clubName || "Unknown",
+          totalReferrals: clubRefs.length,
+          approvedReferrals: clubRefs.filter(r => r.status === "APPROVED").length,
+          pendingReferrals: clubRefs.filter(r => r.status === "PENDING").length,
+          totalCreditsEarned,
+          premiumEligible: totalCreditsEarned >= clubSettings.premiumThresholdPence,
+          milestoneReached: totalCreditsEarned >= clubSettings.championThresholdPence,
+          settings: clubSettings,
+        };
       }
 
       const totalReferrals = myReferrals.length;
@@ -12442,6 +12532,7 @@ export async function registerRoutes(
           premiumEligible: totalCreditsEarned >= 800,
           milestoneReached: totalCreditsEarned >= 1600,
         },
+        perClubStats: Object.values(perClubStats),
       });
     } catch (err: any) {
       console.error("Error fetching referrals:", err);
@@ -12449,7 +12540,7 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/referrals/generate - Generate a new referral code
+  // POST /api/referrals/generate - Generate a new referral code (clubId required)
   app.post("/api/referrals/generate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -12457,24 +12548,34 @@ export async function registerRoutes(
       const body = z.object({
         referredName: z.string().min(1).optional(),
         referredEmail: z.string().email().optional(),
-        clubId: z.number().int().optional(),
+        clubId: z.number().int(),
       }).parse(req.body);
+
+      const clubSettings = await getClubReferralSettingsOrDefaults(body.clubId);
+      if (!clubSettings.isActive) {
+        return res.status(400).json({ message: "Referral program is not active for this club" });
+      }
+
+      const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, body.clubId));
+      if (!club) {
+        return res.status(404).json({ message: "Club not found" });
+      }
 
       const code = `REF-${randomBytes(4).toString("hex").toUpperCase()}`;
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      expiresAt.setDate(expiresAt.getDate() + clubSettings.codeExpiryDays);
 
       const [newReferral] = await db.insert(referrals).values({
         referrerId: userId,
         code,
         referredName: body.referredName || null,
         referredEmail: body.referredEmail || null,
-        clubId: body.clubId || null,
+        clubId: body.clubId,
         status: "ACTIVE",
         expiresAt,
       }).returning();
 
-      res.status(201).json(newReferral);
+      res.status(201).json({ ...newReferral, clubName: club.name });
     } catch (err: any) {
       console.error("Error generating referral code:", err);
       res.status(500).json({ message: err.message || "Failed to generate referral code" });
@@ -12493,8 +12594,11 @@ export async function registerRoutes(
         referredName: referrals.referredName,
         referredEmail: referrals.referredEmail,
         referrerName: users.fullName,
+        clubId: referrals.clubId,
+        clubName: clubs.name,
       }).from(referrals)
         .leftJoin(users, eq(referrals.referrerId, users.id))
+        .leftJoin(clubs, eq(referrals.clubId, clubs.id))
         .where(eq(referrals.code, code));
 
       if (!referral) {
@@ -12510,11 +12614,20 @@ export async function registerRoutes(
         return res.json({ valid: false, message: "Referral code has expired" });
       }
 
+      if (referral.clubId) {
+        const clubSettings = await getClubReferralSettingsOrDefaults(referral.clubId);
+        if (!clubSettings.isActive) {
+          return res.json({ valid: false, message: "Referral program is not active for this club" });
+        }
+      }
+
       res.json({
         valid: true,
         referrerName: referral.referrerName,
         referredName: referral.referredName,
         referredEmail: referral.referredEmail,
+        clubId: referral.clubId,
+        clubName: referral.clubName,
       });
     } catch (err: any) {
       console.error("Error validating referral:", err);
@@ -12550,7 +12663,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "You cannot use your own referral code" });
       }
 
-      // Prevent duplicate referral for same email
       const existingReferralForEmail = await db.select().from(referrals)
         .where(and(
           eq(referrals.referredEmail, req.user!.email),
@@ -12560,7 +12672,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A referral has already been submitted for this email address" });
       }
 
-      // Update referral to pending
+      let clubName = "the club";
+      if (referral.clubId) {
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, referral.clubId));
+        if (club) clubName = club.name;
+
+        const clubSettings = await getClubReferralSettingsOrDefaults(referral.clubId);
+        if (!clubSettings.isActive) {
+          return res.status(400).json({ message: "Referral program is not active for this club" });
+        }
+      }
+
       await db.update(referrals).set({
         status: "PENDING",
         referredUserId: req.user!.id,
@@ -12569,25 +12691,27 @@ export async function registerRoutes(
         usedAt: new Date(),
       }).where(eq(referrals.id, referral.id));
 
-      // Send notification to referrer
       await db.insert(notifications).values({
         userId: referral.referrerId,
         type: "REFERRAL",
         title: "New Referral Submitted",
-        message: `${req.user!.fullName} has signed up using your referral code ${referral.code}. It's now pending admin approval.`,
+        message: `${req.user!.fullName} has signed up using your referral code ${referral.code} for ${clubName}. It's now pending admin approval.`,
         linkUrl: "/referrals",
         status: "in_progress",
       });
 
-      // Send internal message to referrer
       const systemUser = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
       const senderId = systemUser.length > 0 ? systemUser[0].id : req.user!.id;
       
+      const creditText = referral.clubId
+        ? (await getClubReferralSettingsOrDefaults(referral.clubId)).creditAmountPence
+        : 400;
+
       await db.insert(internalMessages).values({
         senderId,
         recipientId: referral.referrerId,
-        subject: "Thank you for your referral!",
-        body: `Thank you for referring ${req.user!.fullName} to the club! Your referral is now pending admin approval. Once approved, you'll receive £4 credit in your wallet.`,
+        subject: `Thank you for your referral to ${clubName}!`,
+        body: `Thank you for referring ${req.user!.fullName} to ${clubName}! Your referral is now pending admin approval. Once approved, you'll receive \u00A3${(creditText / 100).toFixed(2)} credit in your wallet.`,
         clubId: referral.clubId,
       });
 
@@ -12604,8 +12728,8 @@ export async function registerRoutes(
     try {
       const user = req.user!;
       const statusFilter = req.query.status as string | undefined;
+      const clubFilter = req.query.clubId ? Number(req.query.clubId) : undefined;
 
-      // Get admin's clubs
       let adminClubIds: number[] = [];
       if (user.role === "OWNER") {
         const allClubs = await db.select({ id: clubs.id }).from(clubs);
@@ -12647,11 +12771,12 @@ export async function registerRoutes(
 
       const conditions: any[] = [];
 
-      // Only show referrals for admin's clubs (or with null clubId for OWNER)
-      if (user.role === "OWNER") {
-        // OWNER sees all referrals
-      } else {
+      if (user.role !== "OWNER") {
         conditions.push(inArray(referrals.clubId, adminClubIds));
+      }
+
+      if (clubFilter) {
+        conditions.push(eq(referrals.clubId, clubFilter));
       }
 
       if (statusFilter && statusFilter !== "all") {
@@ -12669,6 +12794,58 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/admin/referrals/analytics - Per-club referral analytics
+  app.get("/api/admin/referrals/analytics", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      let adminClubIds: number[] = [];
+      if (user.role === "OWNER") {
+        const allClubs = await db.select({ id: clubs.id }).from(clubs);
+        adminClubIds = allClubs.map(c => c.id);
+      } else {
+        const profiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, user.id),
+            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
+          ));
+        adminClubIds = profiles.map(p => p.clubId);
+      }
+
+      const analytics: any[] = [];
+      for (const cid of adminClubIds) {
+        const clubRefs = await db.select().from(referrals).where(eq(referrals.clubId, cid));
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, cid));
+        const settings = await getClubReferralSettingsOrDefaults(cid);
+
+        const total = clubRefs.length;
+        const approved = clubRefs.filter(r => r.status === "APPROVED").length;
+        const pending = clubRefs.filter(r => r.status === "PENDING").length;
+        const rejected = clubRefs.filter(r => r.status === "REJECTED").length;
+        const totalCreditsIssued = clubRefs.reduce((sum, r) => sum + (r.creditAwarded || 0), 0);
+
+        analytics.push({
+          clubId: cid,
+          clubName: club?.name || "Unknown",
+          settings,
+          stats: {
+            total,
+            approved,
+            pending,
+            rejected,
+            approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
+            totalCreditsIssued,
+          },
+        });
+      }
+
+      res.json(analytics);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch referral analytics" });
+    }
+  });
+
   // POST /api/admin/referrals/:id/approve - Approve a referral
   app.post("/api/admin/referrals/:id/approve", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -12681,7 +12858,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Cannot approve a referral with status ${referral.status}` });
       }
 
-      // Check admin permission
       const user = req.user!;
       if (user.role !== "OWNER") {
         if (referral.clubId) {
@@ -12692,9 +12868,16 @@ export async function registerRoutes(
         }
       }
 
-      const creditAmount = 400; // £4 in pence
+      let clubName = "the club";
+      let clubSettings = { creditAmountPence: 400, premiumThresholdPence: 800, championThresholdPence: 1600 } as any;
+      if (referral.clubId) {
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, referral.clubId));
+        if (club) clubName = club.name;
+        clubSettings = await getClubReferralSettingsOrDefaults(referral.clubId);
+      }
 
-      // Update referral status
+      const creditAmount = clubSettings.creditAmountPence;
+
       await db.update(referrals).set({
         status: "APPROVED",
         approvedById: user.id,
@@ -12702,45 +12885,45 @@ export async function registerRoutes(
         creditAwarded: creditAmount,
       }).where(eq(referrals.id, refId));
 
-      // Add credit to referrer's wallet
       if (referral.clubId) {
         await db.insert(creditLedger).values({
           userId: referral.referrerId,
           clubId: referral.clubId,
           amount: creditAmount,
-          reason: `Referral reward for referring ${referral.referredName || "a new member"} (code: ${referral.code})`,
+          reason: `Referral reward for ${clubName} - referred ${referral.referredName || "a new member"} (code: ${referral.code})`,
           createdById: user.id,
         });
       }
 
-      // Calculate total credits for milestone checking
-      const allApproved = await db.select().from(referrals)
-        .where(and(eq(referrals.referrerId, referral.referrerId), eq(referrals.status, "APPROVED")));
-      const totalCredits = allApproved.reduce((sum, r) => sum + (r.creditAwarded || 0), 0) + creditAmount;
+      const allApprovedForClub = await db.select().from(referrals)
+        .where(and(
+          eq(referrals.referrerId, referral.referrerId),
+          eq(referrals.status, "APPROVED"),
+          referral.clubId ? eq(referrals.clubId, referral.clubId) : sql`true`,
+        ));
+      const totalClubCredits = allApprovedForClub.reduce((sum, r) => sum + (r.creditAwarded || 0), 0) + creditAmount;
 
-      // Send approval notification
-      let notifMessage = `Your referral of ${referral.referredName || "a new member"} has been approved! £4 credit has been added to your wallet.`;
+      let notifMessage = `Your referral of ${referral.referredName || "a new member"} for ${clubName} has been approved! \u00A3${(creditAmount / 100).toFixed(2)} credit has been added to your wallet.`;
       
-      if (totalCredits >= 1600 && totalCredits - creditAmount < 1600) {
-        notifMessage += ` You've reached the £16 milestone with 4+ approved referrals!`;
-      } else if (totalCredits >= 800 && totalCredits - creditAmount < 800) {
-        notifMessage += ` You've reached £8 in referral credits and are now eligible for the premium member rate!`;
+      if (totalClubCredits >= clubSettings.championThresholdPence && totalClubCredits - creditAmount < clubSettings.championThresholdPence) {
+        notifMessage += ` You've reached the \u00A3${(clubSettings.championThresholdPence / 100).toFixed(2)} milestone for ${clubName} -- Referral Champion!`;
+      } else if (totalClubCredits >= clubSettings.premiumThresholdPence && totalClubCredits - creditAmount < clubSettings.premiumThresholdPence) {
+        notifMessage += ` You've reached \u00A3${(clubSettings.premiumThresholdPence / 100).toFixed(2)} in referral credits for ${clubName} and are now eligible for the premium member rate!`;
       }
 
       await db.insert(notifications).values({
         userId: referral.referrerId,
         type: "REFERRAL",
-        title: "Referral Approved",
+        title: `Referral Approved - ${clubName}`,
         message: notifMessage,
         linkUrl: "/referrals",
         status: "in_progress",
       });
 
-      // Send internal message
       await db.insert(internalMessages).values({
         senderId: user.id,
         recipientId: referral.referrerId,
-        subject: "Referral Approved - Credit Awarded!",
+        subject: `Referral Approved for ${clubName} - Credit Awarded!`,
         body: notifMessage,
         clubId: referral.clubId,
       });
@@ -12774,6 +12957,12 @@ export async function registerRoutes(
         }
       }
 
+      let clubName = "the club";
+      if (referral.clubId) {
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, referral.clubId));
+        if (club) clubName = club.name;
+      }
+
       const body = z.object({
         reason: z.string().optional(),
       }).parse(req.body);
@@ -12783,12 +12972,11 @@ export async function registerRoutes(
         rejectionReason: body.reason || null,
       }).where(eq(referrals.id, refId));
 
-      // Notify the referrer
       await db.insert(notifications).values({
         userId: referral.referrerId,
         type: "REFERRAL",
-        title: "Referral Not Approved",
-        message: `Your referral of ${referral.referredName || "a member"} was not approved.${body.reason ? ` Reason: ${body.reason}` : ""}`,
+        title: `Referral Not Approved - ${clubName}`,
+        message: `Your referral of ${referral.referredName || "a member"} for ${clubName} was not approved.${body.reason ? ` Reason: ${body.reason}` : ""}`,
         linkUrl: "/referrals",
         status: "in_progress",
       });

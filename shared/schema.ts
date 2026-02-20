@@ -1058,6 +1058,25 @@ export type InsertTicketAuditLog = z.infer<typeof insertTicketAuditLogSchema>;
 // === REFERRAL SYSTEM ===
 export const referralStatusEnum = pgEnum("referral_status", ["ACTIVE", "PENDING", "APPROVED", "REJECTED", "EXPIRED", "USED"]);
 
+export const clubReferralSettings = pgTable("club_referral_settings", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  isActive: boolean("is_active").default(true).notNull(),
+  creditAmountPence: integer("credit_amount_pence").default(400).notNull(),
+  premiumThresholdPence: integer("premium_threshold_pence").default(800).notNull(),
+  championThresholdPence: integer("champion_threshold_pence").default(1600).notNull(),
+  codeExpiryDays: integer("code_expiry_days").default(30).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const clubReferralSettingsRelations = relations(clubReferralSettings, ({ one }) => ({
+  club: one(clubs, { fields: [clubReferralSettings.clubId], references: [clubs.id] }),
+}));
+
+export const insertClubReferralSettingsSchema = createInsertSchema(clubReferralSettings).omit({ id: true, updatedAt: true });
+export type ClubReferralSettings = typeof clubReferralSettings.$inferSelect;
+export type InsertClubReferralSettings = z.infer<typeof insertClubReferralSettingsSchema>;
+
 export const referrals = pgTable("referrals", {
   id: serial("id").primaryKey(),
   referrerId: integer("referrer_id").references(() => users.id).notNull(),

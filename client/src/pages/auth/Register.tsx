@@ -94,6 +94,7 @@ export default function Register() {
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const [referralValidating, setReferralValidating] = useState(false);
   const [referralReferrer, setReferralReferrer] = useState("");
+  const [referralClubName, setReferralClubName] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export default function Register() {
     if (!code.trim()) {
       setReferralValid(null);
       setReferralReferrer("");
+      setReferralClubName("");
       return;
     }
     setReferralValidating(true);
@@ -117,6 +119,7 @@ export default function Register() {
       const data = await res.json();
       setReferralValid(data.valid);
       setReferralReferrer(data.referrerName || "");
+      setReferralClubName(data.clubName || "");
     } catch {
       setReferralValid(false);
     } finally {
@@ -547,9 +550,12 @@ export default function Register() {
                   {!referralValidating && referralValid === true && <Check className="h-4 w-4 text-green-500 shrink-0" />}
                 </div>
                 {referralValid === true && referralReferrer && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <Badge className="bg-green-500 text-white no-default-hover-elevate text-xs">Valid</Badge>
                     <span className="text-xs text-muted-foreground">Referred by {referralReferrer}</span>
+                    {referralClubName && (
+                      <span className="text-xs text-muted-foreground">for {referralClubName}</span>
+                    )}
                   </div>
                 )}
                 {referralValid === false && (
