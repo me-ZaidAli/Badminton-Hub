@@ -17,7 +17,7 @@ import { Link } from "wouter";
 import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, DollarSign,
-  Package, CreditCard, Upload, ChevronRight, Merge
+  Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 
@@ -29,6 +29,8 @@ const controlItems = [
   { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
   { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { href: "/admin/acquisition-analytics", label: "Acquisition & KPI Analytics", icon: BarChart3, color: "text-amber-500", bg: "bg-amber-500/10" },
+  { href: "/admin/notifications", label: "Notification Settings", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
 ];
 
 interface ClubRecord {
@@ -51,6 +53,7 @@ interface MemberRecord {
   rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
+  joinedAt?: string;
   user?: {
     id: number;
     fullName: string;
@@ -69,8 +72,23 @@ interface MemberRecord {
     accountStatus?: string;
     profilePictureUrl?: string;
     createdAt?: string;
+    acquisitionSource?: string;
+    acquisitionSourceOther?: string;
   };
 }
+
+const ACQUISITION_SOURCES = [
+  { value: "FACEBOOK", label: "Facebook" },
+  { value: "INSTAGRAM", label: "Instagram" },
+  { value: "TIKTOK", label: "TikTok" },
+  { value: "WEBSITE", label: "Website" },
+  { value: "WORD_OF_MOUTH", label: "Word of Mouth" },
+  { value: "LEISURE_CENTRE", label: "Leisure Centre" },
+  { value: "SAW_SESSION", label: "Saw a Session" },
+  { value: "THROUGH_COACH", label: "Through a Coach" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "OTHER", label: "Other" },
+];
 
 interface SessionRecord {
   id: number;
@@ -116,6 +134,57 @@ interface VenueRecord {
 
 const GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
 
+function MembershipDurationBanner({ joinedAt }: { joinedAt: string }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    function update() {
+      const start = new Date(joinedAt).getTime();
+      const now = Date.now();
+      const diff = now - start;
+      if (diff < 0) { setElapsed("Just joined"); return; }
+
+      const totalSeconds = Math.floor(diff / 1000);
+      const totalMinutes = Math.floor(totalSeconds / 60);
+      const totalHours = Math.floor(totalMinutes / 60);
+      const totalDays = Math.floor(totalHours / 24);
+
+      const years = Math.floor(totalDays / 365);
+      const remainDays = totalDays - years * 365;
+      const months = Math.floor(remainDays / 30);
+      const days = remainDays - months * 30;
+      const hours = totalHours % 24;
+      const minutes = totalMinutes % 60;
+      const seconds = totalSeconds % 60;
+
+      const parts: string[] = [];
+      if (years > 0) parts.push(`${years}y`);
+      if (months > 0) parts.push(`${months}m`);
+      if (days > 0) parts.push(`${days}d`);
+      parts.push(`${hours}h ${minutes}m ${seconds}s`);
+      setElapsed(parts.join(" "));
+    }
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [joinedAt]);
+
+  const joinDate = new Date(joinedAt);
+  const formattedDate = joinDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <div className="p-3 border rounded-md bg-muted/30" data-testid="banner-membership-duration">
+      <div className="flex items-center gap-2 mb-1">
+        <Clock className="w-4 h-4 text-primary" />
+        <span className="text-xs font-medium text-muted-foreground">Club Member Since: {formattedDate}</span>
+      </div>
+      <div className="text-lg font-bold font-mono tracking-wider text-foreground" data-testid="text-duration-counter">
+        {elapsed}
+      </div>
+    </div>
+  );
+}
+
 function MemberEditModal({ member, clubId, open, onClose }: { member: MemberRecord | null; clubId: number; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const isNew = !member;
@@ -125,6 +194,8 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
     membershipStatus: "APPROVED", role: "PLAYER",
     city: "", country: "", region: "", continent: "",
     dateOfBirth: "", isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
+    acquisitionSource: "", acquisitionSourceOther: "",
+    rankingPoints: "0", matchesPlayed: "0", matchesWon: "0",
   });
   const [showAssignClub, setShowAssignClub] = useState(false);
   const [assignClubId, setAssignClubId] = useState("");
@@ -188,6 +259,11 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
         isJunior: member.user?.isJunior || false,
         parentGuardianName: member.user?.parentGuardianName || "",
         parentGuardianEmail: member.user?.parentGuardianEmail || "",
+        acquisitionSource: member.user?.acquisitionSource || "",
+        acquisitionSourceOther: member.user?.acquisitionSourceOther || "",
+        rankingPoints: String(member.rankingPoints || 0),
+        matchesPlayed: String(member.matchesPlayed || 0),
+        matchesWon: String(member.matchesWon || 0),
       });
     } else {
       setForm({
@@ -196,6 +272,8 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
         membershipStatus: "APPROVED", role: "PLAYER",
         city: "", country: "", region: "", continent: "",
         dateOfBirth: "", isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
+        acquisitionSource: "", acquisitionSourceOther: "",
+        rankingPoints: "0", matchesPlayed: "0", matchesWon: "0",
       });
     }
   }, [member, open]);
@@ -221,6 +299,11 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
           isJunior: form.isJunior,
           parentGuardianName: form.parentGuardianName,
           parentGuardianEmail: form.parentGuardianEmail,
+          acquisitionSource: form.acquisitionSource || null,
+          acquisitionSourceOther: form.acquisitionSourceOther || null,
+          rankingPoints: Number(form.rankingPoints),
+          matchesPlayed: Number(form.matchesPlayed),
+          matchesWon: Number(form.matchesWon),
         });
       }
     },
@@ -258,23 +341,31 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-[65vh] overflow-y-auto space-y-5 py-2 pr-2">
+          {!isNew && member?.joinedAt && (
+            <MembershipDurationBanner joinedAt={member.joinedAt} />
+          )}
           {!isNew && (
-            <div className="flex items-center gap-4 p-3 border rounded-md bg-muted/30" data-testid="member-stats">
-              <div className="text-center">
-                <div className="text-lg font-bold">{member!.rankingPoints}</div>
-                <div className="text-xs text-muted-foreground">Points</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{member!.matchesPlayed}</div>
-                <div className="text-xs text-muted-foreground">Played</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{member!.matchesWon}</div>
-                <div className="text-xs text-muted-foreground">Won</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{member!.matchesPlayed > 0 ? Math.round((member!.matchesWon / member!.matchesPlayed) * 100) : 0}%</div>
-                <div className="text-xs text-muted-foreground">Win Rate</div>
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Player KPIs (Editable)</div>
+              <div className="grid grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">Ranking Points</Label>
+                  <Input type="number" min={0} value={form.rankingPoints} onChange={(e) => setForm(f => ({ ...f, rankingPoints: e.target.value }))} data-testid="input-god-ranking-points" />
+                </div>
+                <div>
+                  <Label className="text-xs">Matches Played</Label>
+                  <Input type="number" min={0} value={form.matchesPlayed} onChange={(e) => setForm(f => ({ ...f, matchesPlayed: e.target.value }))} data-testid="input-god-matches-played" />
+                </div>
+                <div>
+                  <Label className="text-xs">Matches Won</Label>
+                  <Input type="number" min={0} value={form.matchesWon} onChange={(e) => setForm(f => ({ ...f, matchesWon: e.target.value }))} data-testid="input-god-matches-won" />
+                </div>
+                <div>
+                  <Label className="text-xs">Win Rate</Label>
+                  <div className="flex items-center h-9 px-3 border rounded-md bg-muted/30 text-sm font-medium">
+                    {Number(form.matchesPlayed) > 0 ? Math.round((Number(form.matchesWon) / Number(form.matchesPlayed)) * 100) : 0}%
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -424,6 +515,31 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
                   <Label>Parent/Guardian Email</Label>
                   <Input value={form.parentGuardianEmail} onChange={(e) => setForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} data-testid="input-god-member-guardian-email" />
                 </div>
+              </div>
+            </div>
+          )}
+          {!isNew && (
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Acquisition Source</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>How did they hear about us?</Label>
+                  <Select value={form.acquisitionSource || "UNSET"} onValueChange={(v) => setForm(f => ({ ...f, acquisitionSource: v === "UNSET" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-god-member-acquisition"><SelectValue placeholder="Select source..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="UNSET">Not specified</SelectItem>
+                      {ACQUISITION_SOURCES.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.acquisitionSource === "OTHER" && (
+                  <div>
+                    <Label>Other (specify)</Label>
+                    <Input value={form.acquisitionSourceOther} onChange={(e) => setForm(f => ({ ...f, acquisitionSourceOther: e.target.value }))} placeholder="Please specify..." data-testid="input-god-member-acquisition-other" />
+                  </div>
+                )}
               </div>
             </div>
           )}

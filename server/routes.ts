@@ -8761,6 +8761,8 @@ export async function registerRoutes(
         nickname: users.nickname,
         showPublicName: users.showPublicName,
         createdAt: users.createdAt,
+        acquisitionSource: users.acquisitionSource,
+        acquisitionSourceOther: users.acquisitionSourceOther,
       }).from(users).orderBy(users.fullName);
 
       const allProfiles = await db.select({
@@ -8776,6 +8778,7 @@ export async function registerRoutes(
         rankingPoints: playerProfiles.rankingPoints,
         matchesPlayed: playerProfiles.matchesPlayed,
         matchesWon: playerProfiles.matchesWon,
+        joinedAt: playerProfiles.joinedAt,
       }).from(playerProfiles);
 
       const allClubs = await db.select({
@@ -11021,6 +11024,9 @@ export async function registerRoutes(
         accountStatus: users.accountStatus,
         role: users.role,
         createdAt: users.createdAt,
+        acquisitionSource: users.acquisitionSource,
+        acquisitionSourceOther: users.acquisitionSourceOther,
+        joinedAt: playerProfiles.joinedAt,
       }).from(playerProfiles)
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .where(eq(playerProfiles.clubId, clubId))
@@ -11037,6 +11043,7 @@ export async function registerRoutes(
         rankingPoints: r.rankingPoints,
         matchesPlayed: r.matchesPlayed,
         matchesWon: r.matchesWon,
+        joinedAt: r.joinedAt,
         user: {
           id: r.userId,
           fullName: r.fullName,
@@ -11054,6 +11061,8 @@ export async function registerRoutes(
           profilePictureUrl: r.profilePictureUrl,
           accountStatus: r.accountStatus,
           role: r.role,
+          acquisitionSource: r.acquisitionSource,
+          acquisitionSourceOther: r.acquisitionSourceOther,
         },
         createdAt: r.createdAt,
       }));
@@ -11297,7 +11306,7 @@ export async function registerRoutes(
       }
       const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
       if (profile.length === 0) return res.status(404).json({ message: "Profile not found" });
-      const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role } = req.body;
+      const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role, acquisitionSource, acquisitionSourceOther, rankingPoints, matchesPlayed, matchesWon } = req.body;
       const profileUpdates: any = {};
       if (gender !== undefined) profileUpdates.gender = gender;
       const gradeValue = gradeField || category;
@@ -11307,6 +11316,9 @@ export async function registerRoutes(
       if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
       if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus;
       if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
+      if (rankingPoints !== undefined) profileUpdates.rankingPoints = Number(rankingPoints);
+      if (matchesPlayed !== undefined) profileUpdates.matchesPlayed = Number(matchesPlayed);
+      if (matchesWon !== undefined) profileUpdates.matchesWon = Number(matchesWon);
       if (Object.keys(profileUpdates).length > 0) {
         await db.update(playerProfiles).set(profileUpdates).where(eq(playerProfiles.id, profileId));
       }
@@ -11324,6 +11336,8 @@ export async function registerRoutes(
       if (parentGuardianName !== undefined) userUpdates.parentGuardianName = parentGuardianName;
       if (parentGuardianEmail !== undefined) userUpdates.parentGuardianEmail = parentGuardianEmail;
       if (role !== undefined && user.role === "OWNER") userUpdates.role = role;
+      if (acquisitionSource !== undefined) userUpdates.acquisitionSource = acquisitionSource || null;
+      if (acquisitionSourceOther !== undefined) userUpdates.acquisitionSourceOther = acquisitionSourceOther || null;
       if (Object.keys(userUpdates).length > 0) {
         await db.update(users).set(userUpdates).where(eq(users.id, profile[0].userId));
       }

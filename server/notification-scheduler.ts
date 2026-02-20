@@ -3,7 +3,7 @@ import {
   users, sessions, sessionSignups, clubs, playerProfiles,
   clubMemberships, membershipPlans, referrals,
   notifications, internalMessages, notificationLogs,
-  notificationScheduleSettings,
+  notificationScheduleSettings, creditLedger,
 } from "@shared/schema";
 import { eq, and, lt, gt, gte, lte, inArray, isNull, sql, ne } from "drizzle-orm";
 import { sendEmail } from "./email";
@@ -468,6 +468,85 @@ export async function sendNewMessageNotification(
 }
 
 // ============================================================
+// CLUB JOINING ANNIVERSARY NOTIFICATIONS & CREDIT
+// ============================================================
+export async function processAnniversaryNotifications() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const allActiveProfiles = await db.select({
+    profileId: playerProfiles.id,
+    userId: playerProfiles.userId,
+    clubId: playerProfiles.clubId,
+    joinedAt: playerProfiles.joinedAt,
+    playerStatus: playerProfiles.playerStatus,
+  }).from(playerProfiles)
+    .where(eq(playerProfiles.playerStatus, "ACTIVE"));
+
+  for (const profile of allActiveProfiles) {
+    if (!profile.joinedAt) continue;
+    const joinDate = new Date(profile.joinedAt);
+    if (joinDate.getMonth() !== today.getMonth() || joinDate.getDate() !== today.getDate()) continue;
+
+    const yearsCompleted = today.getFullYear() - joinDate.getFullYear();
+    if (yearsCompleted < 1) continue;
+
+    const user = await db.select().from(users).where(eq(users.id, profile.userId)).limit(1);
+    if (!user.length) continue;
+    const u = user[0];
+    const firstName = u.fullName?.split(" ")[0] || "Player";
+
+    const [club] = await db.select().from(clubs).where(eq(clubs.id, profile.clubId)).limit(1);
+    if (!club) continue;
+
+    const settings = await getClubSettings(club.id);
+    const scheduleKey = `anniversary_year_${yearsCompleted}`;
+    const entityType = "PLAYER_PROFILE";
+
+    const alreadySent = await hasBeenSent(profile.userId, entityType, profile.profileId, scheduleKey, "IN_APP");
+    if (alreadySent) continue;
+
+    const creditAmountPence = 1600;
+    const creditReason = `Club anniversary reward - ${yearsCompleted} year${yearsCompleted > 1 ? "s" : ""} with ${club.name}`;
+    const existingCredit = await db.select({ id: creditLedger.id }).from(creditLedger)
+      .where(and(
+        eq(creditLedger.userId, profile.userId),
+        eq(creditLedger.clubId, club.id),
+        eq(creditLedger.reason, creditReason),
+      ))
+      .limit(1);
+    if (existingCredit.length === 0) {
+      try {
+        const systemUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER")).limit(1);
+        const systemId = systemUsers.length > 0 ? systemUsers[0].id : SYSTEM_SENDER_ID;
+        await db.insert(creditLedger).values({
+          userId: profile.userId,
+          clubId: club.id,
+          amount: creditAmountPence,
+          reason: creditReason,
+          createdById: systemId,
+        });
+      } catch (err) {
+        console.error(`[ANNIVERSARY] Failed to credit user ${profile.userId}:`, err);
+      }
+    }
+
+    const yearLabel = yearsCompleted === 1 ? "1 year" : `${yearsCompleted} years`;
+    const title = `Happy ${yearsCompleted}-Year Anniversary!`;
+    const message = `Congratulations ${firstName}! Today marks ${yearLabel} since you joined ${club.name}. Thank you for being part of our badminton community! As a token of our appreciation, we have added GBP 16.00 credit to your account.`;
+
+    await sendMultiChannel(
+      u.id, u.email, firstName, club.id,
+      entityType, profile.profileId, scheduleKey,
+      "ANNIVERSARY_NOTIFICATION", title, message,
+      `/dashboard`,
+      settings.emailNotificationsEnabled,
+      "ANNIVERSARY"
+    );
+  }
+}
+
+// ============================================================
 // MAIN SCHEDULER
 // ============================================================
 export async function runNotificationScheduler() {
@@ -486,6 +565,11 @@ export async function runNotificationScheduler() {
     await processReferralExpirationReminders();
   } catch (err) {
     console.error("[NOTIFICATION SCHEDULER] Referral expiration reminders failed:", err);
+  }
+  try {
+    await processAnniversaryNotifications();
+  } catch (err) {
+    console.error("[NOTIFICATION SCHEDULER] Anniversary notifications failed:", err);
   }
   console.log("[NOTIFICATION SCHEDULER] Scheduled notification check complete.");
 }
