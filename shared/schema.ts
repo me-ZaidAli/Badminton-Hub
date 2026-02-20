@@ -630,6 +630,7 @@ export const internalMessages = pgTable("internal_messages", {
 export const policyAcceptances = pgTable("policy_acceptances", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  email: text("email"),
   policyType: text("policy_type").notNull(),
   policyVersion: text("policy_version").notNull(),
   acceptedAt: timestamp("accepted_at").defaultNow().notNull(),

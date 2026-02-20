@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation, useSearch } from "wouter";
-import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone } from "lucide-react";
+import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -566,6 +566,13 @@ export default function Register() {
 
               <div className="space-y-3 border rounded-md p-4">
                 <p className="text-sm font-medium">Required agreements</p>
+                <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                  <FileText className="h-4 w-4 text-primary shrink-0" />
+                  <Link href="/terms-conditions" target="_blank" className="text-sm text-primary underline font-medium" data-testid="link-view-terms">
+                    View Terms &amp; Conditions
+                  </Link>
+                  <span className="text-xs text-muted-foreground">(opens in new tab)</span>
+                </div>
                 <FormField
                   control={form.control}
                   name="confirmAccurate"
@@ -600,11 +607,11 @@ export default function Register() {
                       </FormControl>
                       <div className="leading-none">
                         <FormLabel className="cursor-pointer text-sm font-normal">
-                          I agree to the{" "}
+                          I have read and agree to the{" "}
                           <Link href="/terms-conditions" className="text-primary underline" target="_blank">
-                            Terms &amp; Conditions
+                            Dragon Badminton Club Terms &amp; Conditions
                           </Link>{" "}
-                          of using the Club Master app
+                          (Version 1 &ndash; 20/02/2026)
                         </FormLabel>
                       </div>
                     </FormItem>

@@ -147,11 +147,12 @@ export function setupAuth(app: Express) {
       });
 
       // Store policy acceptance logs
-      const policyVersion = "1.0";
+      const policyVersion = "Version 1 - 20/02/2026";
       if (req.body.acceptedPolicies && Array.isArray(req.body.acceptedPolicies)) {
         for (const policyType of req.body.acceptedPolicies) {
           await storage.createPolicyAcceptance({
             userId: user.id,
+            email: (req.body.email || "").toLowerCase(),
             policyType,
             policyVersion,
           });
