@@ -13409,7 +13409,7 @@ export async function registerRoutes(
       const recentSignups = await db.select({ playerId: sessionSignups.playerId })
         .from(sessionSignups)
         .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
-        .where(gte(sessionSignups.createdAt, thirtyDaysAgo));
+        .where(gte(sessionSignups.signupTime, thirtyDaysAgo));
       const activeSignupUserIds = new Set<number>();
       const profileToUser = new Map<number, number>();
       const allProfiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles);
