@@ -19,61 +19,6 @@ import {
 } from "lucide-react";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 
-function DashboardJoinDateBanner({ joinedAt }: { joinedAt: string }) {
-  const [elapsed, setElapsed] = useState("");
-
-  useEffect(() => {
-    function update() {
-      const start = new Date(joinedAt).getTime();
-      const now = Date.now();
-      const diff = now - start;
-      if (diff < 0) { setElapsed("Just joined"); return; }
-
-      const totalSeconds = Math.floor(diff / 1000);
-      const totalMinutes = Math.floor(totalSeconds / 60);
-      const totalHours = Math.floor(totalMinutes / 60);
-      const totalDays = Math.floor(totalHours / 24);
-
-      const years = Math.floor(totalDays / 365);
-      const remainDays = totalDays - years * 365;
-      const months = Math.floor(remainDays / 30);
-      const days = remainDays - months * 30;
-      const hours = totalHours % 24;
-      const minutes = totalMinutes % 60;
-      const seconds = totalSeconds % 60;
-
-      const parts: string[] = [];
-      if (years > 0) parts.push(`${years}y`);
-      if (months > 0) parts.push(`${months}m`);
-      if (days > 0) parts.push(`${days}d`);
-      parts.push(`${hours}h ${minutes}m ${seconds}s`);
-      setElapsed(parts.join(" "));
-    }
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [joinedAt]);
-
-  const joinDate = new Date(joinedAt);
-  const formattedDate = joinDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
-  return (
-    <Card data-testid="card-join-date-banner">
-      <CardContent className="flex items-center gap-4 py-3 px-4">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Clock className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs text-muted-foreground">Club Member Since: {formattedDate}</div>
-          <div className="text-base font-bold font-mono tracking-wider" data-testid="text-player-duration-counter">
-            {elapsed}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
 
@@ -316,61 +261,6 @@ function DashboardContent({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
-              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">in this club</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10">
-              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessionsList.length}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Upcoming</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
-              <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{myUpcomingCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Played</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/10">
-              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{myPlayedCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">completed</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {playerProfile?.joinedAt && (
-        <DashboardJoinDateBanner joinedAt={playerProfile.joinedAt} />
-      )}
-
       {activeAnnouncements.length > 0 && (
         <Card data-testid="card-announcements-preview">
           <CardHeader className="pb-3">
@@ -483,6 +373,57 @@ function DashboardContent({
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">in this club</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessionsList.length}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Upcoming</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
+              <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{myUpcomingCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Played</CardTitle>
+            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/10">
+              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{myPlayedCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">completed</div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
         <CardContent className="p-5">

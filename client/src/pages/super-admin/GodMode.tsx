@@ -196,6 +196,7 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
     dateOfBirth: "", isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
     acquisitionSource: "", acquisitionSourceOther: "",
     rankingPoints: "0", matchesPlayed: "0", matchesWon: "0",
+    joinedAt: "",
   });
   const [showAssignClub, setShowAssignClub] = useState(false);
   const [assignClubId, setAssignClubId] = useState("");
@@ -264,6 +265,7 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
         rankingPoints: String(member.rankingPoints || 0),
         matchesPlayed: String(member.matchesPlayed || 0),
         matchesWon: String(member.matchesWon || 0),
+        joinedAt: member.joinedAt ? new Date(member.joinedAt).toISOString().split("T")[0] : "",
       });
     } else {
       setForm({
@@ -274,6 +276,7 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
         dateOfBirth: "", isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
         acquisitionSource: "", acquisitionSourceOther: "",
         rankingPoints: "0", matchesPlayed: "0", matchesWon: "0",
+        joinedAt: "",
       });
     }
   }, [member, open]);
@@ -304,6 +307,7 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
           rankingPoints: Number(form.rankingPoints),
           matchesPlayed: Number(form.matchesPlayed),
           matchesWon: Number(form.matchesWon),
+          joinedAt: form.joinedAt || undefined,
         });
       }
     },
@@ -341,8 +345,19 @@ function MemberEditModal({ member, clubId, open, onClose }: { member: MemberReco
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-[65vh] overflow-y-auto space-y-5 py-2 pr-2">
-          {!isNew && member?.joinedAt && (
-            <MembershipDurationBanner joinedAt={member.joinedAt} />
+          {!isNew && form.joinedAt && (
+            <MembershipDurationBanner joinedAt={form.joinedAt} />
+          )}
+          {!isNew && (
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Membership</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Joined Date</Label>
+                  <Input type="date" value={form.joinedAt} onChange={(e) => setForm(f => ({ ...f, joinedAt: e.target.value }))} data-testid="input-god-joined-at" />
+                </div>
+              </div>
+            </div>
           )}
           {!isNew && (
             <div>

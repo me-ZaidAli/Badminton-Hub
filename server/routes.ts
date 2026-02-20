@@ -11313,7 +11313,7 @@ export async function registerRoutes(
       }
       const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
       if (profile.length === 0) return res.status(404).json({ message: "Profile not found" });
-      const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role, acquisitionSource, acquisitionSourceOther, rankingPoints, matchesPlayed, matchesWon } = req.body;
+      const { gender, category, grade: gradeField, clubRole, playerStatus, membershipStatus, fullName, email, phone, city, country, region, continent, nickname, dateOfBirth, isJunior, parentGuardianName, parentGuardianEmail, role, acquisitionSource, acquisitionSourceOther, rankingPoints, matchesPlayed, matchesWon, joinedAt } = req.body;
       const profileUpdates: any = {};
       if (gender !== undefined) profileUpdates.gender = gender;
       const gradeValue = gradeField || category;
@@ -11332,6 +11332,7 @@ export async function registerRoutes(
       if (rankingPoints !== undefined) profileUpdates.rankingPoints = Number(rankingPoints);
       if (matchesPlayed !== undefined) profileUpdates.matchesPlayed = Number(matchesPlayed);
       if (matchesWon !== undefined) profileUpdates.matchesWon = Number(matchesWon);
+      if (joinedAt !== undefined) profileUpdates.joinedAt = new Date(joinedAt);
       if (Object.keys(profileUpdates).length > 0) {
         await db.update(playerProfiles).set(profileUpdates).where(eq(playerProfiles.id, profileId));
       }

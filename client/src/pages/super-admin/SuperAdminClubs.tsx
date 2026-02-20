@@ -155,6 +155,7 @@ interface UserDetailFormData {
   clubRole: string;
   playerStatus: string;
   role: string;
+  joinedAt: string;
 }
 
 function MembersManagementDialog({
@@ -601,11 +602,12 @@ function UserDetailDialog({
     clubRole: member.clubRole || "PLAYER",
     playerStatus: member.playerStatus || "ACTIVE",
     role: member.user?.role || "PLAYER",
+    joinedAt: (member as any).joinedAt ? new Date((member as any).joinedAt).toISOString().split("T")[0] : "",
   });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PATCH", `/api/clubs/${club.id}/members/${member.id}/comprehensive`, form);
+      await apiRequest("PATCH", `/api/clubs/${club.id}/members/${member.id}/comprehensive`, { ...form, joinedAt: form.joinedAt || undefined });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clubs", club.id, "members-comprehensive"] });
@@ -764,6 +766,10 @@ function UserDetailDialog({
                 <div>
                   <Label>Date of Birth</Label>
                   <Input type="date" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} data-testid="input-detail-dob" />
+                </div>
+                <div>
+                  <Label>Joined Date</Label>
+                  <Input type="date" value={form.joinedAt} onChange={(e) => setForm((f) => ({ ...f, joinedAt: e.target.value }))} data-testid="input-joined-at" />
                 </div>
                 <div className="flex items-end gap-2 pb-1">
                   <Checkbox

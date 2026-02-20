@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
+import { useEffect } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -36,6 +37,61 @@ const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
   light: Sun, dark: Moon, sepia: Palette, migraine: Eye,
   "high-contrast": Contrast, grayscale: CircleOff,
 };
+
+function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    function update() {
+      const start = new Date(joinedAt).getTime();
+      const now = Date.now();
+      const diff = now - start;
+      if (diff < 0) { setElapsed("Just joined"); return; }
+
+      const totalSeconds = Math.floor(diff / 1000);
+      const totalMinutes = Math.floor(totalSeconds / 60);
+      const totalHours = Math.floor(totalMinutes / 60);
+      const totalDays = Math.floor(totalHours / 24);
+
+      const years = Math.floor(totalDays / 365);
+      const remainDays = totalDays - years * 365;
+      const months = Math.floor(remainDays / 30);
+      const days = remainDays - months * 30;
+      const hours = totalHours % 24;
+      const minutes = totalMinutes % 60;
+      const seconds = totalSeconds % 60;
+
+      const parts: string[] = [];
+      if (years > 0) parts.push(`${years}y`);
+      if (months > 0) parts.push(`${months}m`);
+      if (days > 0) parts.push(`${days}d`);
+      parts.push(`${hours}h ${minutes}m ${seconds}s`);
+      setElapsed(parts.join(" "));
+    }
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [joinedAt]);
+
+  const joinDate = new Date(joinedAt);
+  const formattedDate = joinDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <Card data-testid="card-profile-membership-duration">
+      <CardContent className="flex items-center gap-4 py-3 px-4">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <Clock className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <div className="text-xs text-muted-foreground">Club Member Since: {formattedDate}</div>
+          <div className="text-base font-bold font-mono tracking-wider" data-testid="text-profile-duration-counter">
+            {elapsed}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function MetricCard({ icon: Icon, label, value, subtext, onClick, className = "" }: {
   icon: typeof Trophy; label: string; value: string | number; subtext?: string;
@@ -1027,6 +1083,10 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {primaryProfile?.joinedAt && (
+        <ProfileMembershipDuration joinedAt={primaryProfile.joinedAt} />
+      )}
 
       {/* Financial Summary */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4">
