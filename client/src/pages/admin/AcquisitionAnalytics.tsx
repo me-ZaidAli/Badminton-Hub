@@ -55,6 +55,7 @@ interface AnalyticsData {
     newLastMonth: number;
     premiumUsers: number;
     organicRatio: number;
+    membershipPlanNames: string[];
   };
   signupsPerMonth: { month: string; signups: number; growth: number }[];
   signupsByChannel: Record<string, number>;
@@ -126,10 +127,14 @@ export default function AcquisitionAnalytics() {
 
   const now = new Date();
   const { data: monthlyReport, isLoading: reportLoading } = useQuery<MonthlyReport>({
-    queryKey: ["/api/admin/analytics/monthly-report", now.getMonth(), now.getFullYear()],
+    queryKey: ["/api/admin/analytics/monthly-report", now.getMonth(), now.getFullYear(), clubId],
     queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("month", String(now.getMonth()));
+      params.set("year", String(now.getFullYear()));
+      if (clubId !== "all") params.set("clubId", clubId);
       const res = await fetch(
-        `/api/admin/analytics/monthly-report?month=${now.getMonth()}&year=${now.getFullYear()}`,
+        `/api/admin/analytics/monthly-report?${params.toString()}`,
         { credentials: "include" }
       );
       if (!res.ok) throw new Error("Failed to load report");
@@ -308,11 +313,20 @@ export default function AcquisitionAnalytics() {
                 </Card>
                 <Card data-testid="card-premium-users">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Premium Members</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      {data.summary.membershipPlanNames && data.summary.membershipPlanNames.length > 0
+                        ? `${data.summary.membershipPlanNames.join(", ")} Members`
+                        : "Plan Members"}
+                    </CardTitle>
                     <Award className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold" data-testid="value-premium-users">{data.summary.premiumUsers}</div>
+                    {data.summary.membershipPlanNames && data.summary.membershipPlanNames.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Active on {data.summary.membershipPlanNames.length === 1 ? data.summary.membershipPlanNames[0] : `${data.summary.membershipPlanNames.length} plans`}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card data-testid="card-organic-ratio">
@@ -415,7 +429,7 @@ export default function AcquisitionAnalytics() {
                     Channel Quality Scores
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Weighted score: 40% Premium conversion + 30% Retention + 30% Activity
+                    Weighted score: 40% Membership conversion + 30% Retention + 30% Activity
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -446,7 +460,11 @@ export default function AcquisitionAnalytics() {
 
               <Card data-testid="card-conversion-table">
                 <CardHeader>
-                  <CardTitle className="text-base">Premium Conversion by Channel</CardTitle>
+                  <CardTitle className="text-base">
+                    {data.summary.membershipPlanNames && data.summary.membershipPlanNames.length > 0
+                      ? `${data.summary.membershipPlanNames.join(" / ")} Conversion by Channel`
+                      : "Membership Conversion by Channel"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -455,9 +473,9 @@ export default function AcquisitionAnalytics() {
                         <TableRow>
                           <TableHead>Channel</TableHead>
                           <TableHead className="text-right">Total Users</TableHead>
-                          <TableHead className="text-right">Premium</TableHead>
+                          <TableHead className="text-right">Members</TableHead>
                           <TableHead className="text-right">Conversion Rate</TableHead>
-                          <TableHead className="text-right">Avg Days to Premium</TableHead>
+                          <TableHead className="text-right">Avg Days to Join</TableHead>
                           <TableHead className="text-right">Avg Lifespan (days)</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -655,7 +673,7 @@ export default function AcquisitionAnalytics() {
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Premium Conversions</p>
+                      <p className="text-sm text-muted-foreground">Membership Conversions</p>
                       <p className="text-2xl font-bold">{monthlyReport.premiumInsights.newPremiumMembers}</p>
                       <p className="text-xs text-muted-foreground">
                         {monthlyReport.premiumInsights.conversionRate}% of new users

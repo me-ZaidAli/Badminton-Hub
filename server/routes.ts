@@ -13376,18 +13376,25 @@ export async function registerRoutes(
 
       // If membership filter, get user IDs with that membership type
       if (membershipFilter) {
-        const membershipConditions: any[] = [];
-        if (membershipFilter === "PREMIUM") {
-          const premPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
-            .where(ilike(membershipPlans.name, "%premium%"));
-          if (premPlans.length > 0) {
-            membershipConditions.push(inArray(clubMemberships.planId, premPlans.map(p => p.id)));
+        const memFilterConditions: any[] = [eq(clubMemberships.status, "ACTIVE")];
+        if (clubFilter) memFilterConditions.push(eq(clubMemberships.clubId, clubFilter));
+        let memberUserIds: Set<number>;
+        if (membershipFilter !== "ALL") {
+          const matchingPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
+            .where(clubFilter ? and(eq(membershipPlans.clubId, clubFilter), ilike(membershipPlans.name, `%${membershipFilter}%`)) : ilike(membershipPlans.name, `%${membershipFilter}%`));
+          if (matchingPlans.length > 0) {
+            memFilterConditions.push(inArray(clubMemberships.planId, matchingPlans.map(p => p.id)));
+            const memberships = await db.select({ userId: clubMemberships.userId })
+              .from(clubMemberships).where(and(...memFilterConditions));
+            memberUserIds = new Set(memberships.map(m => m.userId));
+          } else {
+            memberUserIds = new Set();
           }
+        } else {
+          const memberships = await db.select({ userId: clubMemberships.userId })
+            .from(clubMemberships).where(and(...memFilterConditions));
+          memberUserIds = new Set(memberships.map(m => m.userId));
         }
-        membershipConditions.push(eq(clubMemberships.status, "ACTIVE"));
-        const memberships = await db.select({ userId: clubMemberships.userId })
-          .from(clubMemberships).where(and(...membershipConditions));
-        const memberUserIds = new Set(memberships.map(m => m.userId));
         if (filteredUserIds) {
           filteredUserIds = new Set([...filteredUserIds].filter(id => memberUserIds.has(id)));
         } else {
@@ -13450,13 +13457,21 @@ export async function registerRoutes(
         monthlyGrowth.push({ month, signups: current, growth: Math.round(growth * 10) / 10 });
       });
 
-      // 4. Premium conversion by channel
-      const premiumPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
-        .where(ilike(membershipPlans.name, "%premium%"));
-      const premiumPlanIds = premiumPlans.map(p => p.id);
-      const allActiveMemberships = premiumPlanIds.length > 0
+      // 4. Membership conversion by channel (uses actual club plans, not hardcoded "premium")
+      const planConditions: any[] = [];
+      if (clubFilter) planConditions.push(eq(membershipPlans.clubId, clubFilter));
+      const clubPlans = await db.select({ id: membershipPlans.id, name: membershipPlans.name, clubId: membershipPlans.clubId })
+        .from(membershipPlans)
+        .where(planConditions.length > 0 ? and(...planConditions) : undefined);
+      const clubPlanIds = clubPlans.map(p => p.id);
+      const clubPlanNames = [...new Set(clubPlans.map(p => p.name))];
+
+      const membershipConditions: any[] = [eq(clubMemberships.status, "ACTIVE")];
+      if (clubPlanIds.length > 0) membershipConditions.push(inArray(clubMemberships.planId, clubPlanIds));
+      if (clubFilter) membershipConditions.push(eq(clubMemberships.clubId, clubFilter));
+      const allActiveMemberships = clubPlanIds.length > 0
         ? await db.select({ userId: clubMemberships.userId, planId: clubMemberships.planId, createdAt: clubMemberships.createdAt })
-            .from(clubMemberships).where(inArray(clubMemberships.planId, premiumPlanIds))
+            .from(clubMemberships).where(and(...membershipConditions))
         : [];
       const premiumUserIds = new Set(allActiveMemberships.map(m => m.userId));
 
@@ -13560,6 +13575,10 @@ export async function registerRoutes(
       lastMonth.setMonth(lastMonth.getMonth() - 1);
       const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
 
+      const filteredMembershipUsers = filteredUserIds
+        ? [...premiumUserIds].filter(id => filteredUserIds!.has(id)).length
+        : premiumUserIds.size;
+
       res.json({
         summary: {
           totalUsers,
@@ -13567,8 +13586,9 @@ export async function registerRoutes(
           activeRate: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 1000) / 10 : 0,
           newThisMonth: signupsPerMonth[thisMonthKey] || 0,
           newLastMonth: signupsPerMonth[lastMonthKey] || 0,
-          premiumUsers: premiumUserIds.size,
+          premiumUsers: filteredMembershipUsers,
           organicRatio,
+          membershipPlanNames: clubPlanNames,
         },
         signupsPerMonth: monthlyGrowth,
         signupsByChannel,
@@ -13651,17 +13671,22 @@ export async function registerRoutes(
         ? Math.round(((newUsers.length - prevUsers.length) / prevUsers.length) * 1000) / 10
         : 0;
 
-      // Premium insights
-      const premPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
-        .where(ilike(membershipPlans.name, "%premium%"));
-      const premPlanIds = premPlans.map(p => p.id);
-      const newPremium = premPlanIds.length > 0
+      // Membership insights (using all plans, filtered by club if provided)
+      const clubFilter = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const planConditions: any[] = [];
+      if (clubFilter) planConditions.push(eq(membershipPlans.clubId, clubFilter));
+      const allPlans = await db.select({ id: membershipPlans.id }).from(membershipPlans)
+        .where(planConditions.length > 0 ? and(...planConditions) : undefined);
+      const allPlanIds = allPlans.map(p => p.id);
+      const memConditions: any[] = [
+        gte(clubMemberships.createdAt, monthStart),
+        lte(clubMemberships.createdAt, monthEnd),
+      ];
+      if (allPlanIds.length > 0) memConditions.push(inArray(clubMemberships.planId, allPlanIds));
+      if (clubFilter) memConditions.push(eq(clubMemberships.clubId, clubFilter));
+      const newPremium = allPlanIds.length > 0
         ? await db.select().from(clubMemberships)
-            .where(and(
-              inArray(clubMemberships.planId, premPlanIds),
-              gte(clubMemberships.createdAt, monthStart),
-              lte(clubMemberships.createdAt, monthEnd)
-            ))
+            .where(and(...memConditions))
         : [];
 
       // Referral performance
