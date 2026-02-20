@@ -62,6 +62,7 @@ export default function Messages() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
     },
     onError: (error: Error) => {
       toast({

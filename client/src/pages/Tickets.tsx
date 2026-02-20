@@ -448,6 +448,7 @@ function CreateTicketDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Ticket Created", description: "The ticket has been submitted successfully." });
       form.reset();
       setOpen(false);

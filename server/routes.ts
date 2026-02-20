@@ -12270,6 +12270,15 @@ export async function registerRoutes(
         status: "in_progress",
       });
 
+      await db.insert(internalMessages).values({
+        senderId: req.user!.id,
+        recipientId: Number(assignedToUserId),
+        body: `You have been assigned to ticket #${ticket.ticketNumber}: "${ticket.subject}". Please review and reply to the ticket at your earliest convenience.`,
+        readAt: null,
+        archivedBySender: false,
+        archivedByRecipient: false,
+      });
+
       res.json(updated);
     } catch (err: any) {
       console.error("Error assigning ticket:", err);

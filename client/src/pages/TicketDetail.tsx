@@ -222,6 +222,7 @@ function TicketHeader({
       queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Status Updated", description: "Ticket status has been changed." });
     },
     onError: (err: any) => {
@@ -237,6 +238,7 @@ function TicketHeader({
       queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Ticket Assigned", description: "Ticket has been assigned." });
     },
     onError: (err: any) => {
@@ -252,6 +254,7 @@ function TicketHeader({
       queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Unassigned", description: "Ticket is now unassigned." });
     },
     onError: (err: any) => {
@@ -379,7 +382,7 @@ function TicketHeader({
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {assignableUsers.map((member: any) => (
                   <SelectItem key={member.userId} value={member.userId.toString()}>
-                    {member.fullName || member.nickname || `User #${member.userId}`}
+                    {member.user?.fullName || member.user?.nickname || member.fullName || `User #${member.userId}`}
                   </SelectItem>
                 ))}
               </SelectContent>

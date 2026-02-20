@@ -30,6 +30,7 @@ export function NotificationBell() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
     },
   });
 
@@ -39,6 +40,7 @@ export function NotificationBell() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
     },
   });
 

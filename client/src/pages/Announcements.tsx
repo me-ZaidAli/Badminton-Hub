@@ -68,6 +68,7 @@ export default function Announcements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/announcements/my-archives"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Announcement archived" });
     },
   });
@@ -78,6 +79,7 @@ export default function Announcements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/announcements/my-archives"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Announcement restored" });
     },
   });
@@ -88,6 +90,7 @@ export default function Announcements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       setDeleteTarget(null);
       toast({ title: "Announcement deleted" });
     },

@@ -188,6 +188,7 @@ export default function InboxPage() {
     if (activeConversation && threadMessages.length > 0) {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
     }
   }, [activeConversation, threadMessages.length]);
 
@@ -213,6 +214,7 @@ export default function InboxPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/thread", activeConversation] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       setMessageInput("");
     },
     onError: (error: Error) => {
@@ -227,6 +229,7 @@ export default function InboxPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Conversation archived" });
       setArchiveDialogContact(null);
       if (activeConversation === archiveDialogContact?.contactId) {
@@ -243,6 +246,7 @@ export default function InboxPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       toast({ title: "Conversation deleted" });
       setDeleteDialogContact(null);
       setConversationLimitPrompt(false);
