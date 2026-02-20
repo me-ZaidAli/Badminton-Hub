@@ -32,12 +32,7 @@ interface InactiveMember {
   deletionScheduledAt: string | null;
 }
 
-interface InactiveMembersResponse {
-  members: InactiveMember[];
-  total: number;
-  pendingDeletionCount: number;
-  averageDaysInactive: number;
-}
+type InactiveMembersResponse = InactiveMember[];
 
 type SortField = "name" | "email" | "clubName" | "lastAttendance" | "daysInactive" | "membershipStatus";
 type SortDir = "asc" | "desc";
@@ -118,8 +113,8 @@ export default function InactiveMembers() {
   const isOwner = currentUser?.role === "OWNER";
 
   const filteredAndSorted = useMemo(() => {
-    if (!data?.members) return [];
-    let filtered = data.members;
+    if (!data || !Array.isArray(data)) return [];
+    let filtered = [...data] as InactiveMember[];
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -144,13 +139,13 @@ export default function InactiveMembers() {
     });
 
     return filtered;
-  }, [data?.members, searchQuery, sortField, sortDir]);
+  }, [data, searchQuery, sortField, sortDir]);
 
   const totalFiltered = filteredAndSorted.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
   const pagedMembers = filteredAndSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const pendingDeletionMembers = data?.members.filter((m) => m.deletionScheduledAt) || [];
+  const pendingDeletionMembers = Array.isArray(data) ? data.filter((m) => m.deletionScheduledAt) : [];
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -396,7 +391,7 @@ export default function InactiveMembers() {
             <UserX className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="value-total-inactive">{data?.total ?? 0}</div>
+            <div className="text-3xl font-bold" data-testid="value-total-inactive">{Array.isArray(data) ? data.length : 0}</div>
             <p className="text-xs text-muted-foreground mt-1">members inactive {activeThreshold}+ days</p>
           </CardContent>
         </Card>
@@ -406,7 +401,7 @@ export default function InactiveMembers() {
             <Trash2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="value-pending-deletion">{data?.pendingDeletionCount ?? 0}</div>
+            <div className="text-3xl font-bold" data-testid="value-pending-deletion">{pendingDeletionMembers.length}</div>
             <p className="text-xs text-muted-foreground mt-1">scheduled for removal</p>
           </CardContent>
         </Card>
@@ -416,7 +411,7 @@ export default function InactiveMembers() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="value-avg-inactive">{data?.averageDaysInactive ?? 0}</div>
+            <div className="text-3xl font-bold" data-testid="value-avg-inactive">{Array.isArray(data) && data.length > 0 ? Math.round(data.reduce((sum, m) => sum + (m.daysInactive ?? 0), 0) / data.length) : 0}</div>
             <p className="text-xs text-muted-foreground mt-1">average inactivity period</p>
           </CardContent>
         </Card>

@@ -59,11 +59,11 @@ interface AttendanceData {
     uniqueMembers: number;
   }[];
   sessionPerformance: {
-    type: string;
+    sessionType: string;
     avgAttendance: number;
     fillRate: number;
-    repeatRate: number;
-    firstTimerRate: number;
+    repeatPercent: number;
+    firstTimerPercent: number;
     totalSessions: number;
   }[];
 }
@@ -675,37 +675,37 @@ export default function AttendanceAnalytics() {
             <div className="grid gap-4 md:grid-cols-3">
               {data.sessionPerformance.map((sp) => (
                 <Card
-                  key={sp.type}
+                  key={sp.sessionType}
                   className="cursor-pointer hover-elevate"
                   onClick={() => {
-                    setSessionTypeModal(sp.type);
+                    setSessionTypeModal(sp.sessionType);
                     setSessionSearch("");
                     setSessionPage(0);
                   }}
-                  data-testid={`card-session-${sp.type}`}
+                  data-testid={`card-session-${sp.sessionType}`}
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
-                      {sp.type}
+                      {sp.sessionType}
                       <Badge variant="secondary">{sp.totalSessions} sessions</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Avg Attendance</span>
-                      <span className="font-medium" data-testid={`value-avg-${sp.type}`}>{sp.avgAttendance.toFixed(1)}</span>
+                      <span className="font-medium" data-testid={`value-avg-${sp.sessionType}`}>{sp.avgAttendance.toFixed(1)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Fill Rate</span>
-                      <span className="font-medium">{sp.fillRate.toFixed(1)}%</span>
+                      <span className="font-medium">{(sp.fillRate ?? 0).toFixed(1)}%</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Repeat Rate</span>
-                      <span className="font-medium">{sp.repeatRate.toFixed(1)}%</span>
+                      <span className="font-medium">{(sp.repeatPercent ?? 0).toFixed(1)}%</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">First-Timer Rate</span>
-                      <span className="font-medium">{sp.firstTimerRate.toFixed(1)}%</span>
+                      <span className="font-medium">{(sp.firstTimerPercent ?? 0).toFixed(1)}%</span>
                     </div>
                   </CardContent>
                 </Card>
