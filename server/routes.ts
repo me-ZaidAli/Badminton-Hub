@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
+import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
@@ -10912,6 +10913,12 @@ export async function registerRoutes(
         body,
         clubId: null,
       }).returning();
+
+      try {
+        const senderUser = await storage.getUser(senderId);
+        await sendNewMessageNotification(msg.id, resolvedRecipientId, senderUser?.fullName || "Someone", body.substring(0, 50), null);
+      } catch (e) { console.error("[MSG NOTIF]", e); }
+
       res.json(msg);
     } catch (err: any) {
       res.status(500).json({ message: "Failed to send message" });
@@ -12204,6 +12211,9 @@ export async function registerRoutes(
           linkUrl: `/tickets/${ticket.id}`,
           status: "in_progress",
         });
+        try {
+          await sendTicketReplyNotification(ticketId, ticket.ticketNumber, ticket.createdByUserId, req.user!.fullName || "Support", ticket.subject, ticket.clubId, true);
+        } catch (e) { console.error("[TICKET NOTIF]", e); }
       } else if (ticket.assignedToUserId) {
         await db.insert(notifications).values({
           userId: ticket.assignedToUserId,
@@ -12213,6 +12223,9 @@ export async function registerRoutes(
           linkUrl: `/tickets/${ticket.id}`,
           status: "in_progress",
         });
+        try {
+          await sendTicketReplyNotification(ticketId, ticket.ticketNumber, ticket.assignedToUserId, req.user!.fullName || "Player", ticket.subject, ticket.clubId, false);
+        } catch (e) { console.error("[TICKET NOTIF]", e); }
       }
 
       res.status(201).json(reply);
@@ -12458,6 +12471,216 @@ export async function registerRoutes(
       }
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to update referral settings" });
+    }
+  });
+
+  // ============================================================
+  // NOTIFICATION SCHEDULE SETTINGS & LOGS
+  // ============================================================
+
+  app.get("/api/clubs/:clubId/notification-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+      const [settings] = await db.select().from(notificationScheduleSettings).where(eq(notificationScheduleSettings.clubId, clubId));
+      res.json(settings || {
+        clubId,
+        paymentRemindersEnabled: true,
+        paymentReminderDaysBefore: 2,
+        paymentReminderDailyAfter: true,
+        membershipRemindersEnabled: true,
+        referralRemindersEnabled: true,
+        ticketNotificationsEnabled: true,
+        messageNotificationsEnabled: true,
+        emailNotificationsEnabled: true,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch notification settings" });
+    }
+  });
+
+  app.put("/api/clubs/:clubId/notification-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+      const body = z.object({
+        paymentRemindersEnabled: z.boolean().optional(),
+        paymentReminderDaysBefore: z.number().int().min(1).max(7).optional(),
+        paymentReminderDailyAfter: z.boolean().optional(),
+        membershipRemindersEnabled: z.boolean().optional(),
+        referralRemindersEnabled: z.boolean().optional(),
+        ticketNotificationsEnabled: z.boolean().optional(),
+        messageNotificationsEnabled: z.boolean().optional(),
+        emailNotificationsEnabled: z.boolean().optional(),
+      }).parse(req.body);
+
+      const [existing] = await db.select().from(notificationScheduleSettings).where(eq(notificationScheduleSettings.clubId, clubId));
+      if (existing) {
+        const [updated] = await db.update(notificationScheduleSettings).set({
+          ...body,
+          updatedAt: new Date(),
+        }).where(eq(notificationScheduleSettings.clubId, clubId)).returning();
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(notificationScheduleSettings).values({
+          clubId,
+          ...body,
+          updatedAt: new Date(),
+        } as any).returning();
+        res.json(created);
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update notification settings" });
+    }
+  });
+
+  app.get("/api/admin/notification-logs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const entityType = req.query.entityType as string | undefined;
+      const limit = Math.min(Number(req.query.limit) || 50, 200);
+      const offset = Number(req.query.offset) || 0;
+
+      if (user.role !== "OWNER") {
+        if (!clubId) return res.sendStatus(403);
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const conditions: any[] = [];
+      if (clubId) conditions.push(eq(notificationLogs.clubId, clubId));
+      if (entityType) conditions.push(eq(notificationLogs.entityType, entityType));
+
+      const logs = await db.select({
+        id: notificationLogs.id,
+        recipientUserId: notificationLogs.recipientUserId,
+        recipientName: users.fullName,
+        clubId: notificationLogs.clubId,
+        entityType: notificationLogs.entityType,
+        entityId: notificationLogs.entityId,
+        scheduleKey: notificationLogs.scheduleKey,
+        channel: notificationLogs.channel,
+        status: notificationLogs.status,
+        templateName: notificationLogs.templateName,
+        messageContent: notificationLogs.messageContent,
+        errorMessage: notificationLogs.errorMessage,
+        sentAt: notificationLogs.sentAt,
+      })
+        .from(notificationLogs)
+        .leftJoin(users, eq(notificationLogs.recipientUserId, users.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(notificationLogs.sentAt))
+        .limit(limit)
+        .offset(offset);
+
+      const [countResult] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(notificationLogs)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+      res.json({ logs, total: countResult?.count || 0 });
+    } catch (err: any) {
+      console.error("Error fetching notification logs:", err);
+      res.status(500).json({ message: "Failed to fetch notification logs" });
+    }
+  });
+
+  app.get("/api/admin/notification-stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const isAdmin = await canPerform({ id: user.id, role: user.role }, "VIEW_ADMIN_DASHBOARD", 0);
+        if (!isAdmin) return res.sendStatus(403);
+      }
+
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const conditions: any[] = [];
+      if (clubId) conditions.push(eq(notificationLogs.clubId, clubId));
+
+      const stats = await db.select({
+        channel: notificationLogs.channel,
+        status: notificationLogs.status,
+        templateName: notificationLogs.templateName,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(notificationLogs)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .groupBy(notificationLogs.channel, notificationLogs.status, notificationLogs.templateName);
+
+      const totalSent = stats.filter(s => s.status === "SENT").reduce((sum, s) => sum + s.count, 0);
+      const totalFailed = stats.filter(s => s.status === "FAILED").reduce((sum, s) => sum + s.count, 0);
+
+      res.json({
+        totalSent,
+        totalFailed,
+        byChannel: stats,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch notification stats" });
+    }
+  });
+
+  app.get("/api/clubs/:clubId/bank-details", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+      const [club] = await db.select({
+        bankName: clubs.bankName,
+        bankAccountName: clubs.bankAccountName,
+        bankSortCode: clubs.bankSortCode,
+        bankAccountNumber: clubs.bankAccountNumber,
+        bankReference: clubs.bankReference,
+      }).from(clubs).where(eq(clubs.id, clubId));
+      res.json(club || {});
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch bank details" });
+    }
+  });
+
+  app.put("/api/clubs/:clubId/bank-details", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+      const body = z.object({
+        bankName: z.string().optional(),
+        bankAccountName: z.string().optional(),
+        bankSortCode: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        bankReference: z.string().optional(),
+      }).parse(req.body);
+
+      const [updated] = await db.update(clubs).set(body).where(eq(clubs.id, clubId)).returning({
+        bankName: clubs.bankName,
+        bankAccountName: clubs.bankAccountName,
+        bankSortCode: clubs.bankSortCode,
+        bankAccountNumber: clubs.bankAccountNumber,
+        bankReference: clubs.bankReference,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update bank details" });
     }
   });
 

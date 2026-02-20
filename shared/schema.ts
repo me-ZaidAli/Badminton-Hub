@@ -129,6 +129,11 @@ export const clubs = pgTable("clubs", {
   contactFullName: text("contact_full_name"),
   contactPhone: text("contact_phone"),
   contactAddress: text("contact_address"),
+  bankName: text("bank_name"),
+  bankAccountName: text("bank_account_name"),
+  bankSortCode: text("bank_sort_code"),
+  bankAccountNumber: text("bank_account_number"),
+  bankReference: text("bank_reference"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1227,3 +1232,53 @@ export type ChatReport = typeof chatReports.$inferSelect;
 export type InsertChatReport = z.infer<typeof insertChatReportSchema>;
 export type ChatAuditLog = typeof chatAuditLogs.$inferSelect;
 export type InsertChatAuditLog = z.infer<typeof insertChatAuditLogSchema>;
+
+// === AUTOMATED NOTIFICATION SYSTEM ===
+export const notificationChannelEnum = pgEnum("notification_channel", ["IN_APP", "CHAT", "EMAIL"]);
+export const notificationLogStatusEnum = pgEnum("notification_log_status", ["SENT", "FAILED", "SKIPPED"]);
+
+export const notificationScheduleSettings = pgTable("notification_schedule_settings", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  paymentRemindersEnabled: boolean("payment_reminders_enabled").default(true).notNull(),
+  paymentReminderDaysBefore: integer("payment_reminder_days_before").default(2).notNull(),
+  paymentReminderDailyAfter: boolean("payment_reminder_daily_after").default(true).notNull(),
+  membershipRemindersEnabled: boolean("membership_reminders_enabled").default(true).notNull(),
+  referralRemindersEnabled: boolean("referral_reminders_enabled").default(true).notNull(),
+  ticketNotificationsEnabled: boolean("ticket_notifications_enabled").default(true).notNull(),
+  messageNotificationsEnabled: boolean("message_notifications_enabled").default(true).notNull(),
+  emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const notificationLogs = pgTable("notification_logs", {
+  id: serial("id").primaryKey(),
+  recipientUserId: integer("recipient_user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id").notNull(),
+  scheduleKey: text("schedule_key").notNull(),
+  channel: notificationChannelEnum("channel").notNull(),
+  status: notificationLogStatusEnum("status").default("SENT").notNull(),
+  templateName: text("template_name").notNull(),
+  messageContent: text("message_content"),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+
+export const notificationScheduleSettingsRelations = relations(notificationScheduleSettings, ({ one }) => ({
+  club: one(clubs, { fields: [notificationScheduleSettings.clubId], references: [clubs.id] }),
+}));
+
+export const notificationLogsRelations = relations(notificationLogs, ({ one }) => ({
+  recipient: one(users, { fields: [notificationLogs.recipientUserId], references: [users.id] }),
+  club: one(clubs, { fields: [notificationLogs.clubId], references: [clubs.id] }),
+}));
+
+export const insertNotificationScheduleSettingsSchema = createInsertSchema(notificationScheduleSettings).omit({ id: true, updatedAt: true });
+export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({ id: true, sentAt: true });
+
+export type NotificationScheduleSettings = typeof notificationScheduleSettings.$inferSelect;
+export type InsertNotificationScheduleSettings = z.infer<typeof insertNotificationScheduleSettingsSchema>;
+export type NotificationLog = typeof notificationLogs.$inferSelect;
+export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;

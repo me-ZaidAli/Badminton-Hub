@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
+import { runNotificationScheduler } from "./notification-scheduler";
 
 const app = express();
 const httpServer = createServer(app);
@@ -121,6 +122,22 @@ app.use((req, res, next) => {
           console.error("Auto-close tickets failed:", err);
         }
       }, 6 * 60 * 60 * 1000);
+
+      setInterval(async () => {
+        try {
+          await runNotificationScheduler();
+        } catch (err) {
+          console.error("Notification scheduler failed:", err);
+        }
+      }, 60 * 60 * 1000);
+
+      setTimeout(async () => {
+        try {
+          await runNotificationScheduler();
+        } catch (err) {
+          console.error("Initial notification scheduler run failed:", err);
+        }
+      }, 30 * 1000);
     },
   );
 })();

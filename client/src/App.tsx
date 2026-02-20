@@ -54,6 +54,7 @@ const AdminInventory = lazy(() => import("@/pages/admin/Inventory"));
 const Memberships = lazy(() => import("@/pages/Memberships"));
 const Referrals = lazy(() => import("@/pages/Referrals"));
 const AdminReferrals = lazy(() => import("@/pages/admin/AdminReferrals"));
+const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
 const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
@@ -416,6 +417,9 @@ function Router() {
       </Route>
       <Route path="/admin/referrals">
         <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminReferrals /></Suspense>} />
+      </Route>
+      <Route path="/admin/notifications">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminNotifications /></Suspense>} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={AdminAnnouncements} />
