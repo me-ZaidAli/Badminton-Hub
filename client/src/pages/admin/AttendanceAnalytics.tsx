@@ -524,13 +524,13 @@ export default function AttendanceAnalytics() {
                     Top Members by {topSortBy === "total" ? "Attendances" : "Attendance Rate"}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-hidden">
                   {sortedTopMembers.length > 0 ? (
                     <ResponsiveContainer width="100%" height={Math.max(280, sortedTopMembers.length * 32)}>
-                      <BarChart data={sortedTopMembers} layout="vertical">
+                      <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis type="number" tick={{ fontSize: 11 }} />
-                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={140} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
                         <Tooltip contentStyle={tooltipStyle} />
                         <Bar
                           dataKey={topSortBy === "total" ? "totalAttendances" : "attendanceRate"}
@@ -567,7 +567,7 @@ export default function AttendanceAnalytics() {
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Members grouped by attendance frequency</p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-hidden">
                 {data.distribution.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={data.distribution}>
@@ -631,7 +631,7 @@ export default function AttendanceAnalytics() {
                     Attendance Over Time
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-hidden">
                   {data.overTime.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart

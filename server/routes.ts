@@ -14388,15 +14388,26 @@ export async function registerRoutes(
         filteredSignups = allSignups.filter(s => profileIds.has(s.playerId));
       }
 
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
-      const attended = filteredSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+      const explicitAttendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const explicitAbsentStatuses = ["NO_SHOW", "JUSTIFIED_CANCELLATION"];
+      const sessionMap = new Map(allSessions.map(s => [s.id, s]));
+
+      const isConsideredAttended = (signup: any) => {
+        if (explicitAttendedStatuses.includes(signup.attendanceStatus)) return true;
+        if (explicitAbsentStatuses.includes(signup.attendanceStatus)) return false;
+        const sess = sessionMap.get(signup.sessionId);
+        if (sess && sess.date < now && signup.signupStatus === "CONFIRMED") return true;
+        return false;
+      };
+
+      const attended = filteredSignups.filter(isConsideredAttended);
       const totalSessions = allSessions.length;
       const totalAttendances = attended.length;
       const uniqueMemberIds = new Set(attended.map(s => s.playerId));
       const uniqueMembers = uniqueMemberIds.size;
       const avgAttendance = totalSessions > 0 ? Math.round((totalAttendances / totalSessions) * 10) / 10 : 0;
 
-      const prevSessions = await db.select({ id: sessions.id }).from(sessions)
+      const prevSessions = await db.select({ id: sessions.id, date: sessions.date }).from(sessions)
         .where(and(
           inArray(sessions.clubId, filteredClubIds),
           gte(sessions.date, prevFrom),
@@ -14404,29 +14415,30 @@ export async function registerRoutes(
           sql`${sessions.status} != 'CANCELLED'`
         ));
       const prevSessionIds = prevSessions.map(s => s.id);
+      const prevSessionMap = new Map(prevSessions.map(s => [s.id, s]));
       let previousPeriodAttendances = 0;
       if (prevSessionIds.length > 0) {
         const prevSignups = await db.select().from(sessionSignups)
-          .where(and(
-            inArray(sessionSignups.sessionId, prevSessionIds),
-            inArray(sessionSignups.attendanceStatus, attendedStatuses as any)
-          ));
-        previousPeriodAttendances = prevSignups.length;
+          .where(inArray(sessionSignups.sessionId, prevSessionIds));
+        previousPeriodAttendances = prevSignups.filter(s => {
+          if (explicitAttendedStatuses.includes(s.attendanceStatus)) return true;
+          if (explicitAbsentStatuses.includes(s.attendanceStatus)) return false;
+          const sess = prevSessionMap.get(s.sessionId);
+          return sess && sess.date < now && s.signupStatus === "CONFIRMED";
+        }).length;
       }
       const growthPercent = previousPeriodAttendances > 0
         ? Math.round(((totalAttendances - previousPeriodAttendances) / previousPeriodAttendances) * 100)
         : totalAttendances > 0 ? 100 : 0;
 
-      const noShows = filteredSignups.filter(s =>
-        s.signupStatus === "CONFIRMED" &&
-        (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED")
-      ).filter(s => {
-        const sess = allSessions.find(ss => ss.id === s.sessionId);
-        return sess && sess.date < now;
+      const noShows = filteredSignups.filter(s => {
+        const sess = sessionMap.get(s.sessionId);
+        return sess && sess.date < now && s.signupStatus === "CONFIRMED" &&
+          explicitAbsentStatuses.includes(s.attendanceStatus);
       });
       const noShowCount = noShows.length;
       const confirmedPast = filteredSignups.filter(s => {
-        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        const sess = sessionMap.get(s.sessionId);
         return s.signupStatus === "CONFIRMED" && sess && sess.date < now;
       });
       const noShowRate = confirmedPast.length > 0 ? Math.round((noShowCount / confirmedPast.length) * 100) : 0;
@@ -14436,7 +14448,7 @@ export async function registerRoutes(
         if (!memberAttendanceCounts.has(s.playerId)) memberAttendanceCounts.set(s.playerId, { attended: 0, total: 0 });
         const entry = memberAttendanceCounts.get(s.playerId)!;
         entry.total++;
-        if (attendedStatuses.includes(s.attendanceStatus)) entry.attended++;
+        if (isConsideredAttended(s)) entry.attended++;
       }
 
       const topPlayerIds = Array.from(memberAttendanceCounts.entries())
@@ -14518,11 +14530,11 @@ export async function registerRoutes(
         modeMap.get(mode)!.sessions.push(sess);
       }
       for (const s of filteredSignups) {
-        const sess = allSessions.find(ss => ss.id === s.sessionId);
+        const sess = sessionMap.get(s.sessionId);
         if (sess) {
           const entry = modeMap.get(sess.matchMode)!;
           entry.signups.push(s);
-          if (attendedStatuses.includes(s.attendanceStatus)) entry.attended++;
+          if (isConsideredAttended(s)) entry.attended++;
         }
       }
 
@@ -14546,14 +14558,14 @@ export async function registerRoutes(
         const firstTimerIds = new Set<number>();
         const repeatIds = new Set<number>();
         for (const s of data.signups) {
-          if (attendedStatuses.includes(s.attendanceStatus)) {
+          if (isConsideredAttended(s)) {
             if (attendedPlayerIds.has(s.playerId)) {
               repeatIds.add(s.playerId);
             } else {
               attendedPlayerIds.add(s.playerId);
             }
             const firstDate = firstAttendanceMap.get(s.playerId);
-            const sess = allSessions.find(ss => ss.id === s.sessionId);
+            const sess = sessionMap.get(s.sessionId);
             if (firstDate && sess && sess.date.toISOString().split("T")[0] === firstDate) {
               firstTimerIds.add(s.playerId);
             }
@@ -14639,10 +14651,19 @@ export async function registerRoutes(
 
       if (sessionIds.length === 0) return res.json([]);
       const allSignups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const explicitAttendedStatuses2 = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const explicitAbsentStatuses2 = ["NO_SHOW", "JUSTIFIED_CANCELLATION"];
+      const sessionMap2 = new Map(allSessions.map(s => [s.id, s]));
+      const isConsideredAttended2 = (signup: any) => {
+        if (explicitAttendedStatuses2.includes(signup.attendanceStatus)) return true;
+        if (explicitAbsentStatuses2.includes(signup.attendanceStatus)) return false;
+        const sess = sessionMap2.get(signup.sessionId);
+        if (sess && sess.date < now && signup.signupStatus === "CONFIRMED") return true;
+        return false;
+      };
 
       if (metric === "totalAttendances") {
-        const attended = allSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+        const attended = allSignups.filter(isConsideredAttended2);
         const playerIds = [...new Set(attended.map(s => s.playerId))];
         const profileData = playerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, playerIds)) : [];
         const userIds = profileData.map(p => p.userId);
@@ -14663,7 +14684,7 @@ export async function registerRoutes(
       }
 
       if (metric === "uniqueMembers") {
-        const attended = allSignups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+        const attended = allSignups.filter(isConsideredAttended2);
         const uniquePlayerIds = [...new Set(attended.map(s => s.playerId))];
         const profileData = uniquePlayerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, uniquePlayerIds)) : [];
         const userIds = profileData.map(p => p.userId);
@@ -14681,8 +14702,8 @@ export async function registerRoutes(
 
       if (metric === "noShows") {
         const noShows = allSignups.filter(s => {
-          const sess = allSessions.find(ss => ss.id === s.sessionId);
-          return s.signupStatus === "CONFIRMED" && (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED") && sess && sess.date < now;
+          const sess = sessionMap2.get(s.sessionId);
+          return s.signupStatus === "CONFIRMED" && explicitAbsentStatuses2.includes(s.attendanceStatus) && sess && sess.date < now;
         });
         const playerIds = [...new Set(noShows.map(s => s.playerId))];
         const profileData = playerIds.length > 0 ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(inArray(playerProfiles.id, playerIds)) : [];
@@ -14754,12 +14775,19 @@ export async function registerRoutes(
         ));
       }
 
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
-      const attendedSignups = signups.filter(s => attendedStatuses.includes(s.attendanceStatus));
+      const now3 = new Date();
+      const memberSessionMap = new Map(memberSessions.map(s => [s.id, s]));
+      const isAttended3 = (s: any) => {
+        if (["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(s.attendanceStatus)) return true;
+        if (["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(s.attendanceStatus)) return false;
+        const sess = memberSessionMap.get(s.sessionId);
+        return sess && sess.date < now3 && s.signupStatus === "CONFIRMED";
+      };
+      const attendedSignups = signups.filter(isAttended3);
       const totalAttendances = attendedSignups.length;
       const totalBookings = signups.length;
       const attendanceRate = totalBookings > 0 ? Math.round((totalAttendances / totalBookings) * 100) : 0;
-      const noShowCount = signups.filter(s => s.signupStatus === "CONFIRMED" && (s.attendanceStatus === "NO_SHOW" || s.attendanceStatus === "NOT_ATTENDED") && memberSessions.find(ss => ss.id === s.sessionId)?.date! < new Date()).length;
+      const noShowCount = signups.filter(s => s.signupStatus === "CONFIRMED" && ["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(s.attendanceStatus) && memberSessionMap.get(s.sessionId)?.date! < now3).length;
 
       const sessionTypeCount = new Map<string, number>();
       for (const s of attendedSignups) {
@@ -14844,10 +14872,17 @@ export async function registerRoutes(
       const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, adminClubIds));
       const clubMap = new Map(clubData.map(c => [c.id, c]));
 
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const now4 = new Date();
+      const daySessionMap = new Map(daySessions.map(s => [s.id, s]));
+      const isAttended4 = (su: any) => {
+        if (["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(su.attendanceStatus)) return true;
+        if (["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(su.attendanceStatus)) return false;
+        const sess = daySessionMap.get(su.sessionId);
+        return sess && sess.date < now4 && su.signupStatus === "CONFIRMED";
+      };
       const result = daySessions.map(s => {
         const sessSignups = signups.filter(su => su.sessionId === s.id);
-        const attendedCount = sessSignups.filter(su => attendedStatuses.includes(su.attendanceStatus)).length;
+        const attendedCount = sessSignups.filter(isAttended4).length;
         return {
           id: s.id,
           title: s.title,
@@ -14903,11 +14938,18 @@ export async function registerRoutes(
       if (sessionIds.length === 0) return res.json([]);
 
       const allSignups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const now5 = new Date();
+      const distSessionMap = new Map(allSessions.map(s => [s.id, s]));
+      const isAttended5 = (s: any) => {
+        if (["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(s.attendanceStatus)) return true;
+        if (["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(s.attendanceStatus)) return false;
+        const sess = distSessionMap.get(s.sessionId);
+        return sess && sess.date < now5 && s.signupStatus === "CONFIRMED";
+      };
 
       const memberCounts = new Map<number, number>();
       for (const s of allSignups) {
-        if (attendedStatuses.includes(s.attendanceStatus)) {
+        if (isAttended5(s)) {
           memberCounts.set(s.playerId, (memberCounts.get(s.playerId) || 0) + 1);
         }
       }
@@ -14992,11 +15034,18 @@ export async function registerRoutes(
       const signups = await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
       const clubData = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, adminClubIds));
       const clubMap = new Map(clubData.map(c => [c.id, c]));
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const now6 = new Date();
+      const typeSessionMap = new Map(typeSessions.map(s => [s.id, s]));
+      const isAttended6 = (su: any) => {
+        if (["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(su.attendanceStatus)) return true;
+        if (["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(su.attendanceStatus)) return false;
+        const sess = typeSessionMap.get(su.sessionId);
+        return sess && sess.date < now6 && su.signupStatus === "CONFIRMED";
+      };
 
       const result = typeSessions.map(s => {
         const sessSignups = signups.filter(su => su.sessionId === s.id);
-        const attendedCount = sessSignups.filter(su => attendedStatuses.includes(su.attendanceStatus)).length;
+        const attendedCount = sessSignups.filter(isAttended6).length;
         return {
           id: s.id,
           title: s.title,
@@ -15065,20 +15114,28 @@ export async function registerRoutes(
         ));
       const sessionIds = allSessions2.map(s => s.id);
 
-      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const nowInactive = new Date();
+      const inactiveSessionMap = new Map(allSessions2.map(s => [s.id, s]));
       let allSignups: any[] = [];
       if (sessionIds.length > 0) {
         allSignups = await db.select().from(sessionSignups)
           .where(and(
             inArray(sessionSignups.playerId, profileIds),
-            inArray(sessionSignups.sessionId, sessionIds),
-            inArray(sessionSignups.attendanceStatus, attendedStatuses as any)
+            inArray(sessionSignups.sessionId, sessionIds)
           ));
       }
 
+      const isConsideredAttendedInactive = (signup: any) => {
+        if (["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(signup.attendanceStatus)) return true;
+        if (["NO_SHOW", "JUSTIFIED_CANCELLATION"].includes(signup.attendanceStatus)) return false;
+        const sess = inactiveSessionMap.get(signup.sessionId);
+        return sess && sess.date < nowInactive && signup.signupStatus === "CONFIRMED";
+      };
+
       const lastAttendanceMap = new Map<number, Date>();
       for (const s of allSignups) {
-        const sess = allSessions2.find(ss => ss.id === s.sessionId);
+        if (!isConsideredAttendedInactive(s)) continue;
+        const sess = inactiveSessionMap.get(s.sessionId);
         if (sess) {
           const current = lastAttendanceMap.get(s.playerId);
           if (!current || sess.date > current) {

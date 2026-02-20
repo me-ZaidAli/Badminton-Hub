@@ -349,7 +349,7 @@ export default function AcquisitionAnalytics() {
                       Monthly Signups & Growth
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="overflow-hidden">
                     {data.signupsPerMonth.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
                         <LineChart data={data.signupsPerMonth}>
@@ -382,17 +382,18 @@ export default function AcquisitionAnalytics() {
                       Signups by Channel
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="overflow-hidden">
                     {channelPieData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={280}>
+                      <ResponsiveContainer width="100%" height={320}>
                         <PieChart>
                           <Pie
                             data={channelPieData}
                             cx="50%"
-                            cy="50%"
-                            outerRadius={100}
+                            cy="40%"
+                            outerRadius={80}
+                            innerRadius={30}
                             dataKey="value"
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            label={false}
                           >
                             {channelPieData.map((_, index) => (
                               <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -404,6 +405,13 @@ export default function AcquisitionAnalytics() {
                               border: "1px solid hsl(var(--border))",
                               borderRadius: "8px",
                             }}
+                            formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
+                          />
+                          <Legend
+                            layout="horizontal"
+                            verticalAlign="bottom"
+                            align="center"
+                            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -432,13 +440,13 @@ export default function AcquisitionAnalytics() {
                     Weighted score: 40% Membership conversion + 30% Retention + 30% Activity
                   </p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-hidden">
                   {qualityScoreData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={qualityScoreData} layout="vertical">
+                    <ResponsiveContainer width="100%" height={Math.max(200, qualityScoreData.length * 40)}>
+                      <BarChart data={qualityScoreData} layout="vertical" margin={{ left: 10, right: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, 100]} />
-                        <YAxis dataKey="channel" type="category" tick={{ fontSize: 11 }} width={120} />
+                        <YAxis dataKey="channel" type="category" tick={{ fontSize: 10 }} width={100} />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
@@ -524,13 +532,13 @@ export default function AcquisitionAnalytics() {
                   Users active within 30 days, for accounts older than 90 days
                 </p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-hidden">
                 {retentionData.length > 0 ? (
                   <>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={retentionData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="channel" tick={{ fontSize: 10 }} />
+                        <XAxis dataKey="channel" tick={{ fontSize: 9, angle: -30, textAnchor: "end" }} height={50} interval={0} />
                         <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                         <Tooltip
                           contentStyle={{
