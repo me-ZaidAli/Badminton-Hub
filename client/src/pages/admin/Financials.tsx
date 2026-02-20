@@ -125,7 +125,7 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships">("session");
-  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "past">("upcoming");
+  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
@@ -365,23 +365,29 @@ export default function Financials() {
     return Object.fromEntries(sorted);
   }, [filteredData]);
 
-  const { upcomingSessionGroups, pastSessionGroups } = useMemo(() => {
+  const { upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups } = useMemo(() => {
     const today = startOfDay(new Date());
     const upcoming: Record<number, FinancialEntry[]> = {};
+    const outstanding: Record<number, FinancialEntry[]> = {};
     const past: Record<number, FinancialEntry[]> = {};
     Object.entries(sessionGroups).forEach(([sessionIdStr, entries]) => {
       const sessionDate = entries[0]?.sessionDate ? startOfDay(new Date(entries[0].sessionDate)) : null;
-      if (sessionDate && sessionDate < today) {
-        past[Number(sessionIdStr)] = entries;
-      } else {
+      if (!sessionDate || sessionDate >= today) {
         upcoming[Number(sessionIdStr)] = entries;
+      } else {
+        const hasOutstanding = entries.some((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING");
+        if (hasOutstanding) {
+          outstanding[Number(sessionIdStr)] = entries;
+        } else {
+          past[Number(sessionIdStr)] = entries;
+        }
       }
     });
-    return { upcomingSessionGroups: upcoming, pastSessionGroups: past };
+    return { upcomingSessionGroups: upcoming, outstandingSessionGroups: outstanding, pastSessionGroups: past };
   }, [sessionGroups]);
 
   const activeSessionGroupsList = useMemo(() => {
-    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : pastSessionGroups;
+    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : sessionTimeTab === "outstanding" ? outstandingSessionGroups : pastSessionGroups;
     const entries: [string, FinancialEntry[]][] = Object.entries(base);
     entries.sort(([, a], [, b]) => {
       if (sessionSortOrder === "az") {
@@ -394,7 +400,7 @@ export default function Financials() {
       return sessionSortOrder === "oldest" ? aDate - bDate : bDate - aDate;
     });
     return entries;
-  }, [sessionTimeTab, upcomingSessionGroups, pastSessionGroups, sessionSortOrder]);
+  }, [sessionTimeTab, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
     const groups: Record<string, FinancialEntry[]> = {};
@@ -1558,6 +1564,16 @@ export default function Financials() {
               </Button>
               <Button
                 size="sm"
+                variant={sessionTimeTab === "outstanding" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("outstanding"); setSelectedSessions(new Set()); }}
+                className={sessionTimeTab !== "outstanding" && Object.keys(outstandingSessionGroups).length > 0 ? "border-orange-300 text-orange-600" : ""}
+                data-testid="button-outstanding-sessions"
+              >
+                <AlertCircle className="h-4 w-4 mr-1" />
+                Outstanding ({Object.keys(outstandingSessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
                 variant={sessionTimeTab === "past" ? "default" : "outline"}
                 onClick={() => { setSessionTimeTab("past"); setSelectedSessions(new Set()); }}
                 data-testid="button-past-sessions"
@@ -1619,7 +1635,7 @@ export default function Financials() {
           {activeSessionGroupsList.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
-                No {sessionTimeTab === "upcoming" ? "upcoming" : "past"} sessions found for the selected filters.
+                No {sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : "past"} sessions found for the selected filters.
               </CardContent>
             </Card>
           ) : (
