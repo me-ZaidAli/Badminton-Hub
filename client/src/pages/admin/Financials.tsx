@@ -177,6 +177,8 @@ export default function Financials() {
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
   const [outstandingDialogOpen, setOutstandingDialogOpen] = useState(false);
+  const [outstandingEditingFee, setOutstandingEditingFee] = useState<number | null>(null);
+  const [outstandingFeeValue, setOutstandingFeeValue] = useState("");
 
   const financialQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -335,18 +337,19 @@ export default function Financials() {
   const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
 
   const outstandingByPlayer = useMemo(() => {
-    const unpaidEntries = filteredData.filter((e) => e.paymentStatus === "UNPAID");
-    const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number; totalOwed: number; sessions: { sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number }[] }> = {};
+    const unpaidEntries = filteredData.filter((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING");
+    const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number; totalOwed: number; sessions: { signupId: number; sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number; paymentStatus: string }[] }> = {};
     unpaidEntries.forEach((entry) => {
       const key = `${entry.playerUserId}`;
       if (!groups[key]) {
         groups[key] = { playerName: entry.playerName, playerEmail: entry.playerEmail, playerUserId: entry.playerUserId, totalOwed: 0, sessions: [] };
       }
       groups[key].totalOwed += entry.fee || 0;
-      groups[key].sessions.push({ sessionId: entry.sessionId, sessionTitle: entry.sessionTitle, sessionDate: entry.sessionDate, clubName: entry.clubName, fee: entry.fee });
+      groups[key].sessions.push({ signupId: entry.signupId, sessionId: entry.sessionId, sessionTitle: entry.sessionTitle, sessionDate: entry.sessionDate, clubName: entry.clubName, fee: entry.fee, paymentStatus: entry.paymentStatus });
     });
     return Object.values(groups).sort((a, b) => b.totalOwed - a.totalOwed);
   }, [filteredData]);
+  const outstandingTotal = useMemo(() => unpaidTotal + pendingTotal, [unpaidTotal, pendingTotal]);
 
   const sessionGroups = useMemo(() => {
     const groups: Record<number, FinancialEntry[]> = {};
@@ -1312,13 +1315,13 @@ export default function Financials() {
           </CardHeader>
           <CardContent className="px-3 pb-3">
             <div className="text-sm sm:text-xl font-bold text-orange-600" data-testid="text-outstanding">
-              £{formatPounds(unpaidTotal)}
+              £{formatPounds(outstandingTotal)}
             </div>
             <div className="flex items-center justify-between gap-1 mt-0.5 flex-wrap">
               <p className="text-[9px] sm:text-[11px] text-muted-foreground">
-                {filteredData.filter((e) => e.paymentStatus === "UNPAID").length} unpaid
+                {filteredData.filter((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING").length} unpaid
               </p>
-              {unpaidTotal > 0 && (
+              {outstandingTotal > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -2852,12 +2855,12 @@ export default function Financials() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={outstandingDialogOpen} onOpenChange={setOutstandingDialogOpen}>
+      <Dialog open={outstandingDialogOpen} onOpenChange={(open) => { setOutstandingDialogOpen(open); if (!open) { setOutstandingEditingFee(null); setOutstandingFeeValue(""); } }}>
         <DialogContent className="sm:max-w-[700px]" data-testid="dialog-outstanding-details">
           <DialogHeader>
             <DialogTitle data-testid="text-outstanding-dialog-title">Outstanding Payments</DialogTitle>
             <DialogDescription>
-              {outstandingByPlayer.length} player{outstandingByPlayer.length !== 1 ? "s" : ""} with unpaid sessions totalling {"\u00A3"}{formatPounds(unpaidTotal)}
+              {outstandingByPlayer.length} player{outstandingByPlayer.length !== 1 ? "s" : ""} with outstanding sessions totalling {"\u00A3"}{formatPounds(outstandingTotal)}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto space-y-3">
@@ -2871,22 +2874,162 @@ export default function Financials() {
                       <CardTitle className="text-sm font-medium" data-testid={`text-outstanding-player-name-${player.playerUserId}`}>{player.playerName}</CardTitle>
                       <p className="text-xs text-muted-foreground truncate" data-testid={`text-outstanding-player-email-${player.playerUserId}`}>{player.playerEmail}</p>
                     </div>
-                    <Badge variant="destructive" data-testid={`badge-outstanding-total-${player.playerUserId}`}>
-                      {"\u00A3"}{formatPounds(player.totalOwed)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive" data-testid={`badge-outstanding-total-${player.playerUserId}`}>
+                        {"\u00A3"}{formatPounds(player.totalOwed)}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950"
+                        disabled={updatePayment.isPending}
+                        data-testid={`button-mark-all-paid-${player.playerUserId}`}
+                        onClick={() => {
+                          player.sessions.forEach((session) => {
+                            updatePayment.mutate(
+                              { sessionId: session.sessionId, signupId: session.signupId, status: "PAID" },
+                              {
+                                onSuccess: () => {
+                                  qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
+                                },
+                              }
+                            );
+                          });
+                          toast({ title: "Marking All Paid", description: `Updating ${player.sessions.length} payment(s) for ${player.playerName}.` });
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-0.5" />
+                        Pay All
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="space-y-1">
                       {player.sessions.map((session, idx) => (
-                        <div key={`${session.sessionId}-${idx}`} className="flex items-center justify-between gap-2 text-xs py-1 border-t border-border/40 flex-wrap" data-testid={`row-outstanding-session-${session.sessionId}-${player.playerUserId}`}>
+                        <div key={`${session.sessionId}-${idx}`} className="flex items-center justify-between gap-2 text-xs py-1.5 border-t border-border/40 flex-wrap" data-testid={`row-outstanding-session-${session.sessionId}-${player.playerUserId}`}>
                           <div className="min-w-0 flex-1">
                             <span className="font-medium">{session.sessionTitle}</span>
                             <span className="text-muted-foreground ml-2">
                               {session.sessionDate ? format(new Date(session.sessionDate), "dd MMM yyyy") : "N/A"}
                             </span>
                             <span className="text-muted-foreground ml-1">({session.clubName})</span>
+                            {session.paymentStatus === "PENDING" && (
+                              <Badge variant="outline" className="ml-1 text-[9px] px-1 py-0 h-4 text-yellow-600 border-yellow-300">Pending</Badge>
+                            )}
                           </div>
-                          <span className="font-medium text-orange-600 whitespace-nowrap">{"\u00A3"}{formatPounds(session.fee)}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {outstandingEditingFee === session.signupId ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground">{"\u00A3"}</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  className="h-6 w-20 text-xs px-1"
+                                  value={outstandingFeeValue}
+                                  onChange={(e) => setOutstandingFeeValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      const pence = Math.round(parseFloat(outstandingFeeValue) * 100);
+                                      if (isNaN(pence) || pence < 0) {
+                                        toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
+                                        return;
+                                      }
+                                      updateFee.mutate({ signupId: session.signupId, fee: pence }, {
+                                        onSuccess: () => {
+                                          setOutstandingEditingFee(null);
+                                          setOutstandingFeeValue("");
+                                          qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
+                                        }
+                                      });
+                                    } else if (e.key === "Escape") {
+                                      setOutstandingEditingFee(null);
+                                      setOutstandingFeeValue("");
+                                    }
+                                  }}
+                                  autoFocus
+                                  data-testid={`input-outstanding-fee-${session.signupId}`}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  disabled={updateFee.isPending}
+                                  data-testid={`button-save-outstanding-fee-${session.signupId}`}
+                                  onClick={() => {
+                                    const pence = Math.round(parseFloat(outstandingFeeValue) * 100);
+                                    if (isNaN(pence) || pence < 0) {
+                                      toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
+                                      return;
+                                    }
+                                    updateFee.mutate({ signupId: session.signupId, fee: pence }, {
+                                      onSuccess: () => {
+                                        setOutstandingEditingFee(null);
+                                        setOutstandingFeeValue("");
+                                        qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
+                                      }
+                                    });
+                                  }}
+                                >
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  data-testid={`button-cancel-outstanding-fee-${session.signupId}`}
+                                  onClick={() => { setOutstandingEditingFee(null); setOutstandingFeeValue(""); }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <span
+                                  className="font-medium text-orange-600 whitespace-nowrap cursor-pointer hover:underline"
+                                  onClick={() => { setOutstandingEditingFee(session.signupId); setOutstandingFeeValue((session.fee / 100).toFixed(2)); }}
+                                  title="Click to edit amount"
+                                  data-testid={`text-outstanding-fee-${session.signupId}`}
+                                >
+                                  {"\u00A3"}{formatPounds(session.fee)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                  onClick={() => { setOutstandingEditingFee(session.signupId); setOutstandingFeeValue((session.fee / 100).toFixed(2)); }}
+                                  title="Edit amount"
+                                  data-testid={`button-edit-outstanding-fee-${session.signupId}`}
+                                >
+                                  <Pencil className="h-2.5 w-2.5" />
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-[10px] px-1.5 text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950"
+                              disabled={updatePayment.isPending}
+                              data-testid={`button-mark-paid-${session.signupId}`}
+                              onClick={() => {
+                                updatePayment.mutate(
+                                  { sessionId: session.sessionId, signupId: session.signupId, status: "PAID" },
+                                  {
+                                    onSuccess: () => {
+                                      toast({ title: "Marked as Paid", description: `Payment updated for ${player.playerName} - ${session.sessionTitle}.` });
+                                      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
+                                    },
+                                    onError: () => {
+                                      toast({ title: "Error", description: "Failed to update payment.", variant: "destructive" });
+                                    },
+                                  }
+                                );
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-0.5" />
+                              Paid
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
