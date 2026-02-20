@@ -1346,139 +1346,155 @@ export default function Profile() {
       {/* My Rewards */}
       <ProfileRewardsSection />
 
-      {/* Performance Stats */}
-      <CollapsibleSection title="Match Performance" icon={BarChart3} badge={`${performance.played} played`} testId="card-performance">
-        <div className="cursor-pointer" onClick={() => setPerformanceModalOpen(true)}>
-          <div className="flex items-center gap-4">
-            <div className="w-24 h-24 shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={performance.played > 0
-                      ? [{ name: "Won", value: performance.won }, { name: "Lost", value: performance.lost }]
-                      : [{ name: "None", value: 1 }]}
-                    cx="50%" cy="50%"
-                    innerRadius={28} outerRadius={42}
-                    paddingAngle={performance.played > 0 ? 3 : 0}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {performance.played > 0 ? (
-                      <>
-                        <Cell fill="hsl(var(--primary))" />
-                        <Cell fill="hsl(var(--destructive))" />
-                      </>
-                    ) : (
-                      <Cell fill="hsl(var(--muted-foreground) / 0.3)" />
-                    )}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2">
-              <div>
-                <p className="text-2xl font-bold text-primary">{performance.won}</p>
-                <p className="text-xs text-muted-foreground">Won</p>
+      {/* Performance, Rankings & Activity */}
+      <CollapsibleSection title="Performance & Activity" icon={BarChart3} testId="card-performance-activity">
+        <div className="space-y-6">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Match Performance
+              <Badge variant="secondary" className="text-[10px] ml-1">{performance.played} played</Badge>
+            </p>
+            <div className="cursor-pointer rounded-lg border border-border/50 bg-muted/20 p-4" onClick={() => setPerformanceModalOpen(true)} data-testid="card-performance">
+              <div className="flex items-center gap-4">
+                <div className="w-24 h-24 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={performance.played > 0
+                          ? [{ name: "Won", value: performance.won }, { name: "Lost", value: performance.lost }]
+                          : [{ name: "None", value: 1 }]}
+                        cx="50%" cy="50%"
+                        innerRadius={28} outerRadius={42}
+                        paddingAngle={performance.played > 0 ? 3 : 0}
+                        dataKey="value"
+                        strokeWidth={0}
+                      >
+                        {performance.played > 0 ? (
+                          <>
+                            <Cell fill="hsl(var(--primary))" />
+                            <Cell fill="hsl(var(--destructive))" />
+                          </>
+                        ) : (
+                          <Cell fill="hsl(var(--muted-foreground) / 0.3)" />
+                        )}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{performance.won}</p>
+                    <p className="text-xs text-muted-foreground">Won</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-destructive">{performance.lost}</p>
+                    <p className="text-xs text-muted-foreground">Lost</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{performance.winPct}%</p>
+                    <p className="text-xs text-muted-foreground">Win Rate</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{performance.played}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-destructive">{performance.lost}</p>
-                <p className="text-xs text-muted-foreground">Lost</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{performance.winPct}%</p>
-                <p className="text-xs text-muted-foreground">Win Rate</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{performance.played}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
+              <div className="flex items-center justify-center gap-1 mt-3 text-xs text-muted-foreground">
+                <span>Tap for details</span>
+                <ChevronRight className="h-3 w-3" />
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-1 mt-3 text-xs text-muted-foreground">
-            <span>Tap for details</span>
-            <ChevronRight className="h-3 w-3" />
-          </div>
-        </div>
-      </CollapsibleSection>
 
-      {/* Club Ranking Card */}
-      {matchPerformance && matchPerformance.clubs.length > 0 && (
-        <CollapsibleSection title="Club Rankings" icon={Trophy} iconColor="text-amber-500" badge={matchPerformance.clubs.length} testId="card-club-ranking">
-          <div className="space-y-3">
-            {matchPerformance.clubs.length > 1 && (
-              <Select value={rankingClubFilter} onValueChange={setRankingClubFilter}>
-                <SelectTrigger className="w-[180px]" data-testid="select-ranking-club">
-                  <SelectValue placeholder="All Clubs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clubs</SelectItem>
-                  {matchPerformance.clubs.map((c) => (
-                    <SelectItem key={c.clubId} value={c.clubId.toString()}>
-                      {c.clubName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <div className="space-y-3">
-              {(rankingClubFilter === "all" ? matchPerformance.clubs : matchPerformance.clubs.filter(c => c.clubId.toString() === rankingClubFilter)).map((club) => (
-                <div key={club.clubId} className="rounded-md bg-muted/40 p-4" data-testid={`ranking-club-${club.clubId}`}>
-                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">{club.clubName}</span>
-                      {club.grade && (
-                        <Badge variant="outline" className="text-xs no-default-hover-elevate">{club.grade}</Badge>
+          {matchPerformance && matchPerformance.clubs.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                Club Rankings
+                <Badge variant="secondary" className="text-[10px] ml-1">{matchPerformance.clubs.length}</Badge>
+              </p>
+              <div className="space-y-3" data-testid="card-club-ranking">
+                {matchPerformance.clubs.length > 1 && (
+                  <Select value={rankingClubFilter} onValueChange={setRankingClubFilter}>
+                    <SelectTrigger className="w-[180px]" data-testid="select-ranking-club">
+                      <SelectValue placeholder="All Clubs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Clubs</SelectItem>
+                      {matchPerformance.clubs.map((c) => (
+                        <SelectItem key={c.clubId} value={c.clubId.toString()}>
+                          {c.clubName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="space-y-3">
+                  {(rankingClubFilter === "all" ? matchPerformance.clubs : matchPerformance.clubs.filter(c => c.clubId.toString() === rankingClubFilter)).map((club) => (
+                    <div key={club.clubId} className="rounded-lg border border-border/50 bg-muted/20 p-4" data-testid={`ranking-club-${club.clubId}`}>
+                      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">{club.clubName}</span>
+                          {club.grade && (
+                            <Badge variant="outline" className="text-xs no-default-hover-elevate">{club.grade}</Badge>
+                          )}
+                        </div>
+                        {club.rank > 0 && (
+                          <Badge className={`no-default-hover-elevate ${club.rank <= 3 ? "bg-amber-500 text-white" : ""}`}>
+                            #{club.rank} of {club.totalPlayers}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div>
+                          <p className="text-xl font-bold">{club.rank > 0 ? `#${club.rank}` : "-"}</p>
+                          <p className="text-[10px] text-muted-foreground">Rank</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-primary">{club.won}</p>
+                          <p className="text-[10px] text-muted-foreground">Won</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-destructive">{club.lost}</p>
+                          <p className="text-[10px] text-muted-foreground">Lost</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold">{club.winPct}%</p>
+                          <p className="text-[10px] text-muted-foreground">Win %</p>
+                        </div>
+                      </div>
+                      {club.played > 0 && (
+                        <div className="mt-3">
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(club.winPct, 2)}%` }} />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">{club.played} matches played</p>
+                        </div>
+                      )}
+                      {club.played === 0 && (
+                        <p className="text-xs text-muted-foreground mt-2">No completed matches yet</p>
                       )}
                     </div>
-                    {club.rank > 0 && (
-                      <Badge className={`no-default-hover-elevate ${club.rank <= 3 ? "bg-amber-500 text-white" : ""}`}>
-                        #{club.rank} of {club.totalPlayers}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <div>
-                      <p className="text-xl font-bold">{club.rank > 0 ? `#${club.rank}` : "-"}</p>
-                      <p className="text-[10px] text-muted-foreground">Rank</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-primary">{club.won}</p>
-                      <p className="text-[10px] text-muted-foreground">Won</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-destructive">{club.lost}</p>
-                      <p className="text-[10px] text-muted-foreground">Lost</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold">{club.winPct}%</p>
-                      <p className="text-[10px] text-muted-foreground">Win %</p>
-                    </div>
-                  </div>
-                  {club.played > 0 && (
-                    <div className="mt-3">
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(club.winPct, 2)}%` }} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">{club.played} matches played</p>
-                    </div>
-                  )}
-                  {club.played === 0 && (
-                    <p className="text-xs text-muted-foreground mt-2">No completed matches yet</p>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Session Activity
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4" data-testid="card-session-activity">
+              <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
+              <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
+              <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />
             </div>
           </div>
-        </CollapsibleSection>
-      )}
-
-      {/* Session Activity */}
-      <CollapsibleSection title="Session Activity" icon={CalendarDays} testId="card-session-activity">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
-          <MetricCard icon={CalendarDays} label="Total Sessions" value={sessionActivity?.totalSessions ?? 0} onClick={() => setTotalSessionsModalOpen(true)} />
-          <MetricCard icon={Clock} label="Sessions This Month" value={sessionActivity?.sessionsThisMonth ?? 0} onClick={() => setSessionsThisMonthModalOpen(true)} />
-          <MetricCard icon={PoundSterling} label="Total Spent on Sessions" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`} onClick={() => setTotalSpentModalOpen(true)} />
         </div>
       </CollapsibleSection>
 
