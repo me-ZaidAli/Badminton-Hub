@@ -75,9 +75,9 @@ function useNavGroups(): NavGroup[] {
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club" },
-    { href: "/announcements", label: "Announcements", icon: Megaphone, group: "club", badgeKey: "announcements" },
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club" },
 
+    { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications" },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
