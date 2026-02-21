@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target, TrendingUp, Award, Cake } from "lucide-react";
+import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target, TrendingUp, Award, Cake, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { AttendanceRewardsPanel } from "./AttendanceRewards";
 import { PointsRewardsPanel } from "./PointsRewards";
@@ -563,6 +563,7 @@ export function ClubRewardsPage() {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
 
   const clubs = myAdminClubs || [];
   const effectiveClubId = selectedClubId ? Number(selectedClubId) : (clubs.length > 0 ? clubs[0].id : null);
@@ -605,32 +606,54 @@ export function ClubRewardsPage() {
         </Card>
       ) : (
         <Tabs defaultValue="anniversary" data-testid="tabs-rewards">
-          <TabsList className="flex w-full overflow-x-auto no-scrollbar" data-testid="tabs-list">
-            <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-2 flex-shrink-0">
-              <PartyPopper className="h-3.5 w-3.5 mr-1" />
-              Anniversary
-            </TabsTrigger>
-            <TabsTrigger value="birthday" data-testid="tab-birthday" className="text-xs px-2 flex-shrink-0">
-              <Cake className="h-3.5 w-3.5 mr-1" />
-              Birthday
-            </TabsTrigger>
-            <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-2 flex-shrink-0">
-              <Trophy className="h-3.5 w-3.5 mr-1" />
-              Attendance
-            </TabsTrigger>
-            <TabsTrigger value="referrals" data-testid="tab-referrals" className="text-xs px-2 flex-shrink-0">
-              <Users className="h-3.5 w-3.5 mr-1" />
-              Referrals
-            </TabsTrigger>
-            <TabsTrigger value="points" data-testid="tab-points" className="text-xs px-2 flex-shrink-0">
-              <TrendingUp className="h-3.5 w-3.5 mr-1" />
-              Points
-            </TabsTrigger>
-            <TabsTrigger value="grades" data-testid="tab-badges" className="text-xs px-2 flex-shrink-0">
-              <Award className="h-3.5 w-3.5 mr-1" />
-              Badges
-            </TabsTrigger>
-          </TabsList>
+          <div className="relative flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 sm:hidden"
+              onClick={() => tabsScrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+              data-testid="button-scroll-tabs-left"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div ref={tabsScrollRef} className="overflow-x-auto no-scrollbar flex-1">
+              <TabsList className="inline-flex w-max" data-testid="tabs-list">
+                <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-2.5 whitespace-nowrap">
+                  <PartyPopper className="h-3.5 w-3.5 mr-1" />
+                  Anniversary
+                </TabsTrigger>
+                <TabsTrigger value="birthday" data-testid="tab-birthday" className="text-xs px-2.5 whitespace-nowrap">
+                  <Cake className="h-3.5 w-3.5 mr-1" />
+                  Birthday
+                </TabsTrigger>
+                <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-2.5 whitespace-nowrap">
+                  <Trophy className="h-3.5 w-3.5 mr-1" />
+                  Attendance
+                </TabsTrigger>
+                <TabsTrigger value="referrals" data-testid="tab-referrals" className="text-xs px-2.5 whitespace-nowrap">
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                  Referrals
+                </TabsTrigger>
+                <TabsTrigger value="points" data-testid="tab-points" className="text-xs px-2.5 whitespace-nowrap">
+                  <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                  Points
+                </TabsTrigger>
+                <TabsTrigger value="grades" data-testid="tab-badges" className="text-xs px-2.5 whitespace-nowrap">
+                  <Award className="h-3.5 w-3.5 mr-1" />
+                  Badges
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 sm:hidden"
+              onClick={() => tabsScrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+              data-testid="button-scroll-tabs-right"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
           <TabsContent value="anniversary" className="mt-4" data-testid="tab-content-anniversary">
             <AnniversaryRewardsTab clubId={effectiveClubId} />
