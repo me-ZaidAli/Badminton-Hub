@@ -635,6 +635,7 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateUser(req.user!.id, updates);
+      Object.assign(req.user!, updated);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating user profile:", err);
@@ -14958,8 +14959,10 @@ export async function registerRoutes(
   app.get("/api/my-birthday-reward-info", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const user = req.user as any;
-      const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, user.id));
+      const sessionUser = req.user as any;
+      const [freshUser] = await db.select().from(users).where(eq(users.id, sessionUser.id));
+      if (!freshUser) return res.status(404).json({ message: "User not found" });
+      const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, freshUser.id));
       const results: any[] = [];
 
       for (const profile of profiles) {
@@ -14968,13 +14971,13 @@ export async function registerRoutes(
           and(eq(clubBirthdaySettings.clubId, clubId), eq(clubBirthdaySettings.isActive, true))
         );
 
-        const hasDob = !!user.dateOfBirth;
+        const hasDob = !!freshUser.dateOfBirth;
         let daysUntilBirthday: number | null = null;
         let nextBirthdayDate: string | null = null;
         let birthdayToday = false;
 
         if (hasDob) {
-          const birth = new Date(user.dateOfBirth);
+          const birth = new Date(freshUser.dateOfBirth!);
           const now = new Date();
           const thisYearBirthday = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
           if (thisYearBirthday < now) {
