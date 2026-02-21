@@ -609,7 +609,7 @@ export default function Rewards() {
       const bdaySecs = Math.floor((bdayDiff % 60000) / 1000);
       const bdayUnitText = info.birthdayToday ? "Happy Birthday" : `${daysLeft}d ${bdayHours}h ${bdayMins}m ${bdaySecs}s`;
       const countdownParts = bdayDiff > 0 ? { days: daysLeft, hours: bdayHours, mins: bdayMins, secs: bdaySecs } : null;
-      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: bdayUnitText, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, countdownParts, ...theme };
+      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: bdayUnitText, stage: "B-Day", remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, countdownParts, ...theme };
     }
 
     if (activeTab === "points") {
