@@ -134,6 +134,182 @@ function EVGauge({
   );
 }
 
+function SpeedometerGauge({
+  percentage,
+  accentColor,
+  glowColor,
+  isStandard,
+  children,
+  milestoneLabels,
+}: {
+  percentage: number;
+  accentColor: string;
+  glowColor: string;
+  isStandard?: boolean;
+  children?: React.ReactNode;
+  milestoneLabels?: { angle: number; label: string; reached: boolean }[];
+}) {
+  const viewBox = 340;
+  const cx = viewBox / 2;
+  const cy = viewBox / 2 + 15;
+  const radius = 120;
+  const startAngle = 135;
+  const endAngle = 405;
+  const totalSweep = endAngle - startAngle;
+  const clampedPct = Math.min(Math.max(percentage, 0), 100);
+  const needleAngle = startAngle + (clampedPct / 100) * totalSweep;
+
+  const majorTicks = 12;
+  const minorPerMajor = 4;
+  const totalMinor = majorTicks * minorPerMajor;
+
+  const [animatedAngle, setAnimatedAngle] = useState(startAngle);
+  useEffect(() => {
+    setAnimatedAngle(startAngle);
+    const timer = setTimeout(() => setAnimatedAngle(needleAngle), 80);
+    return () => clearTimeout(timer);
+  }, [needleAngle]);
+
+  function polarToCart(a: number, r: number) {
+    const rad = (a * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  const arcInner = radius - 12;
+  const arcOuter = radius + 12;
+  const trackStart = polarToCart(startAngle, radius);
+  const trackEnd = polarToCart(endAngle, radius);
+
+  function describeArc(r: number) {
+    const s = polarToCart(startAngle, r);
+    const e = polarToCart(endAngle, r);
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`;
+  }
+
+  function describeFilledArc(r: number, endA: number) {
+    const s = polarToCart(startAngle, r);
+    const e = polarToCart(endA, r);
+    const sweep = endA - startAngle;
+    const largeArc = sweep > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+  }
+
+  return (
+    <div className="relative w-full flex items-center justify-center" data-testid="speedometer-gauge">
+      <div className="relative w-full" style={{ maxWidth: '280px', aspectRatio: '1' }}>
+        <svg viewBox={`0 0 ${viewBox} ${viewBox}`} className="w-full h-full">
+          {!isStandard && (
+            <defs>
+              <filter id="needleGlow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="dotGlow">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <linearGradient id="arcFill" gradientUnits="userSpaceOnUse" x1={trackStart.x} y1={trackStart.y} x2={trackEnd.x} y2={trackEnd.y}>
+                <stop offset="0%" stopColor={accentColor} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={accentColor} stopOpacity="0.9" />
+              </linearGradient>
+            </defs>
+          )}
+
+          <path d={describeArc(radius)} fill="none" stroke={isStandard ? "rgba(160,170,180,0.2)" : "rgba(40,55,70,0.25)"} strokeWidth={24} strokeLinecap="round" />
+
+          {clampedPct > 0.5 && (
+            <path d={describeFilledArc(radius, animatedAngle)} fill="none" stroke={isStandard ? accentColor : "url(#arcFill)"} strokeWidth={24} strokeLinecap="round"
+              style={{ transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+          )}
+
+          <path d={describeArc(arcOuter + 4)} fill="none" stroke={isStandard ? "rgba(160,170,180,0.1)" : "rgba(50,65,85,0.08)"} strokeWidth={0.5} />
+          <path d={describeArc(arcInner - 4)} fill="none" stroke={isStandard ? "rgba(160,170,180,0.1)" : "rgba(50,65,85,0.08)"} strokeWidth={0.5} />
+
+          {Array.from({ length: totalMinor + 1 }).map((_, i) => {
+            const angle = startAngle + (i / totalMinor) * totalSweep;
+            const isMajor = i % minorPerMajor === 0;
+            const innerR = isMajor ? radius - 20 : radius - 16;
+            const outerR = isMajor ? radius + 20 : radius + 16;
+            const p1 = polarToCart(angle, innerR);
+            const p2 = polarToCart(angle, outerR);
+            const tickColor = (angle <= animatedAngle)
+              ? accentColor
+              : (isStandard
+                ? (isMajor ? "rgba(140,150,160,0.5)" : "rgba(160,170,180,0.3)")
+                : (isMajor ? "rgba(60,75,95,0.6)" : "rgba(50,65,80,0.35)"));
+            return (
+              <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+                stroke={tickColor} strokeWidth={isMajor ? 2.5 : 1}
+                strokeLinecap="round"
+                style={{ transition: 'stroke 0.3s ease' }}
+              />
+            );
+          })}
+
+          {(milestoneLabels || []).map((ms, i) => {
+            const angle = startAngle + (ms.angle / 100) * totalSweep;
+            const p = polarToCart(angle, radius + 32);
+            return (
+              <text key={`ms-${i}`} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
+                fontSize="9" fontWeight="700" letterSpacing="0.08em"
+                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(100,116,139,0.4)')}
+                style={ms.reached && !isStandard ? { filter: `drop-shadow(0 0 4px ${glowColor})` } : undefined}
+              >
+                {ms.label}
+              </text>
+            );
+          })}
+
+          {(() => {
+            const needleLen = radius - 30;
+            const tailLen = 18;
+            const tipP = polarToCart(animatedAngle, needleLen);
+            const tailP = polarToCart(animatedAngle + 180, tailLen);
+            const perpAngle1 = animatedAngle + 90;
+            const perpAngle2 = animatedAngle - 90;
+            const baseW = 4;
+            const b1 = polarToCart(perpAngle1, baseW);
+            const b2 = polarToCart(perpAngle2, baseW);
+            const baseX1 = cx + b1.x - cx;
+            const baseY1 = cy + b1.y - cy;
+            const baseX2 = cx + b2.x - cx;
+            const baseY2 = cy + b2.y - cy;
+            return (
+              <g style={{ transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                <line x1={tailP.x} y1={tailP.y} x2={tipP.x} y2={tipP.y}
+                  stroke={isStandard ? accentColor : accentColor}
+                  strokeWidth={3} strokeLinecap="round"
+                  style={{ filter: isStandard ? 'none' : 'url(#needleGlow)' }}
+                />
+                <circle cx={cx} cy={cy} r={8}
+                  fill={isStandard ? accentColor : "rgba(20,30,45,0.9)"}
+                  stroke={accentColor} strokeWidth={2}
+                />
+                <circle cx={cx} cy={cy} r={3}
+                  fill={accentColor}
+                  style={{ filter: isStandard ? 'none' : 'url(#dotGlow)' }}
+                />
+                <circle cx={tipP.x} cy={tipP.y} r={4}
+                  fill={accentColor}
+                  style={{ filter: isStandard ? 'none' : 'url(#dotGlow)' }}
+                />
+              </g>
+            );
+          })()}
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-4" style={{ paddingTop: '15px' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({ icon: Icon, label, value, hint, onClick }: { icon: any; label: string; value: string; hint?: string; onClick?: () => void }) {
   return (
     <div className={`flex items-center gap-3 py-3.5 border-b border-border/30 last:border-0 ${onClick ? 'cursor-pointer hover:bg-muted/20' : ''}`} onClick={onClick}>
@@ -165,7 +341,7 @@ export default function Rewards() {
     try { return (localStorage.getItem('rewards-view-mode') as any) || 'futuristic'; } catch { return 'futuristic'; }
   });
   const isStd = gaugeViewMode === 'standard';
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -311,10 +487,10 @@ export default function Rewards() {
 
     if (activeTab === "anniversary") {
       const allAnniv = anniversaryData || [];
-      if (allAnniv.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Years", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
+      if (allAnniv.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Years", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", countdownParts: null, ...theme };
 
       const info: any = selectedClubId ? allAnniv.find((a: any) => a.clubId === selectedClubId) : allAnniv[0];
-      if (!info) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Years", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
+      if (!info) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Years", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", countdownParts: null, ...theme };
 
       const pct = Math.min((info.progress || 0) * 100, 100);
       const milestones: GaugeMilestone[] = [
@@ -323,9 +499,14 @@ export default function Rewards() {
         { barIndex: Math.round(barCount * 0.75), label: "Q3", reached: pct >= 75 },
         { barIndex: barCount - 1, label: `YR${info.upcomingYear}`, reached: pct >= 99 },
       ];
-      const diff = new Date(info.nextAnniversary).getTime() - Date.now();
-      const daysLeft = Math.max(Math.floor(diff / 86400000), 0);
-      return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: daysLeft > 0 ? `${daysLeft}d left` : "Today!", stage: info.clubName, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, ...theme };
+      const diff = Math.max(new Date(info.nextAnniversary).getTime() - Date.now(), 0);
+      const daysLeft = Math.floor(diff / 86400000);
+      const hoursLeft = Math.floor((diff % 86400000) / 3600000);
+      const minsLeft = Math.floor((diff % 3600000) / 60000);
+      const secsLeft = Math.floor((diff % 60000) / 1000);
+      const countdownParts = diff > 0 ? { days: daysLeft, hours: hoursLeft, mins: minsLeft, secs: secsLeft } : null;
+      const unitText = diff > 0 ? `${daysLeft}d ${hoursLeft}h ${minsLeft}m ${secsLeft}s` : "Today!";
+      return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: unitText, stage: info.clubName, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, countdownParts, ...theme };
     }
 
     if (activeTab === "birthday") {
@@ -347,7 +528,13 @@ export default function Rewards() {
         { barIndex: Math.round(barCount * 0.75), label: "Q3", reached: pct >= 75 },
         { barIndex: barCount - 1, label: "BDAY", reached: info.birthdayToday },
       ];
-      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: info.birthdayToday ? "Happy Birthday" : `days left`, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, ...theme };
+      const nextBdayDate = info.nextBirthdayDate ? new Date(info.nextBirthdayDate + "T00:00:00").getTime() : 0;
+      const bdayDiff = Math.max(nextBdayDate - Date.now(), 0);
+      const bdayHours = Math.floor((bdayDiff % 86400000) / 3600000);
+      const bdayMins = Math.floor((bdayDiff % 3600000) / 60000);
+      const bdaySecs = Math.floor((bdayDiff % 60000) / 1000);
+      const bdayUnitText = info.birthdayToday ? "Happy Birthday" : `${daysLeft}d ${bdayHours}h ${bdayMins}m ${bdaySecs}s`;
+      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: bdayUnitText, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, ...theme };
     }
 
     if (activeTab === "points") {
@@ -392,7 +579,7 @@ export default function Rewards() {
     }
 
     return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
-  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, birthdayData, pointsProgress, badgeProgress]);
+  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, birthdayData, pointsProgress, badgeProgress, tick]);
 
   const handleClubClick = (clubId: number) => {
     setSelectedClubId(prev => prev === clubId ? null : clubId);
@@ -542,41 +729,99 @@ export default function Rewards() {
               </div>
             )}
 
-            <EVGauge
-              percentage={gaugeConfig.pct}
-              milestones={gaugeConfig.milestones}
-              accentColor={gaugeConfig.accent}
-              glowColor={gaugeConfig.glow}
-              isStandard={isStd}
-            >
-              <p className="text-5xl sm:text-6xl font-black leading-none" style={{
-                fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-                color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
-                textShadow: isStd ? 'none' : `0 0 40px ${gaugeConfig.accent}30, 0 0 80px ${gaugeConfig.glow}15`,
-                letterSpacing: '-2px',
-              }}>
-                {gaugeConfig.value}
-              </p>
-              <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
-                {gaugeConfig.unit}
-              </p>
-              <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={isStd ? {
-                background: `${gaugeConfig.accent}15`,
-                border: `1px solid ${gaugeConfig.accent}40`,
-                color: gaugeConfig.accent,
-              } : {
-                background: `${gaugeConfig.accent}0a`,
-                border: `1px solid ${gaugeConfig.accent}25`,
-                color: `${gaugeConfig.accent}cc`,
-              }}>
-                {gaugeConfig.stage}
-              </div>
-              {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && (
-                <p className="text-[9px] sm:text-[10px] mt-1 tracking-wide" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(148,163,184,0.5)' }}>
-                  {gaugeConfig.remaining} more for {gaugeConfig.nextLabel}
+            {activeTab === "anniversary" ? (
+              <SpeedometerGauge
+                percentage={gaugeConfig.pct}
+                accentColor={gaugeConfig.accent}
+                glowColor={gaugeConfig.glow}
+                isStandard={isStd}
+                milestoneLabels={[
+                  { angle: 0, label: "0", reached: gaugeConfig.pct > 0 },
+                  { angle: 25, label: "Q1", reached: gaugeConfig.pct >= 25 },
+                  { angle: 50, label: "Q2", reached: gaugeConfig.pct >= 50 },
+                  { angle: 75, label: "Q3", reached: gaugeConfig.pct >= 75 },
+                  { angle: 100, label: `YR${gaugeConfig.value}`, reached: gaugeConfig.pct >= 99 },
+                ]}
+              >
+                <p className="text-4xl sm:text-5xl font-black leading-none" style={{
+                  fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+                  color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
+                  textShadow: isStd ? 'none' : `0 0 40px ${gaugeConfig.accent}30, 0 0 80px ${gaugeConfig.glow}15`,
+                  letterSpacing: '-2px',
+                }}>
+                  {gaugeConfig.value}
                 </p>
-              )}
-            </EVGauge>
+                {gaugeConfig.countdownParts ? (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {[
+                      { val: gaugeConfig.countdownParts.days, label: "d" },
+                      { val: gaugeConfig.countdownParts.hours, label: "h" },
+                      { val: gaugeConfig.countdownParts.mins, label: "m" },
+                      { val: gaugeConfig.countdownParts.secs, label: "s" },
+                    ].map((part, idx) => (
+                      <div key={idx} className="flex items-baseline gap-0.5">
+                        <span className="text-sm sm:text-base font-bold tabular-nums" style={{
+                          fontFamily: "'SF Mono', 'Fira Code', monospace",
+                          color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
+                        }}>{String(part.val).padStart(part.label === "d" ? 1 : 2, "0")}</span>
+                        <span className="text-[8px] font-semibold uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>{part.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
+                    Today!
+                  </p>
+                )}
+                <div className="mt-1.5 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={isStd ? {
+                  background: `${gaugeConfig.accent}15`,
+                  border: `1px solid ${gaugeConfig.accent}40`,
+                  color: gaugeConfig.accent,
+                } : {
+                  background: `${gaugeConfig.accent}0a`,
+                  border: `1px solid ${gaugeConfig.accent}25`,
+                  color: `${gaugeConfig.accent}cc`,
+                }}>
+                  {gaugeConfig.stage}
+                </div>
+              </SpeedometerGauge>
+            ) : (
+              <EVGauge
+                percentage={gaugeConfig.pct}
+                milestones={gaugeConfig.milestones}
+                accentColor={gaugeConfig.accent}
+                glowColor={gaugeConfig.glow}
+                isStandard={isStd}
+              >
+                <p className="text-5xl sm:text-6xl font-black leading-none" style={{
+                  fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+                  color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
+                  textShadow: isStd ? 'none' : `0 0 40px ${gaugeConfig.accent}30, 0 0 80px ${gaugeConfig.glow}15`,
+                  letterSpacing: '-2px',
+                }}>
+                  {gaugeConfig.value}
+                </p>
+                <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
+                  {gaugeConfig.unit}
+                </p>
+                <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={isStd ? {
+                  background: `${gaugeConfig.accent}15`,
+                  border: `1px solid ${gaugeConfig.accent}40`,
+                  color: gaugeConfig.accent,
+                } : {
+                  background: `${gaugeConfig.accent}0a`,
+                  border: `1px solid ${gaugeConfig.accent}25`,
+                  color: `${gaugeConfig.accent}cc`,
+                }}>
+                  {gaugeConfig.stage}
+                </div>
+                {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && (
+                  <p className="text-[9px] sm:text-[10px] mt-1 tracking-wide" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(148,163,184,0.5)' }}>
+                    {gaugeConfig.remaining} more for {gaugeConfig.nextLabel}
+                  </p>
+                )}
+              </EVGauge>
+            )}
           </div>
         </div>
 
@@ -809,15 +1054,18 @@ export default function Rewards() {
                       const isSelected = selectedClubId === info.clubId;
                       let countdownText = "";
                       if (!isCelebration && diff > 0) {
-                        const totalHours = Math.floor(diff / 3600000);
-                        const totalDays = Math.floor(totalHours / 24);
+                        const totalDays = Math.floor(diff / 86400000);
                         const months = Math.floor(totalDays / 30);
                         const days = totalDays - months * 30;
-                        const hours = totalHours % 24;
+                        const hours = Math.floor((diff % 86400000) / 3600000);
+                        const mins = Math.floor((diff % 3600000) / 60000);
+                        const secs = Math.floor((diff % 60000) / 1000);
                         const parts: string[] = [];
                         if (months > 0) parts.push(`${months}mo`);
                         if (days > 0) parts.push(`${days}d`);
                         parts.push(`${hours}h`);
+                        parts.push(`${mins}m`);
+                        parts.push(`${secs}s`);
                         countdownText = parts.join(" ");
                       }
                       return (
