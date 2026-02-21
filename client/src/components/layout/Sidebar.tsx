@@ -168,10 +168,10 @@ export function Sidebar() {
                     <Link key={item.href} href={item.href}>
                       <div
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer border",
                           isActive
-                            ? "bg-emerald-600 text-white shadow-sm"
-                            : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
+                            ? "bg-emerald-600 text-white shadow-md border-emerald-700"
+                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 hover:shadow-sm"
                         )}
                         data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                       >
@@ -194,10 +194,10 @@ export function Sidebar() {
                     <Link key={item.href} href={item.href}>
                       <div
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer border",
                           isActive
-                            ? "bg-destructive text-destructive-foreground shadow-sm"
-                            : "text-destructive hover:bg-destructive/15"
+                            ? "bg-destructive text-destructive-foreground shadow-md border-destructive"
+                            : "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 hover:border-destructive/40 hover:shadow-sm"
                         )}
                         data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                       >

@@ -35,6 +35,8 @@ const controlItems = [
   { href: "/admin/inactive-members", label: "Inactive Members", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
   { href: "/admin/notifications", label: "Notification Settings", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
   { href: "/admin/rewards", label: "Club Rewards", icon: Gift, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Gift, color: "text-pink-500", bg: "bg-pink-500/10" },
+  { href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
 ];
 
 interface ClubRecord {

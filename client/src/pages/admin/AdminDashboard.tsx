@@ -384,6 +384,27 @@ export default function AdminDashboard() {
         )}
 
         {!isOrganiserOnly && (
+          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-rewards-dashboard">
+            <Link href="/admin/rewards-dashboard">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-pink-500" />
+                    Rewards Dashboard
+                  </span>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  View and manage all rewards claimed by players across your clubs.
+                </p>
+              </CardContent>
+            </Link>
+          </Card>
+        )}
+
+        {!isOrganiserOnly && (
           <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
             <Link href="/admin/memberships">
               <CardHeader>

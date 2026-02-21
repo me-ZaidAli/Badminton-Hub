@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users, Building2, DollarSign,
-  Shield, Zap, Mail, BarChart3,
+  Shield, Zap, Mail, BarChart3, Gift,
   Package, CreditCard, Upload, ChevronRight, Loader2,
   CheckCircle, XCircle, Clock, Plus, MapPin, Search, Pencil,
   Archive, Pause, Trash2, Calendar, Play, Send, Save, User
@@ -183,6 +183,8 @@ const controlItems = [
   { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
   { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+  { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Gift, color: "text-pink-500", bg: "bg-pink-500/10" },
+  { href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
 ];
 
 function ClubFormFields({ form, setForm, users }: { form: ClubEditForm; setForm: (fn: (f: ClubEditForm) => ClubEditForm) => void; users?: UserRecord[] }) {

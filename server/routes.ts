@@ -14181,6 +14181,70 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/admin/rewards-dashboard - Get all claimed rewards for admin dashboard
+  app.get("/api/admin/rewards-dashboard", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const adminClubIds = (user.playerProfiles || [])
+        .filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER")
+        .map((p: any) => p.clubId);
+      if (!isSuperAdmin && adminClubIds.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+      let allRewards;
+      if (isSuperAdmin) {
+        allRewards = await db.select({
+          reward: playerRewardLedger,
+          clubName: clubs.name,
+          playerName: users.fullName,
+          playerEmail: users.email,
+        }).from(playerRewardLedger)
+          .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
+          .leftJoin(users, eq(playerRewardLedger.playerId, users.id))
+          .orderBy(desc(playerRewardLedger.createdAt));
+      } else {
+        allRewards = await db.select({
+          reward: playerRewardLedger,
+          clubName: clubs.name,
+          playerName: users.fullName,
+          playerEmail: users.email,
+        }).from(playerRewardLedger)
+          .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
+          .leftJoin(users, eq(playerRewardLedger.playerId, users.id))
+          .where(inArray(playerRewardLedger.clubId, adminClubIds))
+          .orderBy(desc(playerRewardLedger.createdAt));
+      }
+
+      const rewards = allRewards.map(r => ({
+        ...r.reward,
+        clubName: r.clubName,
+        playerName: r.playerName,
+        playerEmail: r.playerEmail,
+      }));
+
+      const totalCreditsIssued = rewards.reduce((sum, r) => sum + (r.credits || 0), 0);
+      const totalFreeSessionsIssued = rewards.reduce((sum, r) => sum + (r.freeSessions || 0), 0);
+      const available = rewards.filter(r => r.status === "AVAILABLE").length;
+      const used = rewards.filter(r => r.status === "USED").length;
+      const requested = rewards.filter(r => r.status === "REQUESTED").length;
+
+      res.json({
+        rewards,
+        summary: {
+          total: rewards.length,
+          available,
+          used,
+          requested,
+          totalCreditsIssued,
+          totalFreeSessionsIssued,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/my-rewards - Get current user's reward ledger
   app.get("/api/my-rewards", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
