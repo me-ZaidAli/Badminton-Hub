@@ -106,6 +106,7 @@ export default function Rewards() {
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("referrals");
+  const [showAttendanceInfo, setShowAttendanceInfo] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -303,55 +304,75 @@ export default function Rewards() {
 
               {activeTab === "attendance" && (
                 <div className="space-y-4">
+                  <div className="text-center pb-2">
+                    <p className="text-sm text-white font-medium">Attend sessions to earn credits towards your next session</p>
+                    <button
+                      onClick={() => setShowAttendanceInfo(true)}
+                      className="mt-1.5 text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                      data-testid="button-how-attendance-works"
+                    >
+                      How does it work?
+                    </button>
+                  </div>
                   {attendanceProgress && attendanceProgress.length > 0 ? (
                     attendanceProgress.map((club: any) => (
                       <div key={club.clubId} className="space-y-3">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-white">{club.clubName}</p>
-                          <Badge className="bg-slate-600 text-white text-[10px] no-default-hover-elevate">{club.totalAttended} sessions</Badge>
+                          <Badge className="bg-slate-600 text-white text-[10px] no-default-hover-elevate">{club.totalAttended} attended</Badge>
                         </div>
                         {club.milestones && club.milestones.length > 0 ? (
                           club.milestones.map((m: any, idx: number) => {
                             const config = m.rewardConfig || {};
-                            const rewardDesc: string[] = [];
-                            if (config.credits && config.credits > 0) rewardDesc.push(`£${(config.credits / 100).toFixed(2)} credit`);
-                            if (config.freeSessions && config.freeSessions > 0) rewardDesc.push(`${config.freeSessions} free session${config.freeSessions > 1 ? 's' : ''}`);
-                            if (config.gifts) rewardDesc.push(config.gifts);
+                            const rewardParts: string[] = [];
+                            if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)} credit`);
+                            if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? 's' : ''}`);
+                            if (config.gifts) rewardParts.push(config.gifts);
+                            const currentInCycle = m.currentCount % m.sessionsRequired;
 
                             return (
-                              <div key={idx} className="rounded-lg bg-slate-700/30 p-3 space-y-2">
+                              <div key={idx} className="rounded-lg bg-slate-700/30 p-3 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <Target className="h-4 w-4 text-amber-400" />
+                                    <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                                      <Target className="h-3.5 w-3.5 text-amber-400" />
+                                    </div>
                                     <span className="text-xs font-medium text-white">Every {m.sessionsRequired} sessions</span>
                                   </div>
-                                  <span className="text-xs text-slate-400">{m.milestonesCompleted}x earned</span>
+                                  {m.milestonesCompleted > 0 && (
+                                    <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px] no-default-hover-elevate">{m.milestonesCompleted}x earned</Badge>
+                                  )}
                                 </div>
-                                <MiniProgress value={m.currentCount % m.sessionsRequired} max={m.sessionsRequired} color="bg-amber-500" />
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-slate-400">
-                                    {m.sessionsUntilNext} session{m.sessionsUntilNext !== 1 ? 's' : ''} until next reward
-                                  </span>
-                                  <span className="text-amber-400 font-medium">{Math.round(m.progressPercent)}%</span>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[11px]">
+                                    <span className="text-slate-400">{currentInCycle} of {m.sessionsRequired} sessions</span>
+                                    <span className="text-amber-400 font-semibold">{Math.round(m.progressPercent)}%</span>
+                                  </div>
+                                  <MiniProgress value={currentInCycle} max={m.sessionsRequired} color="bg-amber-500" />
                                 </div>
-                                {rewardDesc.length > 0 && (
-                                  <p className="text-[11px] text-emerald-400">
-                                    <Gift className="h-3 w-3 inline mr-1" />
-                                    {rewardDesc.join(" + ")}
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs text-slate-300">
+                                    <span className="text-amber-400 font-bold">{m.sessionsUntilNext}</span> more session{m.sessionsUntilNext !== 1 ? 's' : ''} until your next credit
                                   </p>
+                                </div>
+                                {rewardParts.length > 0 && (
+                                  <div className="flex items-center gap-1.5 pt-1 border-t border-slate-600/30">
+                                    <Gift className="h-3 w-3 text-emerald-400 shrink-0" />
+                                    <p className="text-[11px] text-emerald-400 font-medium">{rewardParts.join(" + ")}</p>
+                                  </div>
                                 )}
                               </div>
                             );
                           })
                         ) : (
-                          <p className="text-xs text-slate-500 text-center py-2">No attendance milestones set up for this club yet</p>
+                          <p className="text-xs text-slate-500 text-center py-2">No attendance rewards set up for this club yet</p>
                         )}
                       </div>
                     ))
                   ) : (
                     <div className="text-center py-4">
                       <Target className="h-8 w-8 mx-auto text-slate-500 mb-2" />
-                      <p className="text-xs text-slate-400">Attend sessions to start tracking your progress</p>
+                      <p className="text-xs text-slate-400">Start attending sessions to earn credits towards future sessions</p>
                     </div>
                   )}
                 </div>
@@ -571,6 +592,88 @@ export default function Rewards() {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAttendanceInfo} onOpenChange={setShowAttendanceInfo}>
+          <DialogContent className="bg-background max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-amber-500" />
+                How Session Credits Work
+              </DialogTitle>
+              <DialogDescription>Earn rewards just by playing</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex gap-3 items-start">
+                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-amber-500">1</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Attend sessions</p>
+                    <p className="text-xs text-muted-foreground">Every time you attend a session and your attendance is marked, it counts towards your progress.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-amber-500">2</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Reach a milestone</p>
+                    <p className="text-xs text-muted-foreground">Each club sets a target number of sessions. When you hit the target, you automatically earn a reward.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-amber-500">3</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Get credited</p>
+                    <p className="text-xs text-muted-foreground">Credits are added to your account automatically. Use them to pay for future sessions, or receive gifts and free sessions.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">It repeats!</p>
+                    <p className="text-xs text-muted-foreground">Milestones reset after each reward, so you keep earning the more you play. The counter never stops!</p>
+                  </div>
+                </div>
+              </div>
+
+              {attendanceProgress && attendanceProgress.length > 0 && (
+                <div className="border-t pt-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Your clubs' reward targets:</p>
+                  {attendanceProgress.map((club: any) => (
+                    <div key={club.clubId}>
+                      {club.milestones && club.milestones.length > 0 ? (
+                        club.milestones.map((m: any, idx: number) => {
+                          const config = m.rewardConfig || {};
+                          const parts: string[] = [];
+                          if (config.credits > 0) parts.push(`£${(config.credits / 100).toFixed(2)}`);
+                          if (config.freeSessions > 0) parts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? 's' : ''}`);
+                          if (config.gifts) parts.push(config.gifts);
+                          return (
+                            <div key={idx} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                              <Gift className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              <span className="text-xs flex-1">{club.clubName}: Every <strong>{m.sessionsRequired}</strong> sessions</span>
+                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{parts.join(" + ")}</span>
+                            </div>
+                          );
+                        })
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button className="w-full" onClick={() => setShowAttendanceInfo(false)} data-testid="button-close-attendance-info">
+                Got it!
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
