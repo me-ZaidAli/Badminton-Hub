@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, Gift, BarChart3, Bell } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2 } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -174,277 +174,302 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer">
-            <Link href="/admin/players">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <UserPlus className="h-5 w-5 text-purple-500" />
-                    Player Management
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Add new players and edit their profiles and details.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+      <div className="space-y-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">People & Sessions</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer">
+                <Link href="/admin/players">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <UserPlus className="h-5 w-5 text-purple-500" />
+                        Player Management
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Add new players and edit their profiles and details.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer">
-            <Link href="/admin/financials">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-green-500" />
-                    Financials
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Track payments, view unpaid sessions, and manage fees.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            <Card className="border-border/50 hover-elevate cursor-pointer">
+              <Link href="/sessions">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-blue-500" />
+                      Session Management
+                    </span>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Create and manage sessions, handle signups and attendance.
+                  </p>
+                </CardContent>
+              </Link>
+            </Card>
 
-        <Card className="border-border/50 hover-elevate cursor-pointer">
-          <Link href="/sessions">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-500" />
-                  Session Management
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Create and manage sessions, handle signups and attendance.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-inactive-members">
+                <Link href="/admin/inactive-members">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-orange-500" />
+                        Inactive Members
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Identify and manage inactive members, send re-engagement messages, and handle account deletions.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {(myAdminClubs?.length ?? 0) > 0 && (
-          <Card className="border-border/50 hover-elevate cursor-pointer">
-            <Link href="/admin/announcements">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-orange-500" />
-                    Announcements
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Post announcements and updates to club members.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
+                <Link href="/admin/import-members">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Upload className="h-5 w-5 text-indigo-500" />
+                        Import Members
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Bulk upload members via CSV or add them manually.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
+        </div>
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-referral-management">
-            <Link href="/admin/referrals">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Gift className="h-5 w-5 text-emerald-500" />
-                    Referral Management
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Review and approve referral submissions, award credits.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Finance & Memberships</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer">
+                <Link href="/admin/financials">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-green-500" />
+                        Financials
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Track payments, view unpaid sessions, and manage fees.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-notification-management">
-            <Link href="/admin/notifications">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Bell className="h-5 w-5 text-indigo-500" />
-                    Notification Settings
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Configure automated reminders, notification schedules, bank details, and view delivery logs.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
+                <Link href="/admin/memberships">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-teal-500" />
+                        Membership Management
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Manage membership plans, requests, and payment status.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
+        </div>
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-acquisition-analytics">
-            <Link href="/admin/acquisition-analytics">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-500" />
-                    Acquisition & KPI Analytics
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Track user acquisition channels, conversion rates, retention, and growth metrics.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Rewards & Referrals</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
+                <Link href="/admin/rewards">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Trophy className="h-5 w-5 text-amber-500" />
+                        Club Rewards
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Manage anniversary, attendance milestones, and referral reward programs.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-analytics">
-            <Link href="/admin/attendance-analytics">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-emerald-500" />
-                    Attendance Analytics
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Track session attendance, member engagement, and performance metrics.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-rewards-dashboard">
+                <Link href="/admin/rewards-dashboard">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Award className="h-5 w-5 text-pink-500" />
+                        Rewards Dashboard
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      View and manage all rewards claimed by players across your clubs.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-inactive-members">
-            <Link href="/admin/inactive-members">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-orange-500" />
-                    Inactive Members
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Identify and manage inactive members, send re-engagement messages, and handle account deletions.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-referral-management">
+                <Link href="/admin/referrals">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Share2 className="h-5 w-5 text-emerald-500" />
+                        Referral Management
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Review and approve referral submissions, award credits.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
+        </div>
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
-            <Link href="/admin/rewards">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-amber-500" />
-                    Club Rewards
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Manage anniversary, attendance milestones, and referral reward programs.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Analytics & Insights</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-acquisition-analytics">
+                <Link href="/admin/acquisition-analytics">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-blue-500" />
+                        Acquisition & KPI Analytics
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Track user acquisition channels, conversion rates, retention, and growth metrics.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-rewards-dashboard">
-            <Link href="/admin/rewards-dashboard">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Gift className="h-5 w-5 text-pink-500" />
-                    Rewards Dashboard
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  View and manage all rewards claimed by players across your clubs.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-analytics">
+                <Link href="/admin/attendance-analytics">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-emerald-500" />
+                        Attendance Analytics
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Track session attendance, member engagement, and performance metrics.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
+        </div>
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
-            <Link href="/admin/memberships">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-teal-500" />
-                    Membership Management
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Manage membership plans, requests, and payment status.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Communication</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {(myAdminClubs?.length ?? 0) > 0 && (
+              <Card className="border-border/50 hover-elevate cursor-pointer">
+                <Link href="/admin/announcements">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-orange-500" />
+                        Announcements
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Post announcements and updates to club members.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
 
-        {!isOrganiserOnly && (
-          <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
-            <Link href="/admin/import-members">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Upload className="h-5 w-5 text-indigo-500" />
-                    Import Members
-                  </span>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Bulk upload members via CSV or add them manually.
-                </p>
-              </CardContent>
-            </Link>
-          </Card>
-        )}
+            {!isOrganiserOnly && (
+              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-notification-management">
+                <Link href="/admin/notifications">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Bell className="h-5 w-5 text-indigo-500" />
+                        Notification Settings
+                      </span>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Configure automated reminders, notification schedules, bank details, and view delivery logs.
+                    </p>
+                  </CardContent>
+                </Link>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
 
       <KpiDetailDialog

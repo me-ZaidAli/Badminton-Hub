@@ -17,10 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Users, Building2, DollarSign,
-  Shield, Zap, Mail, BarChart3, Gift,
+  Shield, Zap, Mail, BarChart3,
   Package, CreditCard, Upload, ChevronRight, Loader2,
   CheckCircle, XCircle, Clock, Plus, MapPin, Search, Pencil,
-  Archive, Pause, Trash2, Calendar, Play, Send, Save, User
+  Archive, Pause, Trash2, Calendar, Play, Send, Save, User,
+  Trophy, Award, Share2
 } from "lucide-react";
 
 interface ClubRecord {
@@ -175,16 +176,36 @@ const defaultEditForm: ClubEditForm = {
   adminUserId: "",
 };
 
-const controlItems = [
-  { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-  { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
-  { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
-  { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
-  { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
-  { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
-  { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Gift, color: "text-pink-500", bg: "bg-pink-500/10" },
-  { href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
+const controlSections = [
+  {
+    label: "People & Clubs",
+    items: [
+      { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+    ],
+  },
+  {
+    label: "Finance & Memberships",
+    items: [
+      { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+      { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
+      { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+    ],
+  },
+  {
+    label: "Rewards & Referrals",
+    items: [
+      { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
+      { href: "/super-admin/referrals", label: "Referral Programs", icon: Share2, color: "text-violet-500", bg: "bg-violet-500/10" },
+    ],
+  },
+  {
+    label: "Communication",
+    items: [
+      { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
+    ],
+  },
 ];
 
 function ClubFormFields({ form, setForm, users }: { form: ClubEditForm; setForm: (fn: (f: ClubEditForm) => ClubEditForm) => void; users?: UserRecord[] }) {
@@ -1266,33 +1287,28 @@ export default function SuperAdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2">
-            {controlItems.map((item) => {
-              const inner = (
-                <div
-                  className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
-                  data-testid={`button-quick-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${item.bg}`}>
-                    <item.icon className={`w-5 h-5 ${item.color}`} />
-                  </div>
-                  <span className="flex-1 font-medium text-sm">{item.label}</span>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          <div className="space-y-5">
+            {controlSections.map(section => (
+              <div key={section.label}>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{section.label}</p>
+                <div className="flex flex-col gap-2">
+                  {section.items.map((item) => (
+                    <Link key={item.href} href={item.href}>
+                      <div
+                        className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
+                        data-testid={`button-quick-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${item.bg}`}>
+                          <item.icon className={`w-5 h-5 ${item.color}`} />
+                        </div>
+                        <span className="flex-1 font-medium text-sm">{item.label}</span>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              );
-              if ((item as any).isAnchor) {
-                return (
-                  <a key={item.href} href={item.href}>
-                    {inner}
-                  </a>
-                );
-              }
-              return (
-                <Link key={item.href} href={item.href}>
-                  {inner}
-                </Link>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

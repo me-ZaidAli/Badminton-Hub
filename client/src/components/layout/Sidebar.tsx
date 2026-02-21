@@ -92,7 +92,6 @@ function useNavGroups(): NavGroup[] {
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
-    items.push({ href: "/super-admin/referrals", label: "Referral Programs", icon: Gift, group: "godmode" });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
