@@ -14611,6 +14611,133 @@ export async function registerRoutes(
     }
   });
 
+  // POST /api/admin/rewards/:id/approve - Approve a requested reward and credit player account
+  app.post("/api/admin/rewards/:id/approve", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [reward] = await db.select().from(playerRewardLedger).where(eq(playerRewardLedger.id, id));
+      if (!reward) return res.status(404).json({ message: "Reward not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      if (reward.status !== "REQUESTED") return res.status(409).json({ message: "Reward already processed or not in REQUESTED status" });
+
+      const result = await db.transaction(async (tx) => {
+        const [updated] = await tx.update(playerRewardLedger).set({
+          status: "USED",
+          updatedAt: new Date(),
+        }).where(and(eq(playerRewardLedger.id, id), eq(playerRewardLedger.status, "REQUESTED"))).returning();
+
+        if (!updated) throw new Error("Reward already approved or status changed");
+
+        if (reward.credits > 0) {
+          await tx.insert(creditLedger).values({
+            userId: reward.playerId,
+            clubId: reward.clubId,
+            amount: reward.credits,
+            reason: `Reward approved: ${reward.description}`,
+            createdById: user.id,
+          });
+        }
+
+        if (reward.freeSessions > 0) {
+          const [club] = await tx.select({ sessionFee: clubs.sessionFee }).from(clubs).where(eq(clubs.id, reward.clubId));
+          const sessionValue = club?.sessionFee || 700;
+          await tx.insert(creditLedger).values({
+            userId: reward.playerId,
+            clubId: reward.clubId,
+            amount: reward.freeSessions * sessionValue,
+            reason: `Reward approved: ${reward.freeSessions} free session(s) from ${reward.description}`,
+            createdById: user.id,
+          });
+        }
+
+        return updated;
+      });
+
+      console.log(`[AUDIT] Reward approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
+      res.json(result);
+    } catch (err: any) {
+      if (err.message?.includes("already approved")) return res.status(409).json({ message: err.message });
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/rewards/bulk-approve - Bulk approve multiple requested rewards
+  app.post("/api/admin/rewards/bulk-approve", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No reward IDs provided" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const results: any[] = [];
+      const errors: string[] = [];
+
+      for (const id of ids) {
+        try {
+          const [reward] = await db.select().from(playerRewardLedger).where(eq(playerRewardLedger.id, Number(id)));
+          if (!reward) { errors.push(`Reward ${id} not found`); continue; }
+          if (reward.status !== "REQUESTED") { errors.push(`Reward ${id} is not in REQUESTED status`); continue; }
+
+          if (!isSuperAdmin) {
+            const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+            const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+            if (!isClubAdmin) { errors.push(`No admin access for reward ${id}`); continue; }
+          }
+
+          const updated = await db.transaction(async (tx) => {
+            const [upd] = await tx.update(playerRewardLedger).set({
+              status: "USED",
+              updatedAt: new Date(),
+            }).where(and(eq(playerRewardLedger.id, Number(id)), eq(playerRewardLedger.status, "REQUESTED"))).returning();
+
+            if (!upd) throw new Error("Already approved");
+
+            if (reward.credits > 0) {
+              await tx.insert(creditLedger).values({
+                userId: reward.playerId,
+                clubId: reward.clubId,
+                amount: reward.credits,
+                reason: `Reward approved: ${reward.description}`,
+                createdById: user.id,
+              });
+            }
+
+            if (reward.freeSessions > 0) {
+              const [club] = await tx.select({ sessionFee: clubs.sessionFee }).from(clubs).where(eq(clubs.id, reward.clubId));
+              const sessionValue = club?.sessionFee || 700;
+              await tx.insert(creditLedger).values({
+                userId: reward.playerId,
+                clubId: reward.clubId,
+                amount: reward.freeSessions * sessionValue,
+                reason: `Reward approved: ${reward.freeSessions} free session(s) from ${reward.description}`,
+                createdById: user.id,
+              });
+            }
+
+            return upd;
+          });
+
+          console.log(`[AUDIT] Reward bulk-approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
+          results.push(updated);
+        } catch (innerErr: any) {
+          errors.push(`Error processing reward ${id}: ${innerErr.message}`);
+        }
+      }
+
+      res.json({ approved: results.length, errors, results });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // POST /api/admin/rewards/issue - Admin manually issue a reward to a player
   app.post("/api/admin/rewards/issue", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Gift, Trophy, CreditCard, Ticket, Search, Loader2, ArrowLeft, CheckCircle, Clock, Star, Users, Calendar } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Gift, Trophy, CreditCard, Search, Loader2, ArrowLeft, CheckCircle, Clock, Star, Check, CheckCheck, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 
@@ -47,12 +48,46 @@ interface DashboardData {
 export default function RewardsDashboard() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "all">("pending");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [detailReward, setDetailReward] = useState<RewardEntry | null>(null);
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/admin/rewards-dashboard"],
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/admin/rewards/${id}/approve`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rewards-dashboard"] });
+      toast({ title: "Approved", description: "Reward approved and credits added to player account." });
+      setDetailReward(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to approve reward.", variant: "destructive" });
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await apiRequest("POST", "/api/admin/rewards/bulk-approve", { ids });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rewards-dashboard"] });
+      setSelectedIds(new Set());
+      const msg = data.errors?.length > 0
+        ? `${data.approved} approved. ${data.errors.length} error(s).`
+        : `${data.approved} reward(s) approved and credits added.`;
+      toast({ title: "Bulk Approval Complete", description: msg });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to bulk approve.", variant: "destructive" });
+    },
   });
 
   const updateStatusMutation = useMutation({
@@ -73,8 +108,18 @@ export default function RewardsDashboard() {
   const rewards = data?.rewards || [];
   const summary = data?.summary || { total: 0, available: 0, used: 0, requested: 0, totalCreditsIssued: 0, totalFreeSessionsIssued: 0 };
 
-  const filtered = rewards.filter(r => {
-    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+  const pendingRewards = rewards.filter(r => r.status === "REQUESTED");
+  const approvedRewards = rewards.filter(r => r.status === "USED");
+
+  const getTabRewards = () => {
+    switch (activeTab) {
+      case "pending": return pendingRewards;
+      case "approved": return approvedRewards;
+      case "all": return rewards;
+    }
+  };
+
+  const filtered = getTabRewards().filter(r => {
     if (typeFilter !== "all" && r.rewardType !== typeFilter) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -95,8 +140,8 @@ export default function RewardsDashboard() {
   function getStatusBadge(status: string) {
     switch (status) {
       case "AVAILABLE": return <Badge className="bg-green-600 text-white no-default-hover-elevate" data-testid="badge-status-available">Available</Badge>;
-      case "USED": return <Badge variant="secondary" className="no-default-hover-elevate" data-testid="badge-status-used">Used</Badge>;
-      case "REQUESTED": return <Badge className="bg-amber-500 text-white no-default-hover-elevate" data-testid="badge-status-requested">Requested</Badge>;
+      case "USED": return <Badge variant="secondary" className="bg-blue-600 text-white no-default-hover-elevate" data-testid="badge-status-used">Approved</Badge>;
+      case "REQUESTED": return <Badge className="bg-amber-500 text-white no-default-hover-elevate" data-testid="badge-status-requested">Pending</Badge>;
       default: return <Badge variant="outline" className="no-default-hover-elevate">{status}</Badge>;
     }
   }
@@ -113,6 +158,28 @@ export default function RewardsDashboard() {
     };
     return <Badge variant="outline" className={`no-default-hover-elevate ${colors[type] || ""}`}>{type.replace(/_/g, " ")}</Badge>;
   }
+
+  function toggleSelect(id: number) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  }
+
+  function toggleSelectAll() {
+    const pendingFiltered = filtered.filter(r => r.status === "REQUESTED");
+    if (pendingFiltered.every(r => selectedIds.has(r.id))) {
+      const next = new Set(selectedIds);
+      pendingFiltered.forEach(r => next.delete(r.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      pendingFiltered.forEach(r => next.add(r.id));
+      setSelectedIds(next);
+    }
+  }
+
+  const selectablePending = filtered.filter(r => r.status === "REQUESTED");
+  const allSelected = selectablePending.length > 0 && selectablePending.every(r => selectedIds.has(r.id));
 
   if (isLoading) {
     return (
@@ -133,7 +200,7 @@ export default function RewardsDashboard() {
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold" data-testid="text-rewards-dashboard-title">Rewards Dashboard</h1>
-          <p className="text-sm text-muted-foreground">View and manage all rewards claimed by players</p>
+          <p className="text-sm text-muted-foreground">Manage reward approvals and track claimed rewards</p>
         </div>
       </div>
 
@@ -147,31 +214,31 @@ export default function RewardsDashboard() {
             <div className="text-2xl font-bold" data-testid="value-total-rewards">{summary.total}</div>
           </CardContent>
         </Card>
-        <Card className="border-border/50" data-testid="card-available-rewards">
+        <Card className="border-border/50 cursor-pointer hover:border-amber-400/50 transition-colors" onClick={() => setActiveTab("pending")} data-testid="card-pending-rewards">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600" data-testid="value-available-rewards">{summary.available}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50" data-testid="card-used-rewards">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Used</CardTitle>
-            <Star className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="value-used-rewards">{summary.used}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50" data-testid="card-requested-rewards">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Requested</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approval</CardTitle>
             <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600" data-testid="value-requested-rewards">{summary.requested}</div>
+            <div className="text-2xl font-bold text-amber-600" data-testid="value-pending-rewards">{summary.requested}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50 cursor-pointer hover:border-blue-400/50 transition-colors" onClick={() => setActiveTab("approved")} data-testid="card-approved-rewards">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600" data-testid="value-approved-rewards">{summary.used}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50" data-testid="card-available-rewards">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
+            <Star className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600" data-testid="value-available-rewards">{summary.available}</div>
           </CardContent>
         </Card>
         <Card className="border-border/50" data-testid="card-total-credits">
@@ -186,12 +253,33 @@ export default function RewardsDashboard() {
       </div>
 
       <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Gift className="h-5 w-5 text-amber-500" />
-            All Claimed Rewards
-          </CardTitle>
-          <div className="flex flex-wrap gap-2 mt-3">
+        <CardHeader className="pb-3">
+          <div className="flex gap-1 border-b border-border mb-3">
+            {([
+              { key: "pending" as const, label: "Pending Approval", count: pendingRewards.length, icon: Clock, color: "text-amber-500" },
+              { key: "approved" as const, label: "Approved", count: approvedRewards.length, icon: CheckCircle, color: "text-blue-500" },
+              { key: "all" as const, label: "All Rewards", count: rewards.length, icon: Gift, color: "text-muted-foreground" },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => { setActiveTab(tab.key); setSelectedIds(new Set()); }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.key
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={`tab-${tab.key}`}
+              >
+                <tab.icon className={`h-3.5 w-3.5 ${activeTab === tab.key ? tab.color : ""}`} />
+                {tab.label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.key ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                }`}>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -202,17 +290,6 @@ export default function RewardsDashboard() {
                 data-testid="input-search-rewards"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="AVAILABLE">Available</SelectItem>
-                <SelectItem value="USED">Used</SelectItem>
-                <SelectItem value="REQUESTED">Requested</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
                 <SelectValue placeholder="Type" />
@@ -224,19 +301,53 @@ export default function RewardsDashboard() {
                 ))}
               </SelectContent>
             </Select>
+            {selectedIds.size > 0 && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => bulkApproveMutation.mutate(Array.from(selectedIds))}
+                disabled={bulkApproveMutation.isPending}
+                data-testid="button-bulk-approve"
+              >
+                {bulkApproveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <CheckCheck className="h-4 w-4 mr-1" />
+                )}
+                Approve {selectedIds.size} Selected
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
             <div className="text-center py-8">
-              <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-muted-foreground">No rewards found matching your filters.</p>
+              {activeTab === "pending" ? (
+                <>
+                  <CheckCircle className="h-10 w-10 mx-auto mb-3 text-green-400" />
+                  <p className="text-muted-foreground">No pending rewards to approve.</p>
+                </>
+              ) : (
+                <>
+                  <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <p className="text-muted-foreground">No rewards found matching your filters.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {(activeTab === "pending" || activeTab === "all") && selectablePending.length > 0 && (
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          data-testid="checkbox-select-all"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead>Player</TableHead>
                     <TableHead>Club</TableHead>
                     <TableHead>Type</TableHead>
@@ -244,6 +355,7 @@ export default function RewardsDashboard() {
                     <TableHead>Value</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
+                    {(activeTab === "pending" || activeTab === "all") && <TableHead className="text-right">Action</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -252,6 +364,7 @@ export default function RewardsDashboard() {
                     if (reward.credits > 0) valueParts.push(formatGBP(reward.credits));
                     if (reward.freeSessions > 0) valueParts.push(`${reward.freeSessions} session${reward.freeSessions > 1 ? "s" : ""}`);
                     if (reward.gifts) valueParts.push(reward.gifts);
+                    const isPending = reward.status === "REQUESTED";
                     return (
                       <TableRow
                         key={reward.id}
@@ -259,6 +372,17 @@ export default function RewardsDashboard() {
                         onClick={() => setDetailReward(reward)}
                         data-testid={`row-reward-${reward.id}`}
                       >
+                        {(activeTab === "pending" || activeTab === "all") && selectablePending.length > 0 && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {isPending ? (
+                              <Checkbox
+                                checked={selectedIds.has(reward.id)}
+                                onCheckedChange={() => toggleSelect(reward.id)}
+                                data-testid={`checkbox-reward-${reward.id}`}
+                              />
+                            ) : <div className="w-4" />}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div>
                             <p className="font-medium text-sm">{reward.playerName || "Unknown"}</p>
@@ -271,6 +395,25 @@ export default function RewardsDashboard() {
                         <TableCell className="text-sm font-medium">{valueParts.join(" + ") || "-"}</TableCell>
                         <TableCell>{getStatusBadge(reward.status)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{format(new Date(reward.createdAt), "dd MMM yyyy")}</TableCell>
+                        {(activeTab === "pending" || activeTab === "all") && (
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            {isPending && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2.5 text-xs"
+                                onClick={() => approveMutation.mutate(reward.id)}
+                                disabled={approveMutation.isPending}
+                                data-testid={`button-approve-${reward.id}`}
+                              >
+                                {approveMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <><Check className="h-3 w-3 mr-1" />Approve</>
+                                )}
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -286,6 +429,7 @@ export default function RewardsDashboard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Reward Details</DialogTitle>
+            <DialogDescription>View and manage this reward</DialogDescription>
           </DialogHeader>
           {detailReward && (
             <div className="space-y-3 text-sm">
@@ -334,15 +478,37 @@ export default function RewardsDashboard() {
                 </div>
               </div>
 
+              {detailReward.status === "REQUESTED" && (
+                <div className="pt-3 border-t">
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-3">
+                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">This reward is awaiting your approval. Approving will credit the player's account.</p>
+                  </div>
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => approveMutation.mutate(detailReward.id)}
+                    disabled={approveMutation.isPending}
+                    data-testid="button-approve-detail"
+                  >
+                    {approveMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-2" />
+                    )}
+                    Approve & Credit Player
+                  </Button>
+                </div>
+              )}
+
               <div className="pt-3 border-t space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">Update Status</p>
+                <p className="text-xs font-semibold text-muted-foreground">Manual Status Update</p>
                 <div className="flex gap-2">
                   {detailReward.status !== "AVAILABLE" && (
                     <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: detailReward.id, status: "AVAILABLE" })} disabled={updateStatusMutation.isPending} data-testid="button-mark-available">
                       Available
                     </Button>
                   )}
-                  {detailReward.status !== "USED" && (
+                  {detailReward.status !== "USED" && detailReward.status !== "REQUESTED" && (
                     <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: detailReward.id, status: "USED" })} disabled={updateStatusMutation.isPending} data-testid="button-mark-used">
                       Mark Used
                     </Button>
