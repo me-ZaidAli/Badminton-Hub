@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Maximize2 } from "lucide-react";
 
@@ -29,7 +29,7 @@ export function ExpandableChartDialog({
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm h-7 w-7 shadow-sm border"
+          className="absolute top-2 right-2 z-10 opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm h-7 w-7 shadow-sm border"
           onClick={(e) => {
             e.stopPropagation();
             setOpen(true);
@@ -42,14 +42,14 @@ export function ExpandableChartDialog({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[98vw] sm:max-w-[95vw] w-[98vw] sm:w-[95vw] max-h-[92vh] sm:max-h-[90vh] overflow-y-auto p-3 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-lg">{title}</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{title}</DialogTitle>
             {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
+              <DialogDescription className="text-xs sm:text-sm text-muted-foreground">{description}</DialogDescription>
             )}
           </DialogHeader>
-          <div className="min-h-[60vh]">
+          <div className="min-h-[50vh] sm:min-h-[60vh]">
             {expandedChart}
           </div>
           {footer && <div className="pt-4 border-t">{footer}</div>}
@@ -76,11 +76,11 @@ export function KpiDetailDialog({
 }: KpiDetailDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">{title}</DialogTitle>
           {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <DialogDescription className="text-xs sm:text-sm text-muted-foreground">{description}</DialogDescription>
           )}
         </DialogHeader>
         {children}

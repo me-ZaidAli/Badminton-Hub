@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend
+  CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend, Sector
 } from "recharts";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -98,6 +98,8 @@ export default function AcquisitionAnalytics() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("overview");
   const [kpiDetail, setKpiDetail] = useState<string | null>(null);
+  const [activeChannelKey, setActiveChannelKey] = useState<string | null>(null);
+  const [hiddenChannelKeys, setHiddenChannelKeys] = useState<Set<string>>(new Set());
 
   const queryParams = new URLSearchParams();
   if (dateFrom) queryParams.set("dateFrom", dateFrom);
@@ -168,12 +170,93 @@ export default function AcquisitionAnalytics() {
     );
   }
 
-  const channelPieData = data
+  const allChannelPieData = data
     ? Object.entries(data.signupsByChannel).map(([key, value]) => ({
         name: CHANNEL_LABELS[key] || key,
         value,
+        key,
       }))
     : [];
+
+  const channelPieData = allChannelPieData.filter(d => !hiddenChannelKeys.has(d.key));
+  const channelTotal = allChannelPieData.reduce((a, b) => a + b.value, 0);
+  const filteredTotal = channelPieData.reduce((a, b) => a + b.value, 0);
+  const activePieIndex = activeChannelKey !== null ? channelPieData.findIndex(d => d.key === activeChannelKey) : undefined;
+  const resolvedActiveIndex = activePieIndex !== undefined && activePieIndex >= 0 ? activePieIndex : undefined;
+
+  const toggleChannel = useCallback((channelKey: string) => {
+    setHiddenChannelKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(channelKey)) {
+        next.delete(channelKey);
+      } else {
+        if (next.size < allChannelPieData.length - 1) {
+          next.add(channelKey);
+        }
+      }
+      return next;
+    });
+    setActiveChannelKey(null);
+  }, [allChannelPieData.length]);
+
+  const renderActiveShape = (props: any) => {
+    const RADIAN = Math.PI / 180;
+    const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
+    const sin = Math.sin(-RADIAN * midAngle);
+    const cos = Math.cos(-RADIAN * midAngle);
+    const sx = cx + (outerRadius + 8) * cos;
+    const sy = cy + (outerRadius + 8) * sin;
+    const mx = cx + (outerRadius + 22) * cos;
+    const my = cy + (outerRadius + 22) * sin;
+    const ex = mx + (cos >= 0 ? 1 : -1) * 18;
+    const ey = my;
+    const textAnchor = cos >= 0 ? "start" : "end";
+
+    return (
+      <g>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 6}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.2))" }}
+        />
+        <Sector
+          cx={cx}
+          cy={cy}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          innerRadius={outerRadius + 8}
+          outerRadius={outerRadius + 12}
+          fill={fill}
+        />
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} />
+        <circle cx={ex} cy={ey} r={3} fill={fill} stroke="none" />
+        <text x={ex + (cos >= 0 ? 1 : -1) * 8} y={ey} textAnchor={textAnchor} fill="hsl(var(--foreground))" fontSize={12} fontWeight={600}>
+          {payload.name}
+        </text>
+        <text x={ex + (cos >= 0 ? 1 : -1) * 8} y={ey} dy={16} textAnchor={textAnchor} fill="hsl(var(--muted-foreground))" fontSize={11}>
+          {value} ({(percent * 100).toFixed(1)}%)
+        </text>
+      </g>
+    );
+  };
+
+  const renderCalloutLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value, name }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 25;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    if (percent < 0.03) return null;
+    return (
+      <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={11} fontWeight={500}>
+        {value} ({(percent * 100).toFixed(0)}%)
+      </text>
+    );
+  };
 
   const qualityScoreData = data
     ? Object.entries(data.channelQualityScores)
@@ -405,71 +488,203 @@ export default function AcquisitionAnalytics() {
                       <Target className="h-4 w-4" />
                       Signups by Channel
                     </CardTitle>
+                    <p className="text-xs text-muted-foreground">Tap a segment or category to explore details</p>
                   </CardHeader>
                   <CardContent className="overflow-hidden">
-                    {channelPieData.length > 0 ? (
+                    {allChannelPieData.length > 0 ? (
                       <ExpandableChartDialog
                         title="Signups by Channel"
+                        description={`${filteredTotal} signups across ${channelPieData.length} channels`}
                         expandedChart={
-                          <ResponsiveContainer width="100%" height={550}>
+                          <div className="space-y-4">
+                            <ResponsiveContainer width="100%" height={450}>
+                              <PieChart>
+                                <Pie
+                                  activeIndex={resolvedActiveIndex}
+                                  activeShape={renderActiveShape}
+                                  data={channelPieData}
+                                  cx="50%"
+                                  cy="45%"
+                                  outerRadius={150}
+                                  innerRadius={60}
+                                  dataKey="value"
+                                  label={renderCalloutLabel}
+                                  onMouseEnter={(data) => setActiveChannelKey(data.key)}
+                                  onMouseLeave={() => setActiveChannelKey(null)}
+                                  onClick={(data) => setActiveChannelKey(prev => prev === data.key ? null : data.key)}
+                                  style={{ cursor: "pointer" }}
+                                >
+                                  {channelPieData.map((entry, index) => (
+                                    <Cell
+                                      key={entry.key}
+                                      fill={CHART_COLORS[allChannelPieData.findIndex(d => d.key === entry.key) % CHART_COLORS.length]}
+                                      stroke="hsl(var(--background))"
+                                      strokeWidth={2}
+                                    />
+                                  ))}
+                                </Pie>
+                                <text x="50%" y="43%" textAnchor="middle" dominantBaseline="middle" fill="hsl(var(--foreground))" fontSize={28} fontWeight={700}>
+                                  {filteredTotal}
+                                </text>
+                                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill="hsl(var(--muted-foreground))" fontSize={12}>
+                                  total signups
+                                </text>
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: "hsl(var(--card))",
+                                    border: "1px solid hsl(var(--border))",
+                                    borderRadius: "8px",
+                                    padding: "8px 12px",
+                                  }}
+                                  formatter={(value: number, name: string) => [
+                                    `${value} (${filteredTotal > 0 ? ((value / filteredTotal) * 100).toFixed(1) : 0}%)`,
+                                    name,
+                                  ]}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <div className="flex flex-wrap justify-center gap-2 px-2">
+                              {allChannelPieData.map((entry, index) => {
+                                const isHidden = hiddenChannelKeys.has(entry.key);
+                                return (
+                                  <button
+                                    key={entry.key}
+                                    onClick={() => toggleChannel(entry.key)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                                      isHidden
+                                        ? "opacity-40 line-through border-dashed bg-muted"
+                                        : "border-transparent hover:ring-2 hover:ring-offset-1 hover:ring-current"
+                                    }`}
+                                    style={!isHidden ? { backgroundColor: `${CHART_COLORS[index % CHART_COLORS.length]}20`, color: CHART_COLORS[index % CHART_COLORS.length] } : {}}
+                                    data-testid={`toggle-channel-${entry.key.toLowerCase()}`}
+                                  >
+                                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                    {entry.name}: {entry.value} ({channelTotal > 0 ? ((entry.value / channelTotal) * 100).toFixed(0) : 0}%)
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {hiddenChannelKeys.size > 0 && (
+                              <div className="text-center">
+                                <Button variant="ghost" size="sm" onClick={() => { setHiddenChannelKeys(new Set()); setActiveChannelKey(null); }} data-testid="button-reset-channels">
+                                  Reset all filters
+                                </Button>
+                              </div>
+                            )}
+                            <div className="border rounded-lg overflow-hidden">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Channel</TableHead>
+                                    <TableHead className="text-right">Count</TableHead>
+                                    <TableHead className="text-right">% of Total</TableHead>
+                                    <TableHead className="text-right">% of Visible</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {channelPieData
+                                    .slice()
+                                    .sort((a, b) => b.value - a.value)
+                                    .map((entry) => {
+                                      const origIdx = allChannelPieData.findIndex(d => d.key === entry.key);
+                                      const isActive = activeChannelKey === entry.key;
+                                      return (
+                                        <TableRow
+                                          key={entry.key}
+                                          className={`cursor-pointer transition-colors ${isActive ? "bg-muted" : "hover:bg-muted/50"}`}
+                                          onClick={() => setActiveChannelKey(prev => prev === entry.key ? null : entry.key)}
+                                        >
+                                          <TableCell className="flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: CHART_COLORS[origIdx % CHART_COLORS.length] }} />
+                                            <span className="font-medium text-sm">{entry.name}</span>
+                                          </TableCell>
+                                          <TableCell className="text-right font-semibold">{entry.value}</TableCell>
+                                          <TableCell className="text-right text-muted-foreground">{channelTotal > 0 ? ((entry.value / channelTotal) * 100).toFixed(1) : 0}%</TableCell>
+                                          <TableCell className="text-right text-muted-foreground">{filteredTotal > 0 ? ((entry.value / filteredTotal) * 100).toFixed(1) : 0}%</TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  <TableRow className="bg-muted/30 font-bold">
+                                    <TableCell>Total</TableCell>
+                                    <TableCell className="text-right">{filteredTotal}</TableCell>
+                                    <TableCell className="text-right">{channelTotal > 0 ? ((filteredTotal / channelTotal) * 100).toFixed(1) : 0}%</TableCell>
+                                    <TableCell className="text-right">100%</TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        }
+                      >
+                        <div>
+                          <ResponsiveContainer width="100%" height={240}>
                             <PieChart>
                               <Pie
+                                activeIndex={resolvedActiveIndex}
+                                activeShape={renderActiveShape}
                                 data={channelPieData}
                                 cx="50%"
-                                cy="45%"
-                                outerRadius={180}
-                                innerRadius={70}
+                                cy="50%"
+                                outerRadius={75}
+                                innerRadius={30}
                                 dataKey="value"
-                                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                onMouseEnter={(data) => setActiveChannelKey(data.key)}
+                                onMouseLeave={() => setActiveChannelKey(null)}
+                                onClick={(data) => setActiveChannelKey(prev => prev === data.key ? null : data.key)}
+                                style={{ cursor: "pointer" }}
                               >
-                                {channelPieData.map((_, index) => (
-                                  <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                {channelPieData.map((entry) => (
+                                  <Cell
+                                    key={entry.key}
+                                    fill={CHART_COLORS[allChannelPieData.findIndex(d => d.key === entry.key) % CHART_COLORS.length]}
+                                    stroke="hsl(var(--background))"
+                                    strokeWidth={2}
+                                  />
                                 ))}
                               </Pie>
+                              <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" fill="hsl(var(--foreground))" fontSize={20} fontWeight={700}>
+                                {filteredTotal}
+                              </text>
+                              <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle" fill="hsl(var(--muted-foreground))" fontSize={9}>
+                                signups
+                              </text>
                               <Tooltip
                                 contentStyle={{
                                   backgroundColor: "hsl(var(--card))",
                                   border: "1px solid hsl(var(--border))",
                                   borderRadius: "8px",
+                                  padding: "8px 12px",
+                                  fontSize: "13px",
                                 }}
-                                formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
+                                formatter={(value: number, name: string) => [
+                                  `${value} (${filteredTotal > 0 ? ((value / filteredTotal) * 100).toFixed(1) : 0}%)`,
+                                  name,
+                                ]}
                               />
-                              <Legend wrapperStyle={{ fontSize: "14px", paddingTop: "12px" }} />
                             </PieChart>
                           </ResponsiveContainer>
-                        }
-                      >
-                        <ResponsiveContainer width="100%" height={320}>
-                          <PieChart>
-                            <Pie
-                              data={channelPieData}
-                              cx="50%"
-                              cy="40%"
-                              outerRadius={80}
-                              innerRadius={30}
-                              dataKey="value"
-                              label={false}
-                            >
-                              {channelPieData.map((_, index) => (
-                                <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "8px",
-                              }}
-                              formatter={(value: number, name: string) => [`${value} (${channelPieData.length > 0 ? ((value / channelPieData.reduce((a, b) => a + b.value, 0)) * 100).toFixed(0) : 0}%)`, name]}
-                            />
-                            <Legend
-                              layout="horizontal"
-                              verticalAlign="bottom"
-                              align="center"
-                              wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
+                          <div className="flex flex-wrap justify-center gap-1.5 mt-1">
+                            {allChannelPieData.map((entry, index) => {
+                              const isHidden = hiddenChannelKeys.has(entry.key);
+                              return (
+                                <button
+                                  key={entry.key}
+                                  onClick={(e) => { e.stopPropagation(); toggleChannel(entry.key); }}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all border ${
+                                    isHidden
+                                      ? "opacity-40 line-through border-dashed bg-muted"
+                                      : "border-transparent hover:ring-1 hover:ring-current"
+                                  }`}
+                                  style={!isHidden ? { backgroundColor: `${CHART_COLORS[index % CHART_COLORS.length]}15`, color: CHART_COLORS[index % CHART_COLORS.length] } : {}}
+                                  data-testid={`toggle-channel-sm-${entry.key.toLowerCase()}`}
+                                >
+                                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                  {entry.name}: {entry.value}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </ExpandableChartDialog>
                     ) : (
                       <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
