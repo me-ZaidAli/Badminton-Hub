@@ -409,13 +409,13 @@ export default function Rewards() {
                               : `${Math.round(info.progress * 100)}% through year ${info.upcomingYear}`
                             }
                           </p>
-                          {info.rewards && (
+                          {info.hasReward && (
                             <p className="text-[11px] text-purple-400">
                               <Award className="h-3 w-3 inline mr-1" />
-                              {info.rewards.credits ? `£${(info.rewards.credits / 100).toFixed(2)} credit` : ""}
-                              {info.rewards.credits && info.rewards.gifts ? " + " : ""}
-                              {info.rewards.gifts || ""}
-                              {info.rewards.customMessage ? ` — ${info.rewards.customMessage}` : ""}
+                              {info.rewardCredits ? `£${(info.rewardCredits / 100).toFixed(2)} credit` : ""}
+                              {info.rewardCredits && info.rewardGifts ? " + " : ""}
+                              {info.rewardGifts || ""}
+                              {info.rewardMessage ? ` — ${info.rewardMessage}` : ""}
                             </p>
                           )}
                         </div>
