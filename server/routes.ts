@@ -14963,7 +14963,6 @@ export async function registerRoutes(
         const [settings] = await db.select().from(clubBirthdaySettings).where(
           and(eq(clubBirthdaySettings.clubId, clubId), eq(clubBirthdaySettings.isActive, true))
         );
-        if (!settings) continue;
 
         const hasDob = !!user.dateOfBirth;
         let daysUntilBirthday: number | null = null;
@@ -14998,9 +14997,10 @@ export async function registerRoutes(
           daysUntilBirthday,
           nextBirthdayDate,
           birthdayToday,
-          credits: settings.credits,
-          gifts: settings.gifts,
-          message: settings.message,
+          hasRewards: !!settings,
+          credits: settings?.credits || 0,
+          gifts: settings?.gifts || null,
+          message: settings?.message || null,
         });
       }
 

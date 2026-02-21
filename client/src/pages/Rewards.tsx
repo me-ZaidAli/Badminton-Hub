@@ -585,7 +585,7 @@ export default function Rewards() {
 
     if (activeTab === "birthday") {
       const allBday = birthdayData || [];
-      if (allBday.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Days", stage: "No birthday rewards", remaining: 0, nextLabel: "", clubName: "", ...theme };
+      if (allBday.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "?", unit: "No DOB", stage: "Set your birthday in Profile", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
       const info: any = selectedClubId ? allBday.find((b: any) => b.clubId === selectedClubId) : allBday[0];
       if (!info) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Days", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
@@ -787,7 +787,7 @@ export default function Rewards() {
                 { key: "referrals", label: "Referrals", icon: Users },
                 { key: "attendance", label: "Attend", icon: Target },
                 { key: "anniversary", label: "Anniv", icon: CalendarDays },
-                ...(birthdayData && birthdayData.length > 0 ? [{ key: "birthday", label: "B-Day", icon: Cake }] : []),
+                { key: "birthday", label: "B-Day", icon: Cake },
                 ...(!isViewingOther ? [{ key: "points", label: "Points", icon: TrendingUp }] : []),
                 ...(!isViewingOther ? [{ key: "badges", label: "Badges", icon: Award }] : []),
               ].map(tab => {
