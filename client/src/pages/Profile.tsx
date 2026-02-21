@@ -526,13 +526,6 @@ function BadmintonEnglandSection({ user }: { user: any }) {
                   <span className="text-[11px] block text-blue-600 dark:text-blue-500">Up to £10,000,000 cover per claim — protects you if you accidentally injure another player or damage property</span>
                 </div>
               </li>
-              <li className="flex items-start gap-2" data-testid="text-be-benefit-pricing">
-                <PoundSterling className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-medium">Only £17.50 per season</span>
-                  <span className="text-[11px] block text-blue-600 dark:text-blue-500">Season runs Nov 1 — Oct 31. Save 10% (£15.75/yr) with auto-renew. Juniors from just £5.75 (under 12s free)</span>
-                </div>
-              </li>
               <li className="flex items-start gap-2" data-testid="text-be-benefit-discounts">
                 <Tag className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <div>
@@ -544,6 +537,79 @@ function BadmintonEnglandSection({ user }: { user: any }) {
             <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
               <p className="text-[10px] text-blue-600 dark:text-blue-500" data-testid="text-be-disclaimer">
                 Cover includes member-to-member liability, damage to rented venues, and professional indemnity. Insured by Hiscox via Howden UK Group. Note: this is liability cover only — it does not cover personal injury to yourself.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden" data-testid="card-be-pricing-table">
+            <div className="bg-blue-600 dark:bg-blue-700 px-3.5 py-2.5">
+              <p className="text-xs font-bold text-white tracking-wide" data-testid="text-be-pricing-title">2025/26 Player Membership Prices</p>
+              <p className="text-[10px] text-blue-200 mt-0.5">Season runs 1 Nov — 31 Oct</p>
+            </div>
+
+            <div className="px-1">
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 border-b border-blue-100 dark:border-blue-900 px-3 py-2">
+                <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider" data-testid="text-be-community-header">Community</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Play socially at affiliated clubs</p>
+              </div>
+              <table className="w-full text-xs" data-testid="table-be-community-prices">
+                <thead>
+                  <tr className="border-b border-blue-100 dark:border-blue-900">
+                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Membership</th>
+                    <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Price</th>
+                    <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Auto-renew</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { name: "Community Club Member", price: "£17.50", renewal: "N/A" },
+                    { name: "Junior Community Club (12-18)", price: "£5.75", renewal: "N/A" },
+                    { name: "Junior Community Club (5-11)", price: "FREE", renewal: "N/A", free: true },
+                    { name: "Community Member", price: "£17.50", renewal: "£15.75" },
+                    { name: "Junior Community (12-18)", price: "£5.75", renewal: "£5.18" },
+                    { name: "Junior Community (5-11)", price: "FREE", renewal: "N/A", free: true },
+                  ].map((row, i) => (
+                    <tr key={i} className={`border-b border-blue-50 dark:border-blue-900/50 ${i % 2 === 0 ? '' : 'bg-muted/20'}`} data-testid={`row-community-price-${i}`}>
+                      <td className="px-3 py-2 text-[11px]">{row.name}</td>
+                      <td className={`px-3 py-2 text-[11px] text-right font-semibold ${row.free ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{row.price}</td>
+                      <td className={`px-3 py-2 text-[11px] text-right ${row.renewal !== 'N/A' ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{row.renewal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="bg-orange-50 dark:bg-orange-950/20 border-b border-blue-100 dark:border-blue-900 px-3 py-2 mt-1">
+                <p className="text-[11px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider" data-testid="text-be-compete-header">Compete</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Play in leagues, tournaments & competitions</p>
+              </div>
+              <table className="w-full text-xs" data-testid="table-be-compete-prices">
+                <thead>
+                  <tr className="border-b border-blue-100 dark:border-blue-900">
+                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Membership</th>
+                    <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Price</th>
+                    <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Auto-renew</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { name: "Compete Member", price: "£34.00", renewal: "£30.60" },
+                    { name: "Compete Member (Non Resident)", price: "£16.50", renewal: "£14.85" },
+                    { name: "Junior Compete (12-18)", price: "£18.25", renewal: "£16.43" },
+                    { name: "Junior Compete (5-11)", price: "£12.50", renewal: "£11.25" },
+                  ].map((row, i) => (
+                    <tr key={i} className={`border-b border-blue-50 dark:border-blue-900/50 ${i % 2 === 0 ? '' : 'bg-muted/20'}`} data-testid={`row-compete-price-${i}`}>
+                      <td className="px-3 py-2 text-[11px]">{row.name}</td>
+                      <td className="px-3 py-2 text-[11px] text-right font-semibold">{row.price}</td>
+                      <td className="px-3 py-2 text-[11px] text-right font-semibold text-emerald-600 dark:text-emerald-400">{row.renewal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-muted/30 px-3.5 py-2 border-t border-blue-100 dark:border-blue-900">
+              <p className="text-[10px] text-muted-foreground" data-testid="text-be-pricing-note">
+                Save up to 10% with auto-renewal. Under 5s play free. All prices include £10M public liability insurance cover.
               </p>
             </div>
           </div>
