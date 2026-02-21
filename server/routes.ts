@@ -13929,6 +13929,7 @@ export async function registerRoutes(
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
       const { sessionsRequired, rewardConfig, isActive } = req.body;
+      if (!sessionsRequired || sessionsRequired <= 0) return res.status(400).json({ message: "Sessions required must be greater than 0" });
       const [reward] = await db.insert(sessionAttendanceRewards).values({
         clubId,
         sessionsRequired,
@@ -14029,6 +14030,65 @@ export async function registerRoutes(
         requestedCount: requested.length,
         totalRewards: rewards.length,
       });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-attendance-progress - Get session attendance progress per club with next milestone info
+  app.get("/api/my-attendance-progress", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = user.playerProfiles || [];
+      const results: any[] = [];
+
+      for (const profile of profiles) {
+        const clubId = profile.clubId;
+
+        const attendedCount = await db.select({ count: sql<number>`count(*)` })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(
+            eq(sessionSignups.playerId, profile.id),
+            eq(sessions.clubId, clubId),
+            eq(sessionSignups.attendanceStatus, "ATTENDED")
+          )).then(r => Number(r[0]?.count || 0));
+
+        const activeRewards = await db.select().from(sessionAttendanceRewards).where(
+          and(eq(sessionAttendanceRewards.clubId, clubId), eq(sessionAttendanceRewards.isActive, true))
+        ).orderBy(sessionAttendanceRewards.sessionsRequired);
+
+        const milestones = activeRewards.filter(r => r.sessionsRequired > 0).map(reward => {
+          const config = reward.rewardConfig as any;
+          const nextMilestoneNum = Math.floor(attendedCount / reward.sessionsRequired) + 1;
+          const nextTarget = nextMilestoneNum * reward.sessionsRequired;
+          const sessionsUntilNext = nextTarget - attendedCount;
+          const progressInCurrent = ((attendedCount % reward.sessionsRequired) / reward.sessionsRequired) * 100;
+
+          return {
+            rewardId: reward.id,
+            sessionsRequired: reward.sessionsRequired,
+            currentCount: attendedCount,
+            nextTarget,
+            sessionsUntilNext,
+            progressPercent: progressInCurrent,
+            milestonesCompleted: Math.floor(attendedCount / reward.sessionsRequired),
+            rewardConfig: config,
+          };
+        });
+
+        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+
+        results.push({
+          clubId,
+          clubName: clubRow?.name || "Unknown Club",
+          totalAttended: attendedCount,
+          milestones,
+        });
+      }
+
+      res.json(results);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
