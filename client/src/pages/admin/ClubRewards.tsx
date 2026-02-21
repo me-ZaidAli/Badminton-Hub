@@ -569,19 +569,21 @@ export function ClubRewardsPage() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Link href="/admin">
-          <Button variant="ghost" size="icon" data-testid="button-back-admin">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-foreground" data-testid="text-page-title">Club Rewards</h1>
-          <p className="text-sm text-muted-foreground">Manage anniversary, attendance, referral, points and badge rewards</p>
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <Link href="/admin">
+            <Button variant="ghost" size="icon" className="flex-shrink-0 mt-0.5" data-testid="button-back-admin">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-foreground" data-testid="text-page-title">Club Rewards</h1>
+            <p className="text-sm text-muted-foreground">Manage anniversary, attendance, referral, points and badge rewards</p>
+          </div>
         </div>
         {clubs.length > 1 && (
           <Select value={selectedClubId || String(effectiveClubId)} onValueChange={setSelectedClubId}>
-            <SelectTrigger className="w-56" data-testid="select-club-filter">
+            <SelectTrigger className="w-full sm:w-56" data-testid="select-club-filter">
               <SelectValue placeholder="Select club" />
             </SelectTrigger>
             <SelectContent>
@@ -603,28 +605,28 @@ export function ClubRewardsPage() {
         </Card>
       ) : (
         <Tabs defaultValue="anniversary" data-testid="tabs-rewards">
-          <TabsList className="grid w-full grid-cols-6" data-testid="tabs-list">
-            <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-1">
+          <TabsList className="flex w-full overflow-x-auto no-scrollbar" data-testid="tabs-list">
+            <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-2 flex-shrink-0">
               <PartyPopper className="h-3.5 w-3.5 mr-1" />
               Anniversary
             </TabsTrigger>
-            <TabsTrigger value="birthday" data-testid="tab-birthday" className="text-xs px-1">
+            <TabsTrigger value="birthday" data-testid="tab-birthday" className="text-xs px-2 flex-shrink-0">
               <Cake className="h-3.5 w-3.5 mr-1" />
               Birthday
             </TabsTrigger>
-            <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-1">
+            <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-2 flex-shrink-0">
               <Trophy className="h-3.5 w-3.5 mr-1" />
               Attendance
             </TabsTrigger>
-            <TabsTrigger value="referrals" data-testid="tab-referrals" className="text-xs px-1">
+            <TabsTrigger value="referrals" data-testid="tab-referrals" className="text-xs px-2 flex-shrink-0">
               <Users className="h-3.5 w-3.5 mr-1" />
               Referrals
             </TabsTrigger>
-            <TabsTrigger value="points" data-testid="tab-points" className="text-xs px-1">
+            <TabsTrigger value="points" data-testid="tab-points" className="text-xs px-2 flex-shrink-0">
               <TrendingUp className="h-3.5 w-3.5 mr-1" />
               Points
             </TabsTrigger>
-            <TabsTrigger value="grades" data-testid="tab-badges" className="text-xs px-1">
+            <TabsTrigger value="grades" data-testid="tab-badges" className="text-xs px-2 flex-shrink-0">
               <Award className="h-3.5 w-3.5 mr-1" />
               Badges
             </TabsTrigger>
