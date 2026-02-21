@@ -1291,7 +1291,7 @@ export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
 
 // === REWARDS SYSTEM ===
-export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE"]);
+export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE", "BADGE_ACHIEVEMENT"]);
 export const rewardStatusEnum = pgEnum("reward_status", ["AVAILABLE", "USED", "REQUESTED"]);
 
 export interface ReferralLevel {

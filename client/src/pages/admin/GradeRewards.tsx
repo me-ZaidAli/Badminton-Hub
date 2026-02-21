@@ -211,7 +211,7 @@ export function GradeRewardsPanel({ clubId }: { clubId: number }) {
             <h2 className="text-lg font-bold" data-testid="text-badge-rewards-title">Badge Achievement Rewards</h2>
           </div>
           <p className="text-sm text-muted-foreground" data-testid="text-badge-rewards-description">
-            Reward players when they earn specific achievement badges.
+            Reward players when they earn specific achievement badges. Each reward is given once per badge earned and is automatically issued when the badge criteria is met.
           </p>
         </div>
         <Button onClick={openCreate} data-testid="button-add-badge-reward">

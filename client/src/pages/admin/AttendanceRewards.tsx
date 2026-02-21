@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Plus, Pencil, Trash2, Loader2, Target, ArrowLeft } from "lucide-react";
+import { Trophy, Plus, Pencil, Trash2, Loader2, Target, ArrowLeft, Repeat } from "lucide-react";
 import { Link } from "wouter";
 
 interface RewardConfig {
@@ -198,7 +198,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
             <h2 className="text-lg font-bold" data-testid="text-rewards-title">Attendance Rewards</h2>
           </div>
           <p className="text-sm text-muted-foreground" data-testid="text-rewards-description">
-            Set milestones for session attendance. When a player attends the specified number of sessions, they automatically earn the configured reward. Milestones repeat indefinitely.
+            Reward players for session attendance. Milestones accumulate and repeat indefinitely. For example, if set to 10 sessions, the reward triggers at 10, 20, 30, etc.
           </p>
         </div>
         <Button onClick={openCreate} data-testid="button-add-reward">
@@ -207,10 +207,16 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
         </Button>
       </div>
 
+      <div className="flex items-center gap-2 mb-1">
+        <Repeat className="h-4 w-4 text-blue-500" />
+        <h3 className="text-sm font-semibold">Accumulating Milestones (Repeating)</h3>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">These rewards are given every time a player accumulates the required session attendance interval. The reward cycle restarts after each milestone is reached.</p>
+
       {sortedRewards.length === 0 ? (
         <Card data-testid="card-no-rewards">
           <CardContent className="py-8 text-center">
-            <Target className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <Repeat className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
             <p className="text-muted-foreground">No attendance reward milestones configured yet.</p>
             <p className="text-sm text-muted-foreground mt-1">Click "Add Milestone" to create your first reward.</p>
           </CardContent>
@@ -219,18 +225,26 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {sortedRewards.map((reward) => (
             <Card key={reward.id} data-testid={`card-reward-${reward.id}`} className="border-border/50">
-              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
-                  {reward.sessionsRequired} Sessions
-                </CardTitle>
-                <Badge
-                  variant={reward.isActive ? "default" : "secondary"}
-                  className={reward.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}
-                  data-testid={`badge-status-${reward.id}`}
-                >
-                  {reward.isActive ? "Active" : "Inactive"}
-                </Badge>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    Every {reward.sessionsRequired} Sessions
+                  </CardTitle>
+                  <Badge variant="outline" className="text-[10px] no-default-hover-elevate">
+                    <Repeat className="h-3 w-3 mr-1" />
+                    Repeating
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Badge
+                    variant={reward.isActive ? "default" : "secondary"}
+                    className={`text-[10px] ${reward.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}`}
+                    data-testid={`badge-status-${reward.id}`}
+                  >
+                    {reward.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5 text-sm">

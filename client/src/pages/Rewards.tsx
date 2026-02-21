@@ -196,7 +196,7 @@ export default function Rewards() {
   const usedRewards = useMemo(() => (rewards || []).filter((r: any) => r.status === "USED"), [rewards]);
 
   const statusColors: Record<string, string> = { AVAILABLE: "bg-emerald-500 text-white", REQUESTED: "bg-amber-500 text-white", USED: "bg-muted text-muted-foreground" };
-  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Badge" };
+  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Badge", BADGE_ACHIEVEMENT: "Badge Achievement" };
 
   const tabThemesFuturistic: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#00e5ff", glow: "#00b8d4" },

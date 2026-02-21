@@ -210,7 +210,7 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
             <h2 className="text-lg font-bold" data-testid="text-anniversary-title">Anniversary Rewards</h2>
           </div>
           <p className="text-sm text-muted-foreground" data-testid="text-anniversary-description">
-            Members receive these rewards on their club join anniversary.
+            Members receive these rewards on their club join anniversary. The anniversary resets every year, so rewards are given annually on each anniversary date.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

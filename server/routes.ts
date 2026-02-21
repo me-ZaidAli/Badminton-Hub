@@ -14464,22 +14464,53 @@ export async function registerRoutes(
           if (def.check(stats)) earnedBadgeIds.add(def.id);
         }
 
-        const badgeRewards = activeRewards.map(reward => {
+        const badgeRewards: any[] = [];
+        for (const reward of activeRewards) {
           const reached = earnedBadgeIds.has(reward.badge);
           const badgeDef = BADGE_REWARD_DEFS.find(d => d.id === reward.badge);
-          return {
+          let issued = false;
+
+          if (reached) {
+            const config = reward.rewardConfig as any;
+            try {
+              const inserted = await db.execute(sql`
+                INSERT INTO player_reward_ledger (player_id, club_id, reward_type, source_id, source_milestone, description, credits, gifts, free_sessions, status, created_at, updated_at)
+                VALUES (${profile.userId}, ${clubId}, 'BADGE_ACHIEVEMENT', ${reward.id}, 1, ${`Badge earned: ${badgeDef?.name || reward.badge}`}, ${config.credits || 0}, ${config.gifts || null}, ${config.freeSessions || 0}, 'AVAILABLE', NOW(), NOW())
+                ON CONFLICT (player_id, club_id, reward_type, source_id) WHERE source_id IS NOT NULL DO NOTHING
+                RETURNING id
+              `);
+              if (inserted.rows && inserted.rows.length > 0) {
+                if (config.credits && config.credits > 0) {
+                  await db.insert(creditLedger).values({
+                    userId: profile.userId,
+                    clubId,
+                    amount: config.credits,
+                    reason: `Badge achievement reward: ${badgeDef?.name || reward.badge}`,
+                    createdById: user.id,
+                  });
+                }
+                console.log(`[AUDIT] Badge reward issued: user=${profile.userId}, club=${clubId}, badge=${reward.badge}`);
+              }
+              issued = true;
+            } catch (insertErr: any) {
+              issued = true;
+            }
+          }
+
+          badgeRewards.push({
             rewardId: reward.id,
             badge: reward.badge,
             badgeName: badgeDef?.name || reward.badge,
             reached,
+            issued,
             rewardConfig: reward.rewardConfig,
-          };
-        });
+          });
+        }
 
         const totalConfigured = badgeRewards.length;
-        const totalReached = badgeRewards.filter(b => b.reached).length;
+        const totalReached = badgeRewards.filter((b: any) => b.reached).length;
         const progressPercent = totalConfigured > 0 ? (totalReached / totalConfigured) * 100 : 0;
-        const nextTarget = badgeRewards.find(b => !b.reached) || null;
+        const nextTarget = badgeRewards.find((b: any) => !b.reached) || null;
 
         const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
 

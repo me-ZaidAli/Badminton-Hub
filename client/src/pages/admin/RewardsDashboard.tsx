@@ -165,6 +165,7 @@ export default function RewardsDashboard() {
       ANNIVERSARY: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-300/30",
       POINTS: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-300/30",
       GRADE: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-300/30",
+      BADGE_ACHIEVEMENT: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/30",
       GIFT: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-300/30",
       MANUAL: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-300/30",
     };
