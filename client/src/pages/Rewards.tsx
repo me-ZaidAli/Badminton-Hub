@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -53,7 +53,7 @@ function EVGauge({
 
   return (
     <div className="relative w-full flex items-center justify-center" data-testid="ev-gauge">
-      <div className="relative w-full" style={{ maxWidth: '320px', aspectRatio: '1' }}>
+      <div className="relative w-full" style={{ maxWidth: '260px', aspectRatio: '1' }}>
         <svg viewBox={`0 0 ${viewBox} ${viewBox}`} className="w-full h-full">
           {!isStandard && (
             <defs>
@@ -153,6 +153,7 @@ export default function Rewards() {
   const { data: attendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
   const { data: pointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
   const { data: gradeProgress } = useQuery<any[]>({ queryKey: ["/api/my-grade-progress"] });
+  const { data: badgeProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-progress"] });
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("referrals");
@@ -194,21 +195,21 @@ export default function Rewards() {
   const usedRewards = useMemo(() => (rewards || []).filter((r: any) => r.status === "USED"), [rewards]);
 
   const statusColors: Record<string, string> = { AVAILABLE: "bg-emerald-500 text-white", REQUESTED: "bg-amber-500 text-white", USED: "bg-muted text-muted-foreground" };
-  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Grade" };
+  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Badge" };
 
   const tabThemesFuturistic: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#00e5ff", glow: "#00b8d4" },
     attendance: { accent: "#76ff03", glow: "#64dd17" },
     anniversary: { accent: "#e040fb", glow: "#d500f9" },
     points: { accent: "#ff9100", glow: "#ff6d00" },
-    grades: { accent: "#7c4dff", glow: "#651fff" },
+    badges: { accent: "#7c4dff", glow: "#651fff" },
   };
   const tabThemesStandard: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#0891b2", glow: "#0891b2" },
     attendance: { accent: "#16a34a", glow: "#16a34a" },
     anniversary: { accent: "#9333ea", glow: "#9333ea" },
     points: { accent: "#ea580c", glow: "#ea580c" },
-    grades: { accent: "#7c3aed", glow: "#7c3aed" },
+    badges: { accent: "#7c3aed", glow: "#7c3aed" },
   };
   const tabThemes = isStd ? tabThemesStandard : tabThemesFuturistic;
 
@@ -227,11 +228,11 @@ export default function Rewards() {
     if (activeTab === "points") {
       return (pointsProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
-    if (activeTab === "grades") {
-      return (gradeProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
+    if (activeTab === "badges") {
+      return (badgeProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
     return [];
-  }, [activeTab, perClubStats, attendanceProgress, anniversaryData, pointsProgress, gradeProgress]);
+  }, [activeTab, perClubStats, attendanceProgress, anniversaryData, pointsProgress, badgeProgress]);
 
   const gaugeConfig = useMemo(() => {
     const theme = tabThemes[activeTab] || tabThemes.referrals;
@@ -343,29 +344,26 @@ export default function Rewards() {
       return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage: reached > 0 ? `${reached} Unlocked` : "Progress Active", remaining, nextLabel: nextMs ? `${nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
     }
 
-    if (activeTab === "grades") {
-      const GRADE_ORDER = ["D3", "D2", "D1", "C3", "C2", "C1", "B3", "B2", "B1"];
-      const allGrades = gradeProgress || [];
-      if (allGrades.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "—", unit: "Grade", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
+    if (activeTab === "badges") {
+      const allBadges = badgeProgress || [];
+      if (allBadges.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Badges", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
-      const club: any = selectedClubId ? allGrades.find((c: any) => c.clubId === selectedClubId) : allGrades[0];
-      if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "—", unit: "Grade", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
+      const club: any = selectedClubId ? allBadges.find((c: any) => c.clubId === selectedClubId) : allBadges[0];
+      if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Badges", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
-      const pct = club.progressPercent || 0;
-      const msCount = club.gradeRewards.length;
-      const milestones: GaugeMilestone[] = club.gradeRewards.map((g: any, idx: number) => ({
-        barIndex: msCount > 1 ? Math.round(barCount * ((idx + 1) / msCount)) - 1 : barCount - 1,
-        label: g.grade,
-        reached: g.reached,
+      const pct = club.totalBadges > 0 ? (club.earnedCount / club.totalBadges) * 100 : 0;
+      const milestones: GaugeMilestone[] = club.badges.map((b: any, idx: number) => ({
+        barIndex: Math.round(barCount * ((idx + 1) / club.totalBadges)) - 1,
+        label: b.name.split(" ")[0].substring(0, 4).toUpperCase(),
+        reached: b.earned,
       }));
 
-      const nextG = club.nextTarget;
-      const gradeRemaining = nextG && club.currentGradeIndex >= 0 ? Math.max(GRADE_ORDER.indexOf(nextG.grade) - club.currentGradeIndex, 0) : 0;
-      return { pct, milestones, value: club.currentGrade || "—", unit: "Current Grade", stage: `${club.totalReached}/${club.totalConfigured} Achieved`, remaining: gradeRemaining, nextLabel: nextG ? nextG.grade : "", clubName: club.clubName, ...theme };
+      const nextBadge = club.badges.find((b: any) => !b.earned);
+      return { pct, milestones, value: `${club.earnedCount}`, unit: `of ${club.totalBadges} Badges`, stage: club.earnedCount > 0 ? `${club.earnedCount} Earned` : "Collect Badges", remaining: nextBadge ? 1 : 0, nextLabel: nextBadge ? nextBadge.name : "", clubName: club.clubName, ...theme };
     }
 
     return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
-  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, pointsProgress, gradeProgress]);
+  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, pointsProgress, badgeProgress]);
 
   const handleClubClick = (clubId: number) => {
     setSelectedClubId(prev => prev === clubId ? null : clubId);
@@ -412,8 +410,8 @@ export default function Rewards() {
             <>
               <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
                 backgroundImage: `
-                  linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
+                  linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'badges' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'badges' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
                 `,
                 backgroundSize: '32px 32px',
               }} />
@@ -430,7 +428,7 @@ export default function Rewards() {
                 { key: "attendance", label: "Attend", icon: Target },
                 { key: "anniversary", label: "Anniv", icon: CalendarDays },
                 { key: "points", label: "Points", icon: TrendingUp },
-                { key: "grades", label: "Grades", icon: Award },
+                { key: "badges", label: "Badges", icon: Award },
               ].map(tab => {
                 const isActive = activeTab === tab.key;
                 const tc = tabThemes[tab.key];
@@ -894,63 +892,163 @@ export default function Rewards() {
                 </div>
               )}
 
-              {activeTab === "grades" && (
-                <div className="space-y-2">
-                  {gradeProgress && gradeProgress.length > 0 ? (
-                    gradeProgress.map((club: any) => {
-                      const isSelected = selectedClubId === club.clubId;
-                      return (
-                        <button
-                          key={club.clubId}
-                          onClick={() => handleClubClick(club.clubId)}
-                          className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
-                          style={{
-                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
-                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
-                          }}
-                          data-testid={`grades-club-${club.clubId}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentGrade || "Ungraded"}</span>
-                          </div>
-                          {club.gradeRewards && club.gradeRewards.length > 0 ? (
-                            club.gradeRewards.map((g: any, idx: number) => {
-                              const config = g.rewardConfig || {};
-                              const rewardParts: string[] = [];
-                              if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
-                              if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
-                              if (config.gifts) rewardParts.push(config.gifts);
-                              return (
-                                <div key={idx} className="flex items-center justify-between py-1.5 border-b last:border-0" style={{ borderColor: isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08` }}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold w-6" style={{ color: g.reached ? gaugeConfig.accent : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{g.grade}</span>
-                                    {g.reached ? (
-                                      <Check className="h-3 w-3" style={{ color: gaugeConfig.accent }} />
-                                    ) : (
-                                      <Lock className="h-3 w-3" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)' }} />
-                                    )}
-                                  </div>
-                                  {rewardParts.length > 0 && (
-                                    <span className="text-[10px] font-semibold" style={{ color: g.reached ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)') }}>{rewardParts.join(" + ")}</span>
-                                  )}
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No grade rewards set</p>
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-3">
+              {activeTab === "badges" && (() => {
+                const BADGE_ICONS: Record<string, any> = {
+                  zap: Zap, flame: Flame, star: Star, sparkles: Sparkles,
+                  medal: Medal, trophy: Trophy, shield: Shield, crown: Crown,
+                };
+                const clubs = badgeProgress || [];
+                const club: any = selectedClubId
+                  ? clubs.find((c: any) => c.clubId === selectedClubId)
+                  : clubs[0];
+
+                if (!club || clubs.length === 0) {
+                  return (
+                    <div className="text-center py-4">
                       <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Grade achievement rewards will appear as you progress</p>
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Play matches to start earning badges</p>
                     </div>
-                  )}
-                </div>
-              )}
+                  );
+                }
+
+                const badges = club.badges || [];
+                const earnedBadges = badges.filter((b: any) => b.earned);
+                const highestIdx = club.highestEarnedIndex;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center pb-2" style={{ borderBottom: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
+                      <div>
+                        <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.matchesPlayed}</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Matches</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{club.matchesWon}</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Won</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.winRate}%</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Win Rate</p>
+                      </div>
+                    </div>
+
+                    <div className="relative flex justify-center" data-testid="badge-speedometer">
+                      <svg viewBox="0 0 280 160" className="w-full" style={{ maxWidth: '320px' }}>
+                        <path
+                          d="M 30 140 A 110 110 0 0 1 250 140"
+                          fill="none"
+                          stroke={isStd ? 'hsl(var(--muted))' : 'rgba(50,65,85,0.3)'}
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                        />
+                        {badges.map((b: any, idx: number) => {
+                          const angle = -180 + ((idx + 1) / badges.length) * 180;
+                          const rad = (angle * Math.PI) / 180;
+                          const tickR1 = 100;
+                          const tickR2 = 112;
+                          const cx = 140 + tickR1 * Math.cos(rad);
+                          const cy = 140 + tickR1 * Math.sin(rad);
+                          const cx2 = 140 + tickR2 * Math.cos(rad);
+                          const cy2 = 140 + tickR2 * Math.sin(rad);
+                          const labelR = 125;
+                          const lx = 140 + labelR * Math.cos(rad);
+                          const ly = 140 + labelR * Math.sin(rad);
+                          return (
+                            <g key={b.id}>
+                              <line x1={cx} y1={cy} x2={cx2} y2={cy2}
+                                stroke={b.earned ? b.color : (isStd ? 'rgba(160,170,180,0.4)' : 'rgba(50,65,85,0.4)')}
+                                strokeWidth="3" strokeLinecap="round" />
+                              <circle cx={cx2} cy={cy2} r="10"
+                                fill={b.earned ? `${b.color}25` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,40,55,0.6)')}
+                                stroke={b.earned ? b.color : (isStd ? 'rgba(160,170,180,0.3)' : 'rgba(50,65,85,0.3)')}
+                                strokeWidth="1.5" />
+                              <text x={cx2} y={cy2 + 1} textAnchor="middle" dominantBaseline="central"
+                                fontSize="8" fontWeight="800" fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(100,116,139,0.3)')}>
+                                {idx + 1}
+                              </text>
+                              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
+                                fontSize="5" fontWeight="600" letterSpacing="0.03em"
+                                fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(100,116,139,0.3)')}>
+                                {b.name.length > 8 ? b.name.substring(0, 7) + '…' : b.name}
+                              </text>
+                            </g>
+                          );
+                        })}
+
+                        {(() => {
+                          const pAngle = highestIdx >= 0
+                            ? -180 + ((highestIdx + 1) / badges.length) * 180
+                            : -180;
+                          const pRad = (pAngle * Math.PI) / 180;
+                          const needleLen = 72;
+                          const nx = 140 + needleLen * Math.cos(pRad);
+                          const ny = 140 + needleLen * Math.sin(pRad);
+                          const activeColor = highestIdx >= 0 ? gaugeConfig.accent : (isStd ? 'rgba(160,170,180,0.5)' : 'rgba(100,116,139,0.3)');
+                          const tipR = 8;
+                          const tipX = 140 + (needleLen + tipR + 2) * Math.cos(pRad);
+                          const tipY = 140 + (needleLen + tipR + 2) * Math.sin(pRad);
+                          return (
+                            <g>
+                              <line x1={140} y1={140} x2={nx} y2={ny}
+                                stroke={activeColor} strokeWidth="3" strokeLinecap="round"
+                                style={{ filter: highestIdx >= 0 && !isStd ? `drop-shadow(0 0 4px ${gaugeConfig.glow})` : 'none',
+                                  transition: 'all 0.5s ease' }} />
+                              <circle cx={tipX} cy={tipY} r={tipR}
+                                fill={highestIdx >= 0 ? `${gaugeConfig.accent}30` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,40,55,0.5)')}
+                                stroke={activeColor} strokeWidth="1.5" />
+                              <ellipse cx={tipX} cy={tipY - 1} rx="3" ry="5"
+                                fill="none" stroke={activeColor} strokeWidth="1.2"
+                                transform={`rotate(${pAngle + 90}, ${tipX}, ${tipY - 1})`} />
+                              <line x1={tipX} y1={tipY + 3} x2={tipX} y2={tipY + 7}
+                                stroke={activeColor} strokeWidth="1.2" strokeLinecap="round"
+                                transform={`rotate(${pAngle + 90}, ${tipX}, ${tipY + 5})`} />
+                              <circle cx={140} cy={140} r="6"
+                                fill={activeColor} stroke={isStd ? 'hsl(var(--card))' : '#0a0f1c'} strokeWidth="2" />
+                            </g>
+                          );
+                        })()}
+                      </svg>
+                    </div>
+
+                    <div className="pt-1" style={{ borderTop: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
+                      <p className="text-[10px] font-semibold mb-2 tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.8)' }}>
+                        All Badges ({earnedBadges.length}/{badges.length})
+                      </p>
+                      <div className="space-y-1.5">
+                        {badges.map((b: any) => {
+                          const IconComp = BADGE_ICONS[b.icon] || Award;
+                          return (
+                            <div key={b.id} className="flex items-center gap-2.5 p-2 rounded-lg transition-all" style={{
+                              background: b.earned ? `${b.color}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.3)' : 'rgba(20,30,45,0.3)'),
+                              border: `1px solid ${b.earned ? `${b.color}${isStd ? '40' : '20'}` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.15)')}`,
+                            }}>
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{
+                                background: b.earned ? `${b.color}20` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,45,60,0.5)'),
+                                border: `1.5px solid ${b.earned ? b.color : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.3)')}`,
+                              }}>
+                                <IconComp className="h-3.5 w-3.5" style={{ color: b.earned ? b.color : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)') }} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold truncate" style={{ color: b.earned ? (isStd ? 'hsl(var(--foreground))' : '#ffffff') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{b.name}</p>
+                                <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{b.criteria}</p>
+                              </div>
+                              {b.earned ? (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase shrink-0" style={{
+                                  background: `${b.color}${isStd ? '18' : '12'}`,
+                                  color: b.color,
+                                  border: `1px solid ${b.color}${isStd ? '50' : '25'}`,
+                                }}>Earned</span>
+                              ) : (
+                                <Lock className="h-3.5 w-3.5 shrink-0" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(50,65,85,0.6)' }} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
           </div>
         </div>
 

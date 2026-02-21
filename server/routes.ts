@@ -14388,6 +14388,67 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/my-badge-progress - Get achievement badge progress per club
+  app.get("/api/my-badge-progress", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = user.playerProfiles || [];
+
+      const BADGE_DEFS = [
+        { id: "first_win", name: "First Win", criteria: "Win your first match", icon: "zap", color: "#22c55e", check: (s: any) => s.won >= 1 },
+        { id: "5_wins", name: "5+ Wins", criteria: "Win 5 or more matches", icon: "flame", color: "#f97316", check: (s: any) => s.won >= 5 },
+        { id: "10_matches", name: "10+ Matches", criteria: "Play 10 or more matches", icon: "star", color: "#eab308", check: (s: any) => s.played >= 10 },
+        { id: "rising_star", name: "Rising Star", criteria: "3+ wins with 60%+ win rate", icon: "sparkles", color: "#ec4899", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
+        { id: "top_performer", name: "Top Performer", criteria: "75%+ win rate (4+ matches)", icon: "medal", color: "#a855f7", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
+        { id: "undefeated", name: "Undefeated", criteria: "3+ matches without a loss", icon: "trophy", color: "#d97706", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "iron_player", name: "Iron Player", criteria: "Play 20+ matches", icon: "shield", color: "#3b82f6", check: (s: any) => s.played >= 20 },
+        { id: "champion", name: "Champion", criteria: "15+ wins with 70%+ win rate", icon: "crown", color: "#f59e0b", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
+      ];
+
+      const results: any[] = [];
+
+      for (const profile of profiles) {
+        const clubId = profile.clubId;
+        const played = profile.matchesPlayed || 0;
+        const won = profile.matchesWon || 0;
+        const stats = { played, won };
+        const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
+
+        const badges = BADGE_DEFS.map(bd => ({
+          id: bd.id,
+          name: bd.name,
+          criteria: bd.criteria,
+          icon: bd.icon,
+          color: bd.color,
+          earned: bd.check(stats),
+        }));
+
+        const earnedCount = badges.filter(b => b.earned).length;
+        const highestEarnedIndex = badges.reduce((max, b, idx) => b.earned ? idx : max, -1);
+
+        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+
+        results.push({
+          clubId,
+          clubName: clubRow?.name || "Unknown Club",
+          matchesPlayed: played,
+          matchesWon: won,
+          winRate,
+          badges,
+          earnedCount,
+          totalBadges: badges.length,
+          highestEarnedIndex,
+          grade: profile.grade || null,
+        });
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // POST /api/rewards/:id/request - Request/redeem a reward
   app.post("/api/rewards/:id/request", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
