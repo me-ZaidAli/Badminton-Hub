@@ -30,11 +30,11 @@ function EVGauge({
   isStandard?: boolean;
   children?: React.ReactNode;
 }) {
-  const viewBox = 280;
+  const viewBox = 340;
   const cx = viewBox / 2;
   const cy = viewBox / 2;
   const barCount = 54;
-  const radius = 110;
+  const radius = 120;
   const barWidth = 5;
   const normalHeight = 16;
   const milestoneHeight = 26;
@@ -402,7 +402,7 @@ export default function Rewards() {
           </button>
         </div>
 
-        <div className="relative rounded-2xl overflow-hidden" style={isStd ? {
+        <div className="relative rounded-2xl" style={isStd ? {
           background: 'hsl(var(--card))',
           border: '1px solid hsl(var(--border))',
         } : {
@@ -410,14 +410,14 @@ export default function Rewards() {
         }}>
           {!isStd && (
             <>
-              <div className="absolute inset-0" style={{
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
                 backgroundImage: `
                   linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
                   linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
                 `,
                 backgroundSize: '32px 32px',
               }} />
-              <div className="absolute inset-0" style={{
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
                 backgroundImage: `radial-gradient(ellipse at 50% 30%, ${gaugeConfig.accent}08 0%, transparent 60%)`,
               }} />
             </>
@@ -537,15 +537,24 @@ export default function Rewards() {
                 </p>
               )}
             </EVGauge>
+          </div>
+        </div>
 
-            <div className="mt-2 rounded-xl p-3 transition-all duration-500" style={isStd ? {
-              background: 'hsl(var(--muted) / 0.5)',
-              border: '1px solid hsl(var(--border))',
-            } : {
-              background: 'rgba(10,16,28,0.7)',
-              border: `1px solid ${gaugeConfig.accent}10`,
-              backdropFilter: 'blur(10px)',
-            }}>
+        <div className="rounded-2xl p-3 transition-all duration-500" style={isStd ? {
+          background: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+        } : {
+          background: 'linear-gradient(145deg, #060b14 0%, #0b1120 50%, #060b14 100%)',
+          border: `1px solid ${gaugeConfig.accent}15`,
+        }}>
+          <div className="rounded-xl p-3 transition-all duration-500" style={isStd ? {
+            background: 'hsl(var(--muted) / 0.5)',
+            border: '1px solid hsl(var(--border))',
+          } : {
+            background: 'rgba(10,16,28,0.7)',
+            border: `1px solid ${gaugeConfig.accent}10`,
+            backdropFilter: 'blur(10px)',
+          }}>
               {activeTab === "referrals" && (() => {
                 const clubData = selectedClubId ? perClubStats.find((c: any) => c.clubId === selectedClubId) : null;
                 const approved = clubData ? clubData.approvedReferrals : (stats?.approvedReferrals || 0);
@@ -647,10 +656,39 @@ export default function Rewards() {
 
               {activeTab === "attendance" && (
                 <div className="space-y-3">
-                  <div className="text-center pb-1">
-                    <p className="text-xs font-medium" style={{ color: `${gaugeConfig.accent}cc` }}>Attend sessions to earn credits</p>
-                    <button onClick={() => setShowAttendanceInfo(true)} className="mt-1 text-[11px] font-medium underline underline-offset-2 transition-colors" style={{ color: `${gaugeConfig.accent}80` }} data-testid="button-how-attendance-works">
-                      How does it work?
+                  {attendanceProgress && attendanceProgress.length > 0 && (() => {
+                    const clubs = selectedClubId ? attendanceProgress.filter((c: any) => c.clubId === selectedClubId) : attendanceProgress;
+                    const totalSessions = clubs.reduce((sum: number, c: any) => sum + (c.totalAttended || 0), 0);
+                    const totalMilestonesEarned = clubs.reduce((sum: number, c: any) => {
+                      return sum + (c.milestones || []).reduce((ms: number, m: any) => ms + (m.milestonesCompleted || 0), 0);
+                    }, 0);
+                    const totalCreditsEarned = clubs.reduce((sum: number, c: any) => {
+                      return sum + (c.milestones || []).reduce((ms: number, m: any) => {
+                        const config = m.rewardConfig || {};
+                        return ms + ((m.milestonesCompleted || 0) * ((config.credits || 0)));
+                      }, 0);
+                    }, 0);
+                    return (
+                      <div className="grid grid-cols-3 gap-2 text-center pb-2" style={{ borderBottom: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
+                        <div>
+                          <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{totalSessions}</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Sessions</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{totalMilestonesEarned}</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Milestones</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>£{(totalCreditsEarned / 100).toFixed(0)}</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Earned</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium" style={{ color: isStd ? 'hsl(var(--foreground))' : `${gaugeConfig.accent}cc` }}>Attend sessions to earn credits</p>
+                    <button onClick={() => setShowAttendanceInfo(true)} className="text-[10px] font-medium underline underline-offset-2 transition-colors" style={{ color: `${gaugeConfig.accent}` }} data-testid="button-how-attendance-works">
+                      How?
                     </button>
                   </div>
                   {attendanceProgress && attendanceProgress.length > 0 ? (
@@ -668,8 +706,17 @@ export default function Rewards() {
                           data-testid={`attendance-club-${club.clubId}`}
                         >
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.totalAttended} attended</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.totalAttended} sessions</span>
+                              {(club.milestones || []).reduce((s: number, m: any) => s + (m.milestonesCompleted || 0), 0) > 0 && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: isStd ? 'hsl(var(--muted))' : 'rgba(30,45,60,0.5)', color: isStd ? 'hsl(var(--foreground))' : '#ffffff', border: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.3)' }}>
+                                  {(club.milestones || []).reduce((s: number, m: any) => s + (m.milestonesCompleted || 0), 0)}x earned
+                                </span>
+                              )}
+                            </div>
                           </div>
                           {club.milestones && club.milestones.length > 0 ? (
                             club.milestones.map((m: any, idx: number) => {
@@ -904,7 +951,6 @@ export default function Rewards() {
                   )}
                 </div>
               )}
-            </div>
           </div>
         </div>
 
