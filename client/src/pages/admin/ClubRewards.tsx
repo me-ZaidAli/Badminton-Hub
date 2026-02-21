@@ -359,7 +359,7 @@ export function ClubRewardsPage() {
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-foreground" data-testid="text-page-title">Club Rewards</h1>
-          <p className="text-sm text-muted-foreground">Manage anniversary, attendance, referral, points and grade rewards</p>
+          <p className="text-sm text-muted-foreground">Manage anniversary, attendance, referral, points and badge rewards</p>
         </div>
         {clubs.length > 1 && (
           <Select value={selectedClubId || String(effectiveClubId)} onValueChange={setSelectedClubId}>
@@ -402,9 +402,9 @@ export function ClubRewardsPage() {
               <TrendingUp className="h-3.5 w-3.5 mr-1" />
               Points
             </TabsTrigger>
-            <TabsTrigger value="grades" data-testid="tab-grades" className="text-xs px-1">
+            <TabsTrigger value="grades" data-testid="tab-badges" className="text-xs px-1">
               <Award className="h-3.5 w-3.5 mr-1" />
-              Grades
+              Badges
             </TabsTrigger>
           </TabsList>
 

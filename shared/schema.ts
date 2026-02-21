@@ -1417,11 +1417,11 @@ export const insertPointsMilestoneRewardSchema = createInsertSchema(pointsMilest
 export type PointsMilestoneReward = typeof pointsMilestoneRewards.$inferSelect;
 export type InsertPointsMilestoneReward = z.infer<typeof insertPointsMilestoneRewardSchema>;
 
-// === GRADE ACHIEVEMENT REWARDS ===
-export const gradeAchievementRewards = pgTable("grade_achievement_rewards", {
+// === BADGE ACHIEVEMENT REWARDS ===
+export const badgeAchievementRewards = pgTable("badge_achievement_rewards", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
-  grade: text("grade").notNull(),
+  badge: text("badge").notNull(),
   rewardConfig: jsonb("reward_config").$type<AttendanceRewardConfig>().notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdById: integer("created_by_id").references(() => users.id).notNull(),
@@ -1429,14 +1429,14 @@ export const gradeAchievementRewards = pgTable("grade_achievement_rewards", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const gradeAchievementRewardRelations = relations(gradeAchievementRewards, ({ one }) => ({
-  club: one(clubs, { fields: [gradeAchievementRewards.clubId], references: [clubs.id] }),
-  createdBy: one(users, { fields: [gradeAchievementRewards.createdById], references: [users.id] }),
+export const badgeAchievementRewardRelations = relations(badgeAchievementRewards, ({ one }) => ({
+  club: one(clubs, { fields: [badgeAchievementRewards.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [badgeAchievementRewards.createdById], references: [users.id] }),
 }));
 
-export const insertGradeAchievementRewardSchema = createInsertSchema(gradeAchievementRewards).omit({ id: true, createdAt: true, updatedAt: true });
-export type GradeAchievementReward = typeof gradeAchievementRewards.$inferSelect;
-export type InsertGradeAchievementReward = z.infer<typeof insertGradeAchievementRewardSchema>;
+export const insertBadgeAchievementRewardSchema = createInsertSchema(badgeAchievementRewards).omit({ id: true, createdAt: true, updatedAt: true });
+export type BadgeAchievementReward = typeof badgeAchievementRewards.$inferSelect;
+export type InsertBadgeAchievementReward = z.infer<typeof insertBadgeAchievementRewardSchema>;
 
 // === ADMIN AUDIT LOGS ===
 export const adminAuditLogs = pgTable("admin_audit_logs", {

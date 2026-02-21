@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, pointsMilestoneRewards, gradeAchievementRewards, adminAuditLogs } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -14090,22 +14090,22 @@ export async function registerRoutes(
     }
   });
 
-  // === GRADE ACHIEVEMENT REWARDS CRUD ===
+  // === BADGE ACHIEVEMENT REWARDS CRUD ===
 
-  // GET /api/clubs/:clubId/grade-rewards - List grade achievement rewards for a club
-  app.get("/api/clubs/:clubId/grade-rewards", async (req, res) => {
+  // GET /api/clubs/:clubId/badge-rewards - List badge achievement rewards for a club
+  app.get("/api/clubs/:clubId/badge-rewards", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
-      const rewards = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.clubId, clubId)).orderBy(gradeAchievementRewards.grade);
+      const rewards = await db.select().from(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId)).orderBy(badgeAchievementRewards.badge);
       res.json(rewards);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  // POST /api/clubs/:clubId/grade-rewards - Create grade achievement reward (admin only)
-  app.post("/api/clubs/:clubId/grade-rewards", async (req, res) => {
+  // POST /api/clubs/:clubId/badge-rewards - Create badge achievement reward (admin only)
+  app.post("/api/clubs/:clubId/badge-rewards", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -14115,29 +14115,29 @@ export async function registerRoutes(
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      const { grade, rewardConfig, isActive } = req.body;
-      if (!grade) return res.status(400).json({ message: "Grade is required" });
-      const [reward] = await db.insert(gradeAchievementRewards).values({
+      const { badge, rewardConfig, isActive } = req.body;
+      if (!badge) return res.status(400).json({ message: "Badge is required" });
+      const [reward] = await db.insert(badgeAchievementRewards).values({
         clubId,
-        grade,
+        badge,
         rewardConfig,
         isActive: isActive !== false,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Grade achievement reward created: id=${reward.id}, club=${clubId}, grade=${grade}, by user=${user.id}`);
+      console.log(`[AUDIT] Badge achievement reward created: id=${reward.id}, club=${clubId}, badge=${badge}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  // PUT /api/grade-rewards/:id - Update grade achievement reward
-  app.put("/api/grade-rewards/:id", async (req, res) => {
+  // PUT /api/badge-rewards/:id - Update badge achievement reward
+  app.put("/api/badge-rewards/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
       const user = req.user as any;
-      const [existing] = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
+      const [existing] = await db.select().from(badgeAchievementRewards).where(eq(badgeAchievementRewards.id, id));
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
@@ -14145,27 +14145,27 @@ export async function registerRoutes(
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      const { grade, rewardConfig, isActive } = req.body;
-      const [updated] = await db.update(gradeAchievementRewards).set({
-        grade: grade !== undefined ? grade : existing.grade,
+      const { badge, rewardConfig, isActive } = req.body;
+      const [updated] = await db.update(badgeAchievementRewards).set({
+        badge: badge !== undefined ? badge : existing.badge,
         rewardConfig: rewardConfig !== undefined ? rewardConfig : existing.rewardConfig,
         isActive: isActive !== undefined ? isActive : existing.isActive,
         updatedAt: new Date(),
-      }).where(eq(gradeAchievementRewards.id, id)).returning();
-      console.log(`[AUDIT] Grade achievement reward updated: id=${id}, by user=${user.id}`);
+      }).where(eq(badgeAchievementRewards.id, id)).returning();
+      console.log(`[AUDIT] Badge achievement reward updated: id=${id}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  // DELETE /api/grade-rewards/:id - Delete grade achievement reward
-  app.delete("/api/grade-rewards/:id", async (req, res) => {
+  // DELETE /api/badge-rewards/:id - Delete badge achievement reward
+  app.delete("/api/badge-rewards/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
       const user = req.user as any;
-      const [existing] = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
+      const [existing] = await db.select().from(badgeAchievementRewards).where(eq(badgeAchievementRewards.id, id));
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
@@ -14173,8 +14173,8 @@ export async function registerRoutes(
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      await db.delete(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
-      console.log(`[AUDIT] Grade achievement reward deleted: id=${id}, by user=${user.id}`);
+      await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.id, id));
+      console.log(`[AUDIT] Badge achievement reward deleted: id=${id}, by user=${user.id}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -14351,52 +14351,80 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/my-grade-progress - Get grade achievement progress per club
-  app.get("/api/my-grade-progress", async (req, res) => {
+  // GET /api/my-badge-reward-progress - Get badge achievement reward progress per club
+  app.get("/api/my-badge-reward-progress", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
       const profiles = user.playerProfiles || [];
-      const GRADE_ORDER = ["D3", "D2", "D1", "C3", "C2", "C1", "B3", "B2", "B1"];
+
+      const BADGE_REWARD_DEFS = [
+        { id: "first_win", name: "First Win", check: (s: any) => s.won >= 1 },
+        { id: "5_wins", name: "5+ Wins", check: (s: any) => s.won >= 5 },
+        { id: "10_matches", name: "10+ Matches", check: (s: any) => s.played >= 10 },
+        { id: "rising_star", name: "Rising Star", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
+        { id: "top_performer", name: "Top Performer", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
+        { id: "undefeated", name: "Undefeated", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "iron_player", name: "Iron Player", check: (s: any) => s.played >= 20 },
+        { id: "champion", name: "Champion", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
+      ];
+
       const results: any[] = [];
 
       for (const profile of profiles) {
         const clubId = profile.clubId;
-        const currentGrade = profile.grade || "C3";
-        const currentGradeIndex = GRADE_ORDER.indexOf(currentGrade);
 
-        const activeRewards = await db.select().from(gradeAchievementRewards).where(
-          and(eq(gradeAchievementRewards.clubId, clubId), eq(gradeAchievementRewards.isActive, true))
-        ).orderBy(gradeAchievementRewards.grade);
+        const activeRewards = await db.select().from(badgeAchievementRewards).where(
+          and(eq(badgeAchievementRewards.clubId, clubId), eq(badgeAchievementRewards.isActive, true))
+        ).orderBy(badgeAchievementRewards.badge);
 
         if (activeRewards.length === 0) continue;
 
-        const gradeRewards = activeRewards.map(reward => {
-          const rewardGradeIndex = GRADE_ORDER.indexOf(reward.grade);
-          const reached = currentGradeIndex >= rewardGradeIndex;
+        const clubMatches = await db.select().from(matches).where(
+          and(eq(matches.clubId, clubId), eq(matches.status, "COMPLETED"))
+        );
+
+        let won = 0, played = 0;
+        for (const m of clubMatches) {
+          const winners = (m.winners as number[]) || [];
+          const allPlayers = [...((m.team1 as number[]) || []), ...((m.team2 as number[]) || [])];
+          if (allPlayers.includes(profile.userId)) {
+            played++;
+            if (winners.includes(profile.userId)) won++;
+          }
+        }
+        const stats = { played, won };
+
+        const earnedBadgeIds = new Set<string>();
+        for (const def of BADGE_REWARD_DEFS) {
+          if (def.check(stats)) earnedBadgeIds.add(def.id);
+        }
+
+        const badgeRewards = activeRewards.map(reward => {
+          const reached = earnedBadgeIds.has(reward.badge);
+          const badgeDef = BADGE_REWARD_DEFS.find(d => d.id === reward.badge);
           return {
             rewardId: reward.id,
-            grade: reward.grade,
-            gradeIndex: rewardGradeIndex,
+            badge: reward.badge,
+            badgeName: badgeDef?.name || reward.badge,
             reached,
             rewardConfig: reward.rewardConfig,
           };
-        }).sort((a, b) => a.gradeIndex - b.gradeIndex);
+        });
 
-        const nextUnreached = gradeRewards.find(g => !g.reached);
-        const totalConfigured = gradeRewards.length;
-        const totalReached = gradeRewards.filter(g => g.reached).length;
+        const totalConfigured = badgeRewards.length;
+        const totalReached = badgeRewards.filter(b => b.reached).length;
         const progressPercent = totalConfigured > 0 ? (totalReached / totalConfigured) * 100 : 0;
+        const nextTarget = badgeRewards.find(b => !b.reached) || null;
 
         const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
 
         results.push({
           clubId,
           clubName: clubRow?.name || "Unknown Club",
-          currentGrade,
-          currentGradeIndex,
-          gradeRewards,
-          nextTarget: nextUnreached || null,
+          earnedBadgeCount: earnedBadgeIds.size,
+          badgeRewards,
+          nextTarget,
           totalConfigured,
           totalReached,
           progressPercent,

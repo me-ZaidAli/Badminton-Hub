@@ -152,7 +152,7 @@ export default function Rewards() {
   const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
   const { data: attendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
   const { data: pointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
-  const { data: gradeProgress } = useQuery<any[]>({ queryKey: ["/api/my-grade-progress"] });
+  const { data: badgeRewardProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-reward-progress"] });
   const { data: badgeProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-progress"] });
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState<any>(null);
