@@ -370,6 +370,10 @@ export default function Rewards() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const { toast } = useToast();
+  const [selectedReward, setSelectedReward] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("referrals");
+
   const selectPlayer = useCallback((player: { id: number; fullName: string }) => {
     setViewingPlayerId(player.id);
     setViewingPlayerName(player.fullName);
@@ -404,10 +408,6 @@ export default function Rewards() {
   const attendanceProgress = isViewingOther ? adminPlayerData?.attendanceProgress : ownAttendanceProgress;
   const pointsProgress = isViewingOther ? null : ownPointsProgress;
   const badgeProgress = isViewingOther ? null : ownBadgeProgress;
-
-  const { toast } = useToast();
-  const [selectedReward, setSelectedReward] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("referrals");
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [showAttendanceInfo, setShowAttendanceInfo] = useState(false);
   const [showRewardsGuide, setShowRewardsGuide] = useState(false);
