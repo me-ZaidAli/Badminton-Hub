@@ -162,6 +162,19 @@ export default function AcquisitionAnalytics() {
     } catch {}
   }
 
+  const toggleChannel = useCallback((channelKey: string) => {
+    setHiddenChannelKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(channelKey)) {
+        next.delete(channelKey);
+      } else {
+        next.add(channelKey);
+      }
+      return next;
+    });
+    setActiveChannelKey(null);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]" data-testid="loading-spinner">
@@ -183,21 +196,6 @@ export default function AcquisitionAnalytics() {
   const filteredTotal = channelPieData.reduce((a, b) => a + b.value, 0);
   const activePieIndex = activeChannelKey !== null ? channelPieData.findIndex(d => d.key === activeChannelKey) : undefined;
   const resolvedActiveIndex = activePieIndex !== undefined && activePieIndex >= 0 ? activePieIndex : undefined;
-
-  const toggleChannel = useCallback((channelKey: string) => {
-    setHiddenChannelKeys(prev => {
-      const next = new Set(prev);
-      if (next.has(channelKey)) {
-        next.delete(channelKey);
-      } else {
-        if (next.size < allChannelPieData.length - 1) {
-          next.add(channelKey);
-        }
-      }
-      return next;
-    });
-    setActiveChannelKey(null);
-  }, [allChannelPieData.length]);
 
   const renderActiveShape = (props: any) => {
     const RADIAN = Math.PI / 180;
