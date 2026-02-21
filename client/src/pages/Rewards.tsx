@@ -453,7 +453,7 @@ export default function Rewards() {
                     } : {
                       background: 'rgba(20,30,45,0.6)',
                       border: '1px solid rgba(50,65,85,0.3)',
-                      color: 'rgba(100,116,139,0.5)',
+                      color: 'rgba(255,255,255,0.85)',
                     })}
                     data-testid={`tab-${tab.key}`}
                   >
