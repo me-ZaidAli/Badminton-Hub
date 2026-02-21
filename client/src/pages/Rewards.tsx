@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -20,12 +20,14 @@ function EVGauge({
   milestones,
   accentColor,
   glowColor,
+  isStandard,
   children,
 }: {
   percentage: number;
   milestones: GaugeMilestone[];
   accentColor: string;
   glowColor: string;
+  isStandard?: boolean;
   children?: React.ReactNode;
 }) {
   const viewBox = 280;
@@ -53,15 +55,17 @@ function EVGauge({
     <div className="relative w-full flex items-center justify-center" data-testid="ev-gauge">
       <div className="relative w-full" style={{ maxWidth: '320px', aspectRatio: '1' }}>
         <svg viewBox={`0 0 ${viewBox} ${viewBox}`} className="w-full h-full">
-          <defs>
-            <filter id="barGlow">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+          {!isStandard && (
+            <defs>
+              <filter id="barGlow">
+                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+          )}
 
           {Array.from({ length: barCount }).map((_, i) => {
             const angle = (i * gapAngle) - 90;
@@ -77,7 +81,9 @@ function EVGauge({
             const x2 = cx + outerR * Math.cos(rad);
             const y2 = cy + outerR * Math.sin(rad);
 
-            const inactiveColor = isMilestone ? "rgba(50,65,85,0.5)" : "rgba(40,55,70,0.35)";
+            const inactiveColor = isStandard
+              ? (isMilestone ? "rgba(160,170,180,0.45)" : "rgba(180,190,200,0.3)")
+              : (isMilestone ? "rgba(50,65,85,0.5)" : "rgba(40,55,70,0.35)");
 
             return (
               <line
@@ -88,14 +94,14 @@ function EVGauge({
                 strokeLinecap="round"
                 style={{
                   transition: `stroke 0.08s ease ${i * 15}ms`,
-                  filter: isFilled ? 'url(#barGlow)' : 'none',
+                  filter: isFilled && !isStandard ? 'url(#barGlow)' : 'none',
                 }}
               />
             );
           })}
 
-          <circle cx={cx} cy={cy} r={radius - normalHeight / 2 - 8} fill="none" stroke="rgba(50,65,85,0.12)" strokeWidth={0.5} />
-          <circle cx={cx} cy={cy} r={radius + normalHeight / 2 + 8} fill="none" stroke="rgba(50,65,85,0.08)" strokeWidth={0.5} />
+          <circle cx={cx} cy={cy} r={radius - normalHeight / 2 - 8} fill="none" stroke={isStandard ? "rgba(160,170,180,0.2)" : "rgba(50,65,85,0.12)"} strokeWidth={0.5} />
+          <circle cx={cx} cy={cy} r={radius + normalHeight / 2 + 8} fill="none" stroke={isStandard ? "rgba(160,170,180,0.15)" : "rgba(50,65,85,0.08)"} strokeWidth={0.5} />
 
           {milestones.map((ms, i) => {
             const angle = (ms.barIndex * gapAngle) - 90;
@@ -113,8 +119,8 @@ function EVGauge({
                 fontSize="8"
                 fontWeight="700"
                 letterSpacing="0.1em"
-                fill={ms.reached ? accentColor : 'rgba(100,116,139,0.4)'}
-                style={ms.reached ? { filter: `drop-shadow(0 0 4px ${glowColor})` } : undefined}
+                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(100,116,139,0.4)')}
+                style={ms.reached && !isStandard ? { filter: `drop-shadow(0 0 4px ${glowColor})` } : undefined}
               >
                 {ms.label}
               </text>
@@ -152,6 +158,10 @@ export default function Rewards() {
   const [activeTab, setActiveTab] = useState("referrals");
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [showAttendanceInfo, setShowAttendanceInfo] = useState(false);
+  const [gaugeViewMode, setGaugeViewMode] = useState<'futuristic' | 'standard'>(() => {
+    try { return (localStorage.getItem('rewards-view-mode') as any) || 'futuristic'; } catch { return 'futuristic'; }
+  });
+  const isStd = gaugeViewMode === 'standard';
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -186,13 +196,21 @@ export default function Rewards() {
   const statusColors: Record<string, string> = { AVAILABLE: "bg-emerald-500 text-white", REQUESTED: "bg-amber-500 text-white", USED: "bg-muted text-muted-foreground" };
   const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Grade" };
 
-  const tabThemes: Record<string, { accent: string; glow: string }> = {
+  const tabThemesFuturistic: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#00e5ff", glow: "#00b8d4" },
     attendance: { accent: "#76ff03", glow: "#64dd17" },
     anniversary: { accent: "#e040fb", glow: "#d500f9" },
     points: { accent: "#ff9100", glow: "#ff6d00" },
     grades: { accent: "#7c4dff", glow: "#651fff" },
   };
+  const tabThemesStandard: Record<string, { accent: string; glow: string }> = {
+    referrals: { accent: "#0891b2", glow: "#0891b2" },
+    attendance: { accent: "#16a34a", glow: "#16a34a" },
+    anniversary: { accent: "#9333ea", glow: "#9333ea" },
+    points: { accent: "#ea580c", glow: "#ea580c" },
+    grades: { accent: "#7c3aed", glow: "#7c3aed" },
+  };
+  const tabThemes = isStd ? tabThemesStandard : tabThemesFuturistic;
 
   const barCount = 54;
 
@@ -360,20 +378,50 @@ export default function Rewards() {
           <Link href="/profile">
             <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-rewards-back"><ArrowLeft className="h-5 w-5" /></Button>
           </Link>
-          <h1 className="text-xl font-bold">My Rewards</h1>
+          <h1 className="text-xl font-bold flex-1">My Rewards</h1>
+          <button
+            onClick={() => {
+              const next = gaugeViewMode === 'futuristic' ? 'standard' : 'futuristic';
+              setGaugeViewMode(next);
+              try { localStorage.setItem('rewards-view-mode', next); } catch {}
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold tracking-wide transition-all border"
+            style={isStd ? {
+              background: 'hsl(var(--muted))',
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+            } : {
+              background: 'rgba(20,30,50,0.8)',
+              borderColor: 'rgba(0,229,255,0.3)',
+              color: '#00e5ff',
+            }}
+            data-testid="button-toggle-view-mode"
+          >
+            {isStd ? <Zap className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+            {isStd ? "Neon" : "Standard"}
+          </button>
         </div>
 
-        <div className="relative rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(145deg, #060b14 0%, #0b1120 25%, #0d1424 50%, #0a0f1c 75%, #060b14 100%)' }}>
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
-            `,
-            backgroundSize: '32px 32px',
-          }} />
-          <div className="absolute inset-0" style={{
-            backgroundImage: `radial-gradient(ellipse at 50% 30%, ${gaugeConfig.accent}08 0%, transparent 60%)`,
-          }} />
+        <div className="relative rounded-2xl overflow-hidden" style={isStd ? {
+          background: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+        } : {
+          background: 'linear-gradient(145deg, #060b14 0%, #0b1120 25%, #0d1424 50%, #0a0f1c 75%, #060b14 100%)',
+        }}>
+          {!isStd && (
+            <>
+              <div className="absolute inset-0" style={{
+                backgroundImage: `
+                  linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
+                `,
+                backgroundSize: '32px 32px',
+              }} />
+              <div className="absolute inset-0" style={{
+                backgroundImage: `radial-gradient(ellipse at 50% 30%, ${gaugeConfig.accent}08 0%, transparent 60%)`,
+              }} />
+            </>
+          )}
 
           <div className="relative px-3 pt-3 pb-4">
             <div className="flex gap-1.5 justify-center mb-2">
@@ -391,19 +439,27 @@ export default function Rewards() {
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
                     className="flex-1 py-2 rounded-lg text-[9px] sm:text-[10px] font-semibold transition-all duration-300 tracking-wider uppercase text-center"
-                    style={isActive ? {
+                    style={isActive ? (isStd ? {
+                      background: tc.accent,
+                      border: `1px solid ${tc.accent}`,
+                      color: '#ffffff',
+                    } : {
                       background: `${tc.accent}12`,
                       border: `1px solid ${tc.accent}30`,
                       color: tc.accent,
                       boxShadow: `0 0 20px ${tc.accent}10`,
+                    }) : (isStd ? {
+                      background: 'hsl(var(--muted))',
+                      border: '1px solid hsl(var(--border))',
+                      color: 'hsl(var(--foreground))',
                     } : {
                       background: 'rgba(20,30,45,0.6)',
                       border: '1px solid rgba(50,65,85,0.3)',
                       color: 'rgba(100,116,139,0.5)',
-                    }}
+                    })}
                     data-testid={`tab-${tab.key}`}
                   >
-                    <tab.icon className="h-3 w-3 inline mr-0.5" style={{ opacity: isActive ? 1 : 0.5 }} />
+                    <tab.icon className="h-3 w-3 inline mr-0.5" style={{ opacity: isActive ? 1 : (isStd ? 0.7 : 0.5) }} />
                     {tab.label}
                   </button>
                 );
@@ -419,16 +475,24 @@ export default function Rewards() {
                       key={club.id}
                       onClick={() => handleClubClick(club.id)}
                       className="px-3 py-1 rounded-md text-[10px] font-semibold transition-all duration-200 tracking-wide"
-                      style={isSelected ? {
+                      style={isSelected ? (isStd ? {
+                        background: `${gaugeConfig.accent}20`,
+                        border: `1px solid ${gaugeConfig.accent}`,
+                        color: gaugeConfig.accent,
+                      } : {
                         background: `${gaugeConfig.accent}18`,
                         border: `1px solid ${gaugeConfig.accent}40`,
                         color: gaugeConfig.accent,
                         boxShadow: `0 0 10px ${gaugeConfig.accent}15`,
+                      }) : (isStd ? {
+                        background: 'hsl(var(--muted))',
+                        border: '1px solid hsl(var(--border))',
+                        color: 'hsl(var(--muted-foreground))',
                       } : {
                         background: 'rgba(15,25,40,0.5)',
                         border: '1px solid rgba(50,65,85,0.2)',
                         color: 'rgba(100,116,139,0.6)',
-                      }}
+                      })}
                       data-testid={`club-filter-${club.id}`}
                     >
                       {club.name}
@@ -443,18 +507,24 @@ export default function Rewards() {
               milestones={gaugeConfig.milestones}
               accentColor={gaugeConfig.accent}
               glowColor={gaugeConfig.glow}
+              isStandard={isStd}
             >
-              <p className="text-5xl sm:text-6xl font-black text-white leading-none" style={{
+              <p className="text-5xl sm:text-6xl font-black leading-none" style={{
                 fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-                textShadow: `0 0 40px ${gaugeConfig.accent}30, 0 0 80px ${gaugeConfig.glow}15`,
+                color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
+                textShadow: isStd ? 'none' : `0 0 40px ${gaugeConfig.accent}30, 0 0 80px ${gaugeConfig.glow}15`,
                 letterSpacing: '-2px',
               }}>
                 {gaugeConfig.value}
               </p>
-              <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: `${gaugeConfig.accent}90` }}>
+              <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
                 {gaugeConfig.unit}
               </p>
-              <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={{
+              <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={isStd ? {
+                background: `${gaugeConfig.accent}15`,
+                border: `1px solid ${gaugeConfig.accent}40`,
+                color: gaugeConfig.accent,
+              } : {
                 background: `${gaugeConfig.accent}0a`,
                 border: `1px solid ${gaugeConfig.accent}25`,
                 color: `${gaugeConfig.accent}cc`,
@@ -462,13 +532,16 @@ export default function Rewards() {
                 {gaugeConfig.stage}
               </div>
               {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && (
-                <p className="text-[9px] sm:text-[10px] mt-1 tracking-wide" style={{ color: 'rgba(148,163,184,0.5)' }}>
+                <p className="text-[9px] sm:text-[10px] mt-1 tracking-wide" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(148,163,184,0.5)' }}>
                   {gaugeConfig.remaining} more for {gaugeConfig.nextLabel}
                 </p>
               )}
             </EVGauge>
 
-            <div className="mt-2 rounded-xl p-3 transition-all duration-500" style={{
+            <div className="mt-2 rounded-xl p-3 transition-all duration-500" style={isStd ? {
+              background: 'hsl(var(--muted) / 0.5)',
+              border: '1px solid hsl(var(--border))',
+            } : {
               background: 'rgba(10,16,28,0.7)',
               border: `1px solid ${gaugeConfig.accent}10`,
               backdropFilter: 'blur(10px)',
@@ -489,29 +562,29 @@ export default function Rewards() {
                       const reached = approved >= ms.target;
                       return (
                         <div key={ms.target} className="flex items-center gap-2.5 p-2.5 rounded-lg transition-all duration-300" style={{
-                          background: reached ? `${gaugeConfig.accent}08` : 'rgba(20,30,45,0.3)',
-                          border: `1px solid ${reached ? `${gaugeConfig.accent}20` : 'rgba(50,65,85,0.15)'}`,
+                          background: reached ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(20,30,45,0.3)'),
+                          border: `1px solid ${reached ? `${gaugeConfig.accent}${isStd ? '40' : '20'}` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.15)')}`,
                         }}>
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{
-                            background: reached ? `${gaugeConfig.accent}15` : 'rgba(30,45,60,0.5)',
-                            border: `1px solid ${reached ? `${gaugeConfig.accent}30` : 'rgba(50,65,85,0.2)'}`,
+                            background: reached ? `${gaugeConfig.accent}15` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,45,60,0.5)'),
+                            border: `1px solid ${reached ? `${gaugeConfig.accent}30` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.2)')}`,
                           }}>
-                            {reached ? <Check className="h-3.5 w-3.5" style={{ color: gaugeConfig.accent }} /> : <ms.icon className="h-3.5 w-3.5" style={{ color: 'rgba(100,116,139,0.3)' }} />}
+                            {reached ? <Check className="h-3.5 w-3.5" style={{ color: gaugeConfig.accent }} /> : <ms.icon className="h-3.5 w-3.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)' }} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate" style={{ color: reached ? 'rgba(255,255,255,0.9)' : 'rgba(100,116,139,0.5)' }}>{ms.label}</p>
-                            <p className="text-[10px] truncate" style={{ color: 'rgba(100,116,139,0.4)' }}>{ms.desc}</p>
+                            <p className="text-xs font-semibold truncate" style={{ color: reached ? (isStd ? 'hsl(var(--foreground))' : 'rgba(255,255,255,0.9)') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{ms.label}</p>
+                            <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{ms.desc}</p>
                           </div>
                           {reached ? (
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase shrink-0" style={{
-                              background: `${gaugeConfig.accent}12`,
+                              background: `${gaugeConfig.accent}${isStd ? '18' : '12'}`,
                               color: gaugeConfig.accent,
-                              border: `1px solid ${gaugeConfig.accent}25`,
+                              border: `1px solid ${gaugeConfig.accent}${isStd ? '50' : '25'}`,
                             }}>{ms.badgeText}</span>
                           ) : (
                             <div className="flex items-center gap-1 shrink-0">
-                              <Lock className="h-3 w-3" style={{ color: 'rgba(50,65,85,0.6)' }} />
-                              <span className="text-[11px] font-mono" style={{ color: 'rgba(100,116,139,0.4)' }}>{approved}/{ms.target}</span>
+                              <Lock className="h-3 w-3" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(50,65,85,0.6)' }} />
+                              <span className="text-[11px] font-mono" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{approved}/{ms.target}</span>
                             </div>
                           )}
                         </div>
@@ -519,7 +592,7 @@ export default function Rewards() {
                     })}
 
                     {perClubStats.length > 0 && (
-                      <div className="space-y-1.5 pt-2" style={{ borderTop: '1px solid rgba(50,65,85,0.2)' }}>
+                      <div className="space-y-1.5 pt-2" style={{ borderTop: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
                         {perClubStats.map((club: any) => {
                           const isSelected = selectedClubId === club.clubId;
                           return (
@@ -528,22 +601,22 @@ export default function Rewards() {
                               onClick={() => handleClubClick(club.clubId)}
                               className="w-full flex items-center gap-2.5 p-2.5 rounded-lg transition-all duration-200 text-left"
                               style={{
-                                background: isSelected ? `${gaugeConfig.accent}10` : 'rgba(15,25,35,0.4)',
-                                border: `1px solid ${isSelected ? `${gaugeConfig.accent}30` : 'rgba(50,65,85,0.12)'}`,
+                                background: isSelected ? `${gaugeConfig.accent}${isStd ? '15' : '10'}` : (isStd ? 'hsl(var(--muted) / 0.3)' : 'rgba(15,25,35,0.4)'),
+                                border: `1px solid ${isSelected ? `${gaugeConfig.accent}${isStd ? '50' : '30'}` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.12)')}`,
                               }}
                               data-testid={`referral-club-${club.clubId}`}
                             >
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold truncate" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.8)' }}>{club.clubName}</p>
+                                <p className="text-xs font-semibold truncate" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.8)') }}>{club.clubName}</p>
                               </div>
                               <div className="flex items-center gap-3 shrink-0">
                                 <div className="text-center">
                                   <p className="text-sm font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.approvedReferrals}</p>
-                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: 'rgba(100,116,139,0.4)' }}>OK</p>
+                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>OK</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-sm font-black font-mono" style={{ color: '#ffaa00' }}>{club.pendingReferrals}</p>
-                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: 'rgba(100,116,139,0.4)' }}>Wait</p>
+                                  <p className="text-sm font-black font-mono" style={{ color: isStd ? '#b45309' : '#ffaa00' }}>{club.pendingReferrals}</p>
+                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Wait</p>
                                 </div>
                               </div>
                             </button>
@@ -552,19 +625,19 @@ export default function Rewards() {
                       </div>
                     )}
 
-                    <div className="pt-2" style={{ borderTop: '1px solid rgba(50,65,85,0.2)' }}>
+                    <div className="pt-2" style={{ borderTop: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
-                          <p className="text-base font-black text-white font-mono">{total}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: 'rgba(100,116,139,0.4)' }}>Total</p>
+                          <p className="text-base font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{total}</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Total</p>
                         </div>
                         <div>
                           <p className="text-base font-black font-mono" style={{ color: gaugeConfig.accent }}>{approved}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: 'rgba(100,116,139,0.4)' }}>Approved</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Approved</p>
                         </div>
                         <div>
-                          <p className="text-base font-black font-mono" style={{ color: '#ffaa00' }}>{pending}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: 'rgba(100,116,139,0.4)' }}>Pending</p>
+                          <p className="text-base font-black font-mono" style={{ color: isStd ? '#b45309' : '#ffaa00' }}>{pending}</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Pending</p>
                         </div>
                       </div>
                     </div>
@@ -589,13 +662,13 @@ export default function Rewards() {
                           onClick={() => handleClubClick(club.clubId)}
                           className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
                           style={{
-                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
-                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
+                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
                           }}
                           data-testid={`attendance-club-${club.clubId}`}
                         >
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.9)' }}>{club.clubName}</p>
+                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.totalAttended} attended</span>
                           </div>
                           {club.milestones && club.milestones.length > 0 ? (
@@ -609,29 +682,29 @@ export default function Rewards() {
                               return (
                                 <div key={idx} className="space-y-1.5">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[11px]" style={{ color: 'rgba(100,116,139,0.5)' }}>Every {m.sessionsRequired} sessions</span>
+                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Every {m.sessionsRequired} sessions</span>
                                     {m.milestonesCompleted > 0 && <span className="text-[9px] font-bold" style={{ color: gaugeConfig.accent }}>{m.milestonesCompleted}x earned</span>}
                                   </div>
-                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: `${gaugeConfig.accent}10` }}>
-                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.sessionsRequired > 0 ? (currentInCycle / m.sessionsRequired) * 100 : 0}%`, background: gaugeConfig.accent, boxShadow: `0 0 6px ${gaugeConfig.accent}50` }} />
+                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.sessionsRequired > 0 ? (currentInCycle / m.sessionsRequired) * 100 : 0}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
                                   </div>
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>{currentInCycle}/{m.sessionsRequired}</span>
+                                    <span className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{currentInCycle}/{m.sessionsRequired}</span>
                                     {rewardParts.length > 0 && <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")}</span>}
                                   </div>
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>No milestones set</p>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No milestones set</p>
                           )}
                         </button>
                       );
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <Target className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Start attending to earn credits</p>
+                      <Target className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Start attending to earn credits</p>
                     </div>
                   )}
                 </div>
@@ -666,8 +739,8 @@ export default function Rewards() {
                           onClick={() => handleClubClick(info.clubId)}
                           className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
                           style={{
-                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
-                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
+                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
                           }}
                           data-testid={`anniversary-club-${info.clubId}`}
                         >
@@ -676,19 +749,19 @@ export default function Rewards() {
                               <Gift className="h-3.5 w-3.5" style={{ color: `${gaugeConfig.accent}cc`, ...(isCelebration ? {} : { animation: "rewardShake 1.5s ease-in-out infinite" }) }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : 'rgba(100,116,139,0.5)' }}>{info.clubName}</p>
-                              <p className="text-xs font-semibold text-white truncate">
+                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{info.clubName}</p>
+                              <p className="text-xs font-semibold truncate" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>
                                 {isCelebration
                                   ? `Happy ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!`
                                   : `Year ${info.upcomingYear} in ${countdownText}`}
                               </p>
                             </div>
                           </div>
-                          <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: `${gaugeConfig.accent}10` }}>
-                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${info.progress * 100}%`, background: gaugeConfig.accent, boxShadow: `0 0 6px ${gaugeConfig.accent}50` }} />
+                          <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${info.progress * 100}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
                           </div>
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.5)' }}>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>
                               {isCelebration ? "Rewards issued!" : `${Math.round(info.progress * 100)}% through year ${info.upcomingYear}`}
                             </p>
                             {info.hasReward && (
@@ -704,8 +777,8 @@ export default function Rewards() {
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Anniversary milestones will appear over time</p>
+                      <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Anniversary milestones will appear over time</p>
                     </div>
                   )}
                 </div>
@@ -722,13 +795,13 @@ export default function Rewards() {
                           onClick={() => handleClubClick(club.clubId)}
                           className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
                           style={{
-                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
-                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
+                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
                           }}
                           data-testid={`points-club-${club.clubId}`}
                         >
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.9)' }}>{club.clubName}</p>
+                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentPoints} pts</span>
                           </div>
                           {club.milestones && club.milestones.length > 0 ? (
@@ -741,15 +814,15 @@ export default function Rewards() {
                               return (
                                 <div key={idx} className="space-y-1.5">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[11px]" style={{ color: 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} points</span>
+                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} points</span>
                                     {m.reached ? (
                                       <span className="text-[9px] font-bold flex items-center gap-0.5" style={{ color: gaugeConfig.accent }}><Check className="h-3 w-3" /> Reached</span>
                                     ) : (
-                                      <span className="text-[9px]" style={{ color: 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
+                                      <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
                                     )}
                                   </div>
-                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: `${gaugeConfig.accent}10` }}>
-                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((club.currentPoints / m.pointsRequired) * 100, 100)}%`, background: gaugeConfig.accent, boxShadow: `0 0 6px ${gaugeConfig.accent}50` }} />
+                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((club.currentPoints / m.pointsRequired) * 100, 100)}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
                                   </div>
                                   {rewardParts.length > 0 && (
                                     <div className="flex justify-end">
@@ -760,15 +833,15 @@ export default function Rewards() {
                               );
                             })
                           ) : (
-                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>No milestones set</p>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No milestones set</p>
                           )}
                         </button>
                       );
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Earn ranking points from matches to unlock rewards</p>
+                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Earn ranking points from matches to unlock rewards</p>
                     </div>
                   )}
                 </div>
@@ -785,13 +858,13 @@ export default function Rewards() {
                           onClick={() => handleClubClick(club.clubId)}
                           className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
                           style={{
-                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
-                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
+                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
                           }}
                           data-testid={`grades-club-${club.clubId}`}
                         >
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.9)' }}>{club.clubName}</p>
+                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentGrade || "Ungraded"}</span>
                           </div>
                           {club.gradeRewards && club.gradeRewards.length > 0 ? (
@@ -802,31 +875,31 @@ export default function Rewards() {
                               if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
                               if (config.gifts) rewardParts.push(config.gifts);
                               return (
-                                <div key={idx} className="flex items-center justify-between py-1.5 border-b last:border-0" style={{ borderColor: `${gaugeConfig.accent}08` }}>
+                                <div key={idx} className="flex items-center justify-between py-1.5 border-b last:border-0" style={{ borderColor: isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08` }}>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold w-6" style={{ color: g.reached ? gaugeConfig.accent : 'rgba(100,116,139,0.5)' }}>{g.grade}</span>
+                                    <span className="text-[11px] font-bold w-6" style={{ color: g.reached ? gaugeConfig.accent : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{g.grade}</span>
                                     {g.reached ? (
                                       <Check className="h-3 w-3" style={{ color: gaugeConfig.accent }} />
                                     ) : (
-                                      <Lock className="h-3 w-3" style={{ color: 'rgba(100,116,139,0.3)' }} />
+                                      <Lock className="h-3 w-3" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)' }} />
                                     )}
                                   </div>
                                   {rewardParts.length > 0 && (
-                                    <span className="text-[10px] font-semibold" style={{ color: g.reached ? `${gaugeConfig.accent}cc` : 'rgba(100,116,139,0.4)' }}>{rewardParts.join(" + ")}</span>
+                                    <span className="text-[10px] font-semibold" style={{ color: g.reached ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)') }}>{rewardParts.join(" + ")}</span>
                                   )}
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>No grade rewards set</p>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No grade rewards set</p>
                           )}
                         </button>
                       );
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Grade achievement rewards will appear as you progress</p>
+                      <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Grade achievement rewards will appear as you progress</p>
                     </div>
                   )}
                 </div>
