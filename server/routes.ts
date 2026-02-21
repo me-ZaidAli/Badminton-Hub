@@ -15070,6 +15070,238 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/admin/player-search - Search players by name or email (ADMIN/OWNER only)
+  app.get("/api/admin/player-search", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+    const isOwner = currentUser.role === "OWNER";
+    const adminProfiles = (currentUser.playerProfiles || []).filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+    if (!isOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const q = (req.query.q as string || "").trim().toLowerCase();
+      if (q.length < 2) return res.json([]);
+      const allUsers = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+      }).from(users)
+        .where(or(
+          sql`lower(${users.fullName}) LIKE ${`%${q}%`}`,
+          sql`lower(${users.email}) LIKE ${`%${q}%`}`
+        ))
+        .limit(20);
+
+      if (isOwner) {
+        return res.json(allUsers);
+      }
+      const adminClubIds = adminProfiles.map((p: any) => p.clubId);
+      const filtered: typeof allUsers = [];
+      for (const u of allUsers) {
+        const profiles = await db.select().from(playerProfiles).where(
+          and(eq(playerProfiles.userId, u.id), inArray(playerProfiles.clubId, adminClubIds))
+        );
+        if (profiles.length > 0) filtered.push(u);
+      }
+      res.json(filtered);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/player-rewards/:userId - Get all rewards data for a specific user (ADMIN/OWNER only)
+  app.get("/api/admin/player-rewards/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+    const isOwner = currentUser.role === "OWNER";
+    const adminProfiles = (currentUser.playerProfiles || []).filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+    if (!isOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+    const targetUserId = Number(req.params.userId);
+    if (!targetUserId) return res.status(400).json({ message: "Invalid userId" });
+
+    try {
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId));
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const targetProfiles = await db.select({
+        profile: playerProfiles,
+        clubName: clubs.name,
+      }).from(playerProfiles)
+        .leftJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .where(eq(playerProfiles.userId, targetUserId));
+
+      const adminClubIds = isOwner ? null : adminProfiles.map((p: any) => p.clubId);
+      const visibleProfiles = adminClubIds
+        ? targetProfiles.filter(p => adminClubIds.includes(p.profile.clubId))
+        : targetProfiles;
+
+      if (visibleProfiles.length === 0 && !isOwner) {
+        return res.status(403).json({ message: "This player is not in your clubs" });
+      }
+
+      const visibleClubIds = visibleProfiles.map(p => p.profile.clubId);
+
+      // Rewards ledger (scoped by club for non-owners)
+      const rewardsQuery = db.select({
+        reward: playerRewardLedger,
+        clubName: clubs.name,
+      }).from(playerRewardLedger)
+        .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id));
+      const rewardsData = isOwner
+        ? await rewardsQuery.where(eq(playerRewardLedger.playerId, targetUserId)).orderBy(desc(playerRewardLedger.createdAt))
+        : await rewardsQuery.where(and(eq(playerRewardLedger.playerId, targetUserId), inArray(playerRewardLedger.clubId, visibleClubIds))).orderBy(desc(playerRewardLedger.createdAt));
+      const rewards = rewardsData.map(r => ({ ...r.reward, clubName: r.clubName }));
+
+      // Summary (computed from scoped rewards)
+      const available = rewards.filter(r => r.status === "AVAILABLE");
+      const used = rewards.filter(r => r.status === "USED");
+      const requested = rewards.filter(r => r.status === "REQUESTED");
+      const summary = {
+        totalCredits: available.reduce((sum, r) => sum + r.credits, 0),
+        totalFreeSessions: available.reduce((sum, r) => sum + r.freeSessions, 0),
+        totalGifts: available.filter(r => r.gifts).length,
+        usedCredits: used.reduce((sum, r) => sum + r.credits, 0),
+        usedFreeSessions: used.reduce((sum, r) => sum + r.freeSessions, 0),
+        requestedCount: requested.length,
+        totalRewards: rewards.length,
+      };
+
+      // Referrals (scoped by club for non-owners)
+      const referralsQuery = db.select({
+        id: referrals.id,
+        code: referrals.code,
+        referredName: referrals.referredName,
+        referredEmail: referrals.referredEmail,
+        clubId: referrals.clubId,
+        status: referrals.status,
+        creditAwarded: referrals.creditAwarded,
+        expiresAt: referrals.expiresAt,
+        createdAt: referrals.createdAt,
+        clubName: clubs.name,
+      }).from(referrals)
+        .leftJoin(clubs, eq(referrals.clubId, clubs.id));
+      const myReferrals = isOwner
+        ? await referralsQuery.where(eq(referrals.referrerId, targetUserId)).orderBy(desc(referrals.createdAt))
+        : await referralsQuery.where(and(eq(referrals.referrerId, targetUserId), inArray(referrals.clubId, visibleClubIds))).orderBy(desc(referrals.createdAt));
+
+      const clubIds = [...new Set(myReferrals.map(r => r.clubId).filter(Boolean))] as number[];
+      const perClubStatsMap: Record<number, any> = {};
+      for (const cid of clubIds) {
+        const clubRefs = myReferrals.filter(r => r.clubId === cid);
+        perClubStatsMap[cid] = {
+          clubId: cid,
+          clubName: clubRefs[0]?.clubName || "Unknown",
+          totalReferrals: clubRefs.length,
+          approvedReferrals: clubRefs.filter(r => r.status === "APPROVED").length,
+          pendingReferrals: clubRefs.filter(r => r.status === "ACTIVE").length,
+        };
+      }
+      const referralStats = {
+        stats: {
+          totalReferrals: myReferrals.length,
+          approvedReferrals: myReferrals.filter(r => r.status === "APPROVED").length,
+          pendingReferrals: myReferrals.filter(r => r.status === "ACTIVE").length,
+        },
+        perClubStats: Object.values(perClubStatsMap),
+      };
+
+      // Attendance progress
+      const attendanceResults: any[] = [];
+      for (const { profile, clubName } of visibleProfiles) {
+        const attendedCount = await db.select({ count: sql<number>`count(*)` })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(
+            eq(sessionSignups.playerId, profile.id),
+            eq(sessions.clubId, profile.clubId),
+            eq(sessionSignups.attendanceStatus, "ATTENDED")
+          )).then(r => Number(r[0]?.count || 0));
+
+        const activeRewards = await db.select().from(sessionAttendanceRewards).where(
+          and(eq(sessionAttendanceRewards.clubId, profile.clubId), eq(sessionAttendanceRewards.isActive, true))
+        ).orderBy(sessionAttendanceRewards.sessionsRequired);
+
+        const milestones = activeRewards.filter(r => r.sessionsRequired > 0).map(reward => {
+          const config = reward.rewardConfig as any;
+          return {
+            rewardId: reward.id,
+            sessionsRequired: reward.sessionsRequired,
+            currentCount: attendedCount,
+            milestonesCompleted: Math.floor(attendedCount / reward.sessionsRequired),
+            rewardConfig: config,
+          };
+        });
+
+        attendanceResults.push({
+          clubId: profile.clubId,
+          clubName,
+          totalAttended: attendedCount,
+          milestones,
+        });
+      }
+
+      // Anniversary info
+      const anniversaryResults: any[] = [];
+      for (const { profile, clubName } of visibleProfiles) {
+        if (!profile.joinedAt) continue;
+        const joinDate = new Date(profile.joinedAt);
+        const now = new Date();
+        let nextAnniversary = new Date(joinDate);
+        nextAnniversary.setFullYear(now.getFullYear());
+        if (nextAnniversary <= now) nextAnniversary.setFullYear(now.getFullYear() + 1);
+        const upcomingYear = nextAnniversary.getFullYear() - joinDate.getFullYear();
+        const prevAnniversary = new Date(nextAnniversary);
+        prevAnniversary.setFullYear(nextAnniversary.getFullYear() - 1);
+        const totalMs = nextAnniversary.getTime() - prevAnniversary.getTime();
+        const elapsedMs = now.getTime() - prevAnniversary.getTime();
+        const progress = Math.min(Math.max(elapsedMs / totalMs, 0), 1);
+        const [settings] = await db.select().from(clubAnniversarySettings).where(
+          and(eq(clubAnniversarySettings.clubId, profile.clubId), eq(clubAnniversarySettings.isActive, true))
+        );
+        anniversaryResults.push({ clubId: profile.clubId, clubName, joinedAt: profile.joinedAt, nextAnniversary: nextAnniversary.toISOString(), upcomingYear, progress, hasReward: !!settings });
+      }
+
+      // Birthday info
+      const birthdayResults: any[] = [];
+      const hasDob = !!targetUser.dateOfBirth;
+      for (const { profile, clubName } of visibleProfiles) {
+        const [settings] = await db.select().from(clubBirthdaySettings).where(
+          and(eq(clubBirthdaySettings.clubId, profile.clubId), eq(clubBirthdaySettings.isActive, true))
+        );
+        if (!settings) continue;
+        let daysUntilBirthday: number | null = null;
+        let nextBirthdayDate: string | null = null;
+        let birthdayToday = false;
+        if (hasDob) {
+          const birth = new Date(targetUser.dateOfBirth!);
+          const now = new Date();
+          const thisYearBirthday = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+          if (thisYearBirthday < now) thisYearBirthday.setFullYear(now.getFullYear() + 1);
+          daysUntilBirthday = Math.ceil((thisYearBirthday.getTime() - now.getTime()) / 86400000);
+          nextBirthdayDate = thisYearBirthday.toISOString().split("T")[0];
+          const todayStr = now.toISOString().split("T")[0];
+          const birthStr = `${now.getFullYear()}-${String(birth.getMonth() + 1).padStart(2, "0")}-${String(birth.getDate()).padStart(2, "0")}`;
+          birthdayToday = todayStr === birthStr;
+          if (daysUntilBirthday === 365 || daysUntilBirthday === 366) { daysUntilBirthday = 0; birthdayToday = true; }
+        }
+        birthdayResults.push({ clubId: profile.clubId, clubName, hasDob, daysUntilBirthday, nextBirthdayDate, birthdayToday, credits: settings.credits, gifts: settings.gifts });
+      }
+
+      res.json({
+        player: { id: targetUser.id, fullName: targetUser.fullName, email: targetUser.email },
+        rewards,
+        summary,
+        referralStats,
+        attendanceProgress: attendanceResults,
+        anniversaryData: anniversaryResults,
+        birthdayData: birthdayResults,
+      });
+    } catch (err: any) {
+      console.error("Error fetching player rewards:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // POST /api/check-anniversaries - Check and process anniversaries (called by scheduler or manually)
   app.post("/api/check-anniversaries", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

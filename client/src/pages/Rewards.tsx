@@ -1,13 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle, Cake } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle, Cake, Search, X, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useUser } from "@/hooks/use-auth";
 
 interface GaugeMilestone {
   barIndex: number;
@@ -322,15 +324,87 @@ function InfoRow({ icon: Icon, label, value, hint, onClick }: { icon: any; label
 }
 
 export default function Rewards() {
-  const { data: rewardsSummary } = useQuery<any>({ queryKey: ["/api/my-rewards/summary"] });
-  const { data: rewards } = useQuery<any[]>({ queryKey: ["/api/my-rewards"] });
-  const { data: referralData } = useQuery<any>({ queryKey: ["/api/my-referrals"] });
-  const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
-  const { data: birthdayData } = useQuery<any[]>({ queryKey: ["/api/my-birthday-reward-info"] });
-  const { data: attendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
-  const { data: pointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
+  const { data: currentUser } = useUser();
+  const isAdminOrOwner = useMemo(() => {
+    if (!currentUser) return false;
+    if ((currentUser as any).role === "OWNER") return true;
+    const profiles = (currentUser as any).playerProfiles || [];
+    return profiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+  }, [currentUser]);
+
+  const [viewingPlayerId, setViewingPlayerId] = useState<number | null>(null);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [playerSearchOpen, setPlayerSearchOpen] = useState(false);
+  const [viewingPlayerName, setViewingPlayerName] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+
+  const { data: searchResults, isLoading: isSearching } = useQuery<{ id: number; fullName: string; email: string }[]>({
+    queryKey: ["/api/admin/player-search", playerSearchQuery],
+    queryFn: async () => {
+      if (playerSearchQuery.length < 2) return [];
+      const res = await fetch(`/api/admin/player-search?q=${encodeURIComponent(playerSearchQuery)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isAdminOrOwner && playerSearchQuery.length >= 2,
+  });
+
+  const { data: adminPlayerData } = useQuery<any>({
+    queryKey: ["/api/admin/player-rewards", viewingPlayerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/player-rewards/${viewingPlayerId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!viewingPlayerId && isAdminOrOwner,
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        setPlayerSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectPlayer = useCallback((player: { id: number; fullName: string }) => {
+    setViewingPlayerId(player.id);
+    setViewingPlayerName(player.fullName);
+    setPlayerSearchQuery("");
+    setPlayerSearchOpen(false);
+    if (activeTab === "points" || activeTab === "badges") setActiveTab("referrals");
+  }, [activeTab]);
+
+  const clearPlayerView = useCallback(() => {
+    setViewingPlayerId(null);
+    setViewingPlayerName("");
+    setPlayerSearchQuery("");
+  }, []);
+
+  const isViewingOther = !!viewingPlayerId;
+
+  const { data: ownRewardsSummary } = useQuery<any>({ queryKey: ["/api/my-rewards/summary"] });
+  const { data: ownRewards } = useQuery<any[]>({ queryKey: ["/api/my-rewards"] });
+  const { data: ownReferralData } = useQuery<any>({ queryKey: ["/api/my-referrals"] });
+  const { data: ownAnniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
+  const { data: ownBirthdayData } = useQuery<any[]>({ queryKey: ["/api/my-birthday-reward-info"] });
+  const { data: ownAttendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
+  const { data: ownPointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
   const { data: badgeRewardProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-reward-progress"] });
-  const { data: badgeProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-progress"] });
+  const { data: ownBadgeProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-progress"] });
+
+  const rewardsSummary = isViewingOther ? adminPlayerData?.summary : ownRewardsSummary;
+  const rewards = isViewingOther ? adminPlayerData?.rewards : ownRewards;
+  const referralData = isViewingOther ? adminPlayerData?.referralStats : ownReferralData;
+  const anniversaryData = isViewingOther ? adminPlayerData?.anniversaryData : ownAnniversaryData;
+  const birthdayData = isViewingOther ? adminPlayerData?.birthdayData : ownBirthdayData;
+  const attendanceProgress = isViewingOther ? adminPlayerData?.attendanceProgress : ownAttendanceProgress;
+  const pointsProgress = isViewingOther ? null : ownPointsProgress;
+  const badgeProgress = isViewingOther ? null : ownBadgeProgress;
+
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("referrals");
@@ -593,10 +667,10 @@ export default function Rewards() {
           <Link href="/profile">
             <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-rewards-back"><ArrowLeft className="h-5 w-5" /></Button>
           </Link>
-          <h1 className="text-xl font-bold flex-1">My Rewards</h1>
+          <h1 className="text-xl font-bold flex-1" data-testid="text-rewards-title">{isViewingOther ? `${viewingPlayerName}'s Rewards` : "My Rewards"}</h1>
           <button
             onClick={() => setShowRewardsGuide(true)}
-            className="p-2 rounded-lg transition-all border hover:shadow-sm"
+            className="p-2 rounded-lg transition-all border"
             style={{
               background: 'hsl(var(--muted))',
               borderColor: 'hsl(var(--border))',
@@ -629,6 +703,63 @@ export default function Rewards() {
           </button>
         </div>
 
+        {isAdminOrOwner && (
+          <div className="relative" ref={searchDropdownRef} data-testid="admin-player-search-container">
+            {isViewingOther ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+                <Search className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground" data-testid="text-viewing-label">Viewing rewards for</p>
+                  <p className="text-sm font-semibold truncate" data-testid="text-viewing-player-name">{viewingPlayerName}</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={clearPlayerView} data-testid="button-clear-player-view">
+                  <X className="h-4 w-4 mr-1" /> Back to mine
+                </Button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  value={playerSearchQuery}
+                  onChange={(e) => { setPlayerSearchQuery(e.target.value); setPlayerSearchOpen(true); }}
+                  onFocus={() => { if (playerSearchQuery.length >= 2) setPlayerSearchOpen(true); }}
+                  placeholder="Search a player to view their rewards..."
+                  className="pl-9 pr-4"
+                  data-testid="input-player-search"
+                />
+                {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+            )}
+            {playerSearchOpen && searchResults && searchResults.length > 0 && !isViewingOther && (
+              <div className="absolute z-50 top-full mt-1 w-full rounded-lg border bg-popover shadow-lg max-h-60 overflow-auto" data-testid="player-search-results">
+                {searchResults.map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => selectPlayer(player)}
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors border-b last:border-b-0"
+                    style={{ borderColor: 'hsl(var(--border))' }}
+                    data-testid={`player-search-result-${player.id}`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{player.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" data-testid={`text-search-name-${player.id}`}>{player.fullName}</p>
+                      <p className="text-xs text-muted-foreground truncate" data-testid={`text-search-email-${player.id}`}>{player.email}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {playerSearchOpen && playerSearchQuery.length >= 2 && !isSearching && searchResults && searchResults.length === 0 && !isViewingOther && (
+              <div className="absolute z-50 top-full mt-1 w-full rounded-lg border bg-popover shadow-lg p-3 text-center" data-testid="player-search-no-results">
+                <p className="text-sm text-muted-foreground">No players found</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="relative rounded-2xl" style={isStd ? {
           background: 'hsl(var(--card))',
           border: '1px solid hsl(var(--border))',
@@ -657,8 +788,8 @@ export default function Rewards() {
                 { key: "attendance", label: "Attend", icon: Target },
                 { key: "anniversary", label: "Anniv", icon: CalendarDays },
                 ...(birthdayData && birthdayData.length > 0 ? [{ key: "birthday", label: "B-Day", icon: Cake }] : []),
-                { key: "points", label: "Points", icon: TrendingUp },
-                { key: "badges", label: "Badges", icon: Award },
+                ...(!isViewingOther ? [{ key: "points", label: "Points", icon: TrendingUp }] : []),
+                ...(!isViewingOther ? [{ key: "badges", label: "Badges", icon: Award }] : []),
               ].map(tab => {
                 const isActive = activeTab === tab.key;
                 const tc = tabThemes[tab.key];
