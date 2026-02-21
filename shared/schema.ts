@@ -82,6 +82,7 @@ export const users = pgTable("users", {
   deletionScheduledAt: timestamp("deletion_scheduled_at"),
   deletionScheduledBy: integer("deletion_scheduled_by"),
   deletionReason: text("deletion_reason"),
+  badmintonEnglandNumber: text("badminton_england_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
