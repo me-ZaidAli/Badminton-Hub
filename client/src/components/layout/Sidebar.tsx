@@ -23,6 +23,7 @@ import {
   Megaphone,
   Ticket,
   Gift,
+  Award,
   BookOpen,
   FileText,
 } from "lucide-react";
@@ -77,6 +78,7 @@ function useNavGroups(): NavGroup[] {
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club" },
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club" },
+    { href: "/rewards", label: "My Rewards", icon: Award, group: "club" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications" },

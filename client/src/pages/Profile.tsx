@@ -296,6 +296,13 @@ function ProfileRewardsSection() {
           </Button>
         )}
 
+        <Link href="/rewards">
+          <Button variant="outline" size="sm" className="w-full" data-testid="button-view-rewards-page">
+            Open Rewards Dashboard
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </Link>
+
         {(!rewards || rewards.length === 0) && (
           <div className="text-center py-4 text-sm text-muted-foreground">
             <Gift className="h-6 w-6 mx-auto mb-2 opacity-40" />

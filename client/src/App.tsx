@@ -54,6 +54,7 @@ const MembershipBoard = lazy(() => import("@/pages/admin/MembershipBoard"));
 const AdminInventory = lazy(() => import("@/pages/admin/Inventory"));
 const Memberships = lazy(() => import("@/pages/Memberships"));
 const Referrals = lazy(() => import("@/pages/Referrals"));
+const Rewards = lazy(() => import("@/pages/Rewards"));
 const AdminReferrals = lazy(() => import("@/pages/admin/AdminReferrals"));
 const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
 const AttendanceRewards = lazy(() => import("@/pages/admin/AttendanceRewards"));
@@ -401,6 +402,9 @@ function Router() {
       </Route>
       <Route path="/referrals">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Referrals /></Suspense>} />
+      </Route>
+      <Route path="/rewards">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Rewards /></Suspense>} />
       </Route>
 
       {/* Admin Routes */}
