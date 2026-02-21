@@ -342,6 +342,145 @@ function MetricCard({ icon: Icon, label, value, subtext, onClick, className = ""
   );
 }
 
+function BadmintonEnglandSection({ user }: { user: any }) {
+  const [beNumber, setBeNumber] = useState((user as any)?.badmintonEnglandNumber || "");
+  const [isEditingBE, setIsEditingBE] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setBeNumber((user as any)?.badmintonEnglandNumber || "");
+  }, [user]);
+
+  const saveBENumber = useMutation({
+    mutationFn: async (number: string) => {
+      const res = await apiRequest("PATCH", "/api/user/profile", { badmintonEnglandNumber: number || null });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Membership number saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setIsEditingBE(false);
+    },
+    onError: (error: Error) => { toast({ title: "Error", description: error.message, variant: "destructive" }); },
+  });
+
+  const hasBE = !!(user as any)?.badmintonEnglandNumber;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-blue-200 dark:border-blue-800" data-testid="card-badminton-england-info">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-blue-500/10">
+              <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm" data-testid="text-be-title">Badminton England Membership</p>
+              <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-be-subtitle">Individual player insurance & benefits</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3.5">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300" data-testid="text-insurance-warning-title">Important: Club Insurance Does Not Cover Individuals</p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                  Our club insurance covers venue liability but does not provide individual player cover. We strongly recommend joining Badminton England to protect yourself while playing.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3.5 space-y-3">
+            <p className="text-xs font-semibold text-blue-800 dark:text-blue-300" data-testid="text-be-benefits-title">What You Get:</p>
+            <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-2">
+              <li className="flex items-start gap-2" data-testid="text-be-benefit-insurance">
+                <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">Public Liability Insurance</span>
+                  <span className="text-[11px] block text-blue-600 dark:text-blue-500">Up to £10,000,000 cover per claim — protects you if you accidentally injure another player or damage property</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-2" data-testid="text-be-benefit-pricing">
+                <PoundSterling className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">Only £17.50 per season</span>
+                  <span className="text-[11px] block text-blue-600 dark:text-blue-500">Season runs Nov 1 — Oct 31. Save 10% (£15.75/yr) with auto-renew. Juniors from just £5.75 (under 12s free)</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-2" data-testid="text-be-benefit-discounts">
+                <Tag className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">Exclusive Discounts</span>
+                  <span className="text-[11px] block text-blue-600 dark:text-blue-500">YONEX All England tickets, Central Sports equipment discounts, and JG Rewards Hub savings at Apple, John Lewis & more</span>
+                </div>
+              </li>
+            </ul>
+            <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+              <p className="text-[10px] text-blue-600 dark:text-blue-500" data-testid="text-be-disclaimer">
+                Cover includes member-to-member liability, damage to rented venues, and professional indemnity. Insured by Hiscox via Howden UK Group. Note: this is liability cover only — it does not cover personal injury to yourself.
+              </p>
+            </div>
+          </div>
+
+          <a href="https://www.badmintonengland.co.uk/membership/" target="_blank" rel="noopener noreferrer" className="block" data-testid="link-badminton-england-website">
+            <Button variant="outline" className="w-full" data-testid="button-join-badminton-england">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Join Badminton England
+            </Button>
+          </a>
+        </CardContent>
+      </Card>
+
+      <Card className={hasBE ? "border-green-200 dark:border-green-800" : "border-dashed border-muted-foreground/30"} data-testid="card-be-membership-number">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${hasBE ? "bg-green-500/10" : "bg-muted"}`}>
+                <Award className={`h-4 w-4 ${hasBE ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" data-testid="text-be-membership-label">Membership Number</p>
+                {hasBE && !isEditingBE ? (
+                  <p className="text-xs text-green-600 dark:text-green-400 font-mono mt-0.5" data-testid="text-be-number">{(user as any).badmintonEnglandNumber}</p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {isEditingBE ? "Enter your Badminton England membership number" : "Add your membership number to keep it on record"}
+                  </p>
+                )}
+              </div>
+            </div>
+            {!isEditingBE && (
+              <Button variant="ghost" size="sm" onClick={() => setIsEditingBE(true)} data-testid="button-edit-be-number">
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          {isEditingBE && (
+            <div className="mt-3 flex items-center gap-2">
+              <Input
+                value={beNumber}
+                onChange={(e) => setBeNumber(e.target.value)}
+                placeholder="e.g. BE12345678"
+                className="flex-1"
+                data-testid="input-be-number"
+              />
+              <Button size="sm" onClick={() => saveBENumber.mutate(beNumber)} disabled={saveBENumber.isPending} data-testid="button-save-be-number">
+                {saveBENumber.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setIsEditingBE(false); setBeNumber((user as any)?.badmintonEnglandNumber || ""); }} data-testid="button-cancel-be-number">
+                Cancel
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function CollapsibleSection({ title, icon: Icon, badge, defaultOpen = false, children, testId, iconColor = "text-primary", className = "" }: {
   title: string;
   icon: typeof Trophy;
@@ -1619,6 +1758,10 @@ export default function Profile() {
             </div>
           </div>
         </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Player Insurance" icon={Shield} testId="card-player-insurance">
+        <BadmintonEnglandSection user={user} />
       </CollapsibleSection>
 
       {/* Account Settings */}

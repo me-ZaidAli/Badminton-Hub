@@ -75,3 +75,4 @@ The frontend utilizes React 18, TypeScript, Wouter for routing, and TanStack Rea
 ### APIs / Integrations
 -   **OpenStreetMap Nominatim API**: Geocoding addresses to coordinates.
 -   **Google Calendar**: Integration for importing calendar events as sessions.
+-   **Badminton England**: Player insurance information section on Profile page. Users table has `badminton_england_number` field for storing BE membership numbers. Players are encouraged to join BE for individual public liability insurance (£10M cover, £17.50/season). Link to badmintonengland.co.uk/membership/.

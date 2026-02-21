@@ -620,6 +620,9 @@ export async function registerRoutes(
       if (continent !== undefined) updates.continent = continent || null;
       if (nickname !== undefined) updates.nickname = nickname ? nickname.trim() : null;
       if (showPublicName !== undefined) updates.showPublicName = !!showPublicName;
+      if (req.body.badmintonEnglandNumber !== undefined) {
+        updates.badmintonEnglandNumber = req.body.badmintonEnglandNumber ? req.body.badmintonEnglandNumber.trim() : null;
+      }
       if (req.body.displayMode !== undefined) updates.displayMode = req.body.displayMode;
       if (req.body.reducedMotion !== undefined) updates.reducedMotion = !!req.body.reducedMotion;
 
