@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock
+  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -173,6 +173,129 @@ function AnniversaryCountdown() {
                       {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
                       {info.rewardGifts ? info.rewardGifts : ""}
                       {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BirthdayCountdown() {
+  const { data: birthdayData } = useQuery<any[]>({ queryKey: ["/api/my-birthday-reward-info"] });
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!birthdayData || birthdayData.length === 0) return null;
+
+  return (
+    <Card className="border-pink-200 dark:border-pink-800" data-testid="card-birthday-section">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Cake className="h-4 w-4 text-pink-500" />
+          <p className="font-bold text-sm">Birthday Countdown</p>
+          <Badge variant="secondary" className="text-xs">{birthdayData.length}</Badge>
+        </div>
+        <style>{`
+          @keyframes birthday-bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+          }
+        `}</style>
+        <div className="space-y-3">
+          {birthdayData.map((info: any) => {
+            const now = Date.now();
+            let countdownText = "";
+            let progress = 0;
+
+            if (!info.hasDob) {
+              return (
+                <div key={info.clubId} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2" data-testid={`card-birthday-countdown-${info.clubId}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 rounded-md bg-pink-500/10">
+                      <AlertCircle className="h-4 w-4 text-pink-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-muted-foreground">{info.clubName}</div>
+                      <div className="text-sm font-semibold text-pink-600 dark:text-pink-400" data-testid={`text-birthday-no-dob-${info.clubId}`}>
+                        Add your date of birth in your profile to receive birthday rewards
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (info.birthdayToday) {
+              progress = 100;
+            } else if (info.nextBirthdayDate) {
+              const target = new Date(info.nextBirthdayDate + "T00:00:00").getTime();
+              const diff = Math.max(target - now, 0);
+              const totalSeconds = Math.floor(diff / 1000);
+              const totalMinutes = Math.floor(totalSeconds / 60);
+              const totalHours = Math.floor(totalMinutes / 60);
+              const totalDays = Math.floor(totalHours / 24);
+              const months = Math.floor(totalDays / 30);
+              const days = totalDays - months * 30;
+              const hours = totalHours % 24;
+              const minutes = totalMinutes % 60;
+              const seconds = totalSeconds % 60;
+              const parts: string[] = [];
+              if (months > 0) parts.push(`${months} month${months !== 1 ? "s" : ""}`);
+              if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+              parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+              countdownText = `${parts.join(", ")} to your birthday`;
+              progress = diff > 0 ? Math.min(((365 * 86400000 - diff) / (365 * 86400000)) * 100, 100) : 100;
+            } else {
+              countdownText = "Birthday date pending";
+            }
+
+            return (
+              <div key={info.clubId} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2" data-testid={`card-birthday-countdown-${info.clubId}`}>
+                <div className="flex items-center gap-3">
+                  {info.birthdayToday ? (
+                    <div className="p-1.5 rounded-md bg-pink-500/10">
+                      <PartyPopper className="h-4 w-4 text-pink-500" />
+                    </div>
+                  ) : (
+                    <div className="p-1.5 rounded-md bg-pink-500/10">
+                      <Cake className="h-4 w-4 text-pink-500" style={{ animation: "birthday-bounce 2s ease-in-out infinite" }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-muted-foreground">{info.clubName}</div>
+                    {info.birthdayToday ? (
+                      <div className="text-sm font-bold text-pink-600 dark:text-pink-400" data-testid={`text-birthday-timer-${info.clubId}`}>
+                        Happy Birthday!
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold" data-testid={`text-birthday-timer-${info.clubId}`}>
+                        {countdownText}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden" data-testid={`progress-birthday-${info.clubId}`}>
+                  <div
+                    className="h-full rounded-full bg-pink-500 transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                {(info.credits > 0 || info.gifts) && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Gift className="h-3 w-3 text-emerald-500" />
+                    <span>
+                      {info.credits > 0 && `Reward: £${(info.credits / 100).toFixed(2)} credit`}
+                      {info.credits > 0 && info.gifts ? " + " : ""}
+                      {info.gifts || ""}
                     </span>
                   </div>
                 )}
@@ -1755,6 +1878,7 @@ export default function Profile() {
               </Card>
 
               <AnniversaryCountdown />
+              <BirthdayCountdown />
             </div>
           </div>
         </div>
