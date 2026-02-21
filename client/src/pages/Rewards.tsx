@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -159,6 +159,7 @@ export default function Rewards() {
   const [activeTab, setActiveTab] = useState("referrals");
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [showAttendanceInfo, setShowAttendanceInfo] = useState(false);
+  const [showRewardsGuide, setShowRewardsGuide] = useState(false);
   const [gaugeViewMode, setGaugeViewMode] = useState<'futuristic' | 'standard'>(() => {
     try { return (localStorage.getItem('rewards-view-mode') as any) || 'futuristic'; } catch { return 'futuristic'; }
   });
@@ -377,6 +378,18 @@ export default function Rewards() {
             <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-rewards-back"><ArrowLeft className="h-5 w-5" /></Button>
           </Link>
           <h1 className="text-xl font-bold flex-1">My Rewards</h1>
+          <button
+            onClick={() => setShowRewardsGuide(true)}
+            className="p-2 rounded-lg transition-all border hover:shadow-sm"
+            style={{
+              background: 'hsl(var(--muted))',
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+            }}
+            data-testid="button-rewards-guide"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </button>
           <button
             onClick={() => {
               const next = gaugeViewMode === 'futuristic' ? 'standard' : 'futuristic';
@@ -1200,6 +1213,166 @@ export default function Rewards() {
                 {selectedReward.status === "USED" && <p className="text-center text-sm text-muted-foreground">This reward has been redeemed</p>}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showRewardsGuide} onOpenChange={setShowRewardsGuide}>
+          <DialogContent className="bg-background max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-primary" />Rewards Guide</DialogTitle>
+              <DialogDescription>Everything you need to know about earning and redeeming rewards</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5">
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <Users className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-blue-600 dark:text-blue-400">Referral Rewards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Invite friends to join your club and earn rewards when they sign up and get approved.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">1st</span>
+                        <p className="text-[11px] text-muted-foreground">Your first approved referral earns you a credit reward. Share your unique referral code from the "Refer & Earn" page.</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">2nd</span>
+                        <p className="text-[11px] text-muted-foreground">Reach 2 approved referrals to unlock Premium status for 2 months with enhanced club benefits.</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">4th</span>
+                        <p className="text-[11px] text-muted-foreground">Achieve Champion status with 4 referrals and receive a free session credit as a bonus.</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">Each club has its own independent referral programme. Your referral code is tied to a specific club, so progress is tracked separately per club.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <Target className="h-4 w-4 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Attendance Rewards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Earn rewards automatically just by attending sessions regularly.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">Step 1</span>
+                        <p className="text-[11px] text-muted-foreground">Attend sessions at your club. Each time an admin marks your attendance, it counts towards your milestone progress.</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">Step 2</span>
+                        <p className="text-[11px] text-muted-foreground">Each club sets a target (e.g. every 10 sessions). When you reach the target, a reward is automatically issued to your account.</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">Step 3</span>
+                        <p className="text-[11px] text-muted-foreground">The milestone resets after each reward, so you keep earning the more you play. Rewards can include credits, free sessions, or gifts.</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">The gauge shows your current cycle progress. Each club may have different targets and rewards configured by the club admin.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <CalendarDays className="h-4 w-4 text-purple-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-purple-600 dark:text-purple-400">Anniversary Rewards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Celebrate your club membership milestones and get rewarded for loyalty.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[11px] text-muted-foreground">Every year on the anniversary of when you joined a club, you automatically receive a reward. This could include credits, gifts, or a special message from the club.</p>
+                      <p className="text-[11px] text-muted-foreground">The gauge tracks your progress towards your next anniversary. Q1, Q2, Q3 markers show quarter-year milestones, with the final marker showing your upcoming anniversary year.</p>
+                      <p className="text-[11px] text-muted-foreground">The countdown shows exactly how long until your next anniversary. When the day arrives, rewards are issued automatically and you'll receive a notification.</p>
+                      <p className="text-[11px] text-muted-foreground">Each club independently tracks your joining date and may offer different anniversary rewards.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <TrendingUp className="h-4 w-4 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-orange-600 dark:text-orange-400">Points Milestones</p>
+                    <p className="text-xs text-muted-foreground mt-1">Earn ranking points from matches and unlock milestone rewards.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[11px] text-muted-foreground"><strong>Repeating milestones:</strong> Set at regular intervals (e.g. every 50 points). Each time you cross the threshold, you earn a reward and the cycle continues. These are marked with an "x" suffix on the gauge.</p>
+                      <p className="text-[11px] text-muted-foreground"><strong>Special milestones:</strong> One-time rewards at specific point thresholds (e.g. reaching 200 points). These are highlighted separately and can only be earned once.</p>
+                      <p className="text-[11px] text-muted-foreground">Your ranking points increase as you win matches. The gauge shows your progress towards the next milestone, with a progress bar for each active target.</p>
+                      <p className="text-[11px] text-muted-foreground">Rewards can include credits, free sessions, or gifts depending on what the club admin has configured.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <Award className="h-4 w-4 text-violet-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-violet-600 dark:text-violet-400">Badge Achievement Rewards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Earn badges based on your match performance and collect rewards for each one.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[11px] text-muted-foreground">There are 8 badges you can earn, each based on different match criteria:</p>
+                      <div className="grid grid-cols-2 gap-1.5 mt-1">
+                        {[
+                          { name: "First Win", icon: Zap, color: "#f59e0b", desc: "Win your first match" },
+                          { name: "5+ Wins", icon: Flame, color: "#ef4444", desc: "Win 5 or more matches" },
+                          { name: "10+ Matches", icon: Star, color: "#3b82f6", desc: "Play 10 or more matches" },
+                          { name: "Rising Star", icon: Sparkles, color: "#10b981", desc: "Win 3+ with 60%+ rate" },
+                          { name: "Top Performer", icon: Medal, color: "#8b5cf6", desc: "Win 10+ with 65%+ rate" },
+                          { name: "Undefeated", icon: Shield, color: "#06b6d4", desc: "100% win rate (3+ matches)" },
+                          { name: "Iron Player", icon: Trophy, color: "#64748b", desc: "Play 20 or more matches" },
+                          { name: "Champion", icon: Crown, color: "#eab308", desc: "Win 15+ with 70%+ rate" },
+                        ].map(badge => (
+                          <div key={badge.name} className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 border border-border/30">
+                            <badge.icon className="h-3 w-3 shrink-0" style={{ color: badge.color }} />
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold truncate">{badge.name}</p>
+                              <p className="text-[9px] text-muted-foreground truncate">{badge.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">The speedometer visualisation shows your badge progress with a racket pointer indicating your highest achieved badge. Club admins can attach rewards (credits, gifts, free sessions) to each badge.</p>
+                      <p className="text-[11px] text-muted-foreground">Badges are tracked per club based on your match statistics within that club.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                <p className="text-xs font-bold mb-2">How to Redeem Rewards</p>
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-muted-foreground">1. Scroll down to see your earned rewards listed under "Your Rewards".</p>
+                  <p className="text-[11px] text-muted-foreground">2. Tap on any reward marked "Available" to see its details.</p>
+                  <p className="text-[11px] text-muted-foreground">3. Click "Request Redemption" to submit a redemption request to your club admin.</p>
+                  <p className="text-[11px] text-muted-foreground">4. Your admin will review and approve the request. Once approved, the status changes to "Used".</p>
+                  <p className="text-[11px] text-muted-foreground">Credits are automatically applied to your account balance and can offset session fees.</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                <p className="text-xs font-bold mb-2">Understanding the Gauge</p>
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-muted-foreground">The circular gauge at the top shows your progress for the currently selected reward type. The coloured bars fill up as you progress towards the next milestone.</p>
+                  <p className="text-[11px] text-muted-foreground">Taller bars mark key milestones. The centre of the gauge shows your current value (referrals, sessions, points, etc.).</p>
+                  <p className="text-[11px] text-muted-foreground">If you belong to multiple clubs, use the club filter buttons to view progress for each club individually.</p>
+                  <p className="text-[11px] text-muted-foreground">Toggle between "Neon" and "Standard" view modes using the button in the top right corner to change the visual style.</p>
+                </div>
+              </div>
+
+              <Button className="w-full" onClick={() => setShowRewardsGuide(false)} data-testid="button-close-rewards-guide">Got it!</Button>
+            </div>
           </DialogContent>
         </Dialog>
 
