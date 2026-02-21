@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -606,7 +606,14 @@ export async function registerRoutes(
         updates.fullName = fullName.trim();
       }
       if (phone !== undefined) updates.phone = phone || null;
-      if (dateOfBirth !== undefined) updates.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (dateOfBirth !== undefined) {
+        const currentUser = await db.select({ dateOfBirth: users.dateOfBirth }).from(users).where(eq(users.id, req.user!.id)).then(r => r[0]);
+        if (currentUser?.dateOfBirth) {
+          // DOB already set - users cannot change it themselves, only admin/OWNER can
+        } else if (dateOfBirth) {
+          updates.dateOfBirth = new Date(dateOfBirth);
+        }
+      }
       if (city !== undefined) updates.city = city || null;
       if (country !== undefined) updates.country = country || null;
       if (region !== undefined) updates.region = region || null;
@@ -14874,6 +14881,127 @@ export async function registerRoutes(
         .leftJoin(clubs, eq(clubAnniversarySettings.clubId, clubs.id))
         .orderBy(clubs.name);
       res.json(settings.map(s => ({ ...s.setting, clubName: s.clubName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === BIRTHDAY SETTINGS ===
+
+  // GET /api/clubs/:clubId/birthday-settings
+  app.get("/api/clubs/:clubId/birthday-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Admin access required" });
+      const [settings] = await db.select().from(clubBirthdaySettings).where(eq(clubBirthdaySettings.clubId, clubId));
+      res.json(settings || null);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/clubs/:clubId/birthday-settings - Create or update
+  app.put("/api/clubs/:clubId/birthday-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Admin access required" });
+
+      const bodySchema = z.object({
+        isActive: z.boolean().optional(),
+        credits: z.number().int().min(0).optional(),
+        gifts: z.string().nullable().optional(),
+        message: z.string().optional(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      const { isActive, credits, gifts, message } = parsed.data;
+
+      const [existing] = await db.select().from(clubBirthdaySettings).where(eq(clubBirthdaySettings.clubId, clubId));
+
+      if (existing) {
+        const [updated] = await db.update(clubBirthdaySettings)
+          .set({ isActive: isActive ?? existing.isActive, credits: credits ?? existing.credits, gifts: gifts !== undefined ? gifts : existing.gifts, message: message ?? existing.message, updatedAt: new Date() })
+          .where(eq(clubBirthdaySettings.id, existing.id))
+          .returning();
+        console.log(`[AUDIT] Birthday settings updated: club=${clubId}, by user=${user.id}`);
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(clubBirthdaySettings).values({
+          clubId,
+          isActive: isActive ?? false,
+          credits: credits ?? 0,
+          gifts: gifts || null,
+          message: message || "Happy Birthday! Enjoy your special day with us.",
+        }).returning();
+        console.log(`[AUDIT] Birthday settings created: club=${clubId}, by user=${user.id}`);
+        res.json(created);
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-birthday-reward-info - Get birthday reward info for current user
+  app.get("/api/my-birthday-reward-info", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = user.playerProfiles || [];
+      const results: any[] = [];
+
+      for (const profile of profiles) {
+        const clubId = profile.clubId;
+        const [settings] = await db.select().from(clubBirthdaySettings).where(
+          and(eq(clubBirthdaySettings.clubId, clubId), eq(clubBirthdaySettings.isActive, true))
+        );
+        if (!settings) continue;
+
+        const hasDob = !!user.dateOfBirth;
+        let daysUntilBirthday: number | null = null;
+        let nextBirthdayDate: string | null = null;
+        let birthdayToday = false;
+
+        if (hasDob) {
+          const birth = new Date(user.dateOfBirth);
+          const now = new Date();
+          const thisYearBirthday = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+          if (thisYearBirthday < now) {
+            thisYearBirthday.setFullYear(now.getFullYear() + 1);
+          }
+          const diffMs = thisYearBirthday.getTime() - now.getTime();
+          daysUntilBirthday = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          nextBirthdayDate = thisYearBirthday.toISOString().split("T")[0];
+          const todayStr = now.toISOString().split("T")[0];
+          const birthStr = `${now.getFullYear()}-${String(birth.getMonth() + 1).padStart(2, "0")}-${String(birth.getDate()).padStart(2, "0")}`;
+          birthdayToday = todayStr === birthStr;
+          if (daysUntilBirthday === 365 || daysUntilBirthday === 366) {
+            daysUntilBirthday = 0;
+            birthdayToday = true;
+          }
+        }
+
+        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+
+        results.push({
+          clubId,
+          clubName: clubRow?.name || "Unknown Club",
+          hasDob,
+          daysUntilBirthday,
+          nextBirthdayDate,
+          birthdayToday,
+          credits: settings.credits,
+          gifts: settings.gifts,
+          message: settings.message,
+        });
+      }
+
+      res.json(results);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

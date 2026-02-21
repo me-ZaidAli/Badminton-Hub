@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target, TrendingUp, Award } from "lucide-react";
+import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target, TrendingUp, Award, Cake } from "lucide-react";
 import { Link } from "wouter";
 import { AttendanceRewardsPanel } from "./AttendanceRewards";
 import { PointsRewardsPanel } from "./PointsRewards";
@@ -256,6 +256,224 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
   );
 }
 
+function BirthdayRewardsTab({ clubId }: { clubId: number }) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [formCreditsGBP, setFormCreditsGBP] = useState("");
+  const [formGifts, setFormGifts] = useState("");
+  const [formMessage, setFormMessage] = useState("");
+  const [formIsActive, setFormIsActive] = useState(false);
+
+  const { data: settings, isLoading } = useQuery<AnniversarySettings | null>({
+    queryKey: ["/api/clubs", clubId, "birthday-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/birthday-settings`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch birthday settings");
+      const data = await res.json();
+      return data || null;
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: { isActive: boolean; credits: number; gifts: string; message: string }) => {
+      const res = await apiRequest("PUT", `/api/clubs/${clubId}/birthday-settings`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "birthday-settings"] });
+      setEditing(false);
+      toast({ title: "Saved", description: "Birthday reward settings have been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to save settings.", variant: "destructive" });
+    },
+  });
+
+  function startEditing() {
+    setFormCreditsGBP(settings ? (settings.credits / 100).toFixed(2) : "0.00");
+    setFormGifts(settings?.gifts ?? "");
+    setFormMessage(settings?.message ?? "");
+    setFormIsActive(settings?.isActive ?? false);
+    setEditing(true);
+  }
+
+  function handleSave() {
+    const creditsPence = Math.round(parseFloat(formCreditsGBP || "0") * 100);
+    saveMutation.mutate({
+      isActive: formIsActive,
+      credits: creditsPence,
+      gifts: formGifts,
+      message: formMessage,
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8" data-testid="loading-birthday">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!settings && !editing) {
+    return (
+      <Card data-testid="card-no-birthday">
+        <CardContent className="py-8 text-center space-y-3">
+          <Cake className="h-10 w-10 mx-auto text-muted-foreground" />
+          <p className="text-muted-foreground">No birthday reward settings configured yet.</p>
+          <p className="text-sm text-muted-foreground">
+            Set up birthday rewards to celebrate members on their birthday. Members need a date of birth on their profile to receive this reward.
+          </p>
+          <Button onClick={startEditing} data-testid="button-setup-birthday">
+            <Gift className="h-4 w-4 mr-2" />
+            Set Up Birthday Rewards
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-4" data-testid="birthday-form">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Cake className="h-5 w-5 text-pink-500" />
+              Birthday Reward Settings
+            </CardTitle>
+            <CardDescription>Configure what members receive on their birthday. Members without a date of birth on their profile will be notified they are missing out.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="birthday-active">Active</Label>
+              <Switch
+                id="birthday-active"
+                checked={formIsActive}
+                onCheckedChange={setFormIsActive}
+                data-testid="switch-birthday-active"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="birthday-credits">Credits (GBP)</Label>
+              <Input
+                id="birthday-credits"
+                type="number"
+                min={0}
+                step={0.01}
+                value={formCreditsGBP}
+                onChange={(e) => setFormCreditsGBP(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-birthday-credits"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="birthday-gifts">Gifts</Label>
+              <Input
+                id="birthday-gifts"
+                type="text"
+                value={formGifts}
+                onChange={(e) => setFormGifts(e.target.value)}
+                placeholder="e.g. Free shuttlecocks, Birthday cake"
+                data-testid="input-birthday-gifts"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="birthday-message">Birthday Message</Label>
+              <Textarea
+                id="birthday-message"
+                value={formMessage}
+                onChange={(e) => setFormMessage(e.target.value)}
+                placeholder="Happy Birthday! Enjoy your special day with us."
+                className="min-h-[80px]"
+                data-testid="input-birthday-message"
+              />
+            </div>
+
+            {formMessage && (
+              <Card className="border-border/50" data-testid="card-birthday-message-preview">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground">Message Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-start gap-3">
+                    <Cake className="h-5 w-5 text-pink-500 mt-0.5 shrink-0" />
+                    <p className="text-sm whitespace-pre-wrap" data-testid="text-birthday-message-preview">{formMessage}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="flex items-center gap-2 pt-2 flex-wrap">
+              <Button variant="outline" onClick={() => setEditing(false)} data-testid="button-cancel-birthday">
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save-birthday">
+                {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="birthday-settings-view">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Cake className="h-5 w-5 text-pink-500" />
+            <h2 className="text-lg font-bold" data-testid="text-birthday-title">Birthday Rewards</h2>
+          </div>
+          <p className="text-sm text-muted-foreground" data-testid="text-birthday-description">
+            Members receive these rewards on their birthday each year. Members must have their date of birth set on their profile to be eligible.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge
+            variant={settings!.isActive ? "default" : "secondary"}
+            className={settings!.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}
+            data-testid="badge-birthday-status"
+          >
+            {settings!.isActive ? "Active" : "Inactive"}
+          </Badge>
+          <Button variant="outline" onClick={startEditing} data-testid="button-edit-birthday">
+            Edit Settings
+          </Button>
+        </div>
+      </div>
+
+      <Card className="border-border/50" data-testid="card-birthday-details">
+        <CardContent className="pt-6 space-y-3">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1" data-testid="text-birthday-credits">
+              <p className="text-sm text-muted-foreground">Credits</p>
+              <p className="font-medium">{`\u00A3${(settings!.credits / 100).toFixed(2)}`}</p>
+            </div>
+            {settings!.gifts && (
+              <div className="space-y-1" data-testid="text-birthday-gifts">
+                <p className="text-sm text-muted-foreground">Gifts</p>
+                <p className="font-medium">{settings!.gifts}</p>
+              </div>
+            )}
+          </div>
+          {settings!.message && (
+            <div className="space-y-1 pt-2 border-t" data-testid="text-birthday-message">
+              <p className="text-sm text-muted-foreground">Birthday Message</p>
+              <div className="flex items-start gap-3 mt-1">
+                <Cake className="h-4 w-4 text-pink-500 mt-0.5 shrink-0" />
+                <p className="text-sm whitespace-pre-wrap">{settings!.message}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ReferralProgramsTab({ clubId }: { clubId: number }) {
   const { data: programs, isLoading } = useQuery<ReferralProgram[]>({
     queryKey: ["/api/clubs", clubId, "referral-programs"],
@@ -385,10 +603,14 @@ export function ClubRewardsPage() {
         </Card>
       ) : (
         <Tabs defaultValue="anniversary" data-testid="tabs-rewards">
-          <TabsList className="grid w-full grid-cols-5" data-testid="tabs-list">
+          <TabsList className="grid w-full grid-cols-6" data-testid="tabs-list">
             <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-1">
               <PartyPopper className="h-3.5 w-3.5 mr-1" />
               Anniversary
+            </TabsTrigger>
+            <TabsTrigger value="birthday" data-testid="tab-birthday" className="text-xs px-1">
+              <Cake className="h-3.5 w-3.5 mr-1" />
+              Birthday
             </TabsTrigger>
             <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-1">
               <Trophy className="h-3.5 w-3.5 mr-1" />
@@ -410,6 +632,10 @@ export function ClubRewardsPage() {
 
           <TabsContent value="anniversary" className="mt-4" data-testid="tab-content-anniversary">
             <AnniversaryRewardsTab clubId={effectiveClubId} />
+          </TabsContent>
+
+          <TabsContent value="birthday" className="mt-4" data-testid="tab-content-birthday">
+            <BirthdayRewardsTab clubId={effectiveClubId} />
           </TabsContent>
 
           <TabsContent value="attendance" className="mt-4" data-testid="tab-content-attendance">

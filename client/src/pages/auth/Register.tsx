@@ -376,6 +376,7 @@ export default function Register() {
                     <FormControl>
                       <Input type="date" {...field} data-testid="input-date-of-birth" />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">Once set, this cannot be changed by you. Some clubs offer birthday rewards, so adding your date of birth is recommended.</p>
                     <FormMessage />
                   </FormItem>
                 )}

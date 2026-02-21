@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper
+  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -1635,8 +1635,18 @@ export default function Profile() {
                 <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Your phone number" data-testid="input-phone" />
               </div>
               <div>
-                <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} data-testid="input-dob" />
+                <Label htmlFor="dateOfBirth">Date of Birth {(user as any)?.dateOfBirth ? "(Locked)" : ""}</Label>
+                {(user as any)?.dateOfBirth ? (
+                  <div className="flex items-center gap-2">
+                    <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} disabled className="opacity-60 cursor-not-allowed" data-testid="input-dob" />
+                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </div>
+                ) : (
+                  <>
+                    <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} data-testid="input-dob" />
+                    <p className="text-xs text-muted-foreground mt-1">Once set, only an admin can change your date of birth.</p>
+                  </>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

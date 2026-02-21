@@ -1291,7 +1291,7 @@ export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
 
 // === REWARDS SYSTEM ===
-export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE", "BADGE_ACHIEVEMENT"]);
+export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE", "BADGE_ACHIEVEMENT", "BIRTHDAY"]);
 export const rewardStatusEnum = pgEnum("reward_status", ["AVAILABLE", "USED", "REQUESTED"]);
 
 export interface ReferralLevel {
@@ -1393,6 +1393,26 @@ export const clubAnniversarySettingsRelations = relations(clubAnniversarySetting
 export const insertClubAnniversarySettingsSchema = createInsertSchema(clubAnniversarySettings).omit({ id: true, createdAt: true, updatedAt: true });
 export type ClubAnniversarySetting = typeof clubAnniversarySettings.$inferSelect;
 export type InsertClubAnniversarySetting = z.infer<typeof insertClubAnniversarySettingsSchema>;
+
+// === CLUB BIRTHDAY SETTINGS ===
+export const clubBirthdaySettings = pgTable("club_birthday_settings", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  isActive: boolean("is_active").default(false).notNull(),
+  credits: integer("credits").default(0).notNull(),
+  gifts: text("gifts"),
+  message: text("message").default("Happy Birthday! Enjoy your special day with us.").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const clubBirthdaySettingsRelations = relations(clubBirthdaySettings, ({ one }) => ({
+  club: one(clubs, { fields: [clubBirthdaySettings.clubId], references: [clubs.id] }),
+}));
+
+export const insertClubBirthdaySettingsSchema = createInsertSchema(clubBirthdaySettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type ClubBirthdaySetting = typeof clubBirthdaySettings.$inferSelect;
+export type InsertClubBirthdaySetting = z.infer<typeof insertClubBirthdaySettingsSchema>;
 
 // === POINTS MILESTONE REWARDS ===
 export const pointsMilestoneRewards = pgTable("points_milestone_rewards", {

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle, Cake } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -150,6 +150,7 @@ export default function Rewards() {
   const { data: rewards } = useQuery<any[]>({ queryKey: ["/api/my-rewards"] });
   const { data: referralData } = useQuery<any>({ queryKey: ["/api/my-referrals"] });
   const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
+  const { data: birthdayData } = useQuery<any[]>({ queryKey: ["/api/my-birthday-reward-info"] });
   const { data: attendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
   const { data: pointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
   const { data: badgeRewardProgress } = useQuery<any[]>({ queryKey: ["/api/my-badge-reward-progress"] });
@@ -196,12 +197,13 @@ export default function Rewards() {
   const usedRewards = useMemo(() => (rewards || []).filter((r: any) => r.status === "USED"), [rewards]);
 
   const statusColors: Record<string, string> = { AVAILABLE: "bg-emerald-500 text-white", REQUESTED: "bg-amber-500 text-white", USED: "bg-muted text-muted-foreground" };
-  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Badge", BADGE_ACHIEVEMENT: "Badge Achievement" };
+  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", BIRTHDAY: "Birthday", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Badge", BADGE_ACHIEVEMENT: "Badge Achievement" };
 
   const tabThemesFuturistic: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#00e5ff", glow: "#00b8d4" },
     attendance: { accent: "#76ff03", glow: "#64dd17" },
     anniversary: { accent: "#e040fb", glow: "#d500f9" },
+    birthday: { accent: "#ff4081", glow: "#f50057" },
     points: { accent: "#ff9100", glow: "#ff6d00" },
     badges: { accent: "#7c4dff", glow: "#651fff" },
   };
@@ -209,6 +211,7 @@ export default function Rewards() {
     referrals: { accent: "#0891b2", glow: "#0891b2" },
     attendance: { accent: "#16a34a", glow: "#16a34a" },
     anniversary: { accent: "#9333ea", glow: "#9333ea" },
+    birthday: { accent: "#ec4899", glow: "#ec4899" },
     points: { accent: "#ea580c", glow: "#ea580c" },
     badges: { accent: "#7c3aed", glow: "#7c3aed" },
   };
@@ -226,6 +229,9 @@ export default function Rewards() {
     if (activeTab === "anniversary") {
       return (anniversaryData || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
+    if (activeTab === "birthday") {
+      return (birthdayData || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
+    }
     if (activeTab === "points") {
       return (pointsProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
@@ -233,7 +239,7 @@ export default function Rewards() {
       return (badgeProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
     return [];
-  }, [activeTab, perClubStats, attendanceProgress, anniversaryData, pointsProgress, badgeProgress]);
+  }, [activeTab, perClubStats, attendanceProgress, anniversaryData, birthdayData, pointsProgress, badgeProgress]);
 
   const gaugeConfig = useMemo(() => {
     const theme = tabThemes[activeTab] || tabThemes.referrals;
@@ -322,6 +328,28 @@ export default function Rewards() {
       return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: daysLeft > 0 ? `${daysLeft}d left` : "Today!", stage: info.clubName, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, ...theme };
     }
 
+    if (activeTab === "birthday") {
+      const allBday = birthdayData || [];
+      if (allBday.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Days", stage: "No birthday rewards", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      const info: any = selectedClubId ? allBday.find((b: any) => b.clubId === selectedClubId) : allBday[0];
+      if (!info) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Days", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      if (!info.hasDob) {
+        return { pct: 0, milestones: [] as GaugeMilestone[], value: "?", unit: "No DOB", stage: "Set your birthday", remaining: 0, nextLabel: "in Profile", clubName: info.clubName, ...theme };
+      }
+
+      const daysLeft = info.daysUntilBirthday ?? 365;
+      const pct = Math.min(((365 - daysLeft) / 365) * 100, 100);
+      const milestones: GaugeMilestone[] = [
+        { barIndex: Math.round(barCount * 0.25), label: "Q1", reached: pct >= 25 },
+        { barIndex: Math.round(barCount * 0.50), label: "Q2", reached: pct >= 50 },
+        { barIndex: Math.round(barCount * 0.75), label: "Q3", reached: pct >= 75 },
+        { barIndex: barCount - 1, label: "BDAY", reached: info.birthdayToday },
+      ];
+      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: info.birthdayToday ? "Happy Birthday" : `days left`, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, ...theme };
+    }
+
     if (activeTab === "points") {
       const allPoints = pointsProgress || [];
       if (allPoints.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
@@ -364,7 +392,7 @@ export default function Rewards() {
     }
 
     return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
-  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, pointsProgress, badgeProgress]);
+  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, birthdayData, pointsProgress, badgeProgress]);
 
   const handleClubClick = (clubId: number) => {
     setSelectedClubId(prev => prev === clubId ? null : clubId);
@@ -440,6 +468,7 @@ export default function Rewards() {
                 { key: "referrals", label: "Referrals", icon: Users },
                 { key: "attendance", label: "Attend", icon: Target },
                 { key: "anniversary", label: "Anniv", icon: CalendarDays },
+                ...(birthdayData && birthdayData.length > 0 ? [{ key: "birthday", label: "B-Day", icon: Cake }] : []),
                 { key: "points", label: "Points", icon: TrendingUp },
                 { key: "badges", label: "Badges", icon: Award },
               ].map(tab => {
@@ -837,6 +866,72 @@ export default function Rewards() {
                     <div className="text-center py-3">
                       <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
                       <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Anniversary milestones will appear over time</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "birthday" && (
+                <div className="space-y-2">
+                  {birthdayData && birthdayData.length > 0 ? (
+                    birthdayData.map((info: any) => {
+                      const isSelected = selectedClubId === info.clubId;
+                      return (
+                        <button
+                          key={info.clubId}
+                          onClick={() => handleClubClick(info.clubId)}
+                          className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
+                          style={{
+                            background: isSelected ? `${gaugeConfig.accent}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.5)' : 'rgba(15,25,35,0.5)'),
+                            border: `1px solid ${isSelected ? (isStd ? gaugeConfig.accent : `${gaugeConfig.accent}25`) : (isStd ? 'hsl(var(--border))' : `${gaugeConfig.accent}08`)}`,
+                          }}
+                          data-testid={`birthday-club-${info.clubId}`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-1.5 rounded-md shrink-0" style={{ background: `${gaugeConfig.accent}12` }}>
+                              <Cake className="h-3.5 w-3.5" style={{ color: `${gaugeConfig.accent}cc` }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{info.clubName}</p>
+                              <p className="text-xs font-semibold truncate" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>
+                                {!info.hasDob
+                                  ? "Date of birth not set"
+                                  : info.birthdayToday
+                                    ? "Happy Birthday!"
+                                    : `${info.daysUntilBirthday} days until birthday`}
+                              </p>
+                            </div>
+                          </div>
+                          {info.hasDob && (
+                            <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(((365 - (info.daysUntilBirthday || 0)) / 365) * 100, 100)}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            {!info.hasDob ? (
+                              <p className="text-[10px]" style={{ color: '#f59e0b' }}>
+                                Add your date of birth in your profile to receive this reward
+                              </p>
+                            ) : (
+                              <>
+                                <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>
+                                  {info.birthdayToday ? "Enjoy your special day!" : `Next: ${info.nextBirthdayDate}`}
+                                </p>
+                                <p className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>
+                                  {info.credits ? `£${(info.credits / 100).toFixed(2)}` : ""}
+                                  {info.credits && info.gifts ? " + " : ""}
+                                  {info.gifts || ""}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-3">
+                      <Cake className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No clubs offer birthday rewards yet</p>
                     </div>
                   )}
                 </div>
@@ -1290,6 +1385,23 @@ export default function Rewards() {
                       <p className="text-[11px] text-muted-foreground">The gauge tracks your progress towards your next anniversary. Q1, Q2, Q3 markers show quarter-year milestones, with the final marker showing your upcoming anniversary year.</p>
                       <p className="text-[11px] text-muted-foreground">The countdown shows exactly how long until your next anniversary. When the day arrives, rewards are issued automatically and you'll receive a notification.</p>
                       <p className="text-[11px] text-muted-foreground">Each club independently tracks your joining date and may offer different anniversary rewards.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-pink-500/10 border border-pink-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <Cake className="h-4 w-4 text-pink-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-pink-600 dark:text-pink-400">Birthday Rewards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Receive a special reward from your club on your birthday each year.</p>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[11px] text-muted-foreground">Clubs can choose to celebrate your birthday with credits, gifts, or a special message. This reward is given once per year on your birthday.</p>
+                      <p className="text-[11px] text-muted-foreground"><strong>Important:</strong> You must have your date of birth set in your profile to receive birthday rewards. Once set, your date of birth is locked and can only be changed by an admin.</p>
+                      <p className="text-[11px] text-muted-foreground">The birthday tab only appears if at least one of your clubs offers birthday rewards. If you don't see a birthday tab, your clubs haven't set up this reward type.</p>
                     </div>
                   </div>
                 </div>

@@ -163,6 +163,7 @@ export default function RewardsDashboard() {
       REFERRAL: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-300/30",
       SESSION_ATTENDANCE: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-300/30",
       ANNIVERSARY: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-300/30",
+      BIRTHDAY: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-300/30",
       POINTS: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-300/30",
       GRADE: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-300/30",
       BADGE_ACHIEVEMENT: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-300/30",
