@@ -580,7 +580,7 @@ export default function Rewards() {
       const secsLeft = Math.floor((diff % 60000) / 1000);
       const countdownParts = diff > 0 ? { days: daysLeft, hours: hoursLeft, mins: minsLeft, secs: secsLeft } : null;
       const unitText = diff > 0 ? `${daysLeft}d ${hoursLeft}h ${minsLeft}m ${secsLeft}s` : "Today!";
-      return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: unitText, stage: info.clubName, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, countdownParts, ...theme };
+      return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: unitText, stage: `Year ${info.upcomingYear || 1}`, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, countdownParts, ...theme };
     }
 
     if (activeTab === "birthday") {
