@@ -1401,6 +1401,8 @@ export const pointsMilestoneRewards = pgTable("points_milestone_rewards", {
   pointsRequired: integer("points_required").notNull(),
   rewardConfig: jsonb("reward_config").$type<AttendanceRewardConfig>().notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  isRepeating: boolean("is_repeating").default(true).notNull(),
+  milestoneType: text("milestone_type").default("STANDARD").notNull(),
   createdById: integer("created_by_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

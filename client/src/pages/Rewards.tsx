@@ -329,19 +329,19 @@ export default function Rewards() {
       if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
       const nextMs = club.nextMilestone;
-      const maxPoints = nextMs ? nextMs.pointsRequired : (club.milestones.length > 0 ? club.milestones[club.milestones.length - 1].pointsRequired : 100);
+      const maxPoints = nextMs ? nextMs.nextThreshold || nextMs.pointsRequired : (club.milestones.length > 0 ? club.milestones[club.milestones.length - 1].pointsRequired : 100);
       const pct = Math.min((club.currentPoints / maxPoints) * 100, 100);
 
       const msCount = club.milestones.length;
       const milestones: GaugeMilestone[] = club.milestones.map((m: any, idx: number) => ({
         barIndex: msCount > 1 ? Math.round(barCount * ((idx + 1) / msCount)) - 1 : barCount - 1,
-        label: `${m.pointsRequired}`,
+        label: m.isRepeating ? `${m.pointsRequired}x` : `${m.pointsRequired}`,
         reached: m.reached,
       }));
 
-      const reached = club.milestones.filter((m: any) => m.reached).length;
-      const remaining = nextMs ? nextMs.pointsUntil : 0;
-      return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage: reached > 0 ? `${reached} Unlocked` : "Progress Active", remaining, nextLabel: nextMs ? `${nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
+      const totalTimesEarned = club.milestones.reduce((sum: number, m: any) => sum + (m.timesEarned || 0), 0);
+      const remaining = nextMs ? (nextMs.pointsUntilNext || nextMs.pointsUntil) : 0;
+      return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage: totalTimesEarned > 0 ? `${totalTimesEarned}x Earned` : "Progress Active", remaining, nextLabel: nextMs ? `${nextMs.nextThreshold || nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
     }
 
     if (activeTab === "badges") {
@@ -834,6 +834,8 @@ export default function Rewards() {
                   {pointsProgress && pointsProgress.length > 0 ? (
                     pointsProgress.map((club: any) => {
                       const isSelected = selectedClubId === club.clubId;
+                      const standardMs = (club.milestones || []).filter((m: any) => (m.milestoneType || "STANDARD") === "STANDARD");
+                      const specialMs = (club.milestones || []).filter((m: any) => m.milestoneType === "SPECIAL");
                       return (
                         <button
                           key={club.clubId}
@@ -849,35 +851,74 @@ export default function Rewards() {
                             <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : (isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.9)') }}>{club.clubName}</p>
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentPoints} pts</span>
                           </div>
-                          {club.milestones && club.milestones.length > 0 ? (
-                            club.milestones.map((m: any, idx: number) => {
-                              const config = m.rewardConfig || {};
-                              const rewardParts: string[] = [];
-                              if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
-                              if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
-                              if (config.gifts) rewardParts.push(config.gifts);
-                              return (
-                                <div key={idx} className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} points</span>
-                                    {m.reached ? (
-                                      <span className="text-[9px] font-bold flex items-center gap-0.5" style={{ color: gaugeConfig.accent }}><Check className="h-3 w-3" /> Reached</span>
-                                    ) : (
-                                      <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
+
+                          {standardMs.length > 0 && standardMs.map((m: any, idx: number) => {
+                            const config = m.rewardConfig || {};
+                            const rewardParts: string[] = [];
+                            if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
+                            if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
+                            if (config.gifts) rewardParts.push(config.gifts);
+                            const timesEarned = m.timesEarned || 0;
+                            return (
+                              <div key={`std-${idx}`} className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Every {m.pointsRequired} pts</span>
+                                    {timesEarned > 0 && (
+                                      <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: `${gaugeConfig.accent}15`, color: gaugeConfig.accent }}>{timesEarned}x earned</span>
                                     )}
                                   </div>
-                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
-                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((club.currentPoints / m.pointsRequired) * 100, 100)}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
-                                  </div>
-                                  {rewardParts.length > 0 && (
-                                    <div className="flex justify-end">
-                                      <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")}</span>
-                                    </div>
-                                  )}
+                                  <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntilNext} pts to next</span>
                                 </div>
-                              );
-                            })
-                          ) : (
+                                <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.progressPercent || 0}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
+                                </div>
+                                {rewardParts.length > 0 && (
+                                  <div className="flex justify-end">
+                                    <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")} each time</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {specialMs.length > 0 && (
+                            <div className="pt-1.5 mt-1.5" style={{ borderTop: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.2)'}` }}>
+                              <p className="text-[9px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Special Milestones</p>
+                              {specialMs.map((m: any, idx: number) => {
+                                const config = m.rewardConfig || {};
+                                const rewardParts: string[] = [];
+                                if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
+                                if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
+                                if (config.gifts) rewardParts.push(config.gifts);
+                                return (
+                                  <div key={`special-${idx}`} className="space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} pts</span>
+                                        <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: isStd ? 'hsl(var(--muted))' : 'rgba(255,193,7,0.1)', color: isStd ? 'hsl(var(--muted-foreground))' : '#ffc107', border: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(255,193,7,0.2)'}` }}>Special</span>
+                                      </div>
+                                      {m.reached ? (
+                                        <span className="text-[9px] font-bold flex items-center gap-0.5" style={{ color: gaugeConfig.accent }}><Check className="h-3 w-3" /> Claimed</span>
+                                      ) : (
+                                        <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
+                                      )}
+                                    </div>
+                                    <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
+                                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.progressPercent || 0}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
+                                    </div>
+                                    {rewardParts.length > 0 && (
+                                      <div className="flex justify-end">
+                                        <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {standardMs.length === 0 && specialMs.length === 0 && (
                             <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No milestones set</p>
                           )}
                         </button>

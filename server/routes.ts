@@ -14019,16 +14019,19 @@ export async function registerRoutes(
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      const { pointsRequired, rewardConfig, isActive } = req.body;
+      const { pointsRequired, rewardConfig, isActive, isRepeating, milestoneType } = req.body;
       if (!pointsRequired || pointsRequired <= 0) return res.status(400).json({ message: "Points required must be greater than 0" });
+      const mType = milestoneType === "SPECIAL" ? "SPECIAL" : "STANDARD";
       const [reward] = await db.insert(pointsMilestoneRewards).values({
         clubId,
         pointsRequired,
         rewardConfig,
         isActive: isActive !== false,
+        isRepeating: mType === "STANDARD" ? (isRepeating !== false) : false,
+        milestoneType: mType,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Points milestone reward created: id=${reward.id}, club=${clubId}, points=${pointsRequired}, by user=${user.id}`);
+      console.log(`[AUDIT] Points milestone reward created: id=${reward.id}, club=${clubId}, points=${pointsRequired}, type=${mType}, repeating=${mType === "STANDARD" ? isRepeating !== false : false}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -14049,14 +14052,16 @@ export async function registerRoutes(
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      const { pointsRequired, rewardConfig, isActive } = req.body;
+      const { pointsRequired, rewardConfig, isActive, isRepeating, milestoneType } = req.body;
       const [updated] = await db.update(pointsMilestoneRewards).set({
         pointsRequired: pointsRequired !== undefined ? pointsRequired : existing.pointsRequired,
         rewardConfig: rewardConfig !== undefined ? rewardConfig : existing.rewardConfig,
         isActive: isActive !== undefined ? isActive : existing.isActive,
+        isRepeating: isRepeating !== undefined ? isRepeating : existing.isRepeating,
+        milestoneType: milestoneType !== undefined ? milestoneType : existing.milestoneType,
         updatedAt: new Date(),
       }).where(eq(pointsMilestoneRewards.id, id)).returning();
-      console.log(`[AUDIT] Points milestone reward updated: id=${id}, by user=${user.id}`);
+      console.log(`[AUDIT] Points milestone reward updated: id=${id}, type=${milestoneType || existing.milestoneType}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -14298,14 +14303,30 @@ export async function registerRoutes(
           const reached = currentPoints >= milestone.pointsRequired;
           const pointsUntil = Math.max(milestone.pointsRequired - currentPoints, 0);
           const progressPercent = milestone.pointsRequired > 0 ? Math.min((currentPoints / milestone.pointsRequired) * 100, 100) : 0;
+          const isRepeating = milestone.isRepeating && milestone.milestoneType === "STANDARD";
+          const timesEarned = isRepeating && milestone.pointsRequired > 0
+            ? Math.floor(currentPoints / milestone.pointsRequired)
+            : (reached ? 1 : 0);
+          const nextThreshold = isRepeating && milestone.pointsRequired > 0
+            ? (timesEarned + 1) * milestone.pointsRequired
+            : milestone.pointsRequired;
+          const pointsUntilNext = Math.max(nextThreshold - currentPoints, 0);
+          const repeatProgress = isRepeating && milestone.pointsRequired > 0
+            ? Math.min(((currentPoints % milestone.pointsRequired) / milestone.pointsRequired) * 100, 100)
+            : progressPercent;
           return {
             rewardId: milestone.id,
             pointsRequired: milestone.pointsRequired,
             currentPoints,
             reached,
             pointsUntil,
-            progressPercent,
+            pointsUntilNext,
+            progressPercent: isRepeating ? repeatProgress : progressPercent,
             rewardConfig: milestone.rewardConfig,
+            isRepeating,
+            milestoneType: milestone.milestoneType || "STANDARD",
+            timesEarned,
+            nextThreshold,
           };
         });
 

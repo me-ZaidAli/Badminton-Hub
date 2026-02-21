@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TrendingUp, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { TrendingUp, Plus, Pencil, Trash2, Loader2, Repeat, Star } from "lucide-react";
 
 interface RewardConfig {
   credits: number;
@@ -23,6 +23,8 @@ interface PointsReward {
   pointsRequired: number;
   rewardConfig: RewardConfig;
   isActive: boolean;
+  isRepeating: boolean;
+  milestoneType: string;
 }
 
 interface FormData {
@@ -31,6 +33,8 @@ interface FormData {
   gifts: string;
   freeSessions: number;
   isActive: boolean;
+  isRepeating: boolean;
+  milestoneType: string;
 }
 
 const defaultFormData: FormData = {
@@ -39,6 +43,8 @@ const defaultFormData: FormData = {
   gifts: "",
   freeSessions: 0,
   isActive: true,
+  isRepeating: true,
+  milestoneType: "STANDARD",
 };
 
 export function PointsRewardsPanel({ clubId }: { clubId: number }) {
@@ -67,6 +73,8 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
           freeSessions: data.freeSessions,
         },
         isActive: data.isActive,
+        isRepeating: data.milestoneType === "STANDARD" ? data.isRepeating : false,
+        milestoneType: data.milestoneType,
       });
       return res.json();
     },
@@ -91,6 +99,8 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
           freeSessions: data.freeSessions,
         },
         isActive: data.isActive,
+        isRepeating: data.milestoneType === "STANDARD" ? data.isRepeating : false,
+        milestoneType: data.milestoneType,
       });
       return res.json();
     },
@@ -122,13 +132,7 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      const reward = rewards?.find(r => r.id === id);
-      if (!reward) throw new Error("Reward not found");
-      const res = await apiRequest("PUT", `/api/points-rewards/${id}`, {
-        pointsRequired: reward.pointsRequired,
-        rewardConfig: reward.rewardConfig,
-        isActive,
-      });
+      const res = await apiRequest("PUT", `/api/points-rewards/${id}`, { isActive });
       return res.json();
     },
     onSuccess: () => {
@@ -153,6 +157,8 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
       gifts: reward.rewardConfig.gifts ?? "",
       freeSessions: reward.rewardConfig.freeSessions ?? 0,
       isActive: reward.isActive,
+      isRepeating: reward.isRepeating ?? true,
+      milestoneType: reward.milestoneType || "STANDARD",
     });
     setDialogOpen(true);
   }
@@ -183,10 +189,11 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
     );
   }
 
-  const sortedRewards = [...(rewards || [])].sort((a, b) => a.pointsRequired - b.pointsRequired);
+  const standardRewards = [...(rewards || [])].filter(r => (r.milestoneType || "STANDARD") === "STANDARD").sort((a, b) => a.pointsRequired - b.pointsRequired);
+  const specialRewards = [...(rewards || [])].filter(r => r.milestoneType === "SPECIAL").sort((a, b) => a.pointsRequired - b.pointsRequired);
 
   return (
-    <div className="space-y-4" data-testid="points-rewards-panel">
+    <div className="space-y-6" data-testid="points-rewards-panel">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -194,7 +201,7 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
             <h2 className="text-lg font-bold" data-testid="text-points-rewards-title">Points Milestone Rewards</h2>
           </div>
           <p className="text-sm text-muted-foreground" data-testid="text-points-rewards-description">
-            Reward players when they reach ranking point milestones.
+            Reward players when they reach ranking point milestones. Standard milestones repeat every time the interval is reached. Special milestones trigger once at a specific threshold.
           </p>
         </div>
         <Button onClick={openCreate} data-testid="button-add-points-reward">
@@ -203,67 +210,149 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
         </Button>
       </div>
 
-      {sortedRewards.length === 0 ? (
-        <Card data-testid="card-no-points-rewards">
-          <CardContent className="py-8 text-center">
-            <TrendingUp className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-muted-foreground">No points milestone rewards configured.</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add milestones to reward players when they accumulate ranking points from matches.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {sortedRewards.map((reward) => {
-            const config = reward.rewardConfig;
-            const rewardParts: string[] = [];
-            if (config.credits > 0) rewardParts.push(formatGBP(config.credits));
-            if (config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? "s" : ""}`);
-            if (config.gifts) rewardParts.push(config.gifts);
-
-            return (
-              <Card key={reward.id} className="border-border/50" data-testid={`card-points-reward-${reward.id}`}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="text-base" data-testid={`text-points-milestone-${reward.id}`}>
-                    {reward.pointsRequired} Points
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={reward.isActive}
-                      onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: reward.id, isActive: checked })}
-                      data-testid={`switch-points-active-${reward.id}`}
-                    />
-                    <Badge
-                      variant={reward.isActive ? "default" : "secondary"}
-                      className={reward.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}
-                    >
-                      {reward.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {rewardParts.length > 0 && (
-                    <p className="font-medium text-emerald-600 dark:text-emerald-400" data-testid={`text-points-reward-value-${reward.id}`}>
-                      {rewardParts.join(" + ")}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button variant="outline" size="sm" onClick={() => openEdit(reward)} data-testid={`button-edit-points-${reward.id}`}>
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(reward.id)} data-testid={`button-delete-points-${reward.id}`}>
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Delete
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Repeat className="h-4 w-4 text-blue-500" />
+          <h3 className="text-sm font-semibold">Standard Milestones (Repeating)</h3>
         </div>
-      )}
+        <p className="text-xs text-muted-foreground mb-3">These rewards are given every time a player accumulates the required points interval. For example, if set to 60 points, the reward triggers at 60, 120, 180, etc.</p>
+        {standardRewards.length === 0 ? (
+          <Card data-testid="card-no-standard-rewards">
+            <CardContent className="py-6 text-center">
+              <Repeat className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No standard milestones configured yet.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {standardRewards.map((reward) => {
+              const config = reward.rewardConfig;
+              const rewardParts: string[] = [];
+              if (config.credits > 0) rewardParts.push(formatGBP(config.credits));
+              if (config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? "s" : ""}`);
+              if (config.gifts) rewardParts.push(config.gifts);
+
+              return (
+                <Card key={reward.id} className="border-border/50" data-testid={`card-points-reward-${reward.id}`}>
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base" data-testid={`text-points-milestone-${reward.id}`}>
+                        Every {reward.pointsRequired} Points
+                      </CardTitle>
+                      <Badge variant="outline" className="text-[10px] no-default-hover-elevate">
+                        <Repeat className="h-3 w-3 mr-1" />
+                        Repeating
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={reward.isActive}
+                        onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: reward.id, isActive: checked })}
+                        data-testid={`switch-points-active-${reward.id}`}
+                      />
+                      <Badge
+                        variant={reward.isActive ? "default" : "secondary"}
+                        className={reward.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}
+                      >
+                        {reward.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {rewardParts.length > 0 && (
+                      <p className="font-medium text-emerald-600 dark:text-emerald-400" data-testid={`text-points-reward-value-${reward.id}`}>
+                        {rewardParts.join(" + ")}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(reward)} data-testid={`button-edit-points-${reward.id}`}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(reward.id)} data-testid={`button-delete-points-${reward.id}`}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Star className="h-4 w-4 text-amber-500" />
+          <h3 className="text-sm font-semibold">Special Milestones (One-Time)</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">These special rewards trigger once when a player reaches a specific point threshold. They do not interfere with standard repeating milestones.</p>
+        {specialRewards.length === 0 ? (
+          <Card data-testid="card-no-special-rewards">
+            <CardContent className="py-6 text-center">
+              <Star className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No special milestones configured yet.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {specialRewards.map((reward) => {
+              const config = reward.rewardConfig;
+              const rewardParts: string[] = [];
+              if (config.credits > 0) rewardParts.push(formatGBP(config.credits));
+              if (config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? "s" : ""}`);
+              if (config.gifts) rewardParts.push(config.gifts);
+
+              return (
+                <Card key={reward.id} className="border-amber-200/50 dark:border-amber-900/30" data-testid={`card-points-reward-${reward.id}`}>
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base" data-testid={`text-points-milestone-${reward.id}`}>
+                        {reward.pointsRequired} Points
+                      </CardTitle>
+                      <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600 dark:text-amber-400 no-default-hover-elevate">
+                        <Star className="h-3 w-3 mr-1" />
+                        Special
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={reward.isActive}
+                        onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: reward.id, isActive: checked })}
+                        data-testid={`switch-points-active-${reward.id}`}
+                      />
+                      <Badge
+                        variant={reward.isActive ? "default" : "secondary"}
+                        className={reward.isActive ? "bg-green-600 text-white no-default-hover-elevate" : "no-default-hover-elevate"}
+                      >
+                        {reward.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {rewardParts.length > 0 && (
+                      <p className="font-medium text-amber-600 dark:text-amber-400" data-testid={`text-points-reward-value-${reward.id}`}>
+                        {rewardParts.join(" + ")}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(reward)} data-testid={`button-edit-points-${reward.id}`}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(reward.id)} data-testid={`button-delete-points-${reward.id}`}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingReward(null); } }}>
         <DialogContent className="max-w-md">
@@ -272,8 +361,47 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="points-required">Points Required</Label>
+              <Label>Milestone Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={formData.milestoneType === "STANDARD" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setFormData({ ...formData, milestoneType: "STANDARD", isRepeating: true })}
+                  data-testid="button-type-standard"
+                >
+                  <Repeat className="h-3.5 w-3.5 mr-1.5" />
+                  Standard (Repeating)
+                </Button>
+                <Button
+                  type="button"
+                  variant={formData.milestoneType === "SPECIAL" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setFormData({ ...formData, milestoneType: "SPECIAL", isRepeating: false })}
+                  data-testid="button-type-special"
+                >
+                  <Star className="h-3.5 w-3.5 mr-1.5" />
+                  Special (One-Time)
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.milestoneType === "STANDARD"
+                  ? "Reward repeats every time the player accumulates this many points (e.g., every 60 points)."
+                  : "A one-time reward when the player reaches this specific point threshold."}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="points-required">
+                {formData.milestoneType === "STANDARD" ? "Points Interval" : "Points Threshold"}
+              </Label>
               <Input id="points-required" type="number" min={1} value={formData.pointsRequired} onChange={(e) => setFormData({ ...formData, pointsRequired: Number(e.target.value) })} data-testid="input-points-required" />
+              {formData.milestoneType === "STANDARD" && formData.pointsRequired > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Rewards at: {formData.pointsRequired}, {formData.pointsRequired * 2}, {formData.pointsRequired * 3}, {formData.pointsRequired * 4}...
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="points-credits">Credits (GBP)</Label>
