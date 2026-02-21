@@ -121,7 +121,7 @@ function EVGauge({
                 fontSize="8"
                 fontWeight="700"
                 letterSpacing="0.1em"
-                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(100,116,139,0.4)')}
+                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(200,215,230,0.75)')}
                 style={ms.reached && !isStandard ? { filter: `drop-shadow(0 0 4px ${glowColor})` } : undefined}
               >
                 {ms.label}
@@ -260,7 +260,7 @@ function SpeedometerGauge({
             return (
               <text key={`ms-${i}`} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
                 fontSize="9" fontWeight="700" letterSpacing="0.08em"
-                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(100,116,139,0.4)')}
+                fill={ms.reached ? accentColor : (isStandard ? 'rgba(120,130,140,0.7)' : 'rgba(200,215,230,0.75)')}
                 style={ms.reached && !isStandard ? { filter: `drop-shadow(0 0 4px ${glowColor})` } : undefined}
               >
                 {ms.label}
@@ -850,7 +850,7 @@ export default function Rewards() {
                       } : {
                         background: 'rgba(15,25,40,0.5)',
                         border: '1px solid rgba(50,65,85,0.2)',
-                        color: 'rgba(100,116,139,0.6)',
+                        color: 'rgba(220,230,240,0.9)',
                       })}
                       data-testid={`club-filter-${club.id}`}
                     >
@@ -1014,11 +1014,11 @@ export default function Rewards() {
                             background: reached ? `${gaugeConfig.accent}15` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,45,60,0.5)'),
                             border: `1px solid ${reached ? `${gaugeConfig.accent}30` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.2)')}`,
                           }}>
-                            {reached ? <Check className="h-3.5 w-3.5" style={{ color: gaugeConfig.accent }} /> : <ms.icon className="h-3.5 w-3.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)' }} />}
+                            {reached ? <Check className="h-3.5 w-3.5" style={{ color: gaugeConfig.accent }} /> : <ms.icon className="h-3.5 w-3.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.6)' }} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate" style={{ color: reached ? (isStd ? 'hsl(var(--foreground))' : 'rgba(255,255,255,0.9)') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{ms.label}</p>
-                            <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{ms.desc}</p>
+                            <p className="text-xs font-semibold truncate" style={{ color: reached ? (isStd ? 'hsl(var(--foreground))' : 'rgba(255,255,255,0.9)') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)') }}>{ms.label}</p>
+                            <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{ms.desc}</p>
                           </div>
                           {reached ? (
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase shrink-0" style={{
@@ -1029,7 +1029,7 @@ export default function Rewards() {
                           ) : (
                             <div className="flex items-center gap-1 shrink-0">
                               <Lock className="h-3 w-3" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(50,65,85,0.6)' }} />
-                              <span className="text-[11px] font-mono" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{approved}/{ms.target}</span>
+                              <span className="text-[11px] font-mono" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{approved}/{ms.target}</span>
                             </div>
                           )}
                         </div>
@@ -1057,11 +1057,11 @@ export default function Rewards() {
                               <div className="flex items-center gap-3 shrink-0">
                                 <div className="text-center">
                                   <p className="text-sm font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.approvedReferrals}</p>
-                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>OK</p>
+                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>OK</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="text-sm font-black font-mono" style={{ color: isStd ? '#b45309' : '#ffaa00' }}>{club.pendingReferrals}</p>
-                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Wait</p>
+                                  <p className="text-[8px] tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Wait</p>
                                 </div>
                               </div>
                             </button>
@@ -1074,15 +1074,15 @@ export default function Rewards() {
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
                           <p className="text-base font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{total}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Total</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Total</p>
                         </div>
                         <div>
                           <p className="text-base font-black font-mono" style={{ color: gaugeConfig.accent }}>{approved}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Approved</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Approved</p>
                         </div>
                         <div>
                           <p className="text-base font-black font-mono" style={{ color: isStd ? '#b45309' : '#ffaa00' }}>{pending}</p>
-                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Pending</p>
+                          <p className="text-[8px] tracking-[0.15em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Pending</p>
                         </div>
                       </div>
                     </div>
@@ -1108,15 +1108,15 @@ export default function Rewards() {
                       <div className="grid grid-cols-3 gap-2 text-center pb-2" style={{ borderBottom: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
                         <div>
                           <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{totalSessions}</p>
-                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Sessions</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Sessions</p>
                         </div>
                         <div>
                           <p className="text-lg font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{totalMilestonesEarned}</p>
-                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Milestones</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Milestones</p>
                         </div>
                         <div>
                           <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>£{(totalCreditsEarned / 100).toFixed(0)}</p>
-                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Earned</p>
+                          <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Earned</p>
                         </div>
                       </div>
                     );
@@ -1165,29 +1165,29 @@ export default function Rewards() {
                               return (
                                 <div key={idx} className="space-y-1.5">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Every {m.sessionsRequired} sessions</span>
+                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Every {m.sessionsRequired} sessions</span>
                                     {m.milestonesCompleted > 0 && <span className="text-[9px] font-bold" style={{ color: gaugeConfig.accent }}>{m.milestonesCompleted}x earned</span>}
                                   </div>
                                   <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
                                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.sessionsRequired > 0 ? (currentInCycle / m.sessionsRequired) * 100 : 0}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
                                   </div>
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{currentInCycle}/{m.sessionsRequired}</span>
+                                    <span className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{currentInCycle}/{m.sessionsRequired}</span>
                                     {rewardParts.length > 0 && <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")}</span>}
                                   </div>
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No milestones set</p>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>No milestones set</p>
                           )}
                         </button>
                       );
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <Target className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Start attending to earn credits</p>
+                      <Target className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Start attending to earn credits</p>
                     </div>
                   )}
                 </div>
@@ -1235,7 +1235,7 @@ export default function Rewards() {
                               <Gift className="h-3.5 w-3.5" style={{ color: `${gaugeConfig.accent}cc`, ...(isCelebration ? {} : { animation: "rewardShake 1.5s ease-in-out infinite" }) }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{info.clubName}</p>
+                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)') }}>{info.clubName}</p>
                               <p className="text-xs font-semibold truncate" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>
                                 {isCelebration
                                   ? `Happy ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!`
@@ -1247,7 +1247,7 @@ export default function Rewards() {
                             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${info.progress * 100}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
                           </div>
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>
                               {isCelebration ? "Rewards issued!" : `${Math.round(info.progress * 100)}% through year ${info.upcomingYear}`}
                             </p>
                             {info.hasReward && (
@@ -1263,8 +1263,8 @@ export default function Rewards() {
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Anniversary milestones will appear over time</p>
+                      <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Anniversary milestones will appear over time</p>
                     </div>
                   )}
                 </div>
@@ -1306,7 +1306,7 @@ export default function Rewards() {
                               <Cake className="h-3.5 w-3.5" style={{ color: `${gaugeConfig.accent}cc` }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{info.clubName}</p>
+                              <p className="text-[10px]" style={{ color: isSelected ? `${gaugeConfig.accent}cc` : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)') }}>{info.clubName}</p>
                               <p className="text-xs font-semibold truncate" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>
                                 {!info.hasDob
                                   ? "Date of birth not set"
@@ -1328,7 +1328,7 @@ export default function Rewards() {
                               </p>
                             ) : (
                               <>
-                                <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>
+                                <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>
                                   {info.birthdayToday ? "Enjoy your special day!" : `Next: ${info.nextBirthdayDate}`}
                                 </p>
                                 <p className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>
@@ -1344,8 +1344,8 @@ export default function Rewards() {
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <Cake className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No clubs offer birthday rewards yet</p>
+                      <Cake className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>No clubs offer birthday rewards yet</p>
                     </div>
                   )}
                 </div>
@@ -1385,12 +1385,12 @@ export default function Rewards() {
                               <div key={`std-${idx}`} className="space-y-1.5">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Every {m.pointsRequired} pts</span>
+                                    <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Every {m.pointsRequired} pts</span>
                                     {timesEarned > 0 && (
                                       <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: `${gaugeConfig.accent}15`, color: gaugeConfig.accent }}>{timesEarned}x earned</span>
                                     )}
                                   </div>
-                                  <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntilNext} pts to next</span>
+                                  <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{m.pointsUntilNext} pts to next</span>
                                 </div>
                                 <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
                                   <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.progressPercent || 0}%`, background: gaugeConfig.accent, boxShadow: isStd ? 'none' : `0 0 6px ${gaugeConfig.accent}50` }} />
@@ -1406,7 +1406,7 @@ export default function Rewards() {
 
                           {specialMs.length > 0 && (
                             <div className="pt-1.5 mt-1.5" style={{ borderTop: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.2)'}` }}>
-                              <p className="text-[9px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Special Milestones</p>
+                              <p className="text-[9px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Special Milestones</p>
                               {specialMs.map((m: any, idx: number) => {
                                 const config = m.rewardConfig || {};
                                 const rewardParts: string[] = [];
@@ -1417,13 +1417,13 @@ export default function Rewards() {
                                   <div key={`special-${idx}`} className="space-y-1.5">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} pts</span>
+                                        <span className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>{m.pointsRequired} pts</span>
                                         <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: isStd ? 'hsl(var(--muted))' : 'rgba(255,193,7,0.1)', color: isStd ? 'hsl(var(--muted-foreground))' : '#ffc107', border: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(255,193,7,0.2)'}` }}>Special</span>
                                       </div>
                                       {m.reached ? (
                                         <span className="text-[9px] font-bold flex items-center gap-0.5" style={{ color: gaugeConfig.accent }}><Check className="h-3 w-3" /> Claimed</span>
                                       ) : (
-                                        <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
+                                        <span className="text-[9px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{m.pointsUntil} pts to go</span>
                                       )}
                                     </div>
                                     <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: isStd ? 'hsl(var(--muted))' : `${gaugeConfig.accent}10` }}>
@@ -1441,15 +1441,15 @@ export default function Rewards() {
                           )}
 
                           {standardMs.length === 0 && specialMs.length === 0 && (
-                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>No milestones set</p>
+                            <p className="text-[10px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>No milestones set</p>
                           )}
                         </button>
                       );
                     })
                   ) : (
                     <div className="text-center py-3">
-                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Earn ranking points from matches to unlock rewards</p>
+                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Earn ranking points from matches to unlock rewards</p>
                     </div>
                   )}
                 </div>
@@ -1468,8 +1468,8 @@ export default function Rewards() {
                 if (!club || clubs.length === 0) {
                   return (
                     <div className="text-center py-4">
-                      <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.2)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>Play matches to start earning badges</p>
+                      <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Play matches to start earning badges</p>
                     </div>
                   );
                 }
@@ -1483,15 +1483,15 @@ export default function Rewards() {
                     <div className="grid grid-cols-3 gap-2 text-center pb-2" style={{ borderBottom: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
                       <div>
                         <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.matchesPlayed}</p>
-                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Matches</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Matches</p>
                       </div>
                       <div>
                         <p className="text-lg font-black font-mono" style={{ color: isStd ? 'hsl(var(--foreground))' : '#ffffff' }}>{club.matchesWon}</p>
-                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Won</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Won</p>
                       </div>
                       <div>
                         <p className="text-lg font-black font-mono" style={{ color: gaugeConfig.accent }}>{club.winRate}%</p>
-                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)' }}>Win Rate</p>
+                        <p className="text-[8px] tracking-[0.12em] uppercase" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)' }}>Win Rate</p>
                       </div>
                     </div>
 
@@ -1526,12 +1526,12 @@ export default function Rewards() {
                                 stroke={b.earned ? b.color : (isStd ? 'rgba(160,170,180,0.3)' : 'rgba(50,65,85,0.3)')}
                                 strokeWidth="1.5" />
                               <text x={cx2} y={cy2 + 1} textAnchor="middle" dominantBaseline="central"
-                                fontSize="8" fontWeight="800" fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(100,116,139,0.3)')}>
+                                fontSize="8" fontWeight="800" fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(180,195,210,0.6)')}>
                                 {idx + 1}
                               </text>
                               <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
                                 fontSize="5" fontWeight="600" letterSpacing="0.03em"
-                                fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(100,116,139,0.3)')}>
+                                fill={b.earned ? b.color : (isStd ? 'rgba(120,130,140,0.5)' : 'rgba(180,195,210,0.6)')}>
                                 {b.name.length > 8 ? b.name.substring(0, 7) + '…' : b.name}
                               </text>
                             </g>
@@ -1546,7 +1546,7 @@ export default function Rewards() {
                           const needleLen = 72;
                           const nx = 140 + needleLen * Math.cos(pRad);
                           const ny = 140 + needleLen * Math.sin(pRad);
-                          const activeColor = highestIdx >= 0 ? gaugeConfig.accent : (isStd ? 'rgba(160,170,180,0.5)' : 'rgba(100,116,139,0.3)');
+                          const activeColor = highestIdx >= 0 ? gaugeConfig.accent : (isStd ? 'rgba(160,170,180,0.5)' : 'rgba(180,195,210,0.6)');
                           const tipR = 8;
                           const tipX = 140 + (needleLen + tipR + 2) * Math.cos(pRad);
                           const tipY = 140 + (needleLen + tipR + 2) * Math.sin(pRad);
@@ -1589,11 +1589,11 @@ export default function Rewards() {
                                 background: b.earned ? `${b.color}20` : (isStd ? 'hsl(var(--muted))' : 'rgba(30,45,60,0.5)'),
                                 border: `1.5px solid ${b.earned ? b.color : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.3)')}`,
                               }}>
-                                <IconComp className="h-3.5 w-3.5" style={{ color: b.earned ? b.color : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.3)') }} />
+                                <IconComp className="h-3.5 w-3.5" style={{ color: b.earned ? b.color : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.6)') }} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold truncate" style={{ color: b.earned ? (isStd ? 'hsl(var(--foreground))' : '#ffffff') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.5)') }}>{b.name}</p>
-                                <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(100,116,139,0.4)' }}>{b.criteria}</p>
+                                <p className="text-xs font-semibold truncate" style={{ color: b.earned ? (isStd ? 'hsl(var(--foreground))' : '#ffffff') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)') }}>{b.name}</p>
+                                <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{b.criteria}</p>
                               </div>
                               {b.earned ? (
                                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase shrink-0" style={{
