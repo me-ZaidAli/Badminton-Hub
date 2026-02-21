@@ -534,7 +534,8 @@ export default function Rewards() {
       const bdayMins = Math.floor((bdayDiff % 3600000) / 60000);
       const bdaySecs = Math.floor((bdayDiff % 60000) / 1000);
       const bdayUnitText = info.birthdayToday ? "Happy Birthday" : `${daysLeft}d ${bdayHours}h ${bdayMins}m ${bdaySecs}s`;
-      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: bdayUnitText, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, ...theme };
+      const countdownParts = bdayDiff > 0 ? { days: daysLeft, hours: bdayHours, mins: bdayMins, secs: bdaySecs } : null;
+      return { pct, milestones, value: info.birthdayToday ? "Today!" : `${daysLeft}`, unit: bdayUnitText, stage: info.clubName, remaining: daysLeft, nextLabel: "birthday", clubName: info.clubName, countdownParts, ...theme };
     }
 
     if (activeTab === "points") {
@@ -801,9 +802,28 @@ export default function Rewards() {
                 }}>
                   {gaugeConfig.value}
                 </p>
-                <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
-                  {gaugeConfig.unit}
-                </p>
+                {gaugeConfig.countdownParts ? (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {[
+                      { val: gaugeConfig.countdownParts.days, label: "d" },
+                      { val: gaugeConfig.countdownParts.hours, label: "h" },
+                      { val: gaugeConfig.countdownParts.mins, label: "m" },
+                      { val: gaugeConfig.countdownParts.secs, label: "s" },
+                    ].map((part, idx) => (
+                      <div key={idx} className="flex items-baseline gap-0.5">
+                        <span className="text-sm sm:text-base font-bold tabular-nums" style={{
+                          fontFamily: "'SF Mono', 'Fira Code', monospace",
+                          color: isStd ? 'hsl(var(--foreground))' : '#ffffff',
+                        }}>{String(part.val).padStart(part.label === "d" ? 1 : 2, "0")}</span>
+                        <span className="text-[8px] font-semibold uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>{part.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] sm:text-[11px] mt-1 font-semibold tracking-[0.2em] uppercase" style={{ color: isStd ? gaugeConfig.accent : `${gaugeConfig.accent}90` }}>
+                    {gaugeConfig.unit}
+                  </p>
+                )}
                 <div className="mt-2 px-3 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] uppercase" style={isStd ? {
                   background: `${gaugeConfig.accent}15`,
                   border: `1px solid ${gaugeConfig.accent}40`,
@@ -815,7 +835,7 @@ export default function Rewards() {
                 }}>
                   {gaugeConfig.stage}
                 </div>
-                {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && (
+                {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && !gaugeConfig.countdownParts && (
                   <p className="text-[9px] sm:text-[10px] mt-1 tracking-wide" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(148,163,184,0.5)' }}>
                     {gaugeConfig.remaining} more for {gaugeConfig.nextLabel}
                   </p>
@@ -1124,6 +1144,21 @@ export default function Rewards() {
                   {birthdayData && birthdayData.length > 0 ? (
                     birthdayData.map((info: any) => {
                       const isSelected = selectedClubId === info.clubId;
+                      let bdayCountdown = "";
+                      if (info.hasDob && !info.birthdayToday && info.nextBirthdayDate) {
+                        const bdayTarget = new Date(info.nextBirthdayDate + "T00:00:00").getTime();
+                        const bdayDiff = Math.max(bdayTarget - Date.now(), 0);
+                        const bd = Math.floor(bdayDiff / 86400000);
+                        const bh = Math.floor((bdayDiff % 86400000) / 3600000);
+                        const bm = Math.floor((bdayDiff % 3600000) / 60000);
+                        const bs = Math.floor((bdayDiff % 60000) / 1000);
+                        const parts: string[] = [];
+                        if (bd > 0) parts.push(`${bd}d`);
+                        parts.push(`${bh}h`);
+                        parts.push(`${bm}m`);
+                        parts.push(`${bs}s`);
+                        bdayCountdown = parts.join(" ");
+                      }
                       return (
                         <button
                           key={info.clubId}
@@ -1146,7 +1181,7 @@ export default function Rewards() {
                                   ? "Date of birth not set"
                                   : info.birthdayToday
                                     ? "Happy Birthday!"
-                                    : `${info.daysUntilBirthday} days until birthday`}
+                                    : bdayCountdown || `${info.daysUntilBirthday} days`}
                               </p>
                             </div>
                           </div>
