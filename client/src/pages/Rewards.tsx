@@ -145,6 +145,8 @@ export default function Rewards() {
   const { data: referralData } = useQuery<any>({ queryKey: ["/api/my-referrals"] });
   const { data: anniversaryData } = useQuery<any[]>({ queryKey: ["/api/my-anniversary-info"] });
   const { data: attendanceProgress } = useQuery<any[]>({ queryKey: ["/api/my-attendance-progress"] });
+  const { data: pointsProgress } = useQuery<any[]>({ queryKey: ["/api/my-points-progress"] });
+  const { data: gradeProgress } = useQuery<any[]>({ queryKey: ["/api/my-grade-progress"] });
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("referrals");
@@ -182,12 +184,14 @@ export default function Rewards() {
   const usedRewards = useMemo(() => (rewards || []).filter((r: any) => r.status === "USED"), [rewards]);
 
   const statusColors: Record<string, string> = { AVAILABLE: "bg-emerald-500 text-white", REQUESTED: "bg-amber-500 text-white", USED: "bg-muted text-muted-foreground" };
-  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual" };
+  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual", POINTS: "Points", GRADE: "Grade" };
 
   const tabThemes: Record<string, { accent: string; glow: string }> = {
     referrals: { accent: "#00e5ff", glow: "#00b8d4" },
     attendance: { accent: "#76ff03", glow: "#64dd17" },
     anniversary: { accent: "#e040fb", glow: "#d500f9" },
+    points: { accent: "#ff9100", glow: "#ff6d00" },
+    grades: { accent: "#7c4dff", glow: "#651fff" },
   };
 
   const barCount = 54;
@@ -202,8 +206,14 @@ export default function Rewards() {
     if (activeTab === "anniversary") {
       return (anniversaryData || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
     }
+    if (activeTab === "points") {
+      return (pointsProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
+    }
+    if (activeTab === "grades") {
+      return (gradeProgress || []).map((c: any) => ({ id: c.clubId, name: c.clubName }));
+    }
     return [];
-  }, [activeTab, perClubStats, attendanceProgress, anniversaryData]);
+  }, [activeTab, perClubStats, attendanceProgress, anniversaryData, pointsProgress, gradeProgress]);
 
   const gaugeConfig = useMemo(() => {
     const theme = tabThemes[activeTab] || tabThemes.referrals;
@@ -292,8 +302,52 @@ export default function Rewards() {
       return { pct, milestones, value: `${info.upcomingYear || 1}`, unit: daysLeft > 0 ? `${daysLeft}d left` : "Today!", stage: info.clubName, remaining: daysLeft, nextLabel: "anniversary", clubName: info.clubName, ...theme };
     }
 
+    if (activeTab === "points") {
+      const allPoints = pointsProgress || [];
+      if (allPoints.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      const club: any = selectedClubId ? allPoints.find((c: any) => c.clubId === selectedClubId) : allPoints[0];
+      if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      const nextMs = club.nextMilestone;
+      const maxPoints = nextMs ? nextMs.pointsRequired : (club.milestones.length > 0 ? club.milestones[club.milestones.length - 1].pointsRequired : 100);
+      const pct = Math.min((club.currentPoints / maxPoints) * 100, 100);
+
+      const msCount = club.milestones.length;
+      const milestones: GaugeMilestone[] = club.milestones.map((m: any, idx: number) => ({
+        barIndex: msCount > 1 ? Math.round(barCount * ((idx + 1) / msCount)) - 1 : barCount - 1,
+        label: `${m.pointsRequired}`,
+        reached: m.reached,
+      }));
+
+      const reached = club.milestones.filter((m: any) => m.reached).length;
+      const remaining = nextMs ? nextMs.pointsUntil : 0;
+      return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage: reached > 0 ? `${reached} Unlocked` : "Progress Active", remaining, nextLabel: nextMs ? `${nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
+    }
+
+    if (activeTab === "grades") {
+      const GRADE_ORDER = ["D3", "D2", "D1", "C3", "C2", "C1", "B3", "B2", "B1"];
+      const allGrades = gradeProgress || [];
+      if (allGrades.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "—", unit: "Grade", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      const club: any = selectedClubId ? allGrades.find((c: any) => c.clubId === selectedClubId) : allGrades[0];
+      if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "—", unit: "Grade", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
+
+      const pct = club.progressPercent || 0;
+      const msCount = club.gradeRewards.length;
+      const milestones: GaugeMilestone[] = club.gradeRewards.map((g: any, idx: number) => ({
+        barIndex: msCount > 1 ? Math.round(barCount * ((idx + 1) / msCount)) - 1 : barCount - 1,
+        label: g.grade,
+        reached: g.reached,
+      }));
+
+      const nextG = club.nextTarget;
+      const gradeRemaining = nextG && club.currentGradeIndex >= 0 ? Math.max(GRADE_ORDER.indexOf(nextG.grade) - club.currentGradeIndex, 0) : 0;
+      return { pct, milestones, value: club.currentGrade || "—", unit: "Current Grade", stage: `${club.totalReached}/${club.totalConfigured} Achieved`, remaining: gradeRemaining, nextLabel: nextG ? nextG.grade : "", clubName: club.clubName, ...theme };
+    }
+
     return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
-  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData]);
+  }, [activeTab, selectedClubId, stats, perClubStats, attendanceProgress, anniversaryData, pointsProgress, gradeProgress]);
 
   const handleClubClick = (clubId: number) => {
     setSelectedClubId(prev => prev === clubId ? null : clubId);
@@ -312,8 +366,8 @@ export default function Rewards() {
         <div className="relative rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(145deg, #060b14 0%, #0b1120 25%, #0d1424 50%, #0a0f1c 75%, #060b14 100%)' }}>
           <div className="absolute inset-0" style={{
             backgroundImage: `
-              linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : '224,64,251'},0.03) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : '224,64,251'},0.03) 1px, transparent 1px)
+              linear-gradient(rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(${activeTab === 'referrals' ? '0,229,255' : activeTab === 'attendance' ? '118,255,3' : activeTab === 'points' ? '255,145,0' : activeTab === 'grades' ? '124,77,255' : '224,64,251'},0.03) 1px, transparent 1px)
             `,
             backgroundSize: '32px 32px',
           }} />
@@ -325,8 +379,10 @@ export default function Rewards() {
             <div className="flex gap-1.5 justify-center mb-2">
               {[
                 { key: "referrals", label: "Referrals", icon: Users },
-                { key: "attendance", label: "Attendance", icon: Target },
-                { key: "anniversary", label: "Anniversary", icon: CalendarDays },
+                { key: "attendance", label: "Attend", icon: Target },
+                { key: "anniversary", label: "Anniv", icon: CalendarDays },
+                { key: "points", label: "Points", icon: TrendingUp },
+                { key: "grades", label: "Grades", icon: Award },
               ].map(tab => {
                 const isActive = activeTab === tab.key;
                 const tc = tabThemes[tab.key];
@@ -334,7 +390,7 @@ export default function Rewards() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all duration-300 tracking-wider uppercase text-center"
+                    className="flex-1 py-2 rounded-lg text-[9px] sm:text-[10px] font-semibold transition-all duration-300 tracking-wider uppercase text-center"
                     style={isActive ? {
                       background: `${tc.accent}12`,
                       border: `1px solid ${tc.accent}30`,
@@ -347,7 +403,7 @@ export default function Rewards() {
                     }}
                     data-testid={`tab-${tab.key}`}
                   >
-                    <tab.icon className="h-3 w-3 inline mr-1" style={{ opacity: isActive ? 1 : 0.5 }} />
+                    <tab.icon className="h-3 w-3 inline mr-0.5" style={{ opacity: isActive ? 1 : 0.5 }} />
                     {tab.label}
                   </button>
                 );
@@ -650,6 +706,127 @@ export default function Rewards() {
                     <div className="text-center py-3">
                       <CalendarDays className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
                       <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Anniversary milestones will appear over time</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "points" && (
+                <div className="space-y-2">
+                  {pointsProgress && pointsProgress.length > 0 ? (
+                    pointsProgress.map((club: any) => {
+                      const isSelected = selectedClubId === club.clubId;
+                      return (
+                        <button
+                          key={club.clubId}
+                          onClick={() => handleClubClick(club.clubId)}
+                          className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
+                          style={{
+                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
+                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                          }}
+                          data-testid={`points-club-${club.clubId}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.9)' }}>{club.clubName}</p>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentPoints} pts</span>
+                          </div>
+                          {club.milestones && club.milestones.length > 0 ? (
+                            club.milestones.map((m: any, idx: number) => {
+                              const config = m.rewardConfig || {};
+                              const rewardParts: string[] = [];
+                              if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
+                              if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
+                              if (config.gifts) rewardParts.push(config.gifts);
+                              return (
+                                <div key={idx} className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px]" style={{ color: 'rgba(100,116,139,0.5)' }}>{m.pointsRequired} points</span>
+                                    {m.reached ? (
+                                      <span className="text-[9px] font-bold flex items-center gap-0.5" style={{ color: gaugeConfig.accent }}><Check className="h-3 w-3" /> Reached</span>
+                                    ) : (
+                                      <span className="text-[9px]" style={{ color: 'rgba(100,116,139,0.4)' }}>{m.pointsUntil} pts to go</span>
+                                    )}
+                                  </div>
+                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: `${gaugeConfig.accent}10` }}>
+                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((club.currentPoints / m.pointsRequired) * 100, 100)}%`, background: gaugeConfig.accent, boxShadow: `0 0 6px ${gaugeConfig.accent}50` }} />
+                                  </div>
+                                  {rewardParts.length > 0 && (
+                                    <div className="flex justify-end">
+                                      <span className="text-[10px] font-semibold" style={{ color: `${gaugeConfig.accent}cc` }}>{rewardParts.join(" + ")}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>No milestones set</p>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-3">
+                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Earn ranking points from matches to unlock rewards</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "grades" && (
+                <div className="space-y-2">
+                  {gradeProgress && gradeProgress.length > 0 ? (
+                    gradeProgress.map((club: any) => {
+                      const isSelected = selectedClubId === club.clubId;
+                      return (
+                        <button
+                          key={club.clubId}
+                          onClick={() => handleClubClick(club.clubId)}
+                          className="w-full text-left rounded-lg p-3 space-y-2 transition-all duration-200"
+                          style={{
+                            background: isSelected ? `${gaugeConfig.accent}08` : 'rgba(15,25,35,0.5)',
+                            border: `1px solid ${isSelected ? `${gaugeConfig.accent}25` : `${gaugeConfig.accent}08`}`,
+                          }}
+                          data-testid={`grades-club-${club.clubId}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold" style={{ color: isSelected ? gaugeConfig.accent : 'rgba(200,210,220,0.9)' }}>{club.clubName}</p>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${gaugeConfig.accent}10`, color: `${gaugeConfig.accent}cc`, border: `1px solid ${gaugeConfig.accent}20` }}>{club.currentGrade || "Ungraded"}</span>
+                          </div>
+                          {club.gradeRewards && club.gradeRewards.length > 0 ? (
+                            club.gradeRewards.map((g: any, idx: number) => {
+                              const config = g.rewardConfig || {};
+                              const rewardParts: string[] = [];
+                              if (config.credits && config.credits > 0) rewardParts.push(`£${(config.credits / 100).toFixed(2)}`);
+                              if (config.freeSessions && config.freeSessions > 0) rewardParts.push(`${config.freeSessions} free`);
+                              if (config.gifts) rewardParts.push(config.gifts);
+                              return (
+                                <div key={idx} className="flex items-center justify-between py-1.5 border-b last:border-0" style={{ borderColor: `${gaugeConfig.accent}08` }}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-bold w-6" style={{ color: g.reached ? gaugeConfig.accent : 'rgba(100,116,139,0.5)' }}>{g.grade}</span>
+                                    {g.reached ? (
+                                      <Check className="h-3 w-3" style={{ color: gaugeConfig.accent }} />
+                                    ) : (
+                                      <Lock className="h-3 w-3" style={{ color: 'rgba(100,116,139,0.3)' }} />
+                                    )}
+                                  </div>
+                                  {rewardParts.length > 0 && (
+                                    <span className="text-[10px] font-semibold" style={{ color: g.reached ? `${gaugeConfig.accent}cc` : 'rgba(100,116,139,0.4)' }}>{rewardParts.join(" + ")}</span>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-[10px]" style={{ color: 'rgba(100,116,139,0.4)' }}>No grade rewards set</p>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-3">
+                      <Award className="h-6 w-6 mx-auto mb-1.5" style={{ color: 'rgba(100,116,139,0.2)' }} />
+                      <p className="text-[11px]" style={{ color: 'rgba(100,116,139,0.4)' }}>Grade achievement rewards will appear as you progress</p>
                     </div>
                   )}
                 </div>

@@ -13,9 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target } from "lucide-react";
+import { Gift, Trophy, Users, Loader2, ArrowLeft, PartyPopper, Target, TrendingUp, Award } from "lucide-react";
 import { Link } from "wouter";
 import { AttendanceRewardsPanel } from "./AttendanceRewards";
+import { PointsRewardsPanel } from "./PointsRewards";
+import { GradeRewardsPanel } from "./GradeRewards";
 
 interface AnniversarySettings {
   id: number;
@@ -357,7 +359,7 @@ export function ClubRewardsPage() {
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-foreground" data-testid="text-page-title">Club Rewards</h1>
-          <p className="text-sm text-muted-foreground">Manage anniversary, attendance, and referral rewards</p>
+          <p className="text-sm text-muted-foreground">Manage anniversary, attendance, referral, points and grade rewards</p>
         </div>
         {clubs.length > 1 && (
           <Select value={selectedClubId || String(effectiveClubId)} onValueChange={setSelectedClubId}>
@@ -383,18 +385,26 @@ export function ClubRewardsPage() {
         </Card>
       ) : (
         <Tabs defaultValue="anniversary" data-testid="tabs-rewards">
-          <TabsList className="grid w-full grid-cols-3" data-testid="tabs-list">
-            <TabsTrigger value="anniversary" data-testid="tab-anniversary">
-              <PartyPopper className="h-4 w-4 mr-2" />
+          <TabsList className="grid w-full grid-cols-5" data-testid="tabs-list">
+            <TabsTrigger value="anniversary" data-testid="tab-anniversary" className="text-xs px-1">
+              <PartyPopper className="h-3.5 w-3.5 mr-1" />
               Anniversary
             </TabsTrigger>
-            <TabsTrigger value="attendance" data-testid="tab-attendance">
-              <Trophy className="h-4 w-4 mr-2" />
+            <TabsTrigger value="attendance" data-testid="tab-attendance" className="text-xs px-1">
+              <Trophy className="h-3.5 w-3.5 mr-1" />
               Attendance
             </TabsTrigger>
-            <TabsTrigger value="referrals" data-testid="tab-referrals">
-              <Users className="h-4 w-4 mr-2" />
+            <TabsTrigger value="referrals" data-testid="tab-referrals" className="text-xs px-1">
+              <Users className="h-3.5 w-3.5 mr-1" />
               Referrals
+            </TabsTrigger>
+            <TabsTrigger value="points" data-testid="tab-points" className="text-xs px-1">
+              <TrendingUp className="h-3.5 w-3.5 mr-1" />
+              Points
+            </TabsTrigger>
+            <TabsTrigger value="grades" data-testid="tab-grades" className="text-xs px-1">
+              <Award className="h-3.5 w-3.5 mr-1" />
+              Grades
             </TabsTrigger>
           </TabsList>
 
@@ -408,6 +418,14 @@ export function ClubRewardsPage() {
 
           <TabsContent value="referrals" className="mt-4" data-testid="tab-content-referrals">
             <ReferralProgramsTab clubId={effectiveClubId} />
+          </TabsContent>
+
+          <TabsContent value="points" className="mt-4" data-testid="tab-content-points">
+            <PointsRewardsPanel clubId={effectiveClubId} />
+          </TabsContent>
+
+          <TabsContent value="grades" className="mt-4" data-testid="tab-content-grades">
+            <GradeRewardsPanel clubId={effectiveClubId} />
           </TabsContent>
         </Tabs>
       )}

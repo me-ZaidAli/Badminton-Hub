@@ -1291,7 +1291,7 @@ export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
 
 // === REWARDS SYSTEM ===
-export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY"]);
+export const rewardTypeEnum = pgEnum("reward_type", ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE"]);
 export const rewardStatusEnum = pgEnum("reward_status", ["AVAILABLE", "USED", "REQUESTED"]);
 
 export interface ReferralLevel {
@@ -1393,6 +1393,48 @@ export const clubAnniversarySettingsRelations = relations(clubAnniversarySetting
 export const insertClubAnniversarySettingsSchema = createInsertSchema(clubAnniversarySettings).omit({ id: true, createdAt: true, updatedAt: true });
 export type ClubAnniversarySetting = typeof clubAnniversarySettings.$inferSelect;
 export type InsertClubAnniversarySetting = z.infer<typeof insertClubAnniversarySettingsSchema>;
+
+// === POINTS MILESTONE REWARDS ===
+export const pointsMilestoneRewards = pgTable("points_milestone_rewards", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  pointsRequired: integer("points_required").notNull(),
+  rewardConfig: jsonb("reward_config").$type<AttendanceRewardConfig>().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const pointsMilestoneRewardRelations = relations(pointsMilestoneRewards, ({ one }) => ({
+  club: one(clubs, { fields: [pointsMilestoneRewards.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [pointsMilestoneRewards.createdById], references: [users.id] }),
+}));
+
+export const insertPointsMilestoneRewardSchema = createInsertSchema(pointsMilestoneRewards).omit({ id: true, createdAt: true, updatedAt: true });
+export type PointsMilestoneReward = typeof pointsMilestoneRewards.$inferSelect;
+export type InsertPointsMilestoneReward = z.infer<typeof insertPointsMilestoneRewardSchema>;
+
+// === GRADE ACHIEVEMENT REWARDS ===
+export const gradeAchievementRewards = pgTable("grade_achievement_rewards", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  grade: text("grade").notNull(),
+  rewardConfig: jsonb("reward_config").$type<AttendanceRewardConfig>().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const gradeAchievementRewardRelations = relations(gradeAchievementRewards, ({ one }) => ({
+  club: one(clubs, { fields: [gradeAchievementRewards.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [gradeAchievementRewards.createdById], references: [users.id] }),
+}));
+
+export const insertGradeAchievementRewardSchema = createInsertSchema(gradeAchievementRewards).omit({ id: true, createdAt: true, updatedAt: true });
+export type GradeAchievementReward = typeof gradeAchievementRewards.$inferSelect;
+export type InsertGradeAchievementReward = z.infer<typeof insertGradeAchievementRewardSchema>;
 
 // === ADMIN AUDIT LOGS ===
 export const adminAuditLogs = pgTable("admin_audit_logs", {

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, adminAuditLogs } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, pointsMilestoneRewards, gradeAchievementRewards, adminAuditLogs } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -13994,6 +13994,188 @@ export async function registerRoutes(
     }
   });
 
+  // === POINTS MILESTONE REWARDS CRUD ===
+
+  // GET /api/clubs/:clubId/points-rewards - List points milestone rewards for a club
+  app.get("/api/clubs/:clubId/points-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const rewards = await db.select().from(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId)).orderBy(pointsMilestoneRewards.pointsRequired);
+      res.json(rewards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/clubs/:clubId/points-rewards - Create points milestone reward (admin only)
+  app.post("/api/clubs/:clubId/points-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { pointsRequired, rewardConfig, isActive } = req.body;
+      if (!pointsRequired || pointsRequired <= 0) return res.status(400).json({ message: "Points required must be greater than 0" });
+      const [reward] = await db.insert(pointsMilestoneRewards).values({
+        clubId,
+        pointsRequired,
+        rewardConfig,
+        isActive: isActive !== false,
+        createdById: user.id,
+      }).returning();
+      console.log(`[AUDIT] Points milestone reward created: id=${reward.id}, club=${clubId}, points=${pointsRequired}, by user=${user.id}`);
+      res.json(reward);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/points-rewards/:id - Update points milestone reward
+  app.put("/api/points-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { pointsRequired, rewardConfig, isActive } = req.body;
+      const [updated] = await db.update(pointsMilestoneRewards).set({
+        pointsRequired: pointsRequired !== undefined ? pointsRequired : existing.pointsRequired,
+        rewardConfig: rewardConfig !== undefined ? rewardConfig : existing.rewardConfig,
+        isActive: isActive !== undefined ? isActive : existing.isActive,
+        updatedAt: new Date(),
+      }).where(eq(pointsMilestoneRewards.id, id)).returning();
+      console.log(`[AUDIT] Points milestone reward updated: id=${id}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/points-rewards/:id - Delete points milestone reward
+  app.delete("/api/points-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.id, id));
+      console.log(`[AUDIT] Points milestone reward deleted: id=${id}, by user=${user.id}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === GRADE ACHIEVEMENT REWARDS CRUD ===
+
+  // GET /api/clubs/:clubId/grade-rewards - List grade achievement rewards for a club
+  app.get("/api/clubs/:clubId/grade-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const rewards = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.clubId, clubId)).orderBy(gradeAchievementRewards.grade);
+      res.json(rewards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/clubs/:clubId/grade-rewards - Create grade achievement reward (admin only)
+  app.post("/api/clubs/:clubId/grade-rewards", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { grade, rewardConfig, isActive } = req.body;
+      if (!grade) return res.status(400).json({ message: "Grade is required" });
+      const [reward] = await db.insert(gradeAchievementRewards).values({
+        clubId,
+        grade,
+        rewardConfig,
+        isActive: isActive !== false,
+        createdById: user.id,
+      }).returning();
+      console.log(`[AUDIT] Grade achievement reward created: id=${reward.id}, club=${clubId}, grade=${grade}, by user=${user.id}`);
+      res.json(reward);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PUT /api/grade-rewards/:id - Update grade achievement reward
+  app.put("/api/grade-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { grade, rewardConfig, isActive } = req.body;
+      const [updated] = await db.update(gradeAchievementRewards).set({
+        grade: grade !== undefined ? grade : existing.grade,
+        rewardConfig: rewardConfig !== undefined ? rewardConfig : existing.rewardConfig,
+        isActive: isActive !== undefined ? isActive : existing.isActive,
+        updatedAt: new Date(),
+      }).where(eq(gradeAchievementRewards.id, id)).returning();
+      console.log(`[AUDIT] Grade achievement reward updated: id=${id}, by user=${user.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/grade-rewards/:id - Delete grade achievement reward
+  app.delete("/api/grade-rewards/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const user = req.user as any;
+      const [existing] = await db.select().from(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const isSuperAdmin = user.role === "OWNER";
+      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
+      if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      await db.delete(gradeAchievementRewards).where(eq(gradeAchievementRewards.id, id));
+      console.log(`[AUDIT] Grade achievement reward deleted: id=${id}, by user=${user.id}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/my-rewards - Get current user's reward ledger
   app.get("/api/my-rewards", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
@@ -14085,6 +14267,118 @@ export async function registerRoutes(
           clubName: clubRow?.name || "Unknown Club",
           totalAttended: attendedCount,
           milestones,
+        });
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-points-progress - Get points milestone progress per club
+  app.get("/api/my-points-progress", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = user.playerProfiles || [];
+      const results: any[] = [];
+
+      for (const profile of profiles) {
+        const clubId = profile.clubId;
+        const currentPoints = profile.rankingPoints || 0;
+
+        const activeMilestones = await db.select().from(pointsMilestoneRewards).where(
+          and(eq(pointsMilestoneRewards.clubId, clubId), eq(pointsMilestoneRewards.isActive, true))
+        ).orderBy(pointsMilestoneRewards.pointsRequired);
+
+        if (activeMilestones.length === 0) continue;
+
+        const milestones = activeMilestones.map(milestone => {
+          const reached = currentPoints >= milestone.pointsRequired;
+          const pointsUntil = Math.max(milestone.pointsRequired - currentPoints, 0);
+          const progressPercent = milestone.pointsRequired > 0 ? Math.min((currentPoints / milestone.pointsRequired) * 100, 100) : 0;
+          return {
+            rewardId: milestone.id,
+            pointsRequired: milestone.pointsRequired,
+            currentPoints,
+            reached,
+            pointsUntil,
+            progressPercent,
+            rewardConfig: milestone.rewardConfig,
+          };
+        });
+
+        const nextUnreached = milestones.find(m => !m.reached);
+        const highestReached = [...milestones].reverse().find(m => m.reached);
+
+        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+
+        results.push({
+          clubId,
+          clubName: clubRow?.name || "Unknown Club",
+          currentPoints,
+          milestones,
+          nextMilestone: nextUnreached || null,
+          highestReached: highestReached || null,
+        });
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/my-grade-progress - Get grade achievement progress per club
+  app.get("/api/my-grade-progress", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const profiles = user.playerProfiles || [];
+      const GRADE_ORDER = ["D3", "D2", "D1", "C3", "C2", "C1", "B3", "B2", "B1"];
+      const results: any[] = [];
+
+      for (const profile of profiles) {
+        const clubId = profile.clubId;
+        const currentGrade = profile.grade || "C3";
+        const currentGradeIndex = GRADE_ORDER.indexOf(currentGrade);
+
+        const activeRewards = await db.select().from(gradeAchievementRewards).where(
+          and(eq(gradeAchievementRewards.clubId, clubId), eq(gradeAchievementRewards.isActive, true))
+        ).orderBy(gradeAchievementRewards.grade);
+
+        if (activeRewards.length === 0) continue;
+
+        const gradeRewards = activeRewards.map(reward => {
+          const rewardGradeIndex = GRADE_ORDER.indexOf(reward.grade);
+          const reached = currentGradeIndex >= rewardGradeIndex;
+          return {
+            rewardId: reward.id,
+            grade: reward.grade,
+            gradeIndex: rewardGradeIndex,
+            reached,
+            rewardConfig: reward.rewardConfig,
+          };
+        }).sort((a, b) => a.gradeIndex - b.gradeIndex);
+
+        const nextUnreached = gradeRewards.find(g => !g.reached);
+        const totalConfigured = gradeRewards.length;
+        const totalReached = gradeRewards.filter(g => g.reached).length;
+        const progressPercent = totalConfigured > 0 ? (totalReached / totalConfigured) * 100 : 0;
+
+        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+
+        results.push({
+          clubId,
+          clubName: clubRow?.name || "Unknown Club",
+          currentGrade,
+          currentGradeIndex,
+          gradeRewards,
+          nextTarget: nextUnreached || null,
+          totalConfigured,
+          totalReached,
+          progressPercent,
         });
       }
 
