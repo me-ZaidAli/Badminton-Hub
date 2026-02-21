@@ -608,10 +608,14 @@ export async function registerRoutes(
       if (phone !== undefined) updates.phone = phone || null;
       if (dateOfBirth !== undefined) {
         const currentUser = await db.select({ dateOfBirth: users.dateOfBirth }).from(users).where(eq(users.id, req.user!.id)).then(r => r[0]);
-        if (currentUser?.dateOfBirth) {
-          // DOB already set - users cannot change it themselves, only admin/OWNER can
+        const userRole = (req.user as any).role;
+        const isAdminOrOwner = userRole === 'OWNER' || userRole === 'ADMIN';
+        if (currentUser?.dateOfBirth && !isAdminOrOwner) {
+          // DOB already set - regular players cannot change it themselves
         } else if (dateOfBirth) {
           updates.dateOfBirth = new Date(dateOfBirth);
+        } else if (isAdminOrOwner) {
+          updates.dateOfBirth = null;
         }
       }
       if (city !== undefined) updates.city = city || null;
@@ -14955,7 +14959,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
-      const profiles = user.playerProfiles || [];
+      const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, user.id));
       const results: any[] = [];
 
       for (const profile of profiles) {

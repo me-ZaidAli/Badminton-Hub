@@ -1968,8 +1968,8 @@ export default function Profile() {
                 <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Your phone number" data-testid="input-phone" />
               </div>
               <div>
-                <Label htmlFor="dateOfBirth">Date of Birth {(user as any)?.dateOfBirth ? "(Locked)" : ""}</Label>
-                {(user as any)?.dateOfBirth ? (
+                <Label htmlFor="dateOfBirth">Date of Birth {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? "(Locked)" : ""}</Label>
+                {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? (
                   <div className="flex items-center gap-2">
                     <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} disabled className="opacity-60 cursor-not-allowed" data-testid="input-dob" />
                     <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1977,7 +1977,7 @@ export default function Profile() {
                 ) : (
                   <>
                     <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} data-testid="input-dob" />
-                    <p className="text-xs text-muted-foreground mt-1">Once set, only an admin can change your date of birth.</p>
+                    {!(user as any)?.dateOfBirth && <p className="text-xs text-muted-foreground mt-1">Once set, only an admin can change your date of birth.</p>}
                   </>
                 )}
               </div>
