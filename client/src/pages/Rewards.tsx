@@ -3,87 +3,144 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Gift, Star, Trophy, Zap, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Clock } from "lucide-react";
+import { ArrowLeft, Gift, Star, Trophy, Zap, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-function CircularProgress({ percentage, size = 220, strokeWidth = 14, color, children }: { percentage: number; size?: number; strokeWidth?: number; color?: string; children?: React.ReactNode }) {
-  const radius = (size - strokeWidth) / 2;
+interface GaugeMilestone {
+  position: number;
+  label: string;
+  reached: boolean;
+  icon: "gift" | "star" | "trophy" | "target" | "award";
+  color: string;
+}
+
+function MilestoneGauge({
+  percentage,
+  milestones,
+  size = 220,
+  strokeWidth = 12,
+  accentColor,
+  children,
+}: {
+  percentage: number;
+  milestones: GaugeMilestone[];
+  size?: number;
+  strokeWidth?: number;
+  accentColor: string;
+  children?: React.ReactNode;
+}) {
+  const radius = (size - strokeWidth) / 2 - 16;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(percentage, 100) / 100) * circumference;
-  const tickCount = 48;
-  const strokeColor = color || "hsl(var(--primary))";
+  const clampedPct = Math.min(Math.max(percentage, 0), 100);
+  const offset = circumference - (clampedPct / 100) * circumference;
+  const tickCount = 60;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = (size - 4) / 2;
+
+  const iconMap: Record<string, string> = {
+    gift: "🎁",
+    star: "⭐",
+    trophy: "🏆",
+    target: "🎯",
+    award: "🎖️",
+  };
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90">
         {Array.from({ length: tickCount }).map((_, i) => {
           const angle = (i / tickCount) * 360;
-          const tickFilled = i / tickCount <= percentage / 100;
-          const innerR = radius - 8;
-          const outerR = radius - 2;
+          const tickFilled = i / tickCount <= clampedPct / 100;
+          const innerTR = radius - 6;
+          const outerTR = radius - 1;
           const rad = (angle * Math.PI) / 180;
           return (
             <line
               key={i}
-              x1={size / 2 + innerR * Math.cos(rad)}
-              y1={size / 2 + innerR * Math.sin(rad)}
-              x2={size / 2 + outerR * Math.cos(rad)}
-              y2={size / 2 + outerR * Math.sin(rad)}
-              stroke={tickFilled ? strokeColor : "hsl(var(--muted-foreground) / 0.2)"}
-              strokeWidth={2.5}
+              x1={cx + innerTR * Math.cos(rad)}
+              y1={cy + innerTR * Math.sin(rad)}
+              x2={cx + outerTR * Math.cos(rad)}
+              y2={cy + outerTR * Math.sin(rad)}
+              stroke={tickFilled ? accentColor : "rgba(148,163,184,0.15)"}
+              strokeWidth={2}
               strokeLinecap="round"
             />
           );
         })}
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="rgba(148,163,184,0.08)" strokeWidth={strokeWidth} />
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={cx}
+          cy={cy}
           r={radius}
           fill="none"
-          stroke="hsl(var(--muted-foreground) / 0.1)"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={strokeColor}
+          stroke={accentColor}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           className="transition-all duration-1000 ease-out"
+          style={{ filter: `drop-shadow(0 0 6px ${accentColor}40)` }}
         />
+
+        {milestones.map((ms, i) => {
+          const angle = (ms.position / 100) * 360;
+          const rad = (angle * Math.PI) / 180;
+          const markerR = outerR - 2;
+          const mx = cx + markerR * Math.cos(rad);
+          const my = cy + markerR * Math.sin(rad);
+          return (
+            <g key={i}>
+              <circle
+                cx={mx}
+                cy={my}
+                r={10}
+                fill={ms.reached ? ms.color : "#334155"}
+                stroke={ms.reached ? ms.color : "#475569"}
+                strokeWidth={2}
+                className="transition-all duration-500"
+              />
+              {ms.reached ? (
+                <text x={mx} y={my} textAnchor="middle" dominantBaseline="central" fontSize="10" fill="white" className="rotate-90" style={{ transformOrigin: `${mx}px ${my}px` }}>✓</text>
+              ) : (
+                <text x={mx} y={my} textAnchor="middle" dominantBaseline="central" fontSize="8" fill="#94a3b8" className="rotate-90" style={{ transformOrigin: `${mx}px ${my}px` }}>
+                  {iconMap[ms.icon] || "○"}
+                </text>
+              )}
+            </g>
+          );
+        })}
       </svg>
+
+      {milestones.map((ms, i) => {
+        const angle = ((ms.position / 100) * 360) - 90;
+        const rad = (angle * Math.PI) / 180;
+        const labelR = outerR + 14;
+        const lx = cx + labelR * Math.cos(rad);
+        const ly = cy + labelR * Math.sin(rad);
+        return (
+          <div
+            key={`label-${i}`}
+            className="absolute pointer-events-none"
+            style={{
+              left: `${lx}px`,
+              top: `${ly}px`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <span className={`text-[8px] font-bold whitespace-nowrap ${ms.reached ? 'text-white' : 'text-slate-500'}`}>
+              {ms.label}
+            </span>
+          </div>
+        );
+      })}
+
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {children}
       </div>
-    </div>
-  );
-}
-
-function InfoRow({ icon: Icon, label, value, hint, onClick }: { icon: any; label: string; value: string; hint?: string; onClick?: () => void }) {
-  return (
-    <div
-      className={`flex items-center gap-3 py-3.5 border-b border-border/30 last:border-0 ${onClick ? 'cursor-pointer' : ''}`}
-      onClick={onClick}
-    >
-      <div className="p-1.5 rounded-md bg-primary/10">
-        <Icon className="h-4 w-4 text-primary" />
-      </div>
-      <span className="text-sm text-muted-foreground flex-1">{label}</span>
-      <span className="text-sm font-bold">{value}</span>
-      {hint && (
-        <div className="p-0.5 rounded-full border border-border/50">
-          <Info className="h-3 w-3 text-muted-foreground" />
-        </div>
-      )}
     </div>
   );
 }
@@ -93,6 +150,17 @@ function MiniProgress({ value, max, color }: { value: number; max: number; color
   return (
     <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
       <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value, hint, onClick }: { icon: any; label: string; value: string; hint?: string; onClick?: () => void }) {
+  return (
+    <div className={`flex items-center gap-3 py-3.5 border-b border-border/30 last:border-0 ${onClick ? 'cursor-pointer hover:bg-muted/20' : ''}`} onClick={onClick}>
+      <div className="p-1.5 rounded-md bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div>
+      <span className="text-sm text-muted-foreground flex-1">{label}</span>
+      <span className="text-sm font-bold">{value}</span>
+      {hint && <div className="p-0.5 rounded-full border border-border/50"><Info className="h-3 w-3 text-muted-foreground" /></div>}
     </div>
   );
 }
@@ -115,25 +183,17 @@ export default function Rewards() {
   }, []);
 
   const requestMutation = useMutation({
-    mutationFn: async (rewardId: number) => {
-      await apiRequest("POST", `/api/rewards/${rewardId}/request`);
-    },
+    mutationFn: async (rewardId: number) => { await apiRequest("POST", `/api/rewards/${rewardId}/request`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/my-rewards"] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-rewards/summary"] });
       toast({ title: "Reward Requested", description: "Your reward request has been submitted for admin approval." });
     },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
   });
 
   const stats = referralData?.stats;
   const approvedReferrals = stats?.approvedReferrals || 0;
-  const nextReferralMilestone = approvedReferrals < 2 ? 2 : approvedReferrals < 4 ? 4 : 4;
-  const referralLabel = approvedReferrals < 2 ? "Premium Rate" : approvedReferrals < 4 ? "Champion" : "Champion";
-  const referralProgressPct = approvedReferrals >= 4 ? 100 : (approvedReferrals / nextReferralMilestone) * 100;
-
   const totalAvailableCredits = rewardsSummary?.totalCredits || 0;
   const totalFreeSessions = rewardsSummary?.totalFreeSessions || 0;
   const totalRewards = rewardsSummary?.totalRewards || 0;
@@ -147,14 +207,7 @@ export default function Rewards() {
     REQUESTED: "bg-amber-500 text-white",
     USED: "bg-muted text-muted-foreground",
   };
-
-  const typeLabels: Record<string, string> = {
-    REFERRAL: "Referral",
-    SESSION_ATTENDANCE: "Attendance",
-    ANNIVERSARY: "Anniversary",
-    GIFT: "Gift",
-    MANUAL: "Manual",
-  };
+  const typeLabels: Record<string, string> = { REFERRAL: "Referral", SESSION_ATTENDANCE: "Attendance", ANNIVERSARY: "Anniversary", GIFT: "Gift", MANUAL: "Manual" };
 
   const bestAttendance = useMemo(() => {
     if (!attendanceProgress || attendanceProgress.length === 0) return null;
@@ -170,20 +223,77 @@ export default function Rewards() {
     return best;
   }, [attendanceProgress]);
 
-  const gaugeData = useMemo(() => {
+  const gaugeConfig = useMemo(() => {
     if (activeTab === "referrals") {
-      return { pct: referralProgressPct, value: approvedReferrals, label: approvedReferrals >= 4 ? "Champion" : approvedReferrals >= 2 ? "Premium" : "Active", sub: approvedReferrals >= 4 ? "All milestones reached!" : `${nextReferralMilestone - approvedReferrals} more for ${referralLabel}`, color: "hsl(var(--primary))" };
+      const maxRefs = 4;
+      const pct = Math.min((approvedReferrals / maxRefs) * 100, 100);
+      const milestones: GaugeMilestone[] = [
+        { position: 25, label: "1st", reached: approvedReferrals >= 1, icon: "gift", color: "#10b981" },
+        { position: 50, label: "Premium", reached: approvedReferrals >= 2, icon: "star", color: "#f59e0b" },
+        { position: 100, label: "Champion", reached: approvedReferrals >= 4, icon: "trophy", color: "#a855f7" },
+      ];
+      const currentStage = approvedReferrals >= 4 ? "Champion" : approvedReferrals >= 2 ? "Premium" : approvedReferrals >= 1 ? "Active" : "Starter";
+      const nextTarget = approvedReferrals < 1 ? 1 : approvedReferrals < 2 ? 2 : approvedReferrals < 4 ? 4 : 4;
+      const remaining = Math.max(nextTarget - approvedReferrals, 0);
+      const nextLabel = approvedReferrals < 1 ? "1st Referral" : approvedReferrals < 2 ? "Premium" : approvedReferrals < 4 ? "Champion" : "";
+      return { pct, milestones, value: `${approvedReferrals}`, unit: "referrals", stage: currentStage, remaining, nextLabel, color: "#3b82f6" };
     }
-    if (activeTab === "attendance" && bestAttendance) {
-      return { pct: bestAttendance.progressPercent, value: bestAttendance.currentCount, label: `${bestAttendance.sessionsUntilNext} to go`, sub: `Every ${bestAttendance.sessionsRequired} sessions = reward`, color: "#f59e0b" };
+
+    if (activeTab === "attendance") {
+      if (!bestAttendance) {
+        return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "sessions", stage: "New", remaining: 0, nextLabel: "", color: "#f59e0b" };
+      }
+      const sr = bestAttendance.sessionsRequired;
+      const currentInCycle = bestAttendance.currentCount % sr;
+      const pct = sr > 0 ? (currentInCycle / sr) * 100 : 0;
+      const allClubMilestones: GaugeMilestone[] = [];
+      if (attendanceProgress) {
+        for (const club of attendanceProgress) {
+          for (const m of (club.milestones || [])) {
+            const pos = m.sessionsRequired > 0 ? 100 : 0;
+            const inCycle = m.currentCount % m.sessionsRequired;
+            allClubMilestones.push({
+              position: pos,
+              label: `${m.sessionsRequired}`,
+              reached: inCycle === 0 && m.milestonesCompleted > 0,
+              icon: "target",
+              color: "#f59e0b",
+            });
+          }
+        }
+      }
+      const milestones: GaugeMilestone[] = [
+        { position: 100, label: `${sr} sessions`, reached: false, icon: "target", color: "#f59e0b" },
+      ];
+      if (sr >= 4) {
+        milestones.unshift({ position: 25, label: `${Math.ceil(sr * 0.25)}`, reached: currentInCycle >= Math.ceil(sr * 0.25), icon: "gift", color: "#10b981" });
+        milestones.splice(1, 0, { position: 50, label: `${Math.ceil(sr * 0.5)}`, reached: currentInCycle >= Math.ceil(sr * 0.5), icon: "star", color: "#f59e0b" });
+        milestones.splice(2, 0, { position: 75, label: `${Math.ceil(sr * 0.75)}`, reached: currentInCycle >= Math.ceil(sr * 0.75), icon: "trophy", color: "#ef4444" });
+      }
+      return { pct, milestones, value: `${currentInCycle}`, unit: `of ${sr}`, stage: `${bestAttendance.milestonesCompleted}x earned`, remaining: bestAttendance.sessionsUntilNext, nextLabel: "next credit", color: "#f59e0b" };
     }
-    if (activeTab === "anniversary" && anniversaryData && anniversaryData.length > 0) {
+
+    if (activeTab === "anniversary") {
+      if (!anniversaryData || anniversaryData.length === 0) {
+        return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "years", stage: "New", remaining: 0, nextLabel: "", color: "#a855f7" };
+      }
       const first = anniversaryData[0] as any;
       const pct = Math.min((first.progress || 0) * 100, 100);
-      return { pct, value: `${first.upcomingYear || 1}`, label: "Year", sub: first.clubName, color: "#a855f7" };
+      const milestones: GaugeMilestone[] = [
+        { position: 25, label: "Q1", reached: pct >= 25, icon: "gift", color: "#10b981" },
+        { position: 50, label: "Q2", reached: pct >= 50, icon: "star", color: "#f59e0b" },
+        { position: 75, label: "Q3", reached: pct >= 75, icon: "trophy", color: "#ef4444" },
+        { position: 100, label: `Yr ${first.upcomingYear}`, reached: pct >= 99, icon: "award", color: "#a855f7" },
+      ];
+      const now = Date.now();
+      const target = new Date(first.nextAnniversary).getTime();
+      const diff = target - now;
+      const daysLeft = Math.max(Math.floor(diff / 86400000), 0);
+      return { pct, milestones, value: `${first.upcomingYear || 1}`, unit: daysLeft > 0 ? `${daysLeft}d left` : "Today!", stage: first.clubName, remaining: daysLeft, nextLabel: "anniversary", color: "#a855f7" };
     }
-    return { pct: 0, value: "0", label: "Active", sub: "Start earning rewards!", color: "hsl(var(--primary))" };
-  }, [activeTab, referralProgressPct, approvedReferrals, bestAttendance, anniversaryData, nextReferralMilestone, referralLabel]);
+
+    return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "", stage: "Start", remaining: 0, nextLabel: "", color: "#3b82f6" };
+  }, [activeTab, approvedReferrals, bestAttendance, attendanceProgress, anniversaryData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -199,104 +309,85 @@ export default function Rewards() {
 
         <div className="relative rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 overflow-hidden">
           <div className="absolute inset-0 opacity-10" style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--primary)) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 1px 1px, ${gaugeConfig.color} 1px, transparent 0)`,
             backgroundSize: '24px 24px'
           }} />
 
           <div className="relative flex flex-col items-center">
-            <CircularProgress percentage={gaugeData.pct} size={200} strokeWidth={10} color={gaugeData.color}>
-              <p className="text-4xl font-black text-white">{gaugeData.value}</p>
-              <Badge className="mt-1 text-xs px-2" style={{ backgroundColor: gaugeData.color, color: 'white' }}>
+            <MilestoneGauge
+              percentage={gaugeConfig.pct}
+              milestones={gaugeConfig.milestones}
+              size={240}
+              strokeWidth={10}
+              accentColor={gaugeConfig.color}
+            >
+              <p className="text-5xl font-black text-white leading-none">{gaugeConfig.value}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{gaugeConfig.unit}</p>
+              <Badge className="mt-2 text-[10px] px-2.5 py-0.5" style={{ backgroundColor: gaugeConfig.color, color: 'white' }}>
                 <Zap className="h-3 w-3 mr-1" />
-                {gaugeData.label}
+                {gaugeConfig.stage}
               </Badge>
-              <p className="text-xs text-slate-400 mt-1.5">{gaugeData.sub}</p>
-            </CircularProgress>
+              {gaugeConfig.remaining > 0 && gaugeConfig.nextLabel && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {gaugeConfig.remaining} more for {gaugeConfig.nextLabel}
+                </p>
+              )}
+            </MilestoneGauge>
           </div>
 
           <div className="relative mt-5">
             <div className="flex gap-2 justify-center mb-4">
-              <button
-                onClick={() => setActiveTab("referrals")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeTab === "referrals" ? "bg-primary text-primary-foreground" : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"}`}
-                data-testid="tab-referrals"
-              >
-                <Users className="h-3 w-3 inline mr-1" />
-                Referrals
-              </button>
-              <button
-                onClick={() => setActiveTab("attendance")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeTab === "attendance" ? "bg-amber-500 text-white" : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"}`}
-                data-testid="tab-attendance"
-              >
-                <Target className="h-3 w-3 inline mr-1" />
-                Attendance
-              </button>
-              <button
-                onClick={() => setActiveTab("anniversary")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeTab === "anniversary" ? "bg-purple-500 text-white" : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"}`}
-                data-testid="tab-anniversary"
-              >
-                <CalendarDays className="h-3 w-3 inline mr-1" />
-                Anniversary
-              </button>
+              {[
+                { key: "referrals", label: "Referrals", icon: Users, activeColor: "bg-blue-500 text-white" },
+                { key: "attendance", label: "Attendance", icon: Target, activeColor: "bg-amber-500 text-white" },
+                { key: "anniversary", label: "Anniversary", icon: CalendarDays, activeColor: "bg-purple-500 text-white" },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeTab === tab.key ? tab.activeColor : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"}`}
+                  data-testid={`tab-${tab.key}`}
+                >
+                  <tab.icon className="h-3 w-3 inline mr-1" />
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            <div className="rounded-xl bg-slate-800/60 dark:bg-slate-800/40 border border-slate-700/50 p-4">
+            <div className="rounded-xl bg-slate-800/60 dark:bg-slate-800/40 border border-slate-700/50 p-4 transition-all duration-300">
               {activeTab === "referrals" && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${approvedReferrals >= 1 ? 'bg-emerald-500' : 'bg-slate-600'}`}>
-                      <Gift className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white">1st Referral</p>
-                      <p className="text-xs text-slate-400">Credit reward per referral</p>
-                    </div>
-                    {approvedReferrals >= 1 && <Badge className="bg-emerald-500 text-white text-[10px] no-default-hover-elevate">Earned</Badge>}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${approvedReferrals >= 2 ? 'bg-amber-500' : 'bg-slate-600'}`}>
-                      <Star className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white">2 Referrals — Premium</p>
-                      <p className="text-xs text-slate-400">Premium rate for 2 months</p>
-                    </div>
-                    {approvedReferrals >= 2 ? (
-                      <Badge className="bg-amber-500 text-white text-[10px] no-default-hover-elevate">Unlocked</Badge>
-                    ) : (
-                      <span className="text-xs text-slate-500">{approvedReferrals}/2</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${approvedReferrals >= 4 ? 'bg-purple-500' : 'bg-slate-600'}`}>
-                      <Trophy className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white">4 Referrals — Champion</p>
-                      <p className="text-xs text-slate-400">1 free session credit</p>
-                    </div>
-                    {approvedReferrals >= 4 ? (
-                      <Badge className="bg-purple-500 text-white text-[10px] no-default-hover-elevate">Champion</Badge>
-                    ) : (
-                      <span className="text-xs text-slate-500">{approvedReferrals}/4</span>
-                    )}
-                  </div>
+                  {[
+                    { target: 1, label: "1st Referral", desc: "Credit reward per referral", icon: Gift, color: "bg-emerald-500", badgeText: "Earned" },
+                    { target: 2, label: "2 Referrals — Premium", desc: "Premium rate for 2 months", icon: Star, color: "bg-amber-500", badgeText: "Unlocked" },
+                    { target: 4, label: "4 Referrals — Champion", desc: "1 free session credit", icon: Trophy, color: "bg-purple-500", badgeText: "Champion" },
+                  ].map(ms => {
+                    const reached = approvedReferrals >= ms.target;
+                    return (
+                      <div key={ms.target} className={`flex items-center gap-3 p-2.5 rounded-lg transition-all duration-300 ${reached ? 'bg-slate-700/40' : 'bg-transparent'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${reached ? ms.color : 'bg-slate-600'}`}>
+                          {reached ? <Check className="h-4 w-4 text-white" /> : <ms.icon className="h-4 w-4 text-white opacity-50" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${reached ? 'text-white' : 'text-slate-400'}`}>{ms.label}</p>
+                          <p className="text-xs text-slate-500">{ms.desc}</p>
+                        </div>
+                        {reached ? (
+                          <Badge className={`${ms.color} text-white text-[10px] no-default-hover-elevate`}>{ms.badgeText}</Badge>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Lock className="h-3 w-3 text-slate-600" />
+                            <span className="text-xs text-slate-500">{approvedReferrals}/{ms.target}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   <div className="pt-2 border-t border-slate-700/50">
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div>
-                        <p className="text-lg font-bold text-white">{stats?.totalReferrals || 0}</p>
-                        <p className="text-[10px] text-slate-400">Total</p>
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-emerald-400">{approvedReferrals}</p>
-                        <p className="text-[10px] text-slate-400">Approved</p>
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-amber-400">{stats?.pendingReferrals || 0}</p>
-                        <p className="text-[10px] text-slate-400">Pending</p>
-                      </div>
+                      <div><p className="text-lg font-bold text-white">{stats?.totalReferrals || 0}</p><p className="text-[10px] text-slate-400">Total</p></div>
+                      <div><p className="text-lg font-bold text-emerald-400">{approvedReferrals}</p><p className="text-[10px] text-slate-400">Approved</p></div>
+                      <div><p className="text-lg font-bold text-amber-400">{stats?.pendingReferrals || 0}</p><p className="text-[10px] text-slate-400">Pending</p></div>
                     </div>
                   </div>
                 </div>
@@ -304,13 +395,9 @@ export default function Rewards() {
 
               {activeTab === "attendance" && (
                 <div className="space-y-4">
-                  <div className="text-center pb-2">
+                  <div className="text-center pb-1">
                     <p className="text-sm text-white font-medium">Attend sessions to earn credits towards your next session</p>
-                    <button
-                      onClick={() => setShowAttendanceInfo(true)}
-                      className="mt-1.5 text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
-                      data-testid="button-how-attendance-works"
-                    >
+                    <button onClick={() => setShowAttendanceInfo(true)} className="mt-1.5 text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors" data-testid="button-how-attendance-works">
                       How does it work?
                     </button>
                   </div>
@@ -350,11 +437,9 @@ export default function Rewards() {
                                   </div>
                                   <MiniProgress value={currentInCycle} max={m.sessionsRequired} color="bg-amber-500" />
                                 </div>
-                                <div className="flex items-center justify-between">
-                                  <p className="text-xs text-slate-300">
-                                    <span className="text-amber-400 font-bold">{m.sessionsUntilNext}</span> more session{m.sessionsUntilNext !== 1 ? 's' : ''} until your next credit
-                                  </p>
-                                </div>
+                                <p className="text-xs text-slate-300">
+                                  <span className="text-amber-400 font-bold">{m.sessionsUntilNext}</span> more session{m.sessionsUntilNext !== 1 ? 's' : ''} until your next credit
+                                </p>
                                 {rewardParts.length > 0 && (
                                   <div className="flex items-center gap-1.5 pt-1 border-t border-slate-600/30">
                                     <Gift className="h-3 w-3 text-emerald-400 shrink-0" />
@@ -380,13 +465,7 @@ export default function Rewards() {
 
               {activeTab === "anniversary" && (
                 <div className="space-y-3">
-                  <style>{`
-                    @keyframes rewardShake {
-                      0%, 100% { transform: rotate(0deg); }
-                      10%, 30%, 50%, 70%, 90% { transform: rotate(-8deg); }
-                      20%, 40%, 60%, 80% { transform: rotate(8deg); }
-                    }
-                  `}</style>
+                  <style>{`@keyframes rewardShake { 0%, 100% { transform: rotate(0deg); } 10%, 30%, 50%, 70%, 90% { transform: rotate(-8deg); } 20%, 40%, 60%, 80% { transform: rotate(8deg); } }`}</style>
                   {anniversaryData && anniversaryData.length > 0 ? (
                     anniversaryData.map((info: any) => {
                       const now = Date.now();
@@ -406,7 +485,6 @@ export default function Rewards() {
                         parts.push(`${hours}h`);
                         countdownText = parts.join(" ");
                       }
-
                       return (
                         <div key={info.clubId} className="rounded-lg bg-slate-700/30 p-3 space-y-2">
                           <div className="flex items-center gap-3">
@@ -418,26 +496,23 @@ export default function Rewards() {
                               <p className="text-sm font-medium text-white">
                                 {isCelebration
                                   ? `Happy ${info.upcomingYear}${info.upcomingYear === 1 ? "st" : info.upcomingYear === 2 ? "nd" : info.upcomingYear === 3 ? "rd" : "th"} Anniversary!`
-                                  : `Year ${info.upcomingYear} in ${countdownText}`
-                                }
+                                  : `Year ${info.upcomingYear} in ${countdownText}`}
                               </p>
                             </div>
                           </div>
                           <MiniProgress value={info.progress * 100} max={100} color="bg-purple-500" />
                           <p className="text-[11px] text-slate-400">
-                            {isCelebration
-                              ? "Anniversary rewards have been issued!"
-                              : `${Math.round(info.progress * 100)}% through year ${info.upcomingYear}`
-                            }
+                            {isCelebration ? "Anniversary rewards have been issued!" : `${Math.round(info.progress * 100)}% through year ${info.upcomingYear}`}
                           </p>
                           {info.hasReward && (
-                            <p className="text-[11px] text-purple-400">
-                              <Award className="h-3 w-3 inline mr-1" />
-                              {info.rewardCredits ? `£${(info.rewardCredits / 100).toFixed(2)} credit` : ""}
-                              {info.rewardCredits && info.rewardGifts ? " + " : ""}
-                              {info.rewardGifts || ""}
-                              {info.rewardMessage ? ` — ${info.rewardMessage}` : ""}
-                            </p>
+                            <div className="flex items-center gap-1.5 pt-1 border-t border-slate-600/30">
+                              <Award className="h-3 w-3 text-purple-400 shrink-0" />
+                              <p className="text-[11px] text-purple-400">
+                                {info.rewardCredits ? `£${(info.rewardCredits / 100).toFixed(2)} credit` : ""}
+                                {info.rewardCredits && info.rewardGifts ? " + " : ""}
+                                {info.rewardGifts || ""}
+                              </p>
+                            </div>
                           )}
                         </div>
                       );
@@ -459,9 +534,9 @@ export default function Rewards() {
             <h2 className="text-sm font-bold mb-3">Rewards Summary</h2>
             <InfoRow icon={PoundSterling} label="Available credits" value={`£${(totalAvailableCredits / 100).toFixed(2)}`} hint="info" />
             <InfoRow icon={CalendarDays} label="Free sessions" value={`${totalFreeSessions}`} hint="info" />
-            <InfoRow icon={Users} label="Approved referrals" value={`${approvedReferrals}`} />
+            <InfoRow icon={Users} label="Approved referrals" value={`${approvedReferrals}`} onClick={() => setActiveTab("referrals")} />
             {bestAttendance && (
-              <InfoRow icon={Target} label="Sessions to next reward" value={`${bestAttendance.sessionsUntilNext}`} hint="info" />
+              <InfoRow icon={Target} label="Sessions to next reward" value={`${bestAttendance.sessionsUntilNext}`} hint="info" onClick={() => setActiveTab("attendance")} />
             )}
             <InfoRow icon={Gift} label="Total rewards earned" value={`${totalRewards}`} />
           </CardContent>
@@ -477,9 +552,7 @@ export default function Rewards() {
                 {availableRewards.map((reward: any) => (
                   <Card key={reward.id} className="cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setSelectedReward(reward)} data-testid={`reward-available-${reward.id}`}>
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-emerald-500/10">
-                        <Gift className="h-4 w-4 text-emerald-500" />
-                      </div>
+                      <div className="p-2 rounded-lg bg-emerald-500/10"><Gift className="h-4 w-4 text-emerald-500" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{reward.description || typeLabels[reward.rewardType] || "Reward"}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -503,9 +576,7 @@ export default function Rewards() {
                 {requestedRewards.map((reward: any) => (
                   <Card key={reward.id} className="opacity-80" data-testid={`reward-requested-${reward.id}`}>
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-amber-500/10">
-                        <Gift className="h-4 w-4 text-amber-500" />
-                      </div>
+                      <div className="p-2 rounded-lg bg-amber-500/10"><Gift className="h-4 w-4 text-amber-500" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{reward.description || typeLabels[reward.rewardType] || "Reward"}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{reward.clubName}</p>
@@ -523,9 +594,7 @@ export default function Rewards() {
                 {usedRewards.map((reward: any) => (
                   <Card key={reward.id} className="opacity-60" data-testid={`reward-used-${reward.id}`}>
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-muted">
-                        <Gift className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                      <div className="p-2 rounded-lg bg-muted"><Gift className="h-4 w-4 text-muted-foreground" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{reward.description || typeLabels[reward.rewardType] || "Reward"}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{reward.clubName}</p>
@@ -544,9 +613,7 @@ export default function Rewards() {
             <CardContent className="p-8 text-center space-y-3">
               <Gift className="h-10 w-10 mx-auto text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">No rewards yet. Refer friends and attend sessions to start earning!</p>
-              <Link href="/referrals">
-                <Button size="sm" data-testid="button-start-referring">Start Referring</Button>
-              </Link>
+              <Link href="/referrals"><Button size="sm" data-testid="button-start-referring">Start Referring</Button></Link>
             </CardContent>
           </Card>
         )}
@@ -554,10 +621,7 @@ export default function Rewards() {
         <Dialog open={!!selectedReward} onOpenChange={(open) => !open && setSelectedReward(null)}>
           <DialogContent className="bg-background max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Gift className="h-5 w-5 text-emerald-500" />
-                Reward Details
-              </DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Gift className="h-5 w-5 text-emerald-500" />Reward Details</DialogTitle>
               <DialogDescription>View and redeem your reward</DialogDescription>
             </DialogHeader>
             {selectedReward && (
@@ -572,24 +636,12 @@ export default function Rewards() {
                   </div>
                 </div>
                 {selectedReward.status === "AVAILABLE" && (
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      requestMutation.mutate(selectedReward.id);
-                      setSelectedReward(null);
-                    }}
-                    disabled={requestMutation.isPending}
-                    data-testid="button-redeem-reward"
-                  >
+                  <Button className="w-full" onClick={() => { requestMutation.mutate(selectedReward.id); setSelectedReward(null); }} disabled={requestMutation.isPending} data-testid="button-redeem-reward">
                     Request Redemption
                   </Button>
                 )}
-                {selectedReward.status === "REQUESTED" && (
-                  <p className="text-center text-sm text-amber-600 font-medium">Awaiting admin approval</p>
-                )}
-                {selectedReward.status === "USED" && (
-                  <p className="text-center text-sm text-muted-foreground">This reward has been redeemed</p>
-                )}
+                {selectedReward.status === "REQUESTED" && <p className="text-center text-sm text-amber-600 font-medium">Awaiting admin approval</p>}
+                {selectedReward.status === "USED" && <p className="text-center text-sm text-muted-foreground">This reward has been redeemed</p>}
               </div>
             )}
           </DialogContent>
@@ -598,49 +650,28 @@ export default function Rewards() {
         <Dialog open={showAttendanceInfo} onOpenChange={setShowAttendanceInfo}>
           <DialogContent className="bg-background max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-amber-500" />
-                How Session Credits Work
-              </DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-amber-500" />How Session Credits Work</DialogTitle>
               <DialogDescription>Earn rewards just by playing</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-3">
-                <div className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-amber-500">1</span>
+                {[
+                  { num: "1", title: "Attend sessions", desc: "Every time you attend a session and your attendance is marked, it counts towards your progress.", color: "bg-amber-500/10", textColor: "text-amber-500" },
+                  { num: "2", title: "Reach a milestone", desc: "Each club sets a target number of sessions. When you hit the target, you automatically earn a reward.", color: "bg-amber-500/10", textColor: "text-amber-500" },
+                  { num: "3", title: "Get credited", desc: "Credits are added to your account automatically. Use them to pay for future sessions, or receive gifts and free sessions.", color: "bg-amber-500/10", textColor: "text-amber-500" },
+                ].map(step => (
+                  <div key={step.num} className="flex gap-3 items-start">
+                    <div className={`w-7 h-7 rounded-full ${step.color} flex items-center justify-center shrink-0 mt-0.5`}>
+                      <span className={`text-xs font-bold ${step.textColor}`}>{step.num}</span>
+                    </div>
+                    <div><p className="text-sm font-medium">{step.title}</p><p className="text-xs text-muted-foreground">{step.desc}</p></div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Attend sessions</p>
-                    <p className="text-xs text-muted-foreground">Every time you attend a session and your attendance is marked, it counts towards your progress.</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-amber-500">2</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Reach a milestone</p>
-                    <p className="text-xs text-muted-foreground">Each club sets a target number of sessions. When you hit the target, you automatically earn a reward.</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-amber-500">3</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Get credited</p>
-                    <p className="text-xs text-muted-foreground">Credits are added to your account automatically. Use them to pay for future sessions, or receive gifts and free sessions.</p>
-                  </div>
-                </div>
+                ))}
                 <div className="flex gap-3 items-start">
                   <div className="w-7 h-7 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">It repeats!</p>
-                    <p className="text-xs text-muted-foreground">Milestones reset after each reward, so you keep earning the more you play. The counter never stops!</p>
-                  </div>
+                  <div><p className="text-sm font-medium">It repeats!</p><p className="text-xs text-muted-foreground">Milestones reset after each reward, so you keep earning the more you play. The counter never stops!</p></div>
                 </div>
               </div>
 
@@ -649,30 +680,26 @@ export default function Rewards() {
                   <p className="text-xs font-medium text-muted-foreground">Your clubs' reward targets:</p>
                   {attendanceProgress.map((club: any) => (
                     <div key={club.clubId}>
-                      {club.milestones && club.milestones.length > 0 ? (
-                        club.milestones.map((m: any, idx: number) => {
-                          const config = m.rewardConfig || {};
-                          const parts: string[] = [];
-                          if (config.credits > 0) parts.push(`£${(config.credits / 100).toFixed(2)}`);
-                          if (config.freeSessions > 0) parts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? 's' : ''}`);
-                          if (config.gifts) parts.push(config.gifts);
-                          return (
-                            <div key={idx} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
-                              <Gift className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                              <span className="text-xs flex-1">{club.clubName}: Every <strong>{m.sessionsRequired}</strong> sessions</span>
-                              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{parts.join(" + ")}</span>
-                            </div>
-                          );
-                        })
-                      ) : null}
+                      {(club.milestones || []).map((m: any, idx: number) => {
+                        const config = m.rewardConfig || {};
+                        const parts: string[] = [];
+                        if (config.credits > 0) parts.push(`£${(config.credits / 100).toFixed(2)}`);
+                        if (config.freeSessions > 0) parts.push(`${config.freeSessions} free session${config.freeSessions > 1 ? 's' : ''}`);
+                        if (config.gifts) parts.push(config.gifts);
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                            <Gift className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                            <span className="text-xs flex-1">{club.clubName}: Every <strong>{m.sessionsRequired}</strong> sessions</span>
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{parts.join(" + ")}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
               )}
 
-              <Button className="w-full" onClick={() => setShowAttendanceInfo(false)} data-testid="button-close-attendance-info">
-                Got it!
-              </Button>
+              <Button className="w-full" onClick={() => setShowAttendanceInfo(false)} data-testid="button-close-attendance-info">Got it!</Button>
             </div>
           </DialogContent>
         </Dialog>
