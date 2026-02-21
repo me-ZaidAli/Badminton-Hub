@@ -49,6 +49,8 @@ export default function RewardsDashboard() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [clubFilter, setClubFilter] = useState("all");
+  const [playerFilter, setPlayerFilter] = useState("all");
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "all">("pending");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [detailReward, setDetailReward] = useState<RewardEntry | null>(null);
@@ -108,19 +110,27 @@ export default function RewardsDashboard() {
   const rewards = data?.rewards || [];
   const summary = data?.summary || { total: 0, available: 0, used: 0, requested: 0, totalCreditsIssued: 0, totalFreeSessionsIssued: 0 };
 
-  const pendingRewards = rewards.filter(r => r.status === "REQUESTED");
-  const approvedRewards = rewards.filter(r => r.status === "USED");
+  const applyGlobalFilters = (list: RewardEntry[]) => list.filter(r => {
+    if (clubFilter !== "all" && String(r.clubId) !== clubFilter) return false;
+    if (playerFilter !== "all" && String(r.playerId) !== playerFilter) return false;
+    return true;
+  });
+  const globalFiltered = applyGlobalFilters(rewards);
+  const pendingRewards = globalFiltered.filter(r => r.status === "REQUESTED");
+  const approvedRewards = globalFiltered.filter(r => r.status === "USED");
 
   const getTabRewards = () => {
     switch (activeTab) {
       case "pending": return pendingRewards;
       case "approved": return approvedRewards;
-      case "all": return rewards;
+      case "all": return globalFiltered;
     }
   };
 
   const filtered = getTabRewards().filter(r => {
     if (typeFilter !== "all" && r.rewardType !== typeFilter) return false;
+    if (clubFilter !== "all" && String(r.clubId) !== clubFilter) return false;
+    if (playerFilter !== "all" && String(r.playerId) !== playerFilter) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       return (r.playerName || "").toLowerCase().includes(term) ||
@@ -132,6 +142,8 @@ export default function RewardsDashboard() {
   });
 
   const rewardTypes = [...new Set(rewards.map(r => r.rewardType))];
+  const uniqueClubs = [...new Map(rewards.map(r => [r.clubId, r.clubName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const uniquePlayers = [...new Map(rewards.map(r => [r.playerId, r.playerName])).entries()].sort((a, b) => (a[1] || "").localeCompare(b[1] || ""));
 
   function formatGBP(pence: number) {
     return `\u00A3${(pence / 100).toFixed(2)}`;
@@ -290,6 +302,28 @@ export default function RewardsDashboard() {
                 data-testid="input-search-rewards"
               />
             </div>
+            <Select value={clubFilter} onValueChange={setClubFilter}>
+              <SelectTrigger className="w-[160px]" data-testid="select-club-filter">
+                <SelectValue placeholder="Club" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clubs</SelectItem>
+                {uniqueClubs.map(([id, name]) => (
+                  <SelectItem key={id} value={String(id)}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={playerFilter} onValueChange={setPlayerFilter}>
+              <SelectTrigger className="w-[160px]" data-testid="select-player-filter">
+                <SelectValue placeholder="Player" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Players</SelectItem>
+                {uniquePlayers.map(([id, name]) => (
+                  <SelectItem key={id} value={String(id)}>{name || "Unknown"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
                 <SelectValue placeholder="Type" />
@@ -421,7 +455,7 @@ export default function RewardsDashboard() {
               </Table>
             </div>
           )}
-          <p className="text-xs text-muted-foreground mt-3">Showing {filtered.length} of {rewards.length} rewards</p>
+          <p className="text-xs text-muted-foreground mt-3">Showing {filtered.length} of {globalFiltered.length} rewards{clubFilter !== "all" || playerFilter !== "all" ? ` (filtered from ${rewards.length} total)` : ""}</p>
         </CardContent>
       </Card>
 
