@@ -1763,7 +1763,7 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ status: status as any })
       .where(and(
-        sql`${notifications.id} = ANY(${ids})`,
+        inArray(notifications.id, ids),
         eq(notifications.userId, userId)
       ));
   }
