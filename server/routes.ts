@@ -14406,37 +14406,9 @@ export async function registerRoutes(
         const clubId = profile.clubId;
         const profileId = profile.id;
 
-        const clubSessions = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
-        let currentPoints = 0;
-
-        if (clubSessions.length > 0) {
-          const sessionIds = clubSessions.map(s => s.id);
-          const completedMatches = await db.select().from(matches).where(
-            and(
-              inArray(matches.sessionId, sessionIds),
-              eq(matches.isCompleted, true),
-              eq(matches.status, "COMPLETED")
-            )
-          );
-
-          let matchesWon = 0;
-          let matchesLost = 0;
-          for (const match of completedMatches) {
-            const isInMatch = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId ||
-                              match.teamBPlayer1Id === profileId || match.teamBPlayer2Id === profileId;
-            if (!isInMatch) continue;
-
-            const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
-            const hasMultiSets = (match.numberOfSets || 1) > 1 && (match.setsWonA || 0) + (match.setsWonB || 0) > 0;
-            const teamAWon = hasMultiSets
-              ? (match.setsWonA || 0) > (match.setsWonB || 0)
-              : (match.scoreA ?? 0) > (match.scoreB ?? 0);
-            const won = (isTeamA && teamAWon) || (!isTeamA && !teamAWon);
-            if (won) matchesWon++;
-            else matchesLost++;
-          }
-          currentPoints = (matchesWon * 3) + (matchesLost * 1);
-        }
+        const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
+        const myEntry = leaderboard.find((e: any) => e.id === profileId);
+        const currentPoints = myEntry ? (myEntry.matchesWon * 3) + (myEntry.matchesLost * 1) : 0;
 
         const activeMilestones = await db.select().from(pointsMilestoneRewards).where(
           and(eq(pointsMilestoneRewards.clubId, clubId), eq(pointsMilestoneRewards.isActive, true))
