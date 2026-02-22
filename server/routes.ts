@@ -14465,7 +14465,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
-      const profiles = user.playerProfiles || [];
+      const profiles = await storage.getPlayerProfilesByUser(user.id);
 
       const BADGE_REWARD_DEFS = [
         { id: "first_win", name: "First Win", check: (s: any) => s.won >= 1 },
@@ -14489,19 +14489,10 @@ export async function registerRoutes(
 
         if (activeRewards.length === 0) continue;
 
-        const clubMatches = await db.select().from(matches).where(
-          and(eq(matches.clubId, clubId), eq(matches.status, "COMPLETED"))
-        );
-
-        let won = 0, played = 0;
-        for (const m of clubMatches) {
-          const winners = (m.winners as number[]) || [];
-          const allPlayers = [...((m.team1 as number[]) || []), ...((m.team2 as number[]) || [])];
-          if (allPlayers.includes(profile.userId)) {
-            played++;
-            if (winners.includes(profile.userId)) won++;
-          }
-        }
+        const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
+        const myEntry = leaderboard.find((e: any) => e.id === profile.id);
+        const played = myEntry?.matchesPlayed || 0;
+        const won = myEntry?.matchesWon || 0;
         const stats = { played, won };
 
         const earnedBadgeIds = new Set<string>();
@@ -14582,7 +14573,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
-      const profiles = user.playerProfiles || [];
+      const profiles = await storage.getPlayerProfilesByUser(user.id);
 
       const BADGE_DEFS = [
         { id: "first_win", name: "First Win", criteria: "Win your first match", icon: "zap", color: "#22c55e", check: (s: any) => s.won >= 1 },
@@ -14599,8 +14590,11 @@ export async function registerRoutes(
 
       for (const profile of profiles) {
         const clubId = profile.clubId;
-        const played = profile.matchesPlayed || 0;
-        const won = profile.matchesWon || 0;
+
+        const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
+        const myEntry = leaderboard.find((e: any) => e.id === profile.id);
+        const played = myEntry?.matchesPlayed || 0;
+        const won = myEntry?.matchesWon || 0;
         const stats = { played, won };
         const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
 
@@ -14616,11 +14610,11 @@ export async function registerRoutes(
         const earnedCount = badges.filter(b => b.earned).length;
         const highestEarnedIndex = badges.reduce((max, b, idx) => b.earned ? idx : max, -1);
 
-        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+        const clubName = (profile as any).club?.name || "Unknown Club";
 
         results.push({
           clubId,
-          clubName: clubRow?.name || "Unknown Club",
+          clubName,
           matchesPlayed: played,
           matchesWon: won,
           winRate,
