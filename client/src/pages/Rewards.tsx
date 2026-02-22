@@ -380,8 +380,7 @@ export default function Rewards() {
     setViewingPlayerName(player.fullName);
     setPlayerSearchQuery("");
     setPlayerSearchOpen(false);
-    if (activeTab === "points" || activeTab === "badges") setActiveTab("referrals");
-  }, [activeTab]);
+  }, []);
 
   const clearPlayerView = useCallback(() => {
     setViewingPlayerId(null);
@@ -407,8 +406,8 @@ export default function Rewards() {
   const anniversaryData = isViewingOther ? adminPlayerData?.anniversaryData : ownAnniversaryData;
   const birthdayData = isViewingOther ? adminPlayerData?.birthdayData : ownBirthdayData;
   const attendanceProgress = isViewingOther ? adminPlayerData?.attendanceProgress : ownAttendanceProgress;
-  const pointsProgress = isViewingOther ? null : ownPointsProgress;
-  const badgeProgress = isViewingOther ? null : ownBadgeProgress;
+  const pointsProgress = isViewingOther ? adminPlayerData?.pointsProgress : ownPointsProgress;
+  const badgeProgress = isViewingOther ? adminPlayerData?.badgeProgress : ownBadgeProgress;
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [showAttendanceInfo, setShowAttendanceInfo] = useState(false);
   const [showRewardsGuide, setShowRewardsGuide] = useState(false);
@@ -812,8 +811,8 @@ export default function Rewards() {
                 { key: "attendance", label: "Attend", icon: Target },
                 { key: "anniversary", label: "Anniv", icon: CalendarDays },
                 { key: "birthday", label: "B-Day", icon: Cake },
-                ...(!isViewingOther ? [{ key: "points", label: "Points", icon: TrendingUp }] : []),
-                ...(!isViewingOther ? [{ key: "badges", label: "Badges", icon: Award }] : []),
+                { key: "points", label: "Points", icon: TrendingUp },
+                { key: "badges", label: "Badges", icon: Award },
               ].map(tab => {
                 const isActive = activeTab === tab.key;
                 const tc = tabThemes[tab.key];

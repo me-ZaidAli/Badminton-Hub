@@ -15509,6 +15509,107 @@ export async function registerRoutes(
         birthdayResults.push({ clubId: profile.clubId, clubName, hasDob, daysUntilBirthday, nextBirthdayDate, birthdayToday, credits: settings.credits, gifts: settings.gifts });
       }
 
+      // Points milestone progress for target player
+      const pointsResults: any[] = [];
+      for (const { profile, clubName } of visibleProfiles) {
+        const leaderboard = await storage.getDynamicClubLeaderboard(profile.clubId);
+        const entry = leaderboard.find((e: any) => e.id === profile.id);
+        const currentPoints = entry ? (entry.matchesWon * 3) + (entry.matchesLost * 1) : 0;
+
+        const activeMilestones = await db.select().from(pointsMilestoneRewards).where(
+          and(eq(pointsMilestoneRewards.clubId, profile.clubId), eq(pointsMilestoneRewards.isActive, true))
+        ).orderBy(pointsMilestoneRewards.pointsRequired);
+
+        const milestones = activeMilestones.map(milestone => {
+          const reached = currentPoints >= milestone.pointsRequired;
+          const pointsUntil = Math.max(milestone.pointsRequired - currentPoints, 0);
+          const progressPercent = milestone.pointsRequired > 0 ? Math.min((currentPoints / milestone.pointsRequired) * 100, 100) : 0;
+          const isRepeating = milestone.isRepeating && milestone.milestoneType === "STANDARD";
+          const timesEarned = isRepeating && milestone.pointsRequired > 0
+            ? Math.floor(currentPoints / milestone.pointsRequired)
+            : (reached ? 1 : 0);
+          const nextThreshold = isRepeating && milestone.pointsRequired > 0
+            ? (timesEarned + 1) * milestone.pointsRequired
+            : milestone.pointsRequired;
+          const pointsUntilNext = Math.max(nextThreshold - currentPoints, 0);
+          const repeatProgress = isRepeating && milestone.pointsRequired > 0
+            ? Math.min(((currentPoints % milestone.pointsRequired) / milestone.pointsRequired) * 100, 100)
+            : progressPercent;
+          return {
+            rewardId: milestone.id,
+            pointsRequired: milestone.pointsRequired,
+            currentPoints,
+            reached,
+            pointsUntil,
+            pointsUntilNext,
+            progressPercent: isRepeating ? repeatProgress : progressPercent,
+            rewardConfig: milestone.rewardConfig,
+            isRepeating,
+            milestoneType: milestone.milestoneType || "STANDARD",
+            timesEarned,
+            nextThreshold,
+          };
+        });
+
+        const nextUnreached = milestones.find(m => !m.reached);
+        const highestReached = [...milestones].reverse().find(m => m.reached);
+
+        pointsResults.push({
+          clubId: profile.clubId,
+          clubName,
+          currentPoints,
+          milestones,
+          nextMilestone: nextUnreached || null,
+          highestReached: highestReached || null,
+        });
+      }
+
+      // Badge progress for target player
+      const BADGE_DEFS_ADMIN = [
+        { id: "first_win", name: "First Win", criteria: "Win your first match", icon: "zap", color: "#22c55e", check: (s: any) => s.won >= 1 },
+        { id: "5_wins", name: "5+ Wins", criteria: "Win 5 or more matches", icon: "flame", color: "#f97316", check: (s: any) => s.won >= 5 },
+        { id: "10_matches", name: "10+ Matches", criteria: "Play 10 or more matches", icon: "star", color: "#eab308", check: (s: any) => s.played >= 10 },
+        { id: "rising_star", name: "Rising Star", criteria: "3+ wins with 60%+ win rate", icon: "sparkles", color: "#ec4899", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
+        { id: "top_performer", name: "Top Performer", criteria: "75%+ win rate (4+ matches)", icon: "medal", color: "#a855f7", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
+        { id: "undefeated", name: "Undefeated", criteria: "3+ matches without a loss", icon: "trophy", color: "#d97706", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "iron_player", name: "Iron Player", criteria: "Play 20+ matches", icon: "shield", color: "#3b82f6", check: (s: any) => s.played >= 20 },
+        { id: "champion", name: "Champion", criteria: "15+ wins with 70%+ win rate", icon: "crown", color: "#f59e0b", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
+      ];
+      const badgeResults: any[] = [];
+      for (const { profile, clubName } of visibleProfiles) {
+        const leaderboard = await storage.getDynamicClubLeaderboard(profile.clubId);
+        const entry = leaderboard.find((e: any) => e.id === profile.id);
+        const played = entry?.matchesPlayed || 0;
+        const won = entry?.matchesWon || 0;
+        const pStats = { played, won };
+        const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
+
+        const badges = BADGE_DEFS_ADMIN.map(bd => ({
+          id: bd.id,
+          name: bd.name,
+          criteria: bd.criteria,
+          icon: bd.icon,
+          color: bd.color,
+          earned: bd.check(pStats),
+        }));
+
+        const earnedCount = badges.filter(b => b.earned).length;
+        const highestEarnedIndex = badges.reduce((max, b, idx) => b.earned ? idx : max, -1);
+
+        badgeResults.push({
+          clubId: profile.clubId,
+          clubName,
+          matchesPlayed: played,
+          matchesWon: won,
+          winRate,
+          badges,
+          earnedCount,
+          totalBadges: badges.length,
+          highestEarnedIndex,
+          grade: profile.grade || null,
+        });
+      }
+
       res.json({
         player: { id: targetUser.id, fullName: targetUser.fullName, email: targetUser.email },
         rewards,
@@ -15517,6 +15618,8 @@ export async function registerRoutes(
         attendanceProgress: attendanceResults,
         anniversaryData: anniversaryResults,
         birthdayData: birthdayResults,
+        pointsProgress: pointsResults,
+        badgeProgress: badgeResults,
       });
     } catch (err: any) {
       console.error("Error fetching player rewards:", err);
