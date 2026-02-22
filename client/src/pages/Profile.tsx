@@ -760,10 +760,6 @@ function CreditsModal({ open, onClose, creditBalances, memberships }: {
   });
   (creditBalances || []).forEach(cb => { if (!allClubs.has(cb.clubId)) allClubs.set(cb.clubId, cb); });
   const clubs = Array.from(allClubs.values());
-  const clubsWithCredit = clubs.filter(cb => Number(cb.balance) > 0);
-  const clubsWithDebt = clubs.filter(cb => Number(cb.balance) < 0);
-  const clubsZero = clubs.filter(cb => Number(cb.balance) === 0);
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[450px]" data-testid="modal-credits">
@@ -776,49 +772,26 @@ function CreditsModal({ open, onClose, creditBalances, memberships }: {
         <div className="space-y-3">
           {clubs.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No credit data available</p>
-          ) : (
-            <>
-              {clubsWithCredit.map((cb) => (
-                <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
-                  <span className="font-medium">{cb.clubName}</span>
-                  <span className="text-lg font-bold text-green-600">
-                    £{(Number(cb.balance) / 100).toFixed(2)}
-                  </span>
-                </div>
-              ))}
-              {clubsZero.map((cb) => (
-                <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
-                  <span className="font-medium">{cb.clubName}</span>
-                  <span className="text-lg font-bold text-muted-foreground">£0.00</span>
-                </div>
-              ))}
-              {clubsWithDebt.length > 0 && (
-                <>
-                  <div className="pt-2 border-t">
-                    <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-2">Outstanding Credit Balance</p>
-                  </div>
-                  {clubsWithDebt.map((cb) => (
-                    <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-amber-500/10 border border-amber-300/30 dark:border-amber-700/30" data-testid={`credit-debt-${cb.clubId}`}>
-                      <span className="font-medium">{cb.clubName}</span>
-                      <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                        £{(Math.abs(Number(cb.balance)) / 100).toFixed(2)} owed
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
-          )}
+          ) : clubs.map((cb) => {
+            const bal = Math.max(0, Number(cb.balance));
+            return (
+              <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
+                <span className="font-medium">{cb.clubName}</span>
+                <span className={`text-lg font-bold ${bal > 0 ? "text-green-600" : "text-muted-foreground"}`}>
+                  £{(bal / 100).toFixed(2)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function OutstandingModal({ open, onClose, payments, creditBalances }: {
+function OutstandingModal({ open, onClose, payments }: {
   open: boolean; onClose: () => void;
   payments: any[] | undefined;
-  creditBalances: { clubId: number; clubName: string; balance: number }[] | undefined;
 }) {
   const grouped = useMemo(() => {
     return (payments || []).reduce((acc: Record<string, any[]>, p: any) => {
@@ -828,67 +801,38 @@ function OutstandingModal({ open, onClose, payments, creditBalances }: {
     }, {});
   }, [payments]);
 
-  const clubsWithDebt = useMemo(() => {
-    return (creditBalances || []).filter(cb => Number(cb.balance) < 0);
-  }, [creditBalances]);
-
-  const hasPayments = Object.entries(grouped).length > 0;
-  const hasDebt = clubsWithDebt.length > 0;
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-outstanding">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-amber-500" />
-            Outstanding Balance
+            Outstanding Payments
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {!hasPayments && !hasDebt && (
-            <p className="text-sm text-muted-foreground text-center py-4">All paid up</p>
-          )}
-          {hasPayments && (
-            <>
-              {Object.keys(grouped).length > 0 && hasDebt && (
-                <p className="text-xs font-medium text-muted-foreground">Unpaid Sessions</p>
-              )}
-              {Object.entries(grouped).map(([clubName, clubPayments]) => {
-                const total = (clubPayments as any[]).reduce((sum: number, p: any) => sum + p.fee, 0);
-                return (
-                  <div key={clubName} className="space-y-2" data-testid={`outstanding-club-${clubName}`}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{clubName}</span>
-                      <Badge variant="secondary">Total: £{(total / 100).toFixed(2)}</Badge>
-                    </div>
-                    {(clubPayments as any[]).map((p: any) => (
-                      <div key={p.signupId} className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{p.sessionTitle}</span>
-                          <span className="text-xs text-muted-foreground">{format(new Date(p.sessionDate), "MMM d, yyyy")}</span>
-                        </div>
-                        <span className="text-sm font-bold text-amber-600">£{(p.fee / 100).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </>
-          )}
-          {hasDebt && (
-            <>
-              {hasPayments && <div className="border-t pt-2" />}
-              <p className="text-xs font-medium text-muted-foreground">Credit Balance Owed</p>
-              {clubsWithDebt.map((cb) => (
-                <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-amber-500/10 border border-amber-300/30 dark:border-amber-700/30" data-testid={`outstanding-credit-${cb.clubId}`}>
-                  <span className="font-medium">{cb.clubName}</span>
-                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                    £{(Math.abs(Number(cb.balance)) / 100).toFixed(2)}
-                  </span>
+          {Object.entries(grouped).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No outstanding payments</p>
+          ) : Object.entries(grouped).map(([clubName, clubPayments]) => {
+            const total = (clubPayments as any[]).reduce((sum: number, p: any) => sum + p.fee, 0);
+            return (
+              <div key={clubName} className="space-y-2" data-testid={`outstanding-club-${clubName}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm">{clubName}</span>
+                  <Badge variant="secondary">Total: £{(total / 100).toFixed(2)}</Badge>
                 </div>
-              ))}
-            </>
-          )}
+                {(clubPayments as any[]).map((p: any) => (
+                  <div key={p.signupId} className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{p.sessionTitle}</span>
+                      <span className="text-xs text-muted-foreground">{format(new Date(p.sessionDate), "MMM d, yyyy")}</span>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600">£{(p.fee / 100).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
@@ -1545,18 +1489,18 @@ export default function Profile() {
 
   const { data: juniors, isLoading: juniorsLoading } = useQuery<any[]>({ queryKey: ["/api/juniors"], enabled: !!user });
 
-  const rawCreditBalance = useMemo(() => {
+  const totalCredits = useMemo(() => {
     if (!creditBalances) return 0;
-    return creditBalances.reduce((sum, cb) => sum + Number(cb.balance), 0);
+    return creditBalances.reduce((sum, cb) => {
+      const bal = Number(cb.balance);
+      return sum + (bal > 0 ? bal : 0);
+    }, 0);
   }, [creditBalances]);
 
-  const totalCredits = Math.max(0, rawCreditBalance);
-
   const totalOutstanding = useMemo(() => {
-    const unpaidFees = outstandingPayments ? outstandingPayments.reduce((sum: number, p: any) => sum + p.fee, 0) : 0;
-    const creditDebt = rawCreditBalance < 0 ? Math.abs(rawCreditBalance) : 0;
-    return unpaidFees + creditDebt;
-  }, [outstandingPayments, rawCreditBalance]);
+    if (!outstandingPayments) return 0;
+    return outstandingPayments.reduce((sum: number, p: any) => sum + p.fee, 0);
+  }, [outstandingPayments]);
 
   const performance = useMemo(() => {
     if (!matchPerformance) return { played: 0, won: 0, lost: 0, winPct: 0 };
@@ -1734,7 +1678,7 @@ export default function Profile() {
           subtext={creditBalances && creditBalances.length > 0 ? `Across ${creditBalances.length} club${creditBalances.length > 1 ? "s" : ""}` : "No credits yet"}
           onClick={() => setCreditsModalOpen(true)} />
         <MetricCard icon={AlertCircle} label="Outstanding Balance" value={`£${(totalOutstanding / 100).toFixed(2)}`}
-          subtext={totalOutstanding > 0 ? (rawCreditBalance < 0 && outstandingPayments && outstandingPayments.length > 0 ? `${outstandingPayments.length} unpaid session${outstandingPayments.length > 1 ? "s" : ""} + credit balance` : rawCreditBalance < 0 ? "Credit balance owed" : `${outstandingPayments?.length || 0} unpaid session${(outstandingPayments?.length || 0) > 1 ? "s" : ""}`) : "All paid up"}
+          subtext={outstandingPayments && outstandingPayments.length > 0 ? `${outstandingPayments.length} unpaid session${outstandingPayments.length > 1 ? "s" : ""}` : "All paid up"}
           onClick={() => setOutstandingModalOpen(true)}
           className={totalOutstanding > 0 ? "border-amber-300/50 dark:border-amber-700/50" : ""} />
       </div>
@@ -2196,7 +2140,7 @@ export default function Profile() {
 
       {/* Modals */}
       <CreditsModal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} creditBalances={creditBalances} memberships={memberships} />
-      <OutstandingModal open={outstandingModalOpen} onClose={() => setOutstandingModalOpen(false)} payments={outstandingPayments} creditBalances={creditBalances} />
+      <OutstandingModal open={outstandingModalOpen} onClose={() => setOutstandingModalOpen(false)} payments={outstandingPayments} />
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <DiscountCodesModal open={discountCodesModalOpen} onClose={() => setDiscountCodesModalOpen(false)} />
       <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} matchPerformance={matchPerformance} />
