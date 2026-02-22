@@ -13831,7 +13831,8 @@ export async function registerRoutes(
       const clubId = Number(req.params.clubId);
       const user = req.user as any;
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -13861,7 +13862,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -13890,7 +13892,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -13939,7 +13942,8 @@ export async function registerRoutes(
       const clubId = Number(req.params.clubId);
       const user = req.user as any;
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -13969,7 +13973,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -13997,7 +14002,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14030,7 +14036,8 @@ export async function registerRoutes(
       const clubId = Number(req.params.clubId);
       const user = req.user as any;
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14063,7 +14070,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14093,7 +14101,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14126,7 +14135,8 @@ export async function registerRoutes(
       const clubId = Number(req.params.clubId);
       const user = req.user as any;
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14156,7 +14166,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14184,7 +14195,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === existing.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === existing.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14202,7 +14214,8 @@ export async function registerRoutes(
     try {
       const user = req.user as any;
       const isSuperAdmin = user.role === "OWNER";
-      const adminClubIds = (user.playerProfiles || [])
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const adminClubIds = userProfiles
         .filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER")
         .map((p: any) => p.clubId);
       if (!isSuperAdmin && adminClubIds.length === 0) return res.status(403).json({ message: "Admin access required" });
@@ -14306,11 +14319,11 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
-      const profiles = user.playerProfiles || [];
+      const profiles = await storage.getPlayerProfilesByUser(user.id);
       const results: any[] = [];
 
       for (const profile of profiles) {
-        const clubId = profile.clubId;
+        const clubId = (profile as any).clubId;
 
         const attendedCount = await db.select({ count: sql<number>`count(*)` })
           .from(sessionSignups)
@@ -14344,11 +14357,9 @@ export async function registerRoutes(
           };
         });
 
-        const [clubRow] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
-
         results.push({
           clubId,
-          clubName: clubRow?.name || "Unknown Club",
+          clubName: (profile as any).club?.name || "Unknown Club",
           totalAttended: attendedCount,
           milestones,
         });
@@ -14663,7 +14674,8 @@ export async function registerRoutes(
       if (!reward) return res.status(404).json({ message: "Reward not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === reward.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14691,7 +14703,8 @@ export async function registerRoutes(
       if (!reward) return res.status(404).json({ message: "Reward not found" });
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === reward.clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
@@ -14747,6 +14760,7 @@ export async function registerRoutes(
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No reward IDs provided" });
 
       const isSuperAdmin = user.role === "OWNER";
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
       const results: any[] = [];
       const errors: string[] = [];
 
@@ -14757,7 +14771,7 @@ export async function registerRoutes(
           if (reward.status !== "REQUESTED") { errors.push(`Reward ${id} is not in REQUESTED status`); continue; }
 
           if (!isSuperAdmin) {
-            const profile = (user.playerProfiles || []).find((p: any) => p.clubId === reward.clubId);
+            const profile = userProfiles.find((p: any) => p.clubId === reward.clubId);
             const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
             if (!isClubAdmin) { errors.push(`No admin access for reward ${id}`); continue; }
           }
@@ -14816,7 +14830,8 @@ export async function registerRoutes(
       const { playerId, clubId, rewardType, description, credits, gifts, freeSessions } = req.body;
 
       const isSuperAdmin = user.role === "OWNER";
-      const profile = (user.playerProfiles || []).find((p: any) => p.clubId === clubId);
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const profile = userProfiles.find((p: any) => p.clubId === clubId);
       const isClubAdmin = profile && (profile.clubRole === "ADMIN" || profile.clubRole === "OWNER");
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
