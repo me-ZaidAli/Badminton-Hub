@@ -2539,7 +2539,9 @@ export async function registerRoutes(
                 .where(and(
                   eq(playerProfiles.userId, userId),
                   eq(sessions.clubId, clubId),
-                  eq(sessionSignups.attendanceStatus, "ATTENDED")
+                  eq(sessions.status, "COMPLETED"),
+                  inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
+                  sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW', 'JUSTIFIED_CANCELLATION', 'SICKNESS', 'EMERGENCY')`
                 )).then(r => Number(r[0]?.count || 0));
 
               const activeRewards = await db.select().from(sessionAttendanceRewards).where(
@@ -14331,7 +14333,9 @@ export async function registerRoutes(
           .where(and(
             eq(sessionSignups.playerId, profile.id),
             eq(sessions.clubId, clubId),
-            eq(sessionSignups.attendanceStatus, "ATTENDED")
+            eq(sessions.status, "COMPLETED"),
+            inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
+            sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW', 'JUSTIFIED_CANCELLATION', 'SICKNESS', 'EMERGENCY')`
           )).then(r => Number(r[0]?.count || 0));
 
         const activeRewards = await db.select().from(sessionAttendanceRewards).where(
@@ -15260,7 +15264,9 @@ export async function registerRoutes(
           .where(and(
             eq(sessionSignups.playerId, profile.id),
             eq(sessions.clubId, profile.clubId),
-            eq(sessionSignups.attendanceStatus, "ATTENDED")
+            eq(sessions.status, "COMPLETED"),
+            inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
+            sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW', 'JUSTIFIED_CANCELLATION', 'SICKNESS', 'EMERGENCY')`
           )).then(r => Number(r[0]?.count || 0));
 
         const activeRewards = await db.select().from(sessionAttendanceRewards).where(
