@@ -37,6 +37,7 @@ interface BadgeCounts {
   tickets: number;
   messages: number;
   announcements: number;
+  pendingRewards: number;
 }
 
 interface NavItem {
@@ -45,6 +46,7 @@ interface NavItem {
   icon: any;
   group: string;
   badgeKey?: keyof BadgeCounts;
+  secondaryBadgeKey?: keyof BadgeCounts;
   isGodMode?: boolean;
 }
 
@@ -81,7 +83,7 @@ function useNavGroups(): NavGroup[] {
     { href: "/rewards", label: "My Rewards", icon: Award, group: "club" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
-    { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications" },
+    { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
 
@@ -215,7 +217,9 @@ export function Sidebar() {
                 <div className="space-y-0.5">
                   {group.items.map((item) => {
                     const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                    const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                    const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                    const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                    const badgeCount = primaryCount + secondaryCount;
                     return (
                       <Link key={item.href} href={item.href}>
                         <div
@@ -389,7 +393,9 @@ export function MobileTopNav() {
                     <div className="space-y-0.5">
                       {group.items.map((item) => {
                         const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                        const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                        const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                        const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                        const badgeCount = primaryCount + secondaryCount;
                         return (
                           <Link key={item.href} href={item.href}>
                             <Button

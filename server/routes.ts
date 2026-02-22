@@ -10983,11 +10983,29 @@ export async function registerRoutes(
         .where(eq(announcementArchives.userId, userId));
       const announcementsCount = Math.max(0, (totalAnnouncements[0]?.count || 0) - (archivedAnnouncements[0]?.count || 0));
 
+      // Pending reward requests count for admins/owners
+      let pendingRewards = 0;
+      const currentUser = req.user as any;
+      const isOwner = currentUser.role === "OWNER";
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      const adminClubIds = adminProfiles.map(p => p.clubId);
+      if (isOwner || adminClubIds.length > 0) {
+        const pendingFilter = isOwner
+          ? eq(playerRewardLedger.status, "REQUESTED")
+          : and(eq(playerRewardLedger.status, "REQUESTED"), inArray(playerRewardLedger.clubId, adminClubIds));
+        const pendingResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(playerRewardLedger)
+          .where(pendingFilter!);
+        pendingRewards = pendingResult[0]?.count || 0;
+      }
+
       res.json({
         notifications: notificationsCount,
         tickets: ticketsCount,
         messages: messagesCount,
         announcements: announcementsCount,
+        pendingRewards,
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
@@ -14662,6 +14680,26 @@ export async function registerRoutes(
         updatedAt: new Date(),
       }).where(eq(playerRewardLedger.id, id)).returning();
       console.log(`[AUDIT] Reward requested: id=${id}, by user=${user.id}`);
+
+      // Notify admins of the reward's club
+      try {
+        const clubAdmins = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.clubId, reward.clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+        const ownerUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER"));
+        const adminUserIds = [...new Set([...clubAdmins.map(a => a.userId), ...ownerUsers.map(o => o.id)])].filter(uid => uid !== user.id);
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, reward.clubId));
+        for (const adminId of adminUserIds) {
+          await db.insert(notifications).values({
+            userId: adminId,
+            type: "REWARD_REQUEST",
+            title: "Reward Claim Request",
+            message: `${user.fullName} has requested a reward: ${reward.description || "Reward"} (${club?.name || "Club"})`,
+            linkUrl: "/admin/rewards",
+            status: "in_progress",
+          });
+        }
+      } catch (notifErr) { console.error("Error sending reward request notifications:", notifErr); }
+
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -14686,7 +14724,77 @@ export async function registerRoutes(
       )).returning();
 
       console.log(`[AUDIT] Bulk reward request: ids=${ids.join(",")}, count=${results.length}, by user=${user.id}`);
+
+      // Notify admins about bulk reward claims
+      if (results.length > 0) {
+        try {
+          const clubIds = [...new Set(results.map((r: any) => r.clubId))];
+          for (const clubId of clubIds) {
+            const clubRewards = results.filter((r: any) => r.clubId === clubId);
+            const clubAdmins = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+              .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+            const ownerUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER"));
+            const adminUserIds = [...new Set([...clubAdmins.map(a => a.userId), ...ownerUsers.map(o => o.id)])].filter(uid => uid !== user.id);
+            const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+            for (const adminId of adminUserIds) {
+              await db.insert(notifications).values({
+                userId: adminId,
+                type: "REWARD_REQUEST",
+                title: "Reward Claim Requests",
+                message: `${user.fullName} has requested ${clubRewards.length} reward${clubRewards.length > 1 ? "s" : ""} from ${club?.name || "Club"}. Please review and approve.`,
+                linkUrl: "/admin/rewards",
+                status: "in_progress",
+              });
+            }
+          }
+        } catch (notifErr) { console.error("Error sending bulk reward request notifications:", notifErr); }
+      }
+
       res.json({ requested: results.length, results });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/rewards/pending-tasks - Get pending reward requests for admin
+  app.get("/api/admin/rewards/pending-tasks", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const adminClubIds = userProfiles
+        .filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER")
+        .map((p: any) => p.clubId);
+
+      if (!isSuperAdmin && adminClubIds.length === 0) return res.json({ rewards: [] });
+
+      const filter = isSuperAdmin
+        ? eq(playerRewardLedger.status, "REQUESTED")
+        : and(eq(playerRewardLedger.status, "REQUESTED"), inArray(playerRewardLedger.clubId, adminClubIds));
+
+      const rewards = await db.select({
+        id: playerRewardLedger.id,
+        playerId: playerRewardLedger.playerId,
+        clubId: playerRewardLedger.clubId,
+        rewardType: playerRewardLedger.rewardType,
+        description: playerRewardLedger.description,
+        credits: playerRewardLedger.credits,
+        gifts: playerRewardLedger.gifts,
+        freeSessions: playerRewardLedger.freeSessions,
+        status: playerRewardLedger.status,
+        createdAt: playerRewardLedger.createdAt,
+        updatedAt: playerRewardLedger.updatedAt,
+        playerName: users.fullName,
+        clubName: clubs.name,
+      })
+        .from(playerRewardLedger)
+        .leftJoin(users, eq(playerRewardLedger.playerId, users.id))
+        .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
+        .where(filter!)
+        .orderBy(desc(playerRewardLedger.updatedAt));
+
+      res.json({ rewards: rewards.map(r => ({ ...r, type: r.rewardType })) });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -14715,6 +14823,22 @@ export async function registerRoutes(
         updatedAt: new Date(),
       }).where(eq(playerRewardLedger.id, id)).returning();
       console.log(`[AUDIT] Reward status updated: id=${id}, status=${status}, by user=${user.id}`);
+
+      // If status changed from REQUESTED, auto-complete related notifications
+      if (reward.status === "REQUESTED" && status !== "REQUESTED") {
+        try {
+          const playerUser = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, reward.playerId));
+          const playerName = playerUser[0]?.fullName || "";
+          if (playerName) {
+            await db.update(notifications).set({ status: "completed" }).where(and(
+              eq(notifications.type, "REWARD_REQUEST"),
+              sql`${notifications.message} ILIKE ${"%" + playerName + "%"}`,
+              eq(notifications.status, "in_progress")
+            ));
+          }
+        } catch (notifErr) { console.error("Error auto-completing reward notifications:", notifErr); }
+      }
+
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -14772,6 +14896,33 @@ export async function registerRoutes(
       });
 
       console.log(`[AUDIT] Reward approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
+
+      // Auto-complete REWARD_REQUEST notifications related to this player's rewards for this club
+      try {
+        const playerUser = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, reward.playerId));
+        const playerName = playerUser[0]?.fullName || "";
+        if (playerName) {
+          await db.update(notifications).set({ status: "completed" }).where(and(
+            eq(notifications.type, "REWARD_REQUEST"),
+            sql`${notifications.message} ILIKE ${"%" + playerName + "%"}`,
+            eq(notifications.status, "in_progress")
+          ));
+        }
+      } catch (notifErr) { console.error("Error auto-completing reward notifications:", notifErr); }
+
+      // Notify the player that their reward was approved
+      try {
+        const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, reward.clubId));
+        await db.insert(notifications).values({
+          userId: reward.playerId,
+          type: "REWARD_APPROVED",
+          title: "Reward Approved",
+          message: `Your reward "${reward.description || "Reward"}" from ${club?.name || "Club"} has been approved! Credits have been added to your account.`,
+          linkUrl: "/rewards",
+          status: "in_progress",
+        });
+      } catch (notifErr) { console.error("Error sending reward approved notification:", notifErr); }
+
       res.json(result);
     } catch (err: any) {
       if (err.message?.includes("already approved")) return res.status(409).json({ message: err.message });
@@ -14839,6 +14990,28 @@ export async function registerRoutes(
 
           console.log(`[AUDIT] Reward bulk-approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
           results.push(updated);
+
+          // Notify the player and auto-complete admin notifications
+          try {
+            const playerUser = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, reward.playerId));
+            const playerName = playerUser[0]?.fullName || "";
+            if (playerName) {
+              await db.update(notifications).set({ status: "completed" }).where(and(
+                eq(notifications.type, "REWARD_REQUEST"),
+                sql`${notifications.message} ILIKE ${"%" + playerName + "%"}`,
+                eq(notifications.status, "in_progress")
+              ));
+            }
+            const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, reward.clubId));
+            await db.insert(notifications).values({
+              userId: reward.playerId,
+              type: "REWARD_APPROVED",
+              title: "Reward Approved",
+              message: `Your reward "${reward.description || "Reward"}" from ${club?.name || "Club"} has been approved!`,
+              linkUrl: "/rewards",
+              status: "in_progress",
+            });
+          } catch (notifErr) { console.error("Error processing reward notifications:", notifErr); }
         } catch (innerErr: any) {
           errors.push(`Error processing reward ${id}: ${innerErr.message}`);
         }

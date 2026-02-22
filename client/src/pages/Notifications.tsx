@@ -20,6 +20,9 @@ import {
   ExternalLink,
   RotateCcw,
   Inbox,
+  ClipboardList,
+  Gift,
+  ChevronRight,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { Notification } from "@shared/schema";
@@ -29,9 +32,10 @@ interface NotificationsResponse {
   unreadCount: number;
 }
 
-type TabValue = "in_progress" | "completed" | "archived";
+type TabValue = "pending_tasks" | "in_progress" | "completed" | "archived";
 
 const statusConfig: Record<TabValue, { label: string; icon: typeof Clock; emptyText: string }> = {
+  pending_tasks: { label: "Pending Tasks", icon: ClipboardList, emptyText: "No pending tasks" },
   in_progress: { label: "In Progress", icon: Clock, emptyText: "No notifications in progress" },
   completed: { label: "Completed", icon: CheckCircle2, emptyText: "No completed notifications" },
   archived: { label: "Archived", icon: Archive, emptyText: "No archived notifications" },
@@ -57,22 +61,53 @@ function getNotificationTypeColor(type: string): string {
     case "admin":
     case "system":
       return "bg-red-500/10 text-red-600 dark:text-red-400";
+    case "reward_request":
+    case "reward_approved":
+      return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
     default:
       return "bg-muted text-muted-foreground";
   }
+}
+
+interface PendingTask {
+  id: number;
+  type: string;
+  playerName: string;
+  description: string;
+  credits: number;
+  gifts: string | null;
+  freeSessions: number;
+  clubName: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function NotificationsPage() {
   const { data: user } = useUser();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
   const [activeTab, setActiveTab] = useState<TabValue>("in_progress");
+  const [hasSetDefaultTab, setHasSetDefaultTab] = useState(false);
+
+  useEffect(() => {
+    if (user && isAdminOrOwner && !hasSetDefaultTab) {
+      setActiveTab("pending_tasks");
+      setHasSetDefaultTab(true);
+    }
+  }, [user, isAdminOrOwner, hasSetDefaultTab]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["/api/notifications"],
     enabled: !!user,
+  });
+
+  const { data: pendingRewardsData, isLoading: pendingRewardsLoading } = useQuery<{ rewards: PendingTask[] }>({
+    queryKey: ["/api/admin/rewards/pending-tasks"],
+    enabled: !!user && isAdminOrOwner,
   });
 
   const updateStatusMutation = useMutation({
@@ -95,6 +130,19 @@ export default function NotificationsPage() {
       setSelectedIds(new Set());
       toast({ title: "Notifications updated" });
     },
+  });
+
+  const approveRewardMutation = useMutation({
+    mutationFn: async (rewardId: number) => {
+      await apiRequest("POST", `/api/admin/rewards/${rewardId}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rewards/pending-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      toast({ title: "Reward Approved", description: "The reward has been approved and credits issued." });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
   });
 
   const markReadMutation = useMutation({
@@ -127,16 +175,24 @@ export default function NotificationsPage() {
 
   const allNotifications = data?.notifications ?? [];
 
+  const pendingTasks = pendingRewardsData?.rewards || [];
+  const filteredPendingTasks = useMemo(() => {
+    if (!searchQuery.trim()) return pendingTasks;
+    const q = searchQuery.toLowerCase();
+    return pendingTasks.filter(t => t.playerName.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.clubName.toLowerCase().includes(q));
+  }, [pendingTasks, searchQuery]);
+
   const groupedByStatus = useMemo(() => {
-    const groups: Record<TabValue, Notification[]> = { in_progress: [], completed: [], archived: [] };
+    const groups: Record<"in_progress" | "completed" | "archived", Notification[]> = { in_progress: [], completed: [], archived: [] };
     allNotifications.forEach((n) => {
-      const s = (n.status || "in_progress") as TabValue;
+      const s = (n.status || "in_progress") as "in_progress" | "completed" | "archived";
       if (groups[s]) groups[s].push(n);
     });
     return groups;
   }, [allNotifications]);
 
   const getFilteredForTab = (tab: TabValue) => {
+    if (tab === "pending_tasks") return [];
     const tabItems = groupedByStatus[tab];
     if (!searchQuery.trim()) return tabItems;
     const q = searchQuery.toLowerCase();
@@ -151,10 +207,11 @@ export default function NotificationsPage() {
   const filteredNotifications = useMemo(() => getFilteredForTab(activeTab), [groupedByStatus, activeTab, searchQuery]);
 
   const counts = useMemo(() => ({
+    pending_tasks: pendingTasks.length,
     in_progress: groupedByStatus.in_progress.length,
     completed: groupedByStatus.completed.length,
     archived: groupedByStatus.archived.length,
-  }), [groupedByStatus]);
+  }), [groupedByStatus, pendingTasks]);
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -206,8 +263,18 @@ export default function NotificationsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabValue); setSelectedIds(new Set()); setSearchQuery(""); }}>
-          <TabsList className="w-full grid grid-cols-3" data-testid="tabs-notifications">
-            <TabsTrigger value="in_progress" className="gap-2" data-testid="tab-in-progress">
+          <TabsList className={`w-full grid ${isAdminOrOwner ? "grid-cols-4" : "grid-cols-3"}`} data-testid="tabs-notifications">
+            {isAdminOrOwner && (
+              <TabsTrigger value="pending_tasks" className="gap-1" data-testid="tab-pending-tasks">
+                <ClipboardList className="h-4 w-4" />
+                <span className="hidden sm:inline">Pending</span>
+                <span className="sm:hidden">Tasks</span>
+                {counts.pending_tasks > 0 && (
+                  <Badge variant="destructive" className="ml-1">{counts.pending_tasks}</Badge>
+                )}
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="in_progress" className="gap-1" data-testid="tab-in-progress">
               <Clock className="h-4 w-4" />
               <span className="hidden sm:inline">In Progress</span>
               <span className="sm:hidden">Active</span>
@@ -215,14 +282,15 @@ export default function NotificationsPage() {
                 <Badge variant="secondary" className="ml-1">{counts.in_progress}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="completed" className="gap-2" data-testid="tab-completed">
+            <TabsTrigger value="completed" className="gap-1" data-testid="tab-completed">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Completed</span>
+              <span className="hidden sm:inline">Completed</span>
+              <span className="sm:hidden">Done</span>
               {counts.completed > 0 && (
                 <Badge variant="secondary" className="ml-1">{counts.completed}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="archived" className="gap-2" data-testid="tab-archived">
+            <TabsTrigger value="archived" className="gap-1" data-testid="tab-archived">
               <Archive className="h-4 w-4" />
               <span>Archived</span>
               {counts.archived > 0 && (
@@ -295,6 +363,93 @@ export default function NotificationsPage() {
               />
               <span className="text-xs text-muted-foreground">Select all</span>
             </div>
+          )}
+
+          {isAdminOrOwner && (
+            <TabsContent value="pending_tasks" className="mt-3 space-y-3">
+              {activeTab === "pending_tasks" && (
+                <div className="relative flex-1 w-full mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search pending tasks..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    data-testid="input-search-pending-tasks"
+                  />
+                </div>
+              )}
+              {pendingRewardsLoading ? (
+                <div className="h-64 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" data-testid="loader-pending-tasks" />
+                </div>
+              ) : filteredPendingTasks.length === 0 ? (
+                <Card>
+                  <CardContent className="py-16">
+                    <div className="text-center">
+                      <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-emerald-500/40" />
+                      <p className="text-lg font-medium text-muted-foreground" data-testid="text-empty-pending-tasks">
+                        All caught up! No pending tasks.
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">Reward requests will appear here when players claim rewards.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-1 mb-2">
+                    <p className="text-sm font-medium text-muted-foreground">{filteredPendingTasks.length} pending reward request{filteredPendingTasks.length !== 1 ? "s" : ""}</p>
+                  </div>
+                  {filteredPendingTasks.map((task) => (
+                    <Card key={task.id} className="border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10" data-testid={`pending-task-${task.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
+                            <Gift className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold" data-testid={`text-task-player-${task.id}`}>{task.playerName}</h3>
+                                <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-700 dark:text-amber-400">Awaiting Approval</Badge>
+                              </div>
+                              <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(task.updatedAt), { addSuffix: true })}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1" data-testid={`text-task-description-${task.id}`}>{task.description}</p>
+                            <div className="flex items-center gap-3 mt-2 flex-wrap">
+                              {task.credits > 0 && <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">£{(task.credits / 100).toFixed(2)}</span>}
+                              {task.freeSessions > 0 && <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{task.freeSessions} free session{task.freeSessions > 1 ? "s" : ""}</span>}
+                              {task.gifts && <span className="text-xs font-medium text-purple-600 dark:text-purple-400">{task.gifts}</span>}
+                              <span className="text-xs text-muted-foreground">· {task.clubName}</span>
+                              <span className="text-xs text-muted-foreground">· {task.type.replace(/_/g, " ")}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              onClick={() => approveRewardMutation.mutate(task.id)}
+                              disabled={approveRewardMutation.isPending}
+                              data-testid={`button-approve-task-${task.id}`}
+                            >
+                              {approveRewardMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setLocation("/admin/rewards")}
+                              data-testid={`button-view-task-${task.id}`}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              )}
+            </TabsContent>
           )}
 
           {(["in_progress", "completed", "archived"] as TabValue[]).map((tab) => (
