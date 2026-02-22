@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Gift, Star, Trophy, Award, ChevronRight, Info, Users, PoundSterling, CalendarDays, Target, TrendingUp, Lock, Check, Eye, Zap, Flame, Sparkles, Medal, Shield, Crown, HelpCircle, Cake, Search, X, Loader2 } from "lucide-react";
@@ -426,12 +427,33 @@ export default function Rewards() {
     setSelectedClubId(null);
   }, [activeTab]);
 
+  const [selectedRewardIds, setSelectedRewardIds] = useState<Set<number>>(new Set());
+
+  const toggleRewardSelection = useCallback((id: number) => {
+    setSelectedRewardIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   const requestMutation = useMutation({
     mutationFn: async (rewardId: number) => { await apiRequest("POST", `/api/rewards/${rewardId}/request`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/my-rewards"] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-rewards/summary"] });
       toast({ title: "Reward Requested", description: "Your reward request has been submitted for admin approval." });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+  });
+
+  const bulkRequestMutation = useMutation({
+    mutationFn: async (ids: number[]) => { await apiRequest("POST", "/api/rewards/bulk-request", { ids }); },
+    onSuccess: (_data, ids) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-rewards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-rewards/summary"] });
+      setSelectedRewardIds(new Set());
+      toast({ title: "Rewards Requested", description: `${ids.length} reward${ids.length > 1 ? "s" : ""} submitted for admin approval.` });
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
   });
@@ -1687,22 +1709,67 @@ export default function Rewards() {
             <h2 className="text-sm font-bold px-1">Your Rewards ({totalRewards})</h2>
             {availableRewards.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground px-1">Available</p>
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-xs text-muted-foreground">Available</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const allIds = availableRewards.map((r: any) => r.id);
+                        const allSelected = allIds.every((id: number) => selectedRewardIds.has(id));
+                        if (allSelected) { setSelectedRewardIds(new Set()); } else { setSelectedRewardIds(new Set(allIds)); }
+                      }}
+                      className="text-[10px] font-medium text-primary underline underline-offset-2"
+                      data-testid="button-select-all-rewards"
+                    >
+                      {availableRewards.every((r: any) => selectedRewardIds.has(r.id)) ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                </div>
+                {selectedRewardIds.size > 0 && (
+                  <div className="flex items-center gap-2 px-1">
+                    <Button
+                      size="sm"
+                      onClick={() => bulkRequestMutation.mutate(Array.from(selectedRewardIds))}
+                      disabled={bulkRequestMutation.isPending}
+                      data-testid="button-claim-all-selected"
+                    >
+                      {bulkRequestMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                      Claim Selected ({selectedRewardIds.size})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedRewardIds(new Set())}
+                      data-testid="button-clear-selection"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
                 {availableRewards.map((reward: any) => (
-                  <Card key={reward.id} className="cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setSelectedReward(reward)} data-testid={`reward-available-${reward.id}`}>
+                  <Card key={reward.id} className="cursor-pointer hover:bg-muted/30 transition-colors" data-testid={`reward-available-${reward.id}`}>
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-emerald-500/10"><Gift className="h-4 w-4 text-emerald-500" /></div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{reward.description || typeLabels[reward.rewardType] || "Reward"}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          {reward.credits > 0 && <span>£{(reward.credits / 100).toFixed(2)}</span>}
-                          {reward.freeSessions > 0 && <span>{reward.freeSessions} session{reward.freeSessions > 1 ? "s" : ""}</span>}
-                          {reward.gifts && <span>{reward.gifts}</span>}
-                          {reward.clubName && <span>· {reward.clubName}</span>}
+                      <Checkbox
+                        checked={selectedRewardIds.has(reward.id)}
+                        onCheckedChange={() => toggleRewardSelection(reward.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                        data-testid={`checkbox-reward-${reward.id}`}
+                      />
+                      <div className="flex-1 min-w-0 flex items-center gap-3" onClick={() => setSelectedReward(reward)}>
+                        <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0"><Gift className="h-4 w-4 text-emerald-500" /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{reward.description || typeLabels[reward.rewardType] || "Reward"}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            {reward.credits > 0 && <span>£{(reward.credits / 100).toFixed(2)}</span>}
+                            {reward.freeSessions > 0 && <span>{reward.freeSessions} session{reward.freeSessions > 1 ? "s" : ""}</span>}
+                            {reward.gifts && <span>{reward.gifts}</span>}
+                            {reward.clubName && <span>· {reward.clubName}</span>}
+                          </div>
                         </div>
+                        <Badge className={`${statusColors.AVAILABLE} text-[10px] no-default-hover-elevate`}>Available</Badge>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
-                      <Badge className={`${statusColors.AVAILABLE} text-[10px] no-default-hover-elevate`}>Available</Badge>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     </CardContent>
                   </Card>
                 ))}

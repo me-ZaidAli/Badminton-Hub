@@ -14668,6 +14668,30 @@ export async function registerRoutes(
     }
   });
 
+  // POST /api/rewards/bulk-request - Bulk request multiple available rewards
+  app.post("/api/rewards/bulk-request", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No reward IDs provided" });
+
+      const results = await db.update(playerRewardLedger).set({
+        status: "REQUESTED",
+        updatedAt: new Date(),
+      }).where(and(
+        inArray(playerRewardLedger.id, ids),
+        eq(playerRewardLedger.playerId, user.id),
+        eq(playerRewardLedger.status, "AVAILABLE")
+      )).returning();
+
+      console.log(`[AUDIT] Bulk reward request: ids=${ids.join(",")}, count=${results.length}, by user=${user.id}`);
+      res.json({ requested: results.length, results });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // PUT /api/admin/rewards/:id/status - Admin update reward status
   app.put("/api/admin/rewards/:id/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
