@@ -14419,22 +14419,23 @@ export async function registerRoutes(
             )
           );
 
+          let matchesWon = 0;
+          let matchesLost = 0;
           for (const match of completedMatches) {
             const isInMatch = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId ||
                               match.teamBPlayer1Id === profileId || match.teamBPlayer2Id === profileId;
             if (!isInMatch) continue;
 
             const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
-            const setScoresArr = (match.setScores as { scoreA: number; scoreB: number }[] | null) || [];
-
-            if (setScoresArr.length > 0) {
-              for (const setScore of setScoresArr) {
-                currentPoints += isTeamA ? setScore.scoreA : setScore.scoreB;
-              }
-            } else {
-              currentPoints += isTeamA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
-            }
+            const hasMultiSets = (match.numberOfSets || 1) > 1 && (match.setsWonA || 0) + (match.setsWonB || 0) > 0;
+            const teamAWon = hasMultiSets
+              ? (match.setsWonA || 0) > (match.setsWonB || 0)
+              : (match.scoreA ?? 0) > (match.scoreB ?? 0);
+            const won = (isTeamA && teamAWon) || (!isTeamA && !teamAWon);
+            if (won) matchesWon++;
+            else matchesLost++;
           }
+          currentPoints = (matchesWon * 3) + (matchesLost * 1);
         }
 
         const activeMilestones = await db.select().from(pointsMilestoneRewards).where(
