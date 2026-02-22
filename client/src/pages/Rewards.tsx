@@ -1484,6 +1484,15 @@ export default function Rewards() {
                 const earnedBadges = badges.filter((b: any) => b.earned);
                 const highestIdx = club.highestEarnedIndex;
 
+                const clubRewardData = (badgeRewardProgress || []).find((c: any) => c.clubId === club.clubId);
+                const rewardMap = new Map<string, any>();
+                if (clubRewardData?.badgeRewards) {
+                  for (const br of clubRewardData.badgeRewards) {
+                    rewardMap.set(br.badge, br);
+                  }
+                }
+                const hasRewardsConfigured = rewardMap.size > 0;
+
                 return (
                   <div className="space-y-3">
                     <div className="grid grid-cols-3 gap-2 text-center pb-2" style={{ borderBottom: isStd ? '1px solid hsl(var(--border))' : '1px solid rgba(50,65,85,0.2)' }}>
@@ -1583,11 +1592,22 @@ export default function Rewards() {
                       <p className="text-[10px] font-semibold mb-2 tracking-wider uppercase" style={{ color: isStd ? 'hsl(var(--foreground))' : 'rgba(200,210,220,0.8)' }}>
                         All Badges ({earnedBadges.length}/{badges.length})
                       </p>
+                      {!hasRewardsConfigured && (
+                        <p className="text-[10px] mb-2 italic" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.6)' }}>
+                          This club has not configured badge rewards yet
+                        </p>
+                      )}
                       <div className="space-y-1.5">
                         {badges.map((b: any) => {
                           const IconComp = BADGE_ICONS[b.icon] || Award;
+                          const reward = rewardMap.get(b.id);
+                          const rewardConfig = reward?.rewardConfig;
+                          const hasCredits = rewardConfig?.credits > 0;
+                          const hasGifts = rewardConfig?.gifts && rewardConfig.gifts.trim() !== '';
+                          const hasFreeSessions = rewardConfig?.freeSessions > 0;
+                          const hasAnyReward = hasCredits || hasGifts || hasFreeSessions;
                           return (
-                            <div key={b.id} className="flex items-center gap-2.5 p-2 rounded-lg transition-all" style={{
+                            <div key={b.id} className="flex items-center gap-2.5 p-2 rounded-lg transition-all" data-testid={`badge-row-${b.id}`} style={{
                               background: b.earned ? `${b.color}${isStd ? '12' : '08'}` : (isStd ? 'hsl(var(--muted) / 0.3)' : 'rgba(20,30,45,0.3)'),
                               border: `1px solid ${b.earned ? `${b.color}${isStd ? '40' : '20'}` : (isStd ? 'hsl(var(--border))' : 'rgba(50,65,85,0.15)')}`,
                             }}>
@@ -1600,6 +1620,37 @@ export default function Rewards() {
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold truncate" style={{ color: b.earned ? (isStd ? 'hsl(var(--foreground))' : '#ffffff') : (isStd ? 'hsl(var(--muted-foreground))' : 'rgba(210,220,235,0.85)') }}>{b.name}</p>
                                 <p className="text-[10px] truncate" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>{b.criteria}</p>
+                                {hasAnyReward && (
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {hasCredits && (
+                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{
+                                        background: isStd ? 'hsl(var(--muted))' : 'rgba(16,185,129,0.12)',
+                                        color: isStd ? 'hsl(var(--foreground))' : 'rgba(16,185,129,0.9)',
+                                        border: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(16,185,129,0.2)'}`,
+                                      }}>
+                                        {`£${(rewardConfig.credits / 100).toFixed(2)}`}
+                                      </span>
+                                    )}
+                                    {hasGifts && (
+                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{
+                                        background: isStd ? 'hsl(var(--muted))' : 'rgba(168,85,247,0.12)',
+                                        color: isStd ? 'hsl(var(--foreground))' : 'rgba(168,85,247,0.9)',
+                                        border: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(168,85,247,0.2)'}`,
+                                      }}>
+                                        {rewardConfig.gifts}
+                                      </span>
+                                    )}
+                                    {hasFreeSessions && (
+                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{
+                                        background: isStd ? 'hsl(var(--muted))' : 'rgba(59,130,246,0.12)',
+                                        color: isStd ? 'hsl(var(--foreground))' : 'rgba(59,130,246,0.9)',
+                                        border: `1px solid ${isStd ? 'hsl(var(--border))' : 'rgba(59,130,246,0.2)'}`,
+                                      }}>
+                                        {rewardConfig.freeSessions} free session{rewardConfig.freeSessions > 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               {b.earned ? (
                                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase shrink-0" style={{
