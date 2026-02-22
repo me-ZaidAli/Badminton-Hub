@@ -14365,18 +14365,48 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
-      const profiles = user.playerProfiles || [];
+      const userId = user.id;
+      const freshProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
       const results: any[] = [];
 
-      for (const profile of profiles) {
+      for (const profile of freshProfiles) {
         const clubId = profile.clubId;
-        const currentPoints = profile.rankingPoints || 0;
+        const profileId = profile.id;
+
+        const clubSessions = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+        let currentPoints = 0;
+
+        if (clubSessions.length > 0) {
+          const sessionIds = clubSessions.map(s => s.id);
+          const completedMatches = await db.select().from(matches).where(
+            and(
+              inArray(matches.sessionId, sessionIds),
+              eq(matches.isCompleted, true),
+              eq(matches.status, "COMPLETED")
+            )
+          );
+
+          for (const match of completedMatches) {
+            const isInMatch = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId ||
+                              match.teamBPlayer1Id === profileId || match.teamBPlayer2Id === profileId;
+            if (!isInMatch) continue;
+
+            const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
+            const setScoresArr = (match.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+
+            if (setScoresArr.length > 0) {
+              for (const setScore of setScoresArr) {
+                currentPoints += isTeamA ? setScore.scoreA : setScore.scoreB;
+              }
+            } else {
+              currentPoints += isTeamA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
+            }
+          }
+        }
 
         const activeMilestones = await db.select().from(pointsMilestoneRewards).where(
           and(eq(pointsMilestoneRewards.clubId, clubId), eq(pointsMilestoneRewards.isActive, true))
         ).orderBy(pointsMilestoneRewards.pointsRequired);
-
-        if (activeMilestones.length === 0) continue;
 
         const milestones = activeMilestones.map(milestone => {
           const reached = currentPoints >= milestone.pointsRequired;

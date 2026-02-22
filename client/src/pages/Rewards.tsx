@@ -614,25 +614,27 @@ export default function Rewards() {
 
     if (activeTab === "points") {
       const allPoints = pointsProgress || [];
-      if (allPoints.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "Not Started", remaining: 0, nextLabel: "", clubName: "", ...theme };
+      if (allPoints.length === 0) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "No Matches Yet", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
       const club: any = selectedClubId ? allPoints.find((c: any) => c.clubId === selectedClubId) : allPoints[0];
       if (!club) return { pct: 0, milestones: [] as GaugeMilestone[], value: "0", unit: "Points", stage: "No Data", remaining: 0, nextLabel: "", clubName: "", ...theme };
 
       const nextMs = club.nextMilestone;
-      const maxPoints = nextMs ? nextMs.nextThreshold || nextMs.pointsRequired : (club.milestones.length > 0 ? club.milestones[club.milestones.length - 1].pointsRequired : 100);
-      const pct = Math.min((club.currentPoints / maxPoints) * 100, 100);
+      const hasMilestones = club.milestones && club.milestones.length > 0;
+      const maxPoints = nextMs ? nextMs.nextThreshold || nextMs.pointsRequired : (hasMilestones ? club.milestones[club.milestones.length - 1].pointsRequired : Math.max(club.currentPoints, 100));
+      const pct = maxPoints > 0 ? Math.min((club.currentPoints / maxPoints) * 100, 100) : 0;
 
-      const msCount = club.milestones.length;
-      const milestones: GaugeMilestone[] = club.milestones.map((m: any, idx: number) => ({
+      const msCount = hasMilestones ? club.milestones.length : 0;
+      const milestones: GaugeMilestone[] = hasMilestones ? club.milestones.map((m: any, idx: number) => ({
         barIndex: msCount > 1 ? Math.round(barCount * ((idx + 1) / msCount)) - 1 : barCount - 1,
         label: m.isRepeating ? `${m.pointsRequired}x` : `${m.pointsRequired}`,
         reached: m.reached,
-      }));
+      })) : [];
 
-      const totalTimesEarned = club.milestones.reduce((sum: number, m: any) => sum + (m.timesEarned || 0), 0);
+      const totalTimesEarned = hasMilestones ? club.milestones.reduce((sum: number, m: any) => sum + (m.timesEarned || 0), 0) : 0;
       const remaining = nextMs ? (nextMs.pointsUntilNext || nextMs.pointsUntil) : 0;
-      return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage: totalTimesEarned > 0 ? `${totalTimesEarned}x Earned` : "Progress Active", remaining, nextLabel: nextMs ? `${nextMs.nextThreshold || nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
+      const stage = club.currentPoints > 0 ? (totalTimesEarned > 0 ? `${totalTimesEarned}x Earned` : "Earning Points") : "No Matches Yet";
+      return { pct, milestones, value: `${club.currentPoints}`, unit: "Points", stage, remaining, nextLabel: nextMs ? `${nextMs.nextThreshold || nextMs.pointsRequired} pts` : "", clubName: club.clubName, ...theme };
     }
 
     if (activeTab === "badges") {
@@ -1353,8 +1355,10 @@ export default function Rewards() {
 
               {activeTab === "points" && (
                 <div className="space-y-2">
-                  {pointsProgress && pointsProgress.length > 0 ? (
-                    pointsProgress.map((club: any) => {
+                  {(() => {
+                    const filteredPoints = (pointsProgress || []).filter((c: any) => c.currentPoints > 0 || (c.milestones && c.milestones.length > 0));
+                    if (filteredPoints.length > 0) {
+                      return filteredPoints.map((club: any) => {
                       const isSelected = selectedClubId === club.clubId;
                       const standardMs = (club.milestones || []).filter((m: any) => (m.milestoneType || "STANDARD") === "STANDARD");
                       const specialMs = (club.milestones || []).filter((m: any) => m.milestoneType === "SPECIAL");
@@ -1445,13 +1449,15 @@ export default function Rewards() {
                           )}
                         </button>
                       );
-                    })
-                  ) : (
-                    <div className="text-center py-3">
-                      <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Earn ranking points from matches to unlock rewards</p>
-                    </div>
-                  )}
+                    });
+                    }
+                    return (
+                      <div className="text-center py-3">
+                        <TrendingUp className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
+                        <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Play matches to start earning ranking points</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
