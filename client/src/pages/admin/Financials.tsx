@@ -192,6 +192,16 @@ export default function Financials() {
     reason: string;
   } | null>(null);
 
+  const [adjustCreditDialog, setAdjustCreditDialog] = useState<{
+    userId: number;
+    clubId: number;
+    playerName: string;
+    currentBalance: number;
+  } | null>(null);
+  const [adjustCreditAmount, setAdjustCreditAmount] = useState("");
+  const [adjustCreditReason, setAdjustCreditReason] = useState("");
+  const [adjustCreditType, setAdjustCreditType] = useState<"add" | "deduct">("add");
+
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
   const [outstandingDialogOpen, setOutstandingDialogOpen] = useState(false);
@@ -1092,16 +1102,38 @@ export default function Financials() {
         )}
       </TableCell>
       <TableCell>
-        {(() => {
-          const bal = getCreditBalance(entry.playerUserId, entry.clubId);
-          return bal > 0 ? (
-            <span className="font-semibold text-green-400" data-testid={`text-credit-balance-${entry.signupId}`}>
-              {"\u00A3"}{formatPounds(bal)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground text-sm" data-testid={`text-credit-balance-${entry.signupId}`}>-</span>
-          );
-        })()}
+        <div className="flex items-center gap-1">
+          {(() => {
+            const bal = getCreditBalance(entry.playerUserId, entry.clubId);
+            return bal > 0 ? (
+              <span className="font-semibold text-green-400" data-testid={`text-credit-balance-${entry.signupId}`}>
+                {"\u00A3"}{formatPounds(bal)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground text-sm" data-testid={`text-credit-balance-${entry.signupId}`}>-</span>
+            );
+          })()}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => {
+              const bal = getCreditBalance(entry.playerUserId, entry.clubId);
+              setAdjustCreditDialog({
+                userId: entry.playerUserId,
+                clubId: entry.clubId,
+                playerName: entry.playerName,
+                currentBalance: bal,
+              });
+              setAdjustCreditAmount("");
+              setAdjustCreditReason("");
+              setAdjustCreditType("add");
+            }}
+            data-testid={`button-adjust-credit-${entry.signupId}`}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
@@ -2968,6 +3000,92 @@ export default function Financials() {
                 >
                   {deleteCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                   Delete
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!adjustCreditDialog} onOpenChange={(open) => { if (!open) setAdjustCreditDialog(null); }}>
+        <DialogContent data-testid="dialog-adjust-credit">
+          <DialogHeader>
+            <DialogTitle data-testid="text-adjust-credit-title">Adjust Credit</DialogTitle>
+            <DialogDescription>
+              {adjustCreditDialog ? `${adjustCreditDialog.playerName} — Current balance: £${formatPounds(adjustCreditDialog.currentBalance)}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {adjustCreditDialog && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Type</Label>
+                <Select value={adjustCreditType} onValueChange={(v) => setAdjustCreditType(v as "add" | "deduct")}>
+                  <SelectTrigger data-testid="select-adjust-credit-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add">Add Credit</SelectItem>
+                    <SelectItem value="deduct">Deduct Credit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="adjust-credit-amount" className="text-sm font-medium">Amount ({"\u00A3"})</Label>
+                <Input
+                  id="adjust-credit-amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={adjustCreditAmount}
+                  onChange={(e) => setAdjustCreditAmount(e.target.value)}
+                  placeholder="e.g. 5.00"
+                  data-testid="input-adjust-credit-amount"
+                />
+              </div>
+              <div>
+                <Label htmlFor="adjust-credit-reason" className="text-sm font-medium">Reason</Label>
+                <Input
+                  id="adjust-credit-reason"
+                  value={adjustCreditReason}
+                  onChange={(e) => setAdjustCreditReason(e.target.value)}
+                  placeholder="e.g. Overpayment refund"
+                  data-testid="input-adjust-credit-reason"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAdjustCreditDialog(null)} data-testid="button-cancel-adjust-credit">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const pence = Math.round(parseFloat(adjustCreditAmount) * 100);
+                    if (isNaN(pence) || pence <= 0) {
+                      toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
+                      return;
+                    }
+                    if (!adjustCreditReason.trim()) {
+                      toast({ title: "Reason Required", description: "Please enter a reason.", variant: "destructive" });
+                      return;
+                    }
+                    const signedAmount = adjustCreditType === "deduct" ? -pence : pence;
+                    createCredit.mutate(
+                      { userId: adjustCreditDialog.userId, clubId: adjustCreditDialog.clubId, amount: signedAmount, reason: adjustCreditReason.trim() },
+                      {
+                        onSuccess: () => {
+                          toast({ title: "Credit Updated", description: `${adjustCreditType === "add" ? "Added" : "Deducted"} £${(pence / 100).toFixed(2)} ${adjustCreditType === "add" ? "to" : "from"} ${adjustCreditDialog.playerName}'s balance.` });
+                          setAdjustCreditDialog(null);
+                        },
+                        onError: (err: any) => {
+                          toast({ title: "Error", description: err.message || "Failed to adjust credit.", variant: "destructive" });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={createCredit.isPending}
+                  data-testid="button-submit-adjust-credit"
+                >
+                  {createCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  {adjustCreditType === "add" ? "Add Credit" : "Deduct Credit"}
                 </Button>
               </DialogFooter>
             </div>
