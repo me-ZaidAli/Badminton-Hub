@@ -17096,7 +17096,7 @@ export async function registerRoutes(
   app.post("/api/league/matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { clubId, leagueTeamId, division, category, venue, location, matchDatetime, opponentClub } = req.body;
+      const { clubId, leagueTeamId, division, category, venue, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
       if (!clubId || !category || !matchDatetime || !opponentClub) {
         return res.status(400).json({ message: "clubId, category, matchDatetime, and opponentClub are required" });
       }
@@ -17115,6 +17115,8 @@ export async function registerRoutes(
         location,
         matchDatetime: matchDt,
         opponentClub,
+        pairsCount: pairsCount ? Number(pairsCount) : 3,
+        setsPerPair: setsPerPair ? Number(setsPerPair) : 3,
         revealTime,
         createdBy: req.user!.id,
       }).returning();
@@ -17136,7 +17138,7 @@ export async function registerRoutes(
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
 
       const updates: any = { updatedAt: new Date() };
-      const { division, category, venue, location, matchDatetime, opponentClub, status, leagueTeamId } = req.body;
+      const { division, category, venue, location, matchDatetime, opponentClub, status, leagueTeamId, pairsCount, setsPerPair } = req.body;
       if (division !== undefined) updates.division = division;
       if (category !== undefined) updates.category = category;
       if (venue !== undefined) updates.venue = venue;
@@ -17144,6 +17146,8 @@ export async function registerRoutes(
       if (opponentClub !== undefined) updates.opponentClub = opponentClub;
       if (status !== undefined) updates.status = status;
       if (leagueTeamId !== undefined) updates.leagueTeamId = leagueTeamId ? Number(leagueTeamId) : null;
+      if (pairsCount !== undefined) updates.pairsCount = Number(pairsCount);
+      if (setsPerPair !== undefined) updates.setsPerPair = Number(setsPerPair);
       if (matchDatetime !== undefined) {
         const matchDt = new Date(matchDatetime);
         updates.matchDatetime = matchDt;
@@ -17270,6 +17274,7 @@ export async function registerRoutes(
       if (Array.isArray(gameScores) && gameScores.length > 0) {
         const gameValues = gameScores.map((g: any, i: number) => ({
           matchResultId: result.id,
+          pairNumber: g.pairNumber || 1,
           gameNumber: g.gameNumber || i + 1,
           dragonPoints: Number(g.dragonPoints),
           opponentPoints: Number(g.opponentPoints),

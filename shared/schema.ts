@@ -1509,6 +1509,8 @@ export const leagueMatches = pgTable("league_matches", {
   location: text("location"),
   matchDatetime: timestamp("match_datetime").notNull(),
   opponentClub: text("opponent_club").notNull(),
+  pairsCount: integer("pairs_count").default(3).notNull(),
+  setsPerPair: integer("sets_per_pair").default(3).notNull(),
   status: leagueMatchStatusEnum("status").default("UPCOMING").notNull(),
   revealTime: timestamp("reveal_time"),
   createdBy: integer("created_by").references(() => users.id),
@@ -1568,6 +1570,7 @@ export type InsertLeagueMatchResult = z.infer<typeof insertLeagueMatchResultSche
 export const leagueGameScores = pgTable("league_game_scores", {
   id: serial("id").primaryKey(),
   matchResultId: integer("match_result_id").references(() => leagueMatchResults.id, { onDelete: "cascade" }).notNull(),
+  pairNumber: integer("pair_number").default(1).notNull(),
   gameNumber: integer("game_number").notNull(),
   dragonPoints: integer("dragon_points").notNull(),
   opponentPoints: integer("opponent_points").notNull(),

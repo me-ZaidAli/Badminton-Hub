@@ -431,6 +431,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
     matchDatetime: "",
     opponentClub: "",
     leagueTeamId: "",
+    pairsCount: "3",
+    setsPerPair: "3",
   });
 
   const resetForm = () => {
@@ -443,6 +445,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         matchDatetime: match.matchDatetime ? format(new Date(match.matchDatetime), "yyyy-MM-dd'T'HH:mm") : "",
         opponentClub: match.opponentClub,
         leagueTeamId: match.leagueTeamId ? String(match.leagueTeamId) : "",
+        pairsCount: String(match.pairsCount || 3),
+        setsPerPair: String(match.setsPerPair || 3),
       });
     } else {
       setFormData({
@@ -453,6 +457,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         matchDatetime: "",
         opponentClub: "",
         leagueTeamId: "",
+        pairsCount: "3",
+        setsPerPair: "3",
       });
     }
   };
@@ -463,6 +469,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         ...formData,
         clubId,
         leagueTeamId: formData.leagueTeamId ? Number(formData.leagueTeamId) : null,
+        pairsCount: Number(formData.pairsCount),
+        setsPerPair: Number(formData.setsPerPair),
       };
       if (match) {
         await apiRequest("PATCH", `/api/league/matches/${match.id}`, body);
@@ -518,8 +526,40 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
               <Input value={formData.venue} onChange={e => setFormData(f => ({ ...f, venue: e.target.value }))} placeholder="Venue name" data-testid="input-venue" />
             </div>
             <div>
-              <Label>Location</Label>
-              <Input value={formData.location} onChange={e => setFormData(f => ({ ...f, location: e.target.value }))} placeholder="City/area" data-testid="input-location" />
+              <Label>Home / Away</Label>
+              <Select value={formData.location} onValueChange={v => setFormData(f => ({ ...f, location: v }))}>
+                <SelectTrigger data-testid="select-location"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HOME">Home</SelectItem>
+                  <SelectItem value="AWAY">Away</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Number of Pairs</Label>
+              <Select value={formData.pairsCount} onValueChange={v => setFormData(f => ({ ...f, pairsCount: v }))}>
+                <SelectTrigger data-testid="select-pairs-count"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 Pair</SelectItem>
+                  <SelectItem value="2">2 Pairs</SelectItem>
+                  <SelectItem value="3">3 Pairs</SelectItem>
+                  <SelectItem value="4">4 Pairs</SelectItem>
+                  <SelectItem value="5">5 Pairs</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sets per Pair</Label>
+              <Select value={formData.setsPerPair} onValueChange={v => setFormData(f => ({ ...f, setsPerPair: v }))}>
+                <SelectTrigger data-testid="select-sets-per-pair"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Best of 1</SelectItem>
+                  <SelectItem value="3">Best of 3</SelectItem>
+                  <SelectItem value="5">Best of 5</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           {teams.length > 0 && (
@@ -707,12 +747,23 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
   const [dragonScore, setDragonScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   const [outcome, setOutcome] = useState("WIN");
-  const [gameScores, setGameScores] = useState<{ gameNumber: number; dragonPoints: number; opponentPoints: number }[]>([
-    { gameNumber: 1, dragonPoints: 0, opponentPoints: 0 },
-    { gameNumber: 2, dragonPoints: 0, opponentPoints: 0 },
-    { gameNumber: 3, dragonPoints: 0, opponentPoints: 0 },
-  ]);
   const [locked, setLocked] = useState(false);
+
+  const pairsCount = match?.pairsCount || 3;
+  const setsPerPair = match?.setsPerPair || 3;
+
+  type PairScore = { pairNumber: number; gameNumber: number; dragonPoints: number; opponentPoints: number };
+  const [pairScores, setPairScores] = useState<PairScore[]>([]);
+
+  const buildEmptyScores = () => {
+    const scores: PairScore[] = [];
+    for (let p = 1; p <= pairsCount; p++) {
+      for (let s = 1; s <= setsPerPair; s++) {
+        scores.push({ pairNumber: p, gameNumber: s, dragonPoints: 0, opponentPoints: 0 });
+      }
+    }
+    return scores;
+  };
 
   const handleOpen = () => {
     if (match?.result) {
@@ -721,27 +772,54 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
       setOutcome(match.result.outcome);
       setLocked(match.result.locked);
       if (match.result.gameScores?.length > 0) {
-        setGameScores(match.result.gameScores.map((g: any) => ({
+        const existing = match.result.gameScores.map((g: any) => ({
+          pairNumber: g.pairNumber || 1,
           gameNumber: g.gameNumber,
           dragonPoints: g.dragonPoints,
           opponentPoints: g.opponentPoints,
-        })));
+        }));
+        const empty = buildEmptyScores();
+        const merged = empty.map(e => {
+          const found = existing.find((x: PairScore) => x.pairNumber === e.pairNumber && x.gameNumber === e.gameNumber);
+          return found || e;
+        });
+        setPairScores(merged);
+      } else {
+        setPairScores(buildEmptyScores());
       }
     } else {
       setDragonScore(0);
       setOpponentScore(0);
       setOutcome("WIN");
       setLocked(false);
-      setGameScores([
-        { gameNumber: 1, dragonPoints: 0, opponentPoints: 0 },
-        { gameNumber: 2, dragonPoints: 0, opponentPoints: 0 },
-        { gameNumber: 3, dragonPoints: 0, opponentPoints: 0 },
-      ]);
+      setPairScores(buildEmptyScores());
     }
   };
 
-  const updateGameScore = (index: number, field: string, value: number) => {
-    setGameScores(prev => prev.map((g, i) => i === index ? { ...g, [field]: value } : g));
+  const updatePairScore = (pairNum: number, gameNum: number, field: string, value: number) => {
+    setPairScores(prev => prev.map(s =>
+      s.pairNumber === pairNum && s.gameNumber === gameNum ? { ...s, [field]: value } : s
+    ));
+  };
+
+  const autoCalculate = () => {
+    let dTotal = 0;
+    let oTotal = 0;
+    const pairWins: Record<number, { d: number; o: number }> = {};
+    for (const s of pairScores) {
+      if (!pairWins[s.pairNumber]) pairWins[s.pairNumber] = { d: 0, o: 0 };
+      if (s.dragonPoints > s.opponentPoints) pairWins[s.pairNumber].d++;
+      else if (s.opponentPoints > s.dragonPoints) pairWins[s.pairNumber].o++;
+    }
+    for (const pw of Object.values(pairWins)) {
+      if (pw.d > pw.o) dTotal++;
+      else if (pw.o > pw.d) oTotal++;
+    }
+    setDragonScore(dTotal);
+    setOpponentScore(oTotal);
+    if (dTotal > oTotal) setOutcome("WIN");
+    else if (oTotal > dTotal) setOutcome("LOSS");
+    else setOutcome("DRAW");
   };
 
   const mutation = useMutation({
@@ -751,7 +829,7 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
         dragonScore,
         opponentScore,
         outcome,
-        gameScores: gameScores.filter(g => g.dragonPoints > 0 || g.opponentPoints > 0),
+        gameScores: pairScores.filter(s => s.dragonPoints > 0 || s.opponentPoints > 0),
       });
     },
     onSuccess: () => {
@@ -779,17 +857,31 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
     },
   });
 
+  const pairGroups = useMemo(() => {
+    const groups: Record<number, PairScore[]> = {};
+    for (const s of pairScores) {
+      if (!groups[s.pairNumber]) groups[s.pairNumber] = [];
+      groups[s.pairNumber].push(s);
+    }
+    return Object.entries(groups).sort(([a], [b]) => Number(a) - Number(b));
+  }, [pairScores]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) handleOpen(); onOpenChange(v); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {match?.result ? "Edit Result" : "Enter Result"}
-            {match && <span className="text-sm font-normal text-muted-foreground block">vs {match.opponentClub}</span>}
+            {match && <span className="text-sm font-normal text-muted-foreground block">vs {match.opponentClub} - {match.category} {match.division}</span>}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="bg-muted/50 rounded-lg p-3 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Match Format</p>
+            <p className="text-sm font-bold">{pairsCount} Pairs, Best of {setsPerPair} Sets</p>
+          </div>
+
           <div className="grid grid-cols-3 gap-3 items-end">
             <div>
               <Label className="text-xs">{match?.clubName || "Your Club"}</Label>
@@ -817,21 +909,50 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
           </div>
 
           <div>
-            <Label className="text-xs font-semibold">Game Scores (optional)</Label>
-            <div className="space-y-2 mt-1">
-              {gameScores.map((g, i) => (
-                <div key={i} className="grid grid-cols-[60px_1fr_20px_1fr] gap-2 items-center">
-                  <span className="text-xs text-muted-foreground">Game {g.gameNumber}</span>
-                  <Input type="number" min={0} value={g.dragonPoints} onChange={e => updateGameScore(i, "dragonPoints", Number(e.target.value))} className="h-8 text-sm" />
-                  <span className="text-center text-muted-foreground">-</span>
-                  <Input type="number" min={0} value={g.opponentPoints} onChange={e => updateGameScore(i, "opponentPoints", Number(e.target.value))} className="h-8 text-sm" />
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-semibold">Pair & Set Scores</Label>
+              <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={autoCalculate} data-testid="button-auto-calculate">
+                Auto-Calculate
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {pairGroups.map(([pairNum, sets]) => (
+                <div key={pairNum} className="bg-muted/30 border rounded-lg p-3">
+                  <p className="text-xs font-bold mb-2 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-primary" />
+                    Pair {pairNum}
+                  </p>
+                  <div className="space-y-1.5">
+                    {(sets as PairScore[]).sort((a, b) => a.gameNumber - b.gameNumber).map((s) => (
+                      <div key={`${s.pairNumber}-${s.gameNumber}`} className="grid grid-cols-[50px_1fr_20px_1fr] gap-2 items-center">
+                        <span className="text-[10px] text-muted-foreground font-medium">Set {s.gameNumber}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={s.dragonPoints}
+                          onChange={e => updatePairScore(Number(pairNum), s.gameNumber, "dragonPoints", Number(e.target.value))}
+                          className="h-7 text-sm text-center"
+                          data-testid={`input-pair-${pairNum}-set-${s.gameNumber}-dragon`}
+                        />
+                        <span className="text-center text-muted-foreground text-xs">-</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={s.opponentPoints}
+                          onChange={e => updatePairScore(Number(pairNum), s.gameNumber, "opponentPoints", Number(e.target.value))}
+                          className="h-7 text-sm text-center"
+                          data-testid={`input-pair-${pairNum}-set-${s.gameNumber}-opponent`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 pt-3 border-t">
           {match?.result && (
             <Button variant="outline" size="sm" onClick={() => lockMutation.mutate()} className="mr-auto" data-testid="button-lock-result">
               {locked ? <Unlock className="h-3.5 w-3.5 mr-1" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
