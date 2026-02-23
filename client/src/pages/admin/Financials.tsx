@@ -175,6 +175,23 @@ export default function Financials() {
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
 
+  const [editCreditDialog, setEditCreditDialog] = useState<{
+    id: number;
+    amount: number;
+    reason: string;
+    linkedSignupId?: number | null;
+    sessionFee?: number | null;
+    playerName?: string;
+  } | null>(null);
+  const [editCreditAmount, setEditCreditAmount] = useState("");
+  const [editCreditReason, setEditCreditReason] = useState("");
+  const [deleteCreditDialog, setDeleteCreditDialog] = useState<{
+    id: number;
+    amount: number;
+    playerName: string;
+    reason: string;
+  } | null>(null);
+
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
   const [outstandingDialogOpen, setOutstandingDialogOpen] = useState(false);
@@ -247,11 +264,13 @@ export default function Financials() {
     amount: number;
     reason: string;
     linkedSessionId: number | null;
+    linkedSignupId: number | null;
     attendanceStatus: string | null;
     createdAt: string;
     clubName: string;
     sessionTitle: string | null;
     sessionDate: string | null;
+    sessionFee: number | null;
     playerName: string;
     playerEmail: string;
     createdByName: string;
@@ -545,6 +564,28 @@ export default function Financials() {
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+    },
+  });
+
+  const editCredit = useMutation({
+    mutationFn: async (data: { id: number; amount?: number; reason?: string }) => {
+      await apiRequest("PATCH", `/api/credits/${data.id}`, { amount: data.amount, reason: data.reason });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/credit-history") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
+    },
+  });
+
+  const deleteCredit = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/credits/${id}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/credit-history") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial") });
     },
   });
 
@@ -2169,6 +2210,7 @@ export default function Financials() {
                               <TableHead>Session</TableHead>
                               <TableHead>Club</TableHead>
                               <TableHead>By</TableHead>
+                              <TableHead>Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2202,6 +2244,43 @@ export default function Financials() {
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setEditCreditDialog({
+                                          id: entry.id,
+                                          amount: entry.amount,
+                                          reason: entry.reason,
+                                          linkedSignupId: entry.linkedSignupId,
+                                          sessionFee: entry.sessionFee,
+                                          playerName: group.playerName,
+                                        });
+                                        setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
+                                        setEditCreditReason(entry.reason);
+                                      }}
+                                      data-testid={`button-edit-credit-${entry.id}`}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="text-red-500 hover:text-red-700"
+                                      onClick={() => setDeleteCreditDialog({
+                                        id: entry.id,
+                                        amount: entry.amount,
+                                        playerName: group.playerName,
+                                        reason: entry.reason,
+                                      })}
+                                      data-testid={`button-delete-credit-${entry.id}`}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -2758,6 +2837,138 @@ export default function Financials() {
                     Apply Credit
                   </Button>
                 )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editCreditDialog} onOpenChange={(open) => { if (!open) setEditCreditDialog(null); }}>
+        <DialogContent data-testid="dialog-edit-credit">
+          <DialogHeader>
+            <DialogTitle data-testid="text-edit-credit-title">Edit Credit Entry</DialogTitle>
+            <DialogDescription>
+              {editCreditDialog ? `Player: ${editCreditDialog.playerName}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {editCreditDialog && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-credit-amount" className="text-sm font-medium">Amount ({"\u00A3"})</Label>
+                <Input
+                  id="edit-credit-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editCreditAmount}
+                  onChange={(e) => setEditCreditAmount(e.target.value)}
+                  data-testid="input-edit-credit-amount"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Current: {"\u00A3"}{formatPounds(Math.abs(editCreditDialog.amount))}
+                </p>
+              </div>
+              {editCreditDialog.linkedSignupId && editCreditDialog.sessionFee && editCreditDialog.amount > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    const fee = editCreditDialog.sessionFee!;
+                    setEditCreditAmount((fee / 100).toFixed(2));
+                    setEditCreditReason(editCreditReason.replace(/£[\d.]+/, `£${(fee / 100).toFixed(2)}`) || `Updated to current session fee: £${(fee / 100).toFixed(2)}`);
+                  }}
+                  data-testid="button-update-to-session-fee"
+                >
+                  <DollarSign className="h-3 w-3 mr-1" />
+                  Update to Session Fee ({"\u00A3"}{formatPounds(editCreditDialog.sessionFee)})
+                </Button>
+              )}
+              <div>
+                <Label htmlFor="edit-credit-reason" className="text-sm font-medium">Reason</Label>
+                <Textarea
+                  id="edit-credit-reason"
+                  value={editCreditReason}
+                  onChange={(e) => setEditCreditReason(e.target.value)}
+                  rows={2}
+                  data-testid="input-edit-credit-reason"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditCreditDialog(null)} data-testid="button-cancel-edit-credit">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const amountPence = Math.round(parseFloat(editCreditAmount) * 100);
+                    if (isNaN(amountPence) || amountPence <= 0) {
+                      toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
+                      return;
+                    }
+                    if (!editCreditReason.trim()) {
+                      toast({ title: "Reason Required", description: "Please enter a reason.", variant: "destructive" });
+                      return;
+                    }
+                    const signedAmount = editCreditDialog.amount < 0 ? -amountPence : amountPence;
+                    editCredit.mutate(
+                      { id: editCreditDialog.id, amount: signedAmount, reason: editCreditReason.trim() },
+                      {
+                        onSuccess: () => {
+                          toast({ title: "Credit Updated", description: `Credit entry updated to £${(amountPence / 100).toFixed(2)}.` });
+                          setEditCreditDialog(null);
+                        },
+                        onError: (err: any) => {
+                          toast({ title: "Error", description: err.message || "Failed to update credit.", variant: "destructive" });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={editCredit.isPending}
+                  data-testid="button-submit-edit-credit"
+                >
+                  {editCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteCreditDialog} onOpenChange={(open) => { if (!open) setDeleteCreditDialog(null); }}>
+        <DialogContent data-testid="dialog-delete-credit">
+          <DialogHeader>
+            <DialogTitle>Delete Credit Entry</DialogTitle>
+            <DialogDescription>
+              {deleteCreditDialog ? `Are you sure you want to delete this ${deleteCreditDialog.amount > 0 ? "credit" : "debit"} of £${formatPounds(Math.abs(deleteCreditDialog.amount))} for ${deleteCreditDialog.playerName}? This action cannot be undone.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteCreditDialog && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Reason: {deleteCreditDialog.reason}</p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteCreditDialog(null)} data-testid="button-cancel-delete-credit">
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    deleteCredit.mutate(deleteCreditDialog.id, {
+                      onSuccess: () => {
+                        toast({ title: "Credit Deleted", description: "Credit entry has been removed." });
+                        setDeleteCreditDialog(null);
+                      },
+                      onError: (err: any) => {
+                        toast({ title: "Error", description: err.message || "Failed to delete credit.", variant: "destructive" });
+                      },
+                    });
+                  }}
+                  disabled={deleteCredit.isPending}
+                  data-testid="button-confirm-delete-credit"
+                >
+                  {deleteCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  Delete
+                </Button>
               </DialogFooter>
             </div>
           )}

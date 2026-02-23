@@ -7152,6 +7152,85 @@ export async function registerRoutes(
     }
   });
 
+  // PATCH /api/credits/:id - Edit a credit ledger entry (amount and/or reason)
+  app.patch("/api/credits/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+    const creditId = Number(req.params.id);
+    if (!creditId) return res.status(400).json({ message: "Invalid credit ID" });
+
+    const schema = z.object({
+      amount: z.number().optional(),
+      reason: z.string().min(1).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    try {
+      const [existing] = await db.select().from(creditLedger).where(eq(creditLedger.id, creditId));
+      if (!existing) return res.status(404).json({ message: "Credit entry not found" });
+
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", existing.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const updates: any = {};
+      if (parsed.data.amount !== undefined) updates.amount = parsed.data.amount;
+      if (parsed.data.reason !== undefined) updates.reason = parsed.data.reason;
+
+      if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No changes provided" });
+
+      const [updated] = await db.update(creditLedger).set(updates).where(eq(creditLedger.id, creditId)).returning();
+      console.log(`[AUDIT] Credit entry edited: id=${creditId}, by user=${admin.id}, changes=${JSON.stringify(updates)}`);
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error editing credit entry:", err);
+      res.status(500).json({ message: "Failed to edit credit entry" });
+    }
+  });
+
+  // DELETE /api/credits/:id - Delete a credit ledger entry
+  app.delete("/api/credits/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+    const creditId = Number(req.params.id);
+    if (!creditId) return res.status(400).json({ message: "Invalid credit ID" });
+
+    try {
+      const [existing] = await db.select().from(creditLedger).where(eq(creditLedger.id, creditId));
+      if (!existing) return res.status(404).json({ message: "Credit entry not found" });
+
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", existing.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      await db.delete(creditLedger).where(eq(creditLedger.id, creditId));
+      console.log(`[AUDIT] Credit entry deleted: id=${creditId}, amount=${existing.amount}, userId=${existing.userId}, by user=${admin.id}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting credit entry:", err);
+      res.status(500).json({ message: "Failed to delete credit entry" });
+    }
+  });
+
+  // GET /api/credits/:id/session-fee - Get the linked session's current fee for recalculating
+  app.get("/api/credits/:id/session-fee", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const creditId = Number(req.params.id);
+    if (!creditId) return res.status(400).json({ message: "Invalid credit ID" });
+
+    try {
+      const [entry] = await db.select().from(creditLedger).where(eq(creditLedger.id, creditId));
+      if (!entry) return res.status(404).json({ message: "Credit entry not found" });
+      if (!entry.linkedSignupId) return res.status(400).json({ message: "No linked session signup" });
+
+      const [signup] = await db.select({ fee: sessionSignups.fee }).from(sessionSignups).where(eq(sessionSignups.id, entry.linkedSignupId));
+      if (!signup) return res.status(404).json({ message: "Linked signup not found" });
+
+      res.json({ currentFee: signup.fee, creditAmount: entry.amount });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Get credit balances for all users in a club (admin view)
   app.get("/api/credits/club/:clubId/balances", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -7196,25 +7275,31 @@ export async function registerRoutes(
 
       const query = clubId
         ? sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
-              cl.linked_session_id AS "linkedSessionId", cl.attendance_status AS "attendanceStatus",
+              cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
+              cl.attendance_status AS "attendanceStatus",
               cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
-              s.date AS "sessionDate", pu.full_name AS "playerName", pu.email AS "playerEmail",
+              s.date AS "sessionDate", COALESCE(ss.fee, s.fee) AS "sessionFee",
+              pu.full_name AS "playerName", pu.email AS "playerEmail",
               cu.full_name AS "createdByName"
               FROM credit_ledger cl
               INNER JOIN clubs c ON cl.club_id = c.id
               LEFT JOIN sessions s ON cl.linked_session_id = s.id
+              LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
               INNER JOIN users pu ON cl.user_id = pu.id
               INNER JOIN users cu ON cl.created_by_id = cu.id
               WHERE cl.club_id = ${clubId}
               ORDER BY cl.created_at DESC`
         : sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
-              cl.linked_session_id AS "linkedSessionId", cl.attendance_status AS "attendanceStatus",
+              cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
+              cl.attendance_status AS "attendanceStatus",
               cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
-              s.date AS "sessionDate", pu.full_name AS "playerName", pu.email AS "playerEmail",
+              s.date AS "sessionDate", COALESCE(ss.fee, s.fee) AS "sessionFee",
+              pu.full_name AS "playerName", pu.email AS "playerEmail",
               cu.full_name AS "createdByName"
               FROM credit_ledger cl
               INNER JOIN clubs c ON cl.club_id = c.id
               LEFT JOIN sessions s ON cl.linked_session_id = s.id
+              LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
               INNER JOIN users pu ON cl.user_id = pu.id
               INNER JOIN users cu ON cl.created_by_id = cu.id
               ORDER BY cl.created_at DESC`;
