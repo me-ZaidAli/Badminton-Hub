@@ -757,7 +757,7 @@ function OutstandingModal({ open, onClose, payments }: {
 function MembershipsModal({ open, onClose, memberships }: {
   open: boolean; onClose: () => void; memberships: any[] | undefined;
 }) {
-  const active = (memberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING");
+  const active = (memberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING" || m.status === "PENDING");
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-memberships">
@@ -785,8 +785,8 @@ function MembershipsModal({ open, onClose, memberships }: {
                       </div>
                       <p className="text-sm text-muted-foreground">{m.planName}</p>
                     </div>
-                    <Badge variant={isExpired ? "destructive" : isExpiring ? "secondary" : "default"} className={!isExpired && !isExpiring ? "bg-amber-500 text-white" : ""}>
-                      {isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "VIP Member"}
+                    <Badge variant={isExpired ? "destructive" : isExpiring ? "secondary" : m.status === "PENDING" ? "secondary" : "default"} className={!isExpired && !isExpiring && m.status !== "PENDING" ? "bg-amber-500 text-white" : ""}>
+                      {m.status === "PENDING" ? "Awaiting Payment" : isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "VIP Member"}
                     </Badge>
                   </div>
                   {m.membershipNumber && (
@@ -1371,7 +1371,7 @@ export default function Profile() {
   const { data: creditBalances } = useQuery<{ clubId: number; clubName: string; balance: number }[]>({ queryKey: ["/api/my-credits"], enabled: !!user });
   const { data: creditHistory } = useQuery<any[]>({ queryKey: ["/api/my-credits/history"], enabled: !!user });
   const { data: outstandingPayments } = useQuery<any[]>({ queryKey: ["/api/my-outstanding-payments"], enabled: !!user });
-  const { data: clubMemberships } = useQuery<any[]>({ queryKey: ["/api/my-memberships"], enabled: !!user });
+  const { data: clubMemberships } = useQuery<any[]>({ queryKey: ["/api/my-memberships"], enabled: !!user, refetchInterval: 30000 });
   const { data: sessionActivity } = useQuery<{ totalSessions: number; sessionsThisMonth: number; totalSpent: number }>({ queryKey: ["/api/my-session-activity"], enabled: !!user });
 
   const { data: sessionHistory } = useQuery<SessionHistoryItem[]>({ queryKey: ["/api/my-session-history"], enabled: !!user });
@@ -1423,7 +1423,7 @@ export default function Profile() {
   }, [matchPerformance]);
 
   const activeMembershipClubIds = useMemo(() => {
-    return new Set((clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").map((m: any) => m.clubId));
+    return new Set((clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING" || m.status === "PENDING").map((m: any) => m.clubId));
   }, [clubMemberships]);
 
   const clubsWithoutMembership = useMemo(() => {
@@ -1762,7 +1762,16 @@ export default function Profile() {
                 </div>
                 <div>
                   <p className="font-medium">VIP Membership</p>
-                  <p className="text-xs text-muted-foreground">{activeMembershipCount} active membership{activeMembershipCount > 1 ? "s" : ""}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(() => {
+                      const activeCount = (clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").length;
+                      const pendingCount = (clubMemberships || []).filter((m: any) => m.status === "PENDING").length;
+                      const parts = [];
+                      if (activeCount > 0) parts.push(`${activeCount} active`);
+                      if (pendingCount > 0) parts.push(`${pendingCount} pending`);
+                      return `${parts.join(", ")} membership${activeMembershipCount > 1 ? "s" : ""}`;
+                    })()}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -155,11 +155,30 @@ export default function Memberships() {
   const [orderQuantity, setOrderQuantity] = useState("1");
 
   const { data: userData } = useQuery<any>({
-    queryKey: ["/api/user"],
+    queryKey: ["/api/auth/me"],
     enabled: !!user,
   });
 
-  const playerProfiles: PlayerProfile[] = userData?.playerProfiles || [];
+  const { data: playerProfilesData } = useQuery<any[]>({
+    queryKey: ["/api/player-profiles"],
+    enabled: !!user,
+  });
+
+  const playerProfiles: PlayerProfile[] = useMemo(() => {
+    if (playerProfilesData && playerProfilesData.length > 0) {
+      return playerProfilesData.map((p: any) => ({
+        id: p.id,
+        clubId: p.clubId,
+        clubName: p.club?.name || `Club ${p.clubId}`,
+      }));
+    }
+    const profiles = userData?.playerProfiles || [];
+    return profiles.map((p: any) => ({
+      id: p.id,
+      clubId: p.clubId,
+      clubName: p.club?.name || p.clubName || `Club ${p.clubId}`,
+    }));
+  }, [playerProfilesData, userData]);
   const clubIds = useMemo(() => {
     const ids = new Set<number>();
     playerProfiles.forEach((p: PlayerProfile) => ids.add(p.clubId));
@@ -192,6 +211,7 @@ export default function Memberships() {
   const { data: myMemberships = [], isLoading: membershipsLoading } = useQuery<Membership[]>({
     queryKey: ["/api/my-memberships"],
     enabled: !!user,
+    refetchInterval: 30000,
   });
 
   const activeMembership = useMemo(() => {
@@ -353,7 +373,8 @@ export default function Memberships() {
     );
   }
 
-  if (allClubs.length === 0 && !membershipsLoading) {
+  const profilesReady = !!playerProfilesData || !!userData;
+  if (allClubs.length === 0 && !membershipsLoading && profilesReady) {
     return (
       <div className="container max-w-3xl mx-auto p-6">
         <Card>
