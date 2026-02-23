@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2 } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -306,6 +306,25 @@ export default function AdminDashboard() {
                 </Link>
               </Card>
             )}
+
+            <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-league-management">
+              <Link href="/admin/league">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Swords className="h-5 w-5 text-blue-500" />
+                      League Management
+                    </span>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Manage league fixtures, teams, player assignments, and results.
+                  </p>
+                </CardContent>
+              </Link>
+            </Card>
           </div>
         </div>
 

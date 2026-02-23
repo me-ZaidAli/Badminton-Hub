@@ -1474,3 +1474,110 @@ export const adminAuditLogs = pgTable("admin_audit_logs", {
 export const insertAdminAuditLogSchema = createInsertSchema(adminAuditLogs).omit({ id: true, createdAt: true });
 export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
 export type InsertAdminAuditLog = z.infer<typeof insertAdminAuditLogSchema>;
+
+// === LEAGUE MANAGEMENT ===
+export const leagueMatchStatusEnum = pgEnum("league_match_status", ["UPCOMING", "LIVE", "COMPLETED"]);
+export const leagueMatchCategoryEnum = pgEnum("league_match_category", ["MENS", "LADIES", "MIXED"]);
+export const leagueMatchOutcomeEnum = pgEnum("league_match_outcome", ["WIN", "LOSS", "DRAW"]);
+
+export const leagueTeams = pgTable("league_teams", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  division: text("division"),
+  season: text("season"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueTeamRelations = relations(leagueTeams, ({ one, many }) => ({
+  club: one(clubs, { fields: [leagueTeams.clubId], references: [clubs.id] }),
+  matches: many(leagueMatches),
+}));
+
+export const insertLeagueTeamSchema = createInsertSchema(leagueTeams).omit({ id: true, createdAt: true });
+export type LeagueTeam = typeof leagueTeams.$inferSelect;
+export type InsertLeagueTeam = z.infer<typeof insertLeagueTeamSchema>;
+
+export const leagueMatches = pgTable("league_matches", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  leagueTeamId: integer("league_team_id").references(() => leagueTeams.id),
+  division: text("division"),
+  category: leagueMatchCategoryEnum("category").notNull(),
+  venue: text("venue"),
+  location: text("location"),
+  matchDatetime: timestamp("match_datetime").notNull(),
+  opponentClub: text("opponent_club").notNull(),
+  status: leagueMatchStatusEnum("status").default("UPCOMING").notNull(),
+  revealTime: timestamp("reveal_time"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const leagueMatchRelations = relations(leagueMatches, ({ one, many }) => ({
+  club: one(clubs, { fields: [leagueMatches.clubId], references: [clubs.id] }),
+  leagueTeam: one(leagueTeams, { fields: [leagueMatches.leagueTeamId], references: [leagueTeams.id] }),
+  createdByUser: one(users, { fields: [leagueMatches.createdBy], references: [users.id] }),
+  players: many(leagueMatchPlayers),
+  result: one(leagueMatchResults),
+}));
+
+export const insertLeagueMatchSchema = createInsertSchema(leagueMatches).omit({ id: true, createdAt: true, updatedAt: true });
+export type LeagueMatch = typeof leagueMatches.$inferSelect;
+export type InsertLeagueMatch = z.infer<typeof insertLeagueMatchSchema>;
+
+export const leagueMatchPlayers = pgTable("league_match_players", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id").references(() => leagueMatches.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  position: text("position"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueMatchPlayerRelations = relations(leagueMatchPlayers, ({ one }) => ({
+  match: one(leagueMatches, { fields: [leagueMatchPlayers.matchId], references: [leagueMatches.id] }),
+  user: one(users, { fields: [leagueMatchPlayers.userId], references: [users.id] }),
+}));
+
+export const insertLeagueMatchPlayerSchema = createInsertSchema(leagueMatchPlayers).omit({ id: true, createdAt: true });
+export type LeagueMatchPlayer = typeof leagueMatchPlayers.$inferSelect;
+export type InsertLeagueMatchPlayer = z.infer<typeof insertLeagueMatchPlayerSchema>;
+
+export const leagueMatchResults = pgTable("league_match_results", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id").references(() => leagueMatches.id, { onDelete: "cascade" }).notNull().unique(),
+  dragonScore: integer("dragon_score").notNull(),
+  opponentScore: integer("opponent_score").notNull(),
+  outcome: leagueMatchOutcomeEnum("outcome").notNull(),
+  locked: boolean("locked").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const leagueMatchResultRelations = relations(leagueMatchResults, ({ one, many }) => ({
+  match: one(leagueMatches, { fields: [leagueMatchResults.matchId], references: [leagueMatches.id] }),
+  gameScores: many(leagueGameScores),
+}));
+
+export const insertLeagueMatchResultSchema = createInsertSchema(leagueMatchResults).omit({ id: true, createdAt: true, updatedAt: true });
+export type LeagueMatchResult = typeof leagueMatchResults.$inferSelect;
+export type InsertLeagueMatchResult = z.infer<typeof insertLeagueMatchResultSchema>;
+
+export const leagueGameScores = pgTable("league_game_scores", {
+  id: serial("id").primaryKey(),
+  matchResultId: integer("match_result_id").references(() => leagueMatchResults.id, { onDelete: "cascade" }).notNull(),
+  gameNumber: integer("game_number").notNull(),
+  dragonPoints: integer("dragon_points").notNull(),
+  opponentPoints: integer("opponent_points").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueGameScoreRelations = relations(leagueGameScores, ({ one }) => ({
+  matchResult: one(leagueMatchResults, { fields: [leagueGameScores.matchResultId], references: [leagueMatchResults.id] }),
+}));
+
+export const insertLeagueGameScoreSchema = createInsertSchema(leagueGameScores).omit({ id: true, createdAt: true });
+export type LeagueGameScore = typeof leagueGameScores.$inferSelect;
+export type InsertLeagueGameScore = z.infer<typeof insertLeagueGameScoreSchema>;
