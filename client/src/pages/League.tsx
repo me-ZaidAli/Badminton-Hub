@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar, MapPin, Trophy, Users, Shield, ChevronDown, ChevronUp, Swords, BarChart3, TrendingUp, TrendingDown, Target, Activity } from "lucide-react";
-import { format, differenceInSeconds } from "date-fns";
+import { Loader2, Calendar, MapPin, Trophy, Users, Shield, ChevronDown, ChevronUp, Swords, BarChart3, TrendingUp, TrendingDown, Target, Activity, Clock, Navigation } from "lucide-react";
+import { format, differenceInSeconds, formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
 import heroBg from "@assets/UNI_T_PROMOTIONAL_VIDEO_20260223_225338_0000_1771887239418.png";
 
@@ -303,6 +303,117 @@ function MatchResultRow({ match, expanded, onToggle }: { match: any; expanded: b
   );
 }
 
+function NextMatchSpotlight({ match }: { match: any }) {
+  const matchDate = new Date(match.matchDatetime);
+  const isToday = format(matchDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+
+  return (
+    <div className="mx-4 sm:mx-6 lg:mx-8 -mt-10 relative z-10" data-testid="next-match-spotlight">
+      <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-[#0f2744] to-[#1a3a5c] text-white">
+        <div className="px-5 py-3 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">Next Match</span>
+          </div>
+          <span className="text-[10px] font-medium text-white/50">
+            {isToday ? "TODAY" : formatDistanceToNow(matchDate, { addSuffix: true })}
+          </span>
+        </div>
+
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <Shield className="h-5 w-5 text-blue-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-extrabold text-sm uppercase truncate" data-testid="next-match-home-team">
+                  {match.teamName || match.clubName || "Your Club"}
+                </p>
+                <p className="text-[10px] text-white/50">{match.division}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center px-4 shrink-0">
+              <span className="text-[10px] font-bold text-white/40 uppercase mb-1">VS</span>
+              <div className="text-2xl font-black text-amber-400 tabular-nums leading-none" data-testid="next-match-time">
+                {format(matchDate, "HH:mm")}
+              </div>
+              <CountdownTimer targetDate={matchDate} />
+            </div>
+
+            <div className="flex items-center gap-3 min-w-0 flex-1 justify-end">
+              <div className="min-w-0 text-right">
+                <p className="font-extrabold text-sm uppercase truncate" data-testid="next-match-opponent">
+                  {match.opponentClub}
+                </p>
+                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${match.location === "HOME" ? "bg-green-500/20 text-green-300" : "bg-orange-500/20 text-orange-300"}`}>
+                  {match.location}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <Users className="h-5 w-5 text-white/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/5 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs">
+              <Calendar className="h-3.5 w-3.5 text-white/40 shrink-0" />
+              <span className="text-white/80">{format(matchDate, "EEEE, dd MMMM yyyy")}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <Clock className="h-3.5 w-3.5 text-white/40 shrink-0" />
+              <span className="text-white/80">{format(matchDate, "HH:mm")} kick-off</span>
+            </div>
+            {match.venue && (
+              <div className="flex items-start gap-2 text-xs">
+                <MapPin className="h-3.5 w-3.5 text-white/40 shrink-0 mt-0.5" />
+                <span className="text-white/80">{match.venue}</span>
+              </div>
+            )}
+            {match.leagueName && (
+              <div className="flex items-center gap-2 text-xs">
+                <Trophy className="h-3.5 w-3.5 text-white/40 shrink-0" />
+                <span className="text-white/80">{match.leagueName}{match.season ? ` (${match.season})` : ""}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-[10px]">
+            <div className="flex items-center gap-3">
+              <span className="text-white/40">Format:</span>
+              <span className="font-bold text-white/80">{match.pairsCount || 3} Pairs, Best of {match.setsPerPair || 3}</span>
+            </div>
+            <Badge className={`text-[9px] border-0 ${match.category === "MENS" ? "bg-blue-500/20 text-blue-300" : match.category === "LADIES" ? "bg-pink-500/20 text-pink-300" : "bg-purple-500/20 text-purple-300"}`}>
+              {match.category}
+            </Badge>
+          </div>
+
+          {match.playersRevealed && match.players && match.players.length > 0 && (
+            <div>
+              <p className="text-[10px] text-white/40 uppercase font-bold mb-1.5">Lineup</p>
+              <div className="flex flex-wrap gap-1">
+                {match.players.map((p: any) => (
+                  <Badge key={p.id} className="text-[10px] font-medium py-0.5 bg-white/10 text-white/80 border-0">
+                    {p.userName || "Player"} {p.position ? `(${p.position})` : ""}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!match.playersRevealed && match.status === "UPCOMING" && (
+            <p className="text-[10px] text-white/40 italic text-center">
+              Lineup revealed 2h before match
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function StatRow({ label, value, icon }: { label: string; value: string | number; icon?: any }) {
   return (
     <div className="flex items-center justify-between py-3.5 border-b border-border/50 last:border-0">
@@ -519,6 +630,15 @@ export default function LeaguePage() {
     return club?.name || null;
   }, [selectedClubId, userClubs]);
 
+  const nextMatch = useMemo(() => {
+    if (allUpcoming.length === 0) return null;
+    const now = new Date();
+    const sorted = [...allUpcoming]
+      .filter(m => new Date(m.matchDatetime) >= now)
+      .sort((a, b) => new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime());
+    return sorted[0] || allUpcoming[0];
+  }, [allUpcoming]);
+
   const FiltersBar = () => (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -597,6 +717,8 @@ export default function LeaguePage() {
           )}
         </div>
       </div>
+
+      {nextMatch && <NextMatchSpotlight match={nextMatch} />}
 
       <div className="px-4 sm:px-6 lg:px-8 pt-5 pb-6 space-y-5">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
