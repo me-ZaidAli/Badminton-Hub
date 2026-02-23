@@ -1480,6 +1480,24 @@ export const leagueMatchStatusEnum = pgEnum("league_match_status", ["UPCOMING", 
 export const leagueMatchCategoryEnum = pgEnum("league_match_category", ["MENS", "LADIES", "MIXED"]);
 export const leagueMatchOutcomeEnum = pgEnum("league_match_outcome", ["WIN", "LOSS", "DRAW"]);
 
+export const leagues = pgTable("leagues", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  season: text("season"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueRelations = relations(leagues, ({ one, many }) => ({
+  club: one(clubs, { fields: [leagues.clubId], references: [clubs.id] }),
+  matches: many(leagueMatches),
+}));
+
+export const insertLeagueSchema = createInsertSchema(leagues).omit({ id: true, createdAt: true });
+export type League = typeof leagues.$inferSelect;
+export type InsertLeague = z.infer<typeof insertLeagueSchema>;
+
 export const leagueTeams = pgTable("league_teams", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
@@ -1502,6 +1520,7 @@ export type InsertLeagueTeam = z.infer<typeof insertLeagueTeamSchema>;
 export const leagueMatches = pgTable("league_matches", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
+  leagueId: integer("league_id").references(() => leagues.id),
   leagueTeamId: integer("league_team_id").references(() => leagueTeams.id),
   division: text("division"),
   category: leagueMatchCategoryEnum("category").notNull(),
@@ -1520,6 +1539,7 @@ export const leagueMatches = pgTable("league_matches", {
 
 export const leagueMatchRelations = relations(leagueMatches, ({ one, many }) => ({
   club: one(clubs, { fields: [leagueMatches.clubId], references: [clubs.id] }),
+  league: one(leagues, { fields: [leagueMatches.leagueId], references: [leagues.id] }),
   leagueTeam: one(leagueTeams, { fields: [leagueMatches.leagueTeamId], references: [leagueTeams.id] }),
   createdByUser: one(users, { fields: [leagueMatches.createdBy], references: [users.id] }),
   players: many(leagueMatchPlayers),

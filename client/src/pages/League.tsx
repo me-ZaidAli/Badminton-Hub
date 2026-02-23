@@ -226,7 +226,7 @@ function MatchResultRow({ match, expanded, onToggle }: { match: any; expanded: b
               {match.location}
             </span>
           )}
-          <span>{match.division} - {format(matchDate, "dd MMM yyyy")}</span>
+          <span>{match.leagueName ? `${match.leagueName} · ` : ""}{match.division} - {format(matchDate, "dd MMM yyyy")}</span>
           <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </div>
         <span className={`font-bold ${outcome === "WIN" ? "text-green-600 dark:text-green-400" : outcome === "LOSS" ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"}`}>
@@ -385,6 +385,7 @@ export default function LeaguePage() {
   const { data: user } = useUser();
   const [activeTab, setActiveTab] = useState("matches");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedDivision, setSelectedDivision] = useState<string>("all");
   const [expandedMatchId, setExpandedMatchId] = useState<number | null>(null);
@@ -430,6 +431,20 @@ export default function LeaguePage() {
     enabled: !!user,
   });
 
+  const { data: leaguesData } = useQuery<any[]>({
+    queryKey: ["/api/leagues", { clubId: selectedClubId !== "all" ? selectedClubId : "" }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedClubId !== "all") params.set("clubId", selectedClubId);
+      const res = await fetch(`/api/leagues?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const availableLeagues = leaguesData || [];
+
   const userClubs = useMemo(() => {
     if (!clubs || !profilesData) return [];
     return clubs.filter((c: any) => clubIds.includes(c.id));
@@ -449,6 +464,9 @@ export default function LeaguePage() {
 
   const filterMatches = (matches: any[]) => {
     let filtered = matches;
+    if (selectedLeagueId !== "all") {
+      filtered = filtered.filter(m => m.leagueId === Number(selectedLeagueId));
+    }
     if (selectedCategory !== "ALL") {
       filtered = filtered.filter(m => m.category === selectedCategory);
     }
@@ -513,19 +531,34 @@ export default function LeaguePage() {
           />
         ))}
       </div>
-      {divisions.length > 1 && (
-        <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-          <SelectTrigger className="w-48 h-8 text-xs" data-testid="select-division-filter">
-            <SelectValue placeholder="All Divisions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Divisions</SelectItem>
-            {divisions.map(d => (
-              <SelectItem key={d} value={d}>{d}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        {availableLeagues.length > 0 && (
+          <Select value={selectedLeagueId} onValueChange={setSelectedLeagueId}>
+            <SelectTrigger className="w-56 h-8 text-xs" data-testid="select-league-filter">
+              <SelectValue placeholder="All Leagues" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Leagues</SelectItem>
+              {availableLeagues.map((l: any) => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name}{l.season ? ` (${l.season})` : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {divisions.length > 1 && (
+          <Select value={selectedDivision} onValueChange={setSelectedDivision}>
+            <SelectTrigger className="w-48 h-8 text-xs" data-testid="select-division-filter">
+              <SelectValue placeholder="All Divisions" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Divisions</SelectItem>
+              {divisions.map(d => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
     </div>
   );
 

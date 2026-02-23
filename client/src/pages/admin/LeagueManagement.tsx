@@ -53,6 +53,9 @@ export default function LeagueManagement() {
   const [resultMatchId, setResultMatchId] = useState<number | null>(null);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<any>(null);
+  const [leagueDialogOpen, setLeagueDialogOpen] = useState(false);
+  const [editingLeague, setEditingLeague] = useState<any>(null);
+  const [filterLeagueId, setFilterLeagueId] = useState<string>("all");
 
   const clubId = selectedClubId ? Number(selectedClubId) : (adminClubs?.[0]?.id || 0);
 
@@ -80,6 +83,17 @@ export default function LeagueManagement() {
     enabled: !!user && !!effectiveClubId,
   });
 
+  const { data: leagues } = useQuery<any[]>({
+    queryKey: ["/api/leagues", { clubId: effectiveClubId }],
+    queryFn: async () => {
+      if (!effectiveClubId) return [];
+      const res = await fetch(`/api/leagues?clubId=${effectiveClubId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!user && !!effectiveClubId,
+  });
+
   const { data: clubMembers } = useQuery<any[]>({
     queryKey: ["/api/league/club-members", effectiveClubId],
     queryFn: async () => {
@@ -91,7 +105,13 @@ export default function LeagueManagement() {
     enabled: !!user && !!effectiveClubId,
   });
 
-  const matches = allMatches || [];
+  const filteredMatches = useMemo(() => {
+    const raw = allMatches || [];
+    if (filterLeagueId === "all") return raw;
+    return raw.filter(m => m.leagueId === Number(filterLeagueId));
+  }, [allMatches, filterLeagueId]);
+
+  const matches = filteredMatches;
   const upcomingMatches = matches.filter(m => m.status !== "COMPLETED");
   const completedMatches = matches.filter(m => m.status === "COMPLETED");
 
@@ -126,6 +146,20 @@ export default function LeagueManagement() {
               </SelectContent>
             </Select>
           )}
+          <Select value={filterLeagueId} onValueChange={setFilterLeagueId}>
+            <SelectTrigger className="w-44" data-testid="select-filter-league">
+              <SelectValue placeholder="All Leagues" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Leagues</SelectItem>
+              {(leagues || []).map((l: any) => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name}{l.season ? ` (${l.season})` : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={() => { setEditingLeague(null); setLeagueDialogOpen(true); }} data-testid="button-add-league">
+            <Plus className="h-4 w-4 mr-1" /> League
+          </Button>
           <Button size="sm" onClick={() => { setEditingTeam(null); setTeamDialogOpen(true); }} data-testid="button-add-team">
             <Plus className="h-4 w-4 mr-1" /> Team
           </Button>
@@ -169,10 +203,11 @@ export default function LeagueManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3" data-testid="admin-league-tabs">
+        <TabsList className="grid w-full grid-cols-4" data-testid="admin-league-tabs">
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
+          <TabsTrigger value="leagues">Leagues</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fixtures" className="mt-4">
@@ -217,6 +252,22 @@ export default function LeagueManagement() {
             }}
           />
         </TabsContent>
+
+        <TabsContent value="leagues" className="mt-4">
+          <LeaguesTable
+            leagues={leagues || []}
+            onEdit={(l: any) => { setEditingLeague(l); setLeagueDialogOpen(true); }}
+            onDelete={async (id: number) => {
+              try {
+                await apiRequest("DELETE", `/api/leagues/${id}`);
+                queryClient.invalidateQueries({ queryKey: ["/api/leagues"] });
+                toast({ title: "League deleted" });
+              } catch (err: any) {
+                toast({ title: "Error", description: err.message, variant: "destructive" });
+              }
+            }}
+          />
+        </TabsContent>
       </Tabs>
 
       <MatchDialog
@@ -225,6 +276,7 @@ export default function LeagueManagement() {
         match={editingMatch}
         clubId={Number(effectiveClubId)}
         teams={teams || []}
+        leagues={leagues || []}
       />
 
       <AssignPlayersDialog
@@ -246,6 +298,13 @@ export default function LeagueManagement() {
         open={teamDialogOpen}
         onOpenChange={setTeamDialogOpen}
         team={editingTeam}
+        clubId={Number(effectiveClubId)}
+      />
+
+      <LeagueDialog
+        open={leagueDialogOpen}
+        onOpenChange={setLeagueDialogOpen}
+        league={editingLeague}
         clubId={Number(effectiveClubId)}
       />
     </div>
@@ -415,12 +474,47 @@ function TeamsTable({ teams, onEdit, onDelete }: { teams: any[]; onEdit: (t: any
   );
 }
 
-function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
+function LeaguesTable({ leagues, onEdit, onDelete }: { leagues: any[]; onEdit: (l: any) => void; onDelete: (id: number) => void }) {
+  if (leagues.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Trophy className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+          <p className="text-muted-foreground" data-testid="text-no-leagues">No leagues created yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {leagues.map(l => (
+        <Card key={l.id} data-testid={`league-row-${l.id}`}>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-sm" data-testid={`text-league-name-${l.id}`}>{l.name}</p>
+              <p className="text-xs text-muted-foreground" data-testid={`text-league-season-${l.id}`}>
+                {l.season ? `Season: ${l.season}` : "No season specified"}
+              </p>
+            </div>
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" onClick={() => onEdit(l)} data-testid={`button-edit-league-${l.id}`}><Pencil className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => onDelete(l.id)} data-testid={`button-delete-league-${l.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   match: any | null;
   clubId: number;
   teams: any[];
+  leagues: any[];
 }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -431,6 +525,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
     matchDatetime: "",
     opponentClub: "",
     leagueTeamId: "",
+    leagueId: "",
     pairsCount: "3",
     setsPerPair: "3",
   });
@@ -445,6 +540,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         matchDatetime: match.matchDatetime ? format(new Date(match.matchDatetime), "yyyy-MM-dd'T'HH:mm") : "",
         opponentClub: match.opponentClub,
         leagueTeamId: match.leagueTeamId ? String(match.leagueTeamId) : "",
+        leagueId: match.leagueId ? String(match.leagueId) : "",
         pairsCount: String(match.pairsCount || 3),
         setsPerPair: String(match.setsPerPair || 3),
       });
@@ -457,6 +553,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         matchDatetime: "",
         opponentClub: "",
         leagueTeamId: "",
+        leagueId: "",
         pairsCount: "3",
         setsPerPair: "3",
       });
@@ -469,6 +566,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
         ...formData,
         clubId,
         leagueTeamId: formData.leagueTeamId ? Number(formData.leagueTeamId) : null,
+        leagueId: formData.leagueId ? Number(formData.leagueId) : null,
         pairsCount: Number(formData.pairsCount),
         setsPerPair: Number(formData.setsPerPair),
       };
@@ -562,13 +660,25 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams }: {
               </Select>
             </div>
           </div>
+          {leagues.length > 0 && (
+            <div>
+              <Label>League (optional)</Label>
+              <Select value={formData.leagueId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueId: v === "none" ? "" : v }))}>
+                <SelectTrigger data-testid="select-match-league"><SelectValue placeholder="Select league" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No league</SelectItem>
+                  {leagues.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}{l.season ? ` (${l.season})` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {teams.length > 0 && (
             <div>
               <Label>Team (optional)</Label>
-              <Select value={formData.leagueTeamId} onValueChange={v => setFormData(f => ({ ...f, leagueTeamId: v }))}>
+              <Select value={formData.leagueTeamId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueTeamId: v === "none" ? "" : v }))}>
                 <SelectTrigger data-testid="select-team"><SelectValue placeholder="Select team" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No team</SelectItem>
+                  <SelectItem value="none">No team</SelectItem>
                   {teams.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -1037,6 +1147,73 @@ function TeamDialog({ open, onOpenChange, team, clubId }: {
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name} data-testid="button-save-team">
             {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
             {team ? "Update" : "Create"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LeagueDialog({ open, onOpenChange, league, clubId }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  league: any | null;
+  clubId: number;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [season, setSeason] = useState("");
+
+  const handleOpen = () => {
+    if (league) {
+      setName(league.name);
+      setSeason(league.season || "");
+    } else {
+      setName("");
+      setSeason("");
+    }
+  };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const body = { clubId, name, season };
+      if (league) {
+        await apiRequest("PATCH", `/api/leagues/${league.id}`, body);
+      } else {
+        await apiRequest("POST", "/api/leagues", body);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leagues"] });
+      toast({ title: league ? "League updated" : "League created" });
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (v) handleOpen(); onOpenChange(v); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle data-testid="text-league-dialog-title">{league ? "Edit League" : "Add League"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>League Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. County League" data-testid="input-league-name" />
+          </div>
+          <div>
+            <Label>Season (optional)</Label>
+            <Input value={season} onChange={e => setSeason(e.target.value)} placeholder="e.g. 2025/26" data-testid="input-league-season" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name} data-testid="button-save-league">
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            {league ? "Update" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>

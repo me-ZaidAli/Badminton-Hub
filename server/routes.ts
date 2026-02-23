@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -16931,6 +16931,74 @@ export async function registerRoutes(
 
   // === LEAGUE MANAGEMENT ROUTES ===
 
+  // Get leagues for a club
+  app.get("/api/leagues", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      let query = db.select().from(leagues);
+      if (clubId) {
+        query = query.where(eq(leagues.clubId, clubId)) as any;
+      }
+      const rows = await query;
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Create league (admin only)
+  app.post("/api/leagues", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { clubId, name, season } = req.body;
+      if (!clubId || !name) return res.status(400).json({ message: "clubId and name are required" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, Number(clubId));
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const [league] = await db.insert(leagues).values({ clubId: Number(clubId), name, season: season || null }).returning();
+      res.json(league);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update league
+  app.patch("/api/leagues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const leagueId = Number(req.params.id);
+      const [existing] = await db.select().from(leagues).where(eq(leagues.id, leagueId));
+      if (!existing) return res.status(404).json({ message: "League not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.season !== undefined) updates.season = req.body.season;
+      if (req.body.isActive !== undefined) updates.isActive = req.body.isActive;
+      const [updated] = await db.update(leagues).set(updates).where(eq(leagues.id, leagueId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Delete league
+  app.delete("/api/leagues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const leagueId = Number(req.params.id);
+      const [existing] = await db.select().from(leagues).where(eq(leagues.id, leagueId));
+      if (!existing) return res.status(404).json({ message: "League not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      await db.update(leagueMatches).set({ leagueId: null }).where(eq(leagueMatches.leagueId, leagueId));
+      await db.delete(leagues).where(eq(leagues.id, leagueId));
+      res.json({ message: "League deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Get league teams for a club
   app.get("/api/league/teams", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
@@ -17007,10 +17075,12 @@ export async function registerRoutes(
       const user = req.user!;
       const view = req.query.view as string;
       const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const filterLeagueId = req.query.leagueId ? Number(req.query.leagueId) : undefined;
       const now = new Date();
 
       let conditions: any[] = [];
       if (clubId) conditions.push(eq(leagueMatches.clubId, clubId));
+      if (filterLeagueId) conditions.push(eq(leagueMatches.leagueId, filterLeagueId));
       if (view === "upcoming") {
         conditions.push(or(eq(leagueMatches.status, "UPCOMING"), eq(leagueMatches.status, "LIVE")));
       } else if (view === "results") {
@@ -17021,10 +17091,12 @@ export async function registerRoutes(
         match: leagueMatches,
         clubName: clubs.name,
         teamName: leagueTeams.name,
+        leagueName: leagues.name,
       })
         .from(leagueMatches)
         .leftJoin(clubs, eq(leagueMatches.clubId, clubs.id))
         .leftJoin(leagueTeams, eq(leagueMatches.leagueTeamId, leagueTeams.id))
+        .leftJoin(leagues, eq(leagueMatches.leagueId, leagues.id))
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(view === "results" ? desc(leagueMatches.matchDatetime) : leagueMatches.matchDatetime);
 
@@ -17079,6 +17151,7 @@ export async function registerRoutes(
           ...m,
           clubName: row.clubName,
           teamName: row.teamName,
+          leagueName: row.leagueName,
           players: revealed ? (playersMap[m.id] || []) : [],
           playersRevealed: !!revealed,
           result: resultsMap[m.id] || null,
@@ -17096,7 +17169,7 @@ export async function registerRoutes(
   app.post("/api/league/matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { clubId, leagueTeamId, division, category, venue, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
+      const { clubId, leagueId: bodyLeagueId, leagueTeamId, division, category, venue, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
       if (!clubId || !category || !matchDatetime || !opponentClub) {
         return res.status(400).json({ message: "clubId, category, matchDatetime, and opponentClub are required" });
       }
@@ -17108,6 +17181,7 @@ export async function registerRoutes(
 
       const [match] = await db.insert(leagueMatches).values({
         clubId: Number(clubId),
+        leagueId: bodyLeagueId ? Number(bodyLeagueId) : null,
         leagueTeamId: leagueTeamId ? Number(leagueTeamId) : null,
         division,
         category,
@@ -17138,13 +17212,14 @@ export async function registerRoutes(
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
 
       const updates: any = { updatedAt: new Date() };
-      const { division, category, venue, location, matchDatetime, opponentClub, status, leagueTeamId, pairsCount, setsPerPair } = req.body;
+      const { division, category, venue, location, matchDatetime, opponentClub, status, leagueId: bodyLeagueId, leagueTeamId, pairsCount, setsPerPair } = req.body;
       if (division !== undefined) updates.division = division;
       if (category !== undefined) updates.category = category;
       if (venue !== undefined) updates.venue = venue;
       if (location !== undefined) updates.location = location;
       if (opponentClub !== undefined) updates.opponentClub = opponentClub;
       if (status !== undefined) updates.status = status;
+      if (bodyLeagueId !== undefined) updates.leagueId = bodyLeagueId ? Number(bodyLeagueId) : null;
       if (leagueTeamId !== undefined) updates.leagueTeamId = leagueTeamId ? Number(leagueTeamId) : null;
       if (pairsCount !== undefined) updates.pairsCount = Number(pairsCount);
       if (setsPerPair !== undefined) updates.setsPerPair = Number(setsPerPair);
