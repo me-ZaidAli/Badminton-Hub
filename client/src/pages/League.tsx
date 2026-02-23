@@ -83,13 +83,19 @@ function MatchFixtureRow({ match }: { match: any }) {
         </div>
       </div>
 
-      {match.venue && (
-        <div className="text-center pb-2 -mt-1">
-          <span className="text-[10px] text-muted-foreground" data-testid={`text-venue-${match.id}`}>
-            {match.venue}{match.location ? `, ${match.location}` : ""}
+      <div className="text-center pb-2 -mt-1 flex items-center justify-center gap-2">
+        {match.location && (
+          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${match.location === "HOME" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"}`} data-testid={`badge-location-${match.id}`}>
+            {match.location}
           </span>
-        </div>
-      )}
+        )}
+        {match.venue && (
+          <span className="text-[10px] text-muted-foreground" data-testid={`text-venue-${match.id}`}>
+            {match.venue}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground">{match.division}</span>
+      </div>
 
       {match.playersRevealed && match.players && match.players.length > 0 && (
         <div className="border-t border-dashed px-4 py-2.5">
@@ -158,9 +164,16 @@ function MatchResultRow({ match }: { match: any }) {
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2 text-[10px] text-muted-foreground">
-        <span>{match.venue || format(matchDate, "dd MMM yyyy")}</span>
+        <div className="flex items-center gap-2">
+          {match.location && (
+            <span className={`font-bold uppercase px-1.5 py-0.5 rounded ${match.location === "HOME" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"}`}>
+              {match.location}
+            </span>
+          )}
+          <span>{match.division} - {format(matchDate, "dd MMM yyyy")}</span>
+        </div>
         <span className={`font-bold ${outcome === "WIN" ? "text-green-600 dark:text-green-400" : outcome === "LOSS" ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"}`}>
-          Result: {outcome === "WIN" ? "Victory" : outcome === "LOSS" ? "Defeat" : "Draw"}
+          {outcome === "WIN" ? "Victory" : outcome === "LOSS" ? "Defeat" : "Draw"}
         </span>
       </div>
 
