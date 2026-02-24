@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Plus, Pencil, Trash2, Users, Trophy, Calendar, MapPin,
-  Lock, Unlock, Shield, Search, ChevronDown, ChevronUp, Swords, BarChart3
+  Lock, Unlock, Shield, Search, ChevronDown, ChevronUp, Swords, BarChart3,
+  Home, Building, Navigation
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -56,10 +57,18 @@ export default function LeagueManagement() {
   const [leagueDialogOpen, setLeagueDialogOpen] = useState(false);
   const [editingLeague, setEditingLeague] = useState<any>(null);
   const [filterLeagueId, setFilterLeagueId] = useState<string>("all");
+  const [opponentDialogOpen, setOpponentDialogOpen] = useState(false);
+  const [editingOpponent, setEditingOpponent] = useState<any>(null);
 
   const clubId = selectedClubId ? Number(selectedClubId) : (adminClubs?.[0]?.id || 0);
 
   const effectiveClubId = selectedClubId || String(adminClubs?.[0]?.id || "");
+
+  const selectedClub = useMemo(() => {
+    if (!adminClubs) return null;
+    const id = Number(effectiveClubId);
+    return adminClubs.find((c: any) => c.id === id) || null;
+  }, [adminClubs, effectiveClubId]);
 
   const { data: allMatches, isLoading: matchesLoading } = useQuery<any[]>({
     queryKey: ["/api/league/matches", { clubId: effectiveClubId }],
@@ -99,6 +108,17 @@ export default function LeagueManagement() {
     queryFn: async () => {
       if (!effectiveClubId) return [];
       const res = await fetch(`/api/league/club-members/${effectiveClubId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!user && !!effectiveClubId,
+  });
+
+  const { data: opponents } = useQuery<any[]>({
+    queryKey: ["/api/league/opponents", { clubId: effectiveClubId }],
+    queryFn: async () => {
+      if (!effectiveClubId) return [];
+      const res = await fetch(`/api/league/opponents?clubId=${effectiveClubId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
@@ -166,6 +186,9 @@ export default function LeagueManagement() {
           <Button size="sm" onClick={() => { setEditingMatch(null); setMatchDialogOpen(true); }} data-testid="button-add-fixture">
             <Plus className="h-4 w-4 mr-1" /> Fixture
           </Button>
+          <Button size="sm" onClick={() => { setEditingOpponent(null); setOpponentDialogOpen(true); }} data-testid="button-add-opponent">
+            <Plus className="h-4 w-4 mr-1" /> Opponent
+          </Button>
         </div>
       </div>
 
@@ -203,11 +226,13 @@ export default function LeagueManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4" data-testid="admin-league-tabs">
+        <TabsList className="grid w-full grid-cols-6" data-testid="admin-league-tabs">
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="leagues">Leagues</TabsTrigger>
+          <TabsTrigger value="opponents">Opponents</TabsTrigger>
+          <TabsTrigger value="homevenue">Home Venue</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fixtures" className="mt-4">
@@ -268,6 +293,29 @@ export default function LeagueManagement() {
             }}
           />
         </TabsContent>
+
+        <TabsContent value="opponents" className="mt-4">
+          <OpponentsTable
+            opponents={opponents || []}
+            onEdit={(o: any) => { setEditingOpponent(o); setOpponentDialogOpen(true); }}
+            onDelete={async (id: number) => {
+              try {
+                await apiRequest("DELETE", `/api/league/opponents/${id}`);
+                queryClient.invalidateQueries({ queryKey: ["/api/league/opponents", { clubId: effectiveClubId }] });
+                toast({ title: "Opponent deleted" });
+              } catch (err: any) {
+                toast({ title: "Error", description: err.message, variant: "destructive" });
+              }
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="homevenue" className="mt-4">
+          <HomeVenueSettings
+            club={selectedClub}
+            clubId={Number(effectiveClubId)}
+          />
+        </TabsContent>
       </Tabs>
 
       <MatchDialog
@@ -277,6 +325,8 @@ export default function LeagueManagement() {
         clubId={Number(effectiveClubId)}
         teams={teams || []}
         leagues={leagues || []}
+        opponents={opponents || []}
+        clubData={selectedClub}
       />
 
       <AssignPlayersDialog
@@ -305,6 +355,13 @@ export default function LeagueManagement() {
         open={leagueDialogOpen}
         onOpenChange={setLeagueDialogOpen}
         league={editingLeague}
+        clubId={Number(effectiveClubId)}
+      />
+
+      <OpponentDialog
+        open={opponentDialogOpen}
+        onOpenChange={setOpponentDialogOpen}
+        opponent={editingOpponent}
         clubId={Number(effectiveClubId)}
       />
     </div>
@@ -508,13 +565,244 @@ function LeaguesTable({ leagues, onEdit, onDelete }: { leagues: any[]; onEdit: (
   );
 }
 
-function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
+function OpponentsTable({ opponents, onEdit, onDelete }: { opponents: any[]; onEdit: (o: any) => void; onDelete: (id: number) => void }) {
+  if (opponents.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Building className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+          <p className="text-muted-foreground" data-testid="text-no-opponents">No opponents added yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {opponents.map(o => (
+        <Card key={o.id} data-testid={`opponent-row-${o.id}`}>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm" data-testid={`text-opponent-name-${o.id}`}>{o.name}</p>
+              <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
+                {o.venueName && (
+                  <span className="flex items-center gap-1">
+                    <Home className="h-3 w-3" />
+                    {o.venueName}
+                  </span>
+                )}
+                {o.venueAddress && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {o.venueAddress}
+                  </span>
+                )}
+                {o.googleMapsUrl && (
+                  <a href={o.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <Navigation className="h-3 w-3" />
+                    Map
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" onClick={() => onEdit(o)} data-testid={`button-edit-opponent-${o.id}`}><Pencil className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => onDelete(o.id)} data-testid={`button-delete-opponent-${o.id}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function HomeVenueSettings({ club, clubId }: { club: any | null; clubId: number }) {
+  const { toast } = useToast();
+  const [venueName, setVenueName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+
+  useEffect(() => {
+    if (club) {
+      setVenueName(club.homeVenueName || "");
+      setVenueAddress(club.homeVenueAddress || "");
+      setGoogleMapsUrl(club.homeGoogleMapsUrl || "");
+    }
+  }, [club]);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/clubs/${clubId}/home-venue`, {
+        homeVenueName: venueName,
+        homeVenueAddress: venueAddress,
+        homeGoogleMapsUrl: googleMapsUrl,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-admin-clubs"] });
+      toast({ title: "Home venue updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (!club) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Home className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+          <p className="text-muted-foreground">Select a club to manage home venue</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Home className="h-5 w-5" />
+          Home Venue Settings
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label>Venue Name</Label>
+          <Input
+            value={venueName}
+            onChange={e => setVenueName(e.target.value)}
+            placeholder="e.g. Community Sports Centre"
+            data-testid="input-home-venue-name"
+          />
+        </div>
+        <div>
+          <Label>Venue Address</Label>
+          <Input
+            value={venueAddress}
+            onChange={e => setVenueAddress(e.target.value)}
+            placeholder="Full address e.g. 123 Main St, Birmingham, B1 1AA"
+            data-testid="input-home-venue-address"
+          />
+        </div>
+        <div>
+          <Label>Google Maps URL</Label>
+          <Input
+            value={googleMapsUrl}
+            onChange={e => setGoogleMapsUrl(e.target.value)}
+            placeholder="https://maps.google.com/..."
+            data-testid="input-home-google-maps-url"
+          />
+        </div>
+        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} data-testid="button-save-home-venue">
+          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+          Save Home Venue
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OpponentDialog({ open, onOpenChange, opponent, clubId }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  opponent: any | null;
+  clubId: number;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [venueName, setVenueName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+
+  const handleOpen = () => {
+    if (opponent) {
+      setName(opponent.name || "");
+      setVenueName(opponent.venueName || "");
+      setVenueAddress(opponent.venueAddress || "");
+      setGoogleMapsUrl(opponent.googleMapsUrl || "");
+    } else {
+      setName("");
+      setVenueName("");
+      setVenueAddress("");
+      setGoogleMapsUrl("");
+    }
+  };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (opponent) {
+        await apiRequest("PATCH", `/api/league/opponents/${opponent.id}`, {
+          name,
+          venueName,
+          venueAddress,
+          googleMapsUrl,
+        });
+      } else {
+        await apiRequest("POST", "/api/league/opponents", {
+          clubId,
+          name,
+          venueName,
+          venueAddress,
+          googleMapsUrl,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/opponents", { clubId }] });
+      toast({ title: opponent ? "Opponent updated" : "Opponent created" });
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (v) handleOpen(); onOpenChange(v); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle data-testid="text-opponent-dialog-title">{opponent ? "Edit Opponent" : "Add Opponent"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Opponent Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Eagles BC" data-testid="input-opponent-name" />
+          </div>
+          <div>
+            <Label>Venue Name</Label>
+            <Input value={venueName} onChange={e => setVenueName(e.target.value)} placeholder="e.g. Sports Hall" data-testid="input-opponent-venue-name" />
+          </div>
+          <div>
+            <Label>Venue Address</Label>
+            <Input value={venueAddress} onChange={e => setVenueAddress(e.target.value)} placeholder="Full address" data-testid="input-opponent-venue-address" />
+          </div>
+          <div>
+            <Label>Google Maps URL</Label>
+            <Input value={googleMapsUrl} onChange={e => setGoogleMapsUrl(e.target.value)} placeholder="https://maps.google.com/..." data-testid="input-opponent-google-maps-url" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name} data-testid="button-save-opponent">
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            {opponent ? "Update" : "Create"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, opponents, clubData }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   match: any | null;
   clubId: number;
   teams: any[];
   leagues: any[];
+  opponents: any[];
+  clubData: any;
 }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -530,10 +818,17 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
     leagueId: "",
     pairsCount: "3",
     setsPerPair: "3",
+    selectedOpponentId: "",
   });
+
+  const selectedOpponent = useMemo(() => {
+    if (!formData.selectedOpponentId) return null;
+    return opponents.find(o => String(o.id) === formData.selectedOpponentId) || null;
+  }, [formData.selectedOpponentId, opponents]);
 
   const resetForm = () => {
     if (match) {
+      const matchedOpponent = opponents.find(o => o.name === match.opponentClub);
       setFormData({
         division: match.division || "",
         category: match.category,
@@ -547,6 +842,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
         leagueId: match.leagueId ? String(match.leagueId) : "",
         pairsCount: String(match.pairsCount || 3),
         setsPerPair: String(match.setsPerPair || 3),
+        selectedOpponentId: matchedOpponent ? String(matchedOpponent.id) : "",
       });
     } else {
       setFormData({
@@ -562,8 +858,41 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
         leagueId: "",
         pairsCount: "3",
         setsPerPair: "3",
+        selectedOpponentId: "",
       });
     }
+  };
+
+  const handleOpponentChange = (opponentId: string) => {
+    const opp = opponents.find(o => String(o.id) === opponentId);
+    if (opp) {
+      const updates: any = {
+        selectedOpponentId: opponentId,
+        opponentClub: opp.name,
+      };
+      if (formData.location === "AWAY") {
+        updates.venue = opp.venueName || "";
+        updates.venueAddress = opp.venueAddress || "";
+        updates.googleMapsUrl = opp.googleMapsUrl || "";
+      }
+      setFormData(f => ({ ...f, ...updates }));
+    } else {
+      setFormData(f => ({ ...f, selectedOpponentId: "", opponentClub: "" }));
+    }
+  };
+
+  const handleLocationChange = (location: string) => {
+    const updates: any = { location };
+    if (location === "HOME" && clubData) {
+      updates.venue = clubData.homeVenueName || "";
+      updates.venueAddress = clubData.homeVenueAddress || "";
+      updates.googleMapsUrl = clubData.homeGoogleMapsUrl || "";
+    } else if (location === "AWAY" && selectedOpponent) {
+      updates.venue = selectedOpponent.venueName || "";
+      updates.venueAddress = selectedOpponent.venueAddress || "";
+      updates.googleMapsUrl = selectedOpponent.googleMapsUrl || "";
+    }
+    setFormData(f => ({ ...f, ...updates }));
   };
 
   const mutation = useMutation({
@@ -575,6 +904,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
         leagueId: formData.leagueId ? Number(formData.leagueId) : null,
         pairsCount: Number(formData.pairsCount),
         setsPerPair: Number(formData.setsPerPair),
+        selectedOpponentId: undefined,
       };
       if (match) {
         await apiRequest("PATCH", `/api/league/matches/${match.id}`, body);
@@ -594,11 +924,31 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{match ? "Edit Fixture" : "Add Fixture"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div>
+            <Label>League</Label>
+            <Select value={formData.leagueId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueId: v === "none" ? "" : v }))}>
+              <SelectTrigger data-testid="select-match-league"><SelectValue placeholder="Select league" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No league</SelectItem>
+                {leagues.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}{l.season ? ` (${l.season})` : ""}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Team</Label>
+            <Select value={formData.leagueTeamId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueTeamId: v === "none" ? "" : v }))}>
+              <SelectTrigger data-testid="select-team"><SelectValue placeholder="Select team" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No team</SelectItem>
+                {teams.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Category</Label>
@@ -617,36 +967,41 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
             </div>
           </div>
           <div>
-            <Label>Opponent Club</Label>
-            <Input value={formData.opponentClub} onChange={e => setFormData(f => ({ ...f, opponentClub: e.target.value }))} placeholder="Opponent club name" data-testid="input-opponent" />
+            <Label>Opponent</Label>
+            <Select value={formData.selectedOpponentId || "none"} onValueChange={v => handleOpponentChange(v === "none" ? "" : v)}>
+              <SelectTrigger data-testid="select-opponent"><SelectValue placeholder="Select opponent" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select opponent...</SelectItem>
+                {opponents.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div>
-            <Label>Match Date & Time</Label>
-            <Input type="datetime-local" value={formData.matchDatetime} onChange={e => setFormData(f => ({ ...f, matchDatetime: e.target.value }))} data-testid="input-match-datetime" />
+            <Label>Home / Away</Label>
+            <Select value={formData.location || "none"} onValueChange={v => handleLocationChange(v === "none" ? "" : v)}>
+              <SelectTrigger data-testid="select-location"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select...</SelectItem>
+                <SelectItem value="HOME">Home</SelectItem>
+                <SelectItem value="AWAY">Away</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Venue</Label>
-              <Input value={formData.venue} onChange={e => setFormData(f => ({ ...f, venue: e.target.value }))} placeholder="Venue name" data-testid="input-venue" />
-            </div>
-            <div>
-              <Label>Home / Away</Label>
-              <Select value={formData.location} onValueChange={v => setFormData(f => ({ ...f, location: v }))}>
-                <SelectTrigger data-testid="select-location"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="HOME">Home</SelectItem>
-                  <SelectItem value="AWAY">Away</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label>Venue</Label>
+            <Input value={formData.venue} onChange={e => setFormData(f => ({ ...f, venue: e.target.value }))} placeholder="Venue name" data-testid="input-venue" />
           </div>
           <div>
             <Label>Venue Address</Label>
             <Input value={formData.venueAddress} onChange={e => setFormData(f => ({ ...f, venueAddress: e.target.value }))} placeholder="Full address e.g. 123 Main St, Birmingham, B1 1AA" data-testid="input-venue-address" />
           </div>
           <div>
-            <Label>Google Maps Link (optional)</Label>
+            <Label>Google Maps URL</Label>
             <Input value={formData.googleMapsUrl} onChange={e => setFormData(f => ({ ...f, googleMapsUrl: e.target.value }))} placeholder="https://maps.google.com/..." data-testid="input-google-maps-url" />
+          </div>
+          <div>
+            <Label>Match Date & Time</Label>
+            <Input type="datetime-local" value={formData.matchDatetime} onChange={e => setFormData(f => ({ ...f, matchDatetime: e.target.value }))} data-testid="input-match-datetime" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -674,30 +1029,6 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
               </Select>
             </div>
           </div>
-          {leagues.length > 0 && (
-            <div>
-              <Label>League (optional)</Label>
-              <Select value={formData.leagueId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueId: v === "none" ? "" : v }))}>
-                <SelectTrigger data-testid="select-match-league"><SelectValue placeholder="Select league" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No league</SelectItem>
-                  {leagues.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}{l.season ? ` (${l.season})` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {teams.length > 0 && (
-            <div>
-              <Label>Team (optional)</Label>
-              <Select value={formData.leagueTeamId || "none"} onValueChange={v => setFormData(f => ({ ...f, leagueTeamId: v === "none" ? "" : v }))}>
-                <SelectTrigger data-testid="select-team"><SelectValue placeholder="Select team" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No team</SelectItem>
-                  {teams.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -1033,7 +1364,7 @@ function ResultDialog({ open, onOpenChange, matchId, matches }: {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between gap-1 mb-2">
               <Label className="text-xs font-semibold">Pair & Set Scores</Label>
               <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={autoCalculate} data-testid="button-auto-calculate">
                 Auto-Calculate

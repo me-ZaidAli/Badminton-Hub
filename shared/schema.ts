@@ -129,6 +129,9 @@ export const clubs = pgTable("clubs", {
   clubPolicies: text("club_policies"),
   clubStandards: text("club_standards"),
   autoGradingEnabled: boolean("auto_grading_enabled").default(true).notNull(),
+  homeVenueName: text("home_venue_name"),
+  homeVenueAddress: text("home_venue_address"),
+  homeGoogleMapsUrl: text("home_google_maps_url"),
   // Contact Information (visible only to super admin)
   contactFullName: text("contact_full_name"),
   contactPhone: text("contact_phone"),
@@ -1606,3 +1609,21 @@ export const leagueGameScoreRelations = relations(leagueGameScores, ({ one }) =>
 export const insertLeagueGameScoreSchema = createInsertSchema(leagueGameScores).omit({ id: true, createdAt: true });
 export type LeagueGameScore = typeof leagueGameScores.$inferSelect;
 export type InsertLeagueGameScore = z.infer<typeof insertLeagueGameScoreSchema>;
+
+export const leagueOpponents = pgTable("league_opponents", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  venueName: text("venue_name"),
+  venueAddress: text("venue_address"),
+  googleMapsUrl: text("google_maps_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueOpponentRelations = relations(leagueOpponents, ({ one }) => ({
+  club: one(clubs, { fields: [leagueOpponents.clubId], references: [clubs.id] }),
+}));
+
+export const insertLeagueOpponentSchema = createInsertSchema(leagueOpponents).omit({ id: true, createdAt: true });
+export type LeagueOpponent = typeof leagueOpponents.$inferSelect;
+export type InsertLeagueOpponent = z.infer<typeof insertLeagueOpponentSchema>;
