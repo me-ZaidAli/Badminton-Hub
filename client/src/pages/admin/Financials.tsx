@@ -125,7 +125,7 @@ export default function Financials() {
   const [matchMode, setMatchMode] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships">("session");
+  const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits">("session");
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
@@ -201,6 +201,14 @@ export default function Financials() {
   const [adjustCreditAmount, setAdjustCreditAmount] = useState("");
   const [adjustCreditReason, setAdjustCreditReason] = useState("");
   const [adjustCreditType, setAdjustCreditType] = useState<"add" | "deduct">("add");
+
+  const [mcPlayerSearch, setMcPlayerSearch] = useState("");
+  const [mcSelectedPlayer, setMcSelectedPlayer] = useState<{ id: number; fullName: string; email: string } | null>(null);
+  const [mcSelectedClubId, setMcSelectedClubId] = useState<string>("");
+  const [mcActionType, setMcActionType] = useState<"credit" | "debit" | "fix">("credit");
+  const [mcAmount, setMcAmount] = useState("");
+  const [mcReason, setMcReason] = useState("");
+  const [mcFixBalance, setMcFixBalance] = useState("");
 
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
@@ -319,6 +327,36 @@ export default function Financials() {
     });
     return groups;
   }, [creditHistory, creditSearchQuery]);
+
+  const { data: mcSearchResults = [] } = useQuery<{ id: number; fullName: string; email: string }[]>({
+    queryKey: ["/api/admin/player-search", mcPlayerSearch],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/player-search?q=${encodeURIComponent(mcPlayerSearch)}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: viewMode === "manage-credits" && mcPlayerSearch.length >= 2 && !mcSelectedPlayer,
+  });
+
+  const { data: mcPlayerClubs = [], isLoading: mcClubsLoading } = useQuery<{ clubId: number; clubName: string; balance: number }[]>({
+    queryKey: ["/api/admin/player-credits", mcSelectedPlayer?.id],
+    enabled: viewMode === "manage-credits" && !!mcSelectedPlayer,
+  });
+
+  const mcSelectedClub = mcPlayerClubs.find((c) => String(c.clubId) === mcSelectedClubId);
+
+  const { data: mcPlayerHistory = [] } = useQuery<CreditHistoryEntry[]>({
+    queryKey: ["/api/admin/credit-history", mcSelectedPlayer?.id, mcSelectedClubId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (mcSelectedClubId) params.append("clubId", mcSelectedClubId);
+      if (mcSelectedPlayer) params.append("userId", String(mcSelectedPlayer.id));
+      const res = await fetch(`/api/admin/credit-history?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: viewMode === "manage-credits" && !!mcSelectedPlayer && !!mcSelectedClubId,
+  });
 
   const filteredData = useMemo(() => {
     if (paymentFilter === "all") return financialData;
@@ -1340,6 +1378,14 @@ export default function Financials() {
                 <CreditCard className="h-4 w-4 mr-1" />
                 Memberships
               </Button>
+              <Button
+                variant={viewMode === "manage-credits" ? "default" : "outline"}
+                onClick={() => setViewMode("manage-credits")}
+                data-testid="button-view-manage-credits"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Manage Credits
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -2324,6 +2370,353 @@ export default function Financials() {
               );
             })
           )}
+        </div>
+      ) : viewMode === "manage-credits" ? (
+        <div className="space-y-4">
+          <Card data-testid="card-manage-credits">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Manage Player Credits & Debits
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Search Player</Label>
+                {mcSelectedPlayer ? (
+                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium" data-testid="text-mc-selected-player">{mcSelectedPlayer.fullName}</p>
+                      <p className="text-sm text-muted-foreground">{mcSelectedPlayer.email}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setMcSelectedPlayer(null);
+                        setMcSelectedClubId("");
+                        setMcPlayerSearch("");
+                        setMcAmount("");
+                        setMcReason("");
+                        setMcFixBalance("");
+                      }}
+                      data-testid="button-mc-clear-player"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Type player name or email (min 2 characters)..."
+                      value={mcPlayerSearch}
+                      onChange={(e) => setMcPlayerSearch(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-mc-player-search"
+                    />
+                    {mcSearchResults.length > 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {mcSearchResults.map((player) => (
+                          <button
+                            key={player.id}
+                            className="w-full text-left px-4 py-2 hover:bg-accent transition-colors border-b last:border-b-0"
+                            onClick={() => {
+                              setMcSelectedPlayer(player);
+                              setMcPlayerSearch("");
+                              setMcSelectedClubId("");
+                            }}
+                            data-testid={`button-mc-select-player-${player.id}`}
+                          >
+                            <p className="font-medium text-sm">{player.fullName}</p>
+                            <p className="text-xs text-muted-foreground">{player.email}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {mcSelectedPlayer && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Select Club</Label>
+                    {mcClubsLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading clubs...
+                      </div>
+                    ) : mcPlayerClubs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">This player is not a member of any clubs you manage.</p>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                        {mcPlayerClubs.map((club) => (
+                          <button
+                            key={club.clubId}
+                            className={`p-3 rounded-lg border text-left transition-colors ${
+                              mcSelectedClubId === String(club.clubId)
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary/50"
+                            }`}
+                            onClick={() => setMcSelectedClubId(String(club.clubId))}
+                            data-testid={`button-mc-select-club-${club.clubId}`}
+                          >
+                            <p className="font-medium text-sm flex items-center gap-2">
+                              <Building2 className="h-4 w-4" />
+                              {club.clubName}
+                            </p>
+                            <p className={`text-sm mt-1 font-medium ${club.balance > 0 ? "text-green-600" : club.balance < 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                              Balance: £{formatPounds(Math.abs(club.balance))} {club.balance < 0 ? "(owed)" : ""}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {mcSelectedClubId && (
+                    <div className="border-t pt-4 space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <button
+                          className={`p-3 rounded-lg border text-center transition-colors ${
+                            mcActionType === "credit" ? "border-green-500 bg-green-500/10" : "border-border hover:border-green-500/50"
+                          }`}
+                          onClick={() => setMcActionType("credit")}
+                          data-testid="button-mc-type-credit"
+                        >
+                          <Plus className={`h-5 w-5 mx-auto mb-1 ${mcActionType === "credit" ? "text-green-600" : "text-muted-foreground"}`} />
+                          <p className="font-medium text-sm">Add Credit</p>
+                          <p className="text-xs text-muted-foreground">Add funds to balance</p>
+                        </button>
+                        <button
+                          className={`p-3 rounded-lg border text-center transition-colors ${
+                            mcActionType === "debit" ? "border-orange-500 bg-orange-500/10" : "border-border hover:border-orange-500/50"
+                          }`}
+                          onClick={() => setMcActionType("debit")}
+                          data-testid="button-mc-type-debit"
+                        >
+                          <TrendingDown className={`h-5 w-5 mx-auto mb-1 ${mcActionType === "debit" ? "text-orange-600" : "text-muted-foreground"}`} />
+                          <p className="font-medium text-sm">Add Debit</p>
+                          <p className="text-xs text-muted-foreground">Deduct from balance</p>
+                        </button>
+                        <button
+                          className={`p-3 rounded-lg border text-center transition-colors ${
+                            mcActionType === "fix" ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-blue-500/50"
+                          }`}
+                          onClick={() => setMcActionType("fix")}
+                          data-testid="button-mc-type-fix"
+                        >
+                          <Pencil className={`h-5 w-5 mx-auto mb-1 ${mcActionType === "fix" ? "text-blue-600" : "text-muted-foreground"}`} />
+                          <p className="font-medium text-sm">Fix Credit</p>
+                          <p className="text-xs text-muted-foreground">Set balance to exact amount</p>
+                        </button>
+                      </div>
+
+                      {mcActionType === "fix" ? (
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-sm font-medium">
+                              Current Balance: <span className={mcSelectedClub && mcSelectedClub.balance >= 0 ? "text-green-600" : "text-red-600"}>
+                                £{formatPounds(Math.abs(mcSelectedClub?.balance || 0))}{(mcSelectedClub?.balance || 0) < 0 ? " (owed)" : ""}
+                              </span>
+                            </Label>
+                          </div>
+                          <div>
+                            <Label htmlFor="mc-fix-balance" className="text-sm font-medium">New Balance (£)</Label>
+                            <Input
+                              id="mc-fix-balance"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={mcFixBalance}
+                              onChange={(e) => setMcFixBalance(e.target.value)}
+                              placeholder="e.g. 10.00"
+                              data-testid="input-mc-fix-balance"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="mc-fix-reason" className="text-sm font-medium">Reason</Label>
+                            <Input
+                              id="mc-fix-reason"
+                              value={mcReason}
+                              onChange={(e) => setMcReason(e.target.value)}
+                              placeholder="e.g. Balance correction"
+                              data-testid="input-mc-fix-reason"
+                            />
+                          </div>
+                          <Button
+                            onClick={() => {
+                              const targetPence = Math.round(parseFloat(mcFixBalance) * 100);
+                              if (isNaN(targetPence) || targetPence < 0) {
+                                toast({ title: "Invalid Amount", description: "Please enter a valid balance amount.", variant: "destructive" });
+                                return;
+                              }
+                              if (!mcReason.trim()) {
+                                toast({ title: "Reason Required", description: "Please enter a reason.", variant: "destructive" });
+                                return;
+                              }
+                              const currentBalance = mcSelectedClub?.balance || 0;
+                              const diff = targetPence - currentBalance;
+                              if (diff === 0) {
+                                toast({ title: "No Change", description: "The new balance is the same as the current balance." });
+                                return;
+                              }
+                              createCredit.mutate(
+                                {
+                                  userId: mcSelectedPlayer.id,
+                                  clubId: Number(mcSelectedClubId),
+                                  amount: diff,
+                                  reason: `Balance fix: ${mcReason.trim()} (${diff > 0 ? "+" : ""}£${(diff / 100).toFixed(2)})`,
+                                },
+                                {
+                                  onSuccess: () => {
+                                    toast({ title: "Balance Fixed", description: `${mcSelectedPlayer.fullName}'s balance set to £${(targetPence / 100).toFixed(2)}.` });
+                                    setMcFixBalance("");
+                                    setMcReason("");
+                                    qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).includes("credit") });
+                                    qc.invalidateQueries({ queryKey: ["/api/admin/player-credits", mcSelectedPlayer.id] });
+                                  },
+                                  onError: (err: any) => {
+                                    toast({ title: "Error", description: err.message || "Failed to fix balance.", variant: "destructive" });
+                                  },
+                                }
+                              );
+                            }}
+                            disabled={createCredit.isPending}
+                            className="w-full sm:w-auto"
+                            data-testid="button-mc-submit-fix"
+                          >
+                            {createCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                            Fix Balance
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="mc-amount" className="text-sm font-medium">Amount (£)</Label>
+                            <Input
+                              id="mc-amount"
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={mcAmount}
+                              onChange={(e) => setMcAmount(e.target.value)}
+                              placeholder="e.g. 5.00"
+                              data-testid="input-mc-amount"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="mc-reason" className="text-sm font-medium">Reason</Label>
+                            <Input
+                              id="mc-reason"
+                              value={mcReason}
+                              onChange={(e) => setMcReason(e.target.value)}
+                              placeholder={mcActionType === "credit" ? "e.g. Session refund, Reward bonus" : "e.g. Shuttlecock purchase, Session charge"}
+                              data-testid="input-mc-reason"
+                            />
+                          </div>
+                          <Button
+                            onClick={() => {
+                              const pence = Math.round(parseFloat(mcAmount) * 100);
+                              if (isNaN(pence) || pence <= 0) {
+                                toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
+                                return;
+                              }
+                              if (!mcReason.trim()) {
+                                toast({ title: "Reason Required", description: "Please enter a reason.", variant: "destructive" });
+                                return;
+                              }
+                              const signedAmount = mcActionType === "debit" ? -pence : pence;
+                              createCredit.mutate(
+                                {
+                                  userId: mcSelectedPlayer.id,
+                                  clubId: Number(mcSelectedClubId),
+                                  amount: signedAmount,
+                                  reason: mcReason.trim(),
+                                },
+                                {
+                                  onSuccess: () => {
+                                    toast({
+                                      title: mcActionType === "credit" ? "Credit Added" : "Debit Added",
+                                      description: `${mcActionType === "credit" ? "Added" : "Deducted"} £${(pence / 100).toFixed(2)} ${mcActionType === "credit" ? "to" : "from"} ${mcSelectedPlayer.fullName}'s balance.`,
+                                    });
+                                    setMcAmount("");
+                                    setMcReason("");
+                                    qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).includes("credit") });
+                                    qc.invalidateQueries({ queryKey: ["/api/admin/player-credits", mcSelectedPlayer.id] });
+                                  },
+                                  onError: (err: any) => {
+                                    toast({ title: "Error", description: err.message || "Failed to process.", variant: "destructive" });
+                                  },
+                                }
+                              );
+                            }}
+                            disabled={createCredit.isPending}
+                            className={`w-full sm:w-auto ${mcActionType === "debit" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                            data-testid="button-mc-submit"
+                          >
+                            {createCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                            {mcActionType === "credit" ? "Add Credit" : "Add Debit"}
+                          </Button>
+                        </div>
+                      )}
+
+                      {mcPlayerHistory.length > 0 && (
+                        <div className="border-t pt-4">
+                          <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                            <History className="h-4 w-4" />
+                            Recent Transactions ({mcPlayerHistory.length})
+                          </h3>
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Amount</TableHead>
+                                  <TableHead>Reason</TableHead>
+                                  <TableHead>By</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {mcPlayerHistory.slice(0, 20).map((entry) => (
+                                  <TableRow key={entry.id} data-testid={`row-mc-history-${entry.id}`}>
+                                    <TableCell className="whitespace-nowrap text-sm">
+                                      {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {entry.amount > 0 ? (
+                                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                                          <Plus className="h-3 w-3 mr-1" /> Credit
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                                          <TrendingDown className="h-3 w-3 mr-1" /> Debit
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                                      {entry.amount > 0 ? "+" : "-"}£{formatPounds(Math.abs(entry.amount))}
+                                    </TableCell>
+                                    <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
+                                      {entry.reason}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       ) : (
         <div className="space-y-4">

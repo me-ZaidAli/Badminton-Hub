@@ -7261,6 +7261,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+    const userId = req.query.userId ? Number(req.query.userId) : null;
 
     try {
       const isOwner = user.role === "OWNER";
@@ -7273,8 +7274,11 @@ export async function registerRoutes(
         }
       }
 
-      const query = clubId
-        ? sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
+      const conditions = [sql`1=1`];
+      if (clubId) conditions.push(sql`cl.club_id = ${clubId}`);
+      if (userId) conditions.push(sql`cl.user_id = ${userId}`);
+
+      const query = sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
               cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
               cl.attendance_status AS "attendanceStatus",
               cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
@@ -7287,21 +7291,7 @@ export async function registerRoutes(
               LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
               INNER JOIN users pu ON cl.user_id = pu.id
               INNER JOIN users cu ON cl.created_by_id = cu.id
-              WHERE cl.club_id = ${clubId}
-              ORDER BY cl.created_at DESC`
-        : sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
-              cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
-              cl.attendance_status AS "attendanceStatus",
-              cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
-              s.date AS "sessionDate", COALESCE(ss.fee, s.fee) AS "sessionFee",
-              pu.full_name AS "playerName", pu.email AS "playerEmail",
-              cu.full_name AS "createdByName"
-              FROM credit_ledger cl
-              INNER JOIN clubs c ON cl.club_id = c.id
-              LEFT JOIN sessions s ON cl.linked_session_id = s.id
-              LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
-              INNER JOIN users pu ON cl.user_id = pu.id
-              INNER JOIN users cu ON cl.created_by_id = cu.id
+              WHERE ${sql.join(conditions, sql` AND `)}
               ORDER BY cl.created_at DESC`;
 
       const entries = await db.execute(query);
@@ -15408,6 +15398,52 @@ export async function registerRoutes(
         if (profiles.length > 0) filtered.push(u);
       }
       res.json(filtered);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/player-credits/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+    const isOwner = currentUser.role === "OWNER";
+    const adminProfiles = (currentUser.playerProfiles || []).filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+    if (!isOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+    const userId = Number(req.params.userId);
+    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+
+    try {
+      const profiles = await db
+        .select({
+          clubId: playerProfiles.clubId,
+          clubName: clubs.name,
+        })
+        .from(playerProfiles)
+        .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .where(eq(playerProfiles.userId, userId));
+
+      if (!isOwner) {
+        const adminClubIds = adminProfiles.map((p: any) => p.clubId);
+        const filtered = profiles.filter((p) => adminClubIds.includes(p.clubId));
+        const balances = await Promise.all(filtered.map(async (p) => {
+          const [bal] = await db
+            .select({ balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+            .from(creditLedger)
+            .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, p.clubId)));
+          return { ...p, balance: Number(bal?.balance || 0) };
+        }));
+        return res.json(balances);
+      }
+
+      const balances = await Promise.all(profiles.map(async (p) => {
+        const [bal] = await db
+          .select({ balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+          .from(creditLedger)
+          .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, p.clubId)));
+        return { ...p, balance: Number(bal?.balance || 0) };
+      }));
+      res.json(balances);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

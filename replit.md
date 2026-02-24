@@ -22,7 +22,7 @@ The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query
 - **Match Management**: Includes a visual court component, queuing system, Smart Match Engine (social/competitive), and controls for live match cancellation.
 - **Membership System**: Manages club-based memberships, plans, requests, approvals, proration, and merchandise integration.
 - **Dynamic Leaderboard System**: Computes player rankings dynamically from completed matches, offering club, session, and personal views.
-- **Financial Dashboard & Credit System**: Provides financial oversight, tracking revenue, attendance, credit ledger, and outstanding payments.
+- **Financial Dashboard & Credit System**: Provides financial oversight, tracking revenue, attendance, credit ledger, and outstanding payments. Includes independent "Manage Credits" section for directly adding credits, debits, or fixing balances on player profiles, linked across all financial views and personal profiles.
 - **Inventory & Expense Tracking System**: Manages club inventory, stock movements, and general expenses.
 - **Admin & Player Management**: Tools for super admins and club admins for user, club, venue, and administrator management.
 - **Recurring Events System**: Facilitates creation of single or recurring sessions with automated generation.
