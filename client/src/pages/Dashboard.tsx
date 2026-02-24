@@ -353,26 +353,22 @@ function DashboardContent({
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex-1 text-right">
-                  <p className="text-white font-bold text-sm sm:text-base truncate">
+              <div className="flex items-center justify-between gap-0 mt-1">
+                <div className="flex-1 text-center px-2 py-2">
+                  <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
                     {nextLeagueMatch.clubName || "Your Club"}
                   </p>
                   {nextLeagueMatch.teamName && (
-                    <p className="text-white/70 text-[10px] sm:text-xs truncate">{nextLeagueMatch.teamName}</p>
+                    <p className="text-white/70 text-[9px] sm:text-[10px] truncate mt-0.5">{nextLeagueMatch.teamName}</p>
                   )}
                 </div>
-                <div className="shrink-0 flex flex-col items-center px-3 sm:px-4">
-                  <span className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-400 to-amber-600">
-                    VS
-                  </span>
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-white font-bold text-sm sm:text-base truncate">
+                <div className="shrink-0 w-16 sm:w-20" />
+                <div className="flex-1 text-center px-2 py-2">
+                  <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
                     {nextLeagueMatch.opponentClub}
                   </p>
                   {nextLeagueMatch.category && (
-                    <p className="text-white/70 text-[10px] sm:text-xs truncate">{nextLeagueMatch.category}</p>
+                    <p className="text-white/70 text-[9px] sm:text-[10px] truncate mt-0.5">{nextLeagueMatch.category}</p>
                   )}
                 </div>
               </div>
