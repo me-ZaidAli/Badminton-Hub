@@ -353,22 +353,22 @@ function DashboardContent({
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-0 mt-1">
-                <div className="flex-1 text-center px-2 py-2">
-                  <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+              <div className="flex items-center justify-center gap-0 mt-1">
+                <div className="w-[36%] text-center px-4 py-2 overflow-hidden">
+                  <p className="text-white font-bold text-[11px] sm:text-xs leading-tight line-clamp-2">
                     {nextLeagueMatch.clubName || "Your Club"}
                   </p>
                   {nextLeagueMatch.teamName && (
-                    <p className="text-white/70 text-[9px] sm:text-[10px] truncate mt-0.5">{nextLeagueMatch.teamName}</p>
+                    <p className="text-white/70 text-[8px] sm:text-[9px] truncate mt-0.5">{nextLeagueMatch.teamName}</p>
                   )}
                 </div>
-                <div className="shrink-0 w-16 sm:w-20" />
-                <div className="flex-1 text-center px-2 py-2">
-                  <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                <div className="shrink-0 w-[28%]" />
+                <div className="w-[36%] text-center px-4 py-2 overflow-hidden">
+                  <p className="text-white font-bold text-[11px] sm:text-xs leading-tight line-clamp-2">
                     {nextLeagueMatch.opponentClub}
                   </p>
                   {nextLeagueMatch.category && (
-                    <p className="text-white/70 text-[9px] sm:text-[10px] truncate mt-0.5">{nextLeagueMatch.category}</p>
+                    <p className="text-white/70 text-[8px] sm:text-[9px] truncate mt-0.5">{nextLeagueMatch.category}</p>
                   )}
                 </div>
               </div>
