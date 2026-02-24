@@ -12,7 +12,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
-import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches } from "./matchEngine";
+import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
@@ -3477,7 +3477,7 @@ export async function registerRoutes(
           .map(s => ({
             id: s.player.id,
             gender: s.player.gender,
-            category: s.player.category,
+            grade: s.player.grade || s.player.category || "C3",
             isPaused: s.isPaused,
             genderOverride: s.genderOverride,
           }));
@@ -3599,7 +3599,7 @@ export async function registerRoutes(
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
-          category: s.player.category,
+          grade: s.player.grade || s.player.category || "C3",
           isPaused: s.isPaused,
           genderOverride: s.genderOverride,
         }));
@@ -3609,9 +3609,9 @@ export async function registerRoutes(
       } else if (filterType === "male_only") {
         players = players.filter(p => (p.genderOverride || p.gender) === "MALE");
       } else if (filterType === "high_grade") {
-        players = players.filter(p => p.category === "A" || p.category === "B");
+        players = players.filter(p => isHighGrade(p.grade));
       } else if (filterType === "low_grade") {
-        players = players.filter(p => p.category === "C" || p.category === "D");
+        players = players.filter(p => isLowGrade(p.grade));
       } else if (filterType === "mixed") {
         const males = players.filter(p => (p.genderOverride || p.gender) !== "FEMALE");
         const females = players.filter(p => (p.genderOverride || p.gender) === "FEMALE");
@@ -4044,7 +4044,7 @@ export async function registerRoutes(
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
-          category: s.player.category,
+          grade: s.player.grade || s.player.category || "C3",
           isPaused: s.isPaused,
           genderOverride: s.genderOverride,
         }));
@@ -4293,7 +4293,7 @@ export async function registerRoutes(
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
-          category: s.player.category,
+          grade: s.player.grade || s.player.category || "C3",
           isPaused: false,
           genderOverride: s.genderOverride,
         }));
@@ -4365,7 +4365,7 @@ export async function registerRoutes(
         .map(s => ({
           id: s.player.id,
           gender: s.player.gender,
-          category: s.player.category,
+          grade: s.player.grade || s.player.category || "C3",
           isPaused: false,
           genderOverride: s.genderOverride,
         }));
