@@ -18,7 +18,7 @@ import {
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
   MapPin, Swords
 } from "lucide-react";
-import vsBannerBg from "@assets/vs-versus-battle-headline-modern-banner-template-red-and-blue-_1771919331474.jpg";
+import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -335,63 +335,71 @@ function DashboardContent({
             className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
             data-testid="card-upcoming-league-match"
           >
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${vsBannerBg})` }}
-            />
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-10 p-4 sm:p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Swords className="h-4 w-4 text-amber-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                  Next League Match
-                </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-[#1a0a2e] via-[#0d1117] to-[#0a1628]" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 sm:px-5">
+                <div className="flex items-center gap-2">
+                  <Swords className="h-4 w-4 text-amber-400" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Next League Match
+                  </span>
+                </div>
                 {nextLeagueMatch.leagueName && (
-                  <Badge className="bg-white/20 text-white border-0 text-[10px]">
+                  <Badge className="bg-white/15 text-white/90 border-0 text-[9px] sm:text-[10px] shrink-0">
                     {nextLeagueMatch.leagueName}
                   </Badge>
                 )}
               </div>
 
-              <div className="flex items-center justify-center gap-0 mt-1">
-                <div className="w-[36%] text-center px-4 py-2 overflow-hidden">
-                  <p className="text-white font-bold text-[11px] sm:text-xs leading-tight line-clamp-2">
-                    {nextLeagueMatch.clubName || "Your Club"}
-                  </p>
-                  {nextLeagueMatch.teamName && (
-                    <p className="text-white/70 text-[8px] sm:text-[9px] truncate mt-0.5">{nextLeagueMatch.teamName}</p>
-                  )}
+              <div className="flex items-stretch px-3 sm:px-4 py-2">
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-red-500/30 bg-black/40 px-3 py-3 shadow-[inset_0_0_20px_rgba(239,68,68,0.1)]">
+                  <div className="text-center overflow-hidden">
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextLeagueMatch.clubName || "Your Club"}
+                    </p>
+                    {nextLeagueMatch.teamName && (
+                      <p className="text-white/60 text-[9px] sm:text-[10px] truncate mt-1">{nextLeagueMatch.teamName}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="shrink-0 w-[28%]" />
-                <div className="w-[36%] text-center px-4 py-2 overflow-hidden">
-                  <p className="text-white font-bold text-[11px] sm:text-xs leading-tight line-clamp-2">
-                    {nextLeagueMatch.opponentClub}
-                  </p>
-                  {nextLeagueMatch.category && (
-                    <p className="text-white/70 text-[8px] sm:text-[9px] truncate mt-0.5">{nextLeagueMatch.category}</p>
-                  )}
+
+                <div className="shrink-0 w-14 sm:w-16 flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                    <span className="text-white font-black text-sm sm:text-base">VS</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-blue-500/30 bg-black/40 px-3 py-3 shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]">
+                  <div className="text-center overflow-hidden">
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextLeagueMatch.opponentClub}
+                    </p>
+                    {nextLeagueMatch.category && (
+                      <p className="text-white/60 text-[9px] sm:text-[10px] truncate mt-1">{nextLeagueMatch.category}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-                <div className="flex items-center gap-1.5 text-white/80 text-xs">
-                  <Calendar className="h-3.5 w-3.5 text-amber-400" />
+              <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 pb-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-white/80 text-[10px] sm:text-xs">
+                  <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400" />
                   <span>{format(new Date(nextLeagueMatch.matchDatetime), "EEE, MMM d, yyyy")}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-white/80 text-xs">
-                  <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <div className="flex items-center gap-1.5 text-white/80 text-[10px] sm:text-xs">
+                  <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400" />
                   <span>{format(new Date(nextLeagueMatch.matchDatetime), "h:mm a")}</span>
                 </div>
                 {nextLeagueMatch.location && (
-                  <Badge className={`text-[10px] border-0 ${nextLeagueMatch.location === "HOME" ? "bg-green-500/30 text-green-300" : "bg-blue-500/30 text-blue-300"}`}>
+                  <Badge className={`text-[9px] sm:text-[10px] border-0 ${nextLeagueMatch.location === "HOME" ? "bg-green-500/30 text-green-300" : "bg-blue-500/30 text-blue-300"}`}>
                     {nextLeagueMatch.location}
                   </Badge>
                 )}
               </div>
               {nextLeagueMatch.venue && (
-                <div className="flex items-center justify-center gap-1.5 mt-2 text-white/60 text-[10px] sm:text-xs">
+                <div className="flex items-center justify-center gap-1.5 pb-3 text-white/50 text-[9px] sm:text-xs">
                   <MapPin className="h-3 w-3" />
-                  <span className="truncate">{nextLeagueMatch.venue}</span>
+                  <span className="truncate max-w-[250px]">{nextLeagueMatch.venue}</span>
                 </div>
               )}
             </div>
