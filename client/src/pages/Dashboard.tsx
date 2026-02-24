@@ -192,15 +192,12 @@ function DashboardContent({
   });
 
   const { data: upcomingLeagueMatches } = useQuery<any[]>({
-    queryKey: ["/api/league/matches", { view: "upcoming", clubId: effectiveClubId }],
+    queryKey: ["/api/league/matches", "upcoming-all"],
     queryFn: async () => {
-      const params = new URLSearchParams({ view: "upcoming" });
-      if (effectiveClubId) params.set("clubId", String(effectiveClubId));
-      const res = await fetch(`/api/league/matches?${params}`, { credentials: "include" });
+      const res = await fetch(`/api/league/matches?view=upcoming`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!effectiveClubId,
   });
 
   const nextLeagueMatch = useMemo(() => {

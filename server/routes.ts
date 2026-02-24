@@ -17079,7 +17079,19 @@ export async function registerRoutes(
       const now = new Date();
 
       let conditions: any[] = [];
-      if (clubId) conditions.push(eq(leagueMatches.clubId, clubId));
+      if (clubId) {
+        conditions.push(eq(leagueMatches.clubId, clubId));
+      } else if (user.role !== "OWNER" && user.role !== "ADMIN") {
+        const userProfiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED")));
+        const userClubIds = userProfiles.map(p => p.clubId).filter(Boolean) as number[];
+        if (userClubIds.length > 0) {
+          conditions.push(inArray(leagueMatches.clubId, userClubIds));
+        } else {
+          return res.json([]);
+        }
+      }
       if (filterLeagueId) conditions.push(eq(leagueMatches.leagueId, filterLeagueId));
       if (view === "upcoming") {
         conditions.push(or(eq(leagueMatches.status, "UPCOMING"), eq(leagueMatches.status, "LIVE")));
