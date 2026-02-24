@@ -521,6 +521,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
     division: "",
     category: "MENS" as string,
     venue: "",
+    venueAddress: "",
+    googleMapsUrl: "",
     location: "",
     matchDatetime: "",
     opponentClub: "",
@@ -536,6 +538,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
         division: match.division || "",
         category: match.category,
         venue: match.venue || "",
+        venueAddress: match.venueAddress || "",
+        googleMapsUrl: match.googleMapsUrl || "",
         location: match.location || "",
         matchDatetime: match.matchDatetime ? format(new Date(match.matchDatetime), "yyyy-MM-dd'T'HH:mm") : "",
         opponentClub: match.opponentClub,
@@ -549,6 +553,8 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
         division: "",
         category: "MENS",
         venue: "",
+        venueAddress: "",
+        googleMapsUrl: "",
         location: "",
         matchDatetime: "",
         opponentClub: "",
@@ -633,6 +639,14 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues }: {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <Label>Venue Address</Label>
+            <Input value={formData.venueAddress} onChange={e => setFormData(f => ({ ...f, venueAddress: e.target.value }))} placeholder="Full address e.g. 123 Main St, Birmingham, B1 1AA" data-testid="input-venue-address" />
+          </div>
+          <div>
+            <Label>Google Maps Link (optional)</Label>
+            <Input value={formData.googleMapsUrl} onChange={e => setFormData(f => ({ ...f, googleMapsUrl: e.target.value }))} placeholder="https://maps.google.com/..." data-testid="input-google-maps-url" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

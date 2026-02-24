@@ -17169,7 +17169,7 @@ export async function registerRoutes(
   app.post("/api/league/matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const { clubId, leagueId: bodyLeagueId, leagueTeamId, division, category, venue, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
+      const { clubId, leagueId: bodyLeagueId, leagueTeamId, division, category, venue, venueAddress, googleMapsUrl, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
       if (!clubId || !category || !matchDatetime || !opponentClub) {
         return res.status(400).json({ message: "clubId, category, matchDatetime, and opponentClub are required" });
       }
@@ -17186,6 +17186,8 @@ export async function registerRoutes(
         division,
         category,
         venue,
+        venueAddress: venueAddress || null,
+        googleMapsUrl: googleMapsUrl || null,
         location,
         matchDatetime: matchDt,
         opponentClub,
@@ -17212,10 +17214,12 @@ export async function registerRoutes(
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
 
       const updates: any = { updatedAt: new Date() };
-      const { division, category, venue, location, matchDatetime, opponentClub, status, leagueId: bodyLeagueId, leagueTeamId, pairsCount, setsPerPair } = req.body;
+      const { division, category, venue, venueAddress, googleMapsUrl, location, matchDatetime, opponentClub, status, leagueId: bodyLeagueId, leagueTeamId, pairsCount, setsPerPair } = req.body;
       if (division !== undefined) updates.division = division;
       if (category !== undefined) updates.category = category;
       if (venue !== undefined) updates.venue = venue;
+      if (venueAddress !== undefined) updates.venueAddress = venueAddress || null;
+      if (googleMapsUrl !== undefined) updates.googleMapsUrl = googleMapsUrl || null;
       if (location !== undefined) updates.location = location;
       if (opponentClub !== undefined) updates.opponentClub = opponentClub;
       if (status !== undefined) updates.status = status;

@@ -132,10 +132,27 @@ function MatchFixtureRow({ match, expanded, onToggle }: { match: any; expanded: 
             </div>
           </div>
 
-          {match.venue && (
-            <div className="flex items-center gap-1.5 justify-center text-xs text-muted-foreground">
-              <MapPin className="h-3 w-3" />
-              <span>{match.venue}</span>
+          {(match.venue || match.venueAddress) && (
+            <div className="flex items-start gap-1.5 justify-center text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>
+                {match.venue}{match.venue && match.venueAddress ? " · " : ""}{match.venueAddress || ""}
+              </span>
+            </div>
+          )}
+
+          {(match.googleMapsUrl || match.venue || match.venueAddress) && (
+            <div className="flex justify-center">
+              <a
+                href={match.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.venueAddress || match.venue || "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                data-testid={`link-maps-${match.id}`}
+              >
+                <Navigation className="h-3 w-3" />
+                {match.googleMapsUrl ? "Open in Google Maps" : "View on Google Maps"}
+              </a>
             </div>
           )}
 
@@ -253,10 +270,27 @@ function MatchResultRow({ match, expanded, onToggle }: { match: any; expanded: b
             </div>
           </div>
 
-          {match.venue && (
-            <div className="flex items-center gap-1.5 justify-center text-xs text-muted-foreground">
-              <MapPin className="h-3 w-3" />
-              <span>{match.venue}</span>
+          {(match.venue || match.venueAddress) && (
+            <div className="flex items-start gap-1.5 justify-center text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>
+                {match.venue}{match.venue && match.venueAddress ? " · " : ""}{match.venueAddress || ""}
+              </span>
+            </div>
+          )}
+
+          {(match.googleMapsUrl || match.venue || match.venueAddress) && (
+            <div className="flex justify-center">
+              <a
+                href={match.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.venueAddress || match.venue || "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                data-testid={`link-maps-result-${match.id}`}
+              >
+                <Navigation className="h-3 w-3" />
+                {match.googleMapsUrl ? "Open in Google Maps" : "View on Google Maps"}
+              </a>
             </div>
           )}
 
@@ -370,10 +404,42 @@ function NextMatchSpotlight({ match }: { match: any }) {
               <Clock className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
               <span className="text-white/80">{format(matchDate, "HH:mm")} kick-off</span>
             </div>
-            {match.venue && (
+            {(match.venue || match.venueAddress) && (
               <div className="flex items-start gap-2.5 text-xs">
                 <MapPin className="h-3.5 w-3.5 text-amber-400/70 shrink-0 mt-0.5" />
-                <span className="text-white/80">{match.venue}</span>
+                <div className="text-white/80">
+                  {match.venue && <span className="font-semibold">{match.venue}</span>}
+                  {match.venue && match.venueAddress && <span> · </span>}
+                  {match.venueAddress && <span>{match.venueAddress}</span>}
+                </div>
+              </div>
+            )}
+            {match.googleMapsUrl && (
+              <div className="flex items-center gap-2.5 text-xs pl-6">
+                <a
+                  href={match.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-400 hover:text-amber-300 underline underline-offset-2 flex items-center gap-1"
+                  data-testid="link-google-maps"
+                >
+                  <Navigation className="h-3 w-3" />
+                  Open in Google Maps
+                </a>
+              </div>
+            )}
+            {!match.googleMapsUrl && (match.venue || match.venueAddress) && (
+              <div className="flex items-center gap-2.5 text-xs pl-6">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.venueAddress || match.venue || "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-400 hover:text-amber-300 underline underline-offset-2 flex items-center gap-1"
+                  data-testid="link-google-maps"
+                >
+                  <Navigation className="h-3 w-3" />
+                  View on Google Maps
+                </a>
               </div>
             )}
             {match.leagueName && (
