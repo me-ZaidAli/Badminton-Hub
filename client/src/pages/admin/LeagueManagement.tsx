@@ -988,18 +988,6 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
             </Select>
           </div>
           <div>
-            <Label>Venue</Label>
-            <Input value={formData.venue} onChange={e => setFormData(f => ({ ...f, venue: e.target.value }))} placeholder="Venue name" data-testid="input-venue" />
-          </div>
-          <div>
-            <Label>Venue Address</Label>
-            <Input value={formData.venueAddress} onChange={e => setFormData(f => ({ ...f, venueAddress: e.target.value }))} placeholder="Full address e.g. 123 Main St, Birmingham, B1 1AA" data-testid="input-venue-address" />
-          </div>
-          <div>
-            <Label>Google Maps URL</Label>
-            <Input value={formData.googleMapsUrl} onChange={e => setFormData(f => ({ ...f, googleMapsUrl: e.target.value }))} placeholder="https://maps.google.com/..." data-testid="input-google-maps-url" />
-          </div>
-          <div>
             <Label>Match Date & Time</Label>
             <Input type="datetime-local" value={formData.matchDatetime} onChange={e => setFormData(f => ({ ...f, matchDatetime: e.target.value }))} data-testid="input-match-datetime" />
           </div>
