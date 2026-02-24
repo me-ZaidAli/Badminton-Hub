@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -15,8 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Plus, Pencil, Trash2, Users, Trophy, Calendar, MapPin,
   Lock, Unlock, Shield, Search, ChevronDown, ChevronUp, Swords, BarChart3,
-  Home, Building, Navigation
+  Home, Building, Navigation, Star
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
 function StatusBadge({ status }: { status: string }) {
@@ -123,6 +124,16 @@ export default function LeagueManagement() {
       return res.json();
     },
     enabled: !!user && !!effectiveClubId,
+  });
+
+  const { data: homeVenues } = useQuery({
+    queryKey: ["/api/club-home-venues", { clubId: effectiveClubId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/club-home-venues?clubId=${effectiveClubId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!effectiveClubId,
   });
 
   const filteredMatches = useMemo(() => {
@@ -312,8 +323,8 @@ export default function LeagueManagement() {
 
         <TabsContent value="homevenue" className="mt-4">
           <HomeVenueSettings
-            club={selectedClub}
             clubId={Number(effectiveClubId)}
+            homeVenues={homeVenues || []}
           />
         </TabsContent>
       </Tabs>
@@ -327,6 +338,7 @@ export default function LeagueManagement() {
         leagues={leagues || []}
         opponents={opponents || []}
         clubData={selectedClub}
+        homeVenues={homeVenues || []}
       />
 
       <AssignPlayersDialog
@@ -616,90 +628,180 @@ function OpponentsTable({ opponents, onEdit, onDelete }: { opponents: any[]; onE
   );
 }
 
-function HomeVenueSettings({ club, clubId }: { club: any | null; clubId: number }) {
+function HomeVenueDialog({ open, onOpenChange, venue, clubId }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  venue: any | null;
+  clubId: number;
+}) {
   const { toast } = useToast();
-  const [venueName, setVenueName] = useState("");
-  const [venueAddress, setVenueAddress] = useState("");
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
 
-  useEffect(() => {
-    if (club) {
-      setVenueName(club.homeVenueName || "");
-      setVenueAddress(club.homeVenueAddress || "");
-      setGoogleMapsUrl(club.homeGoogleMapsUrl || "");
+  const handleOpen = () => {
+    if (venue) {
+      setName(venue.name || "");
+      setAddress(venue.address || "");
+      setGoogleMapsUrl(venue.googleMapsUrl || "");
+      setIsDefault(!!venue.isDefault);
+    } else {
+      setName("");
+      setAddress("");
+      setGoogleMapsUrl("");
+      setIsDefault(false);
     }
-  }, [club]);
+  };
 
   const mutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PATCH", `/api/clubs/${clubId}/home-venue`, {
-        homeVenueName: venueName,
-        homeVenueAddress: venueAddress,
-        homeGoogleMapsUrl: googleMapsUrl,
-      });
+      if (venue) {
+        await apiRequest("PATCH", `/api/club-home-venues/${venue.id}`, {
+          name, address, googleMapsUrl, isDefault,
+        });
+      } else {
+        await apiRequest("POST", "/api/club-home-venues", {
+          clubId, name, address, googleMapsUrl, isDefault,
+        });
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/my-admin-clubs"] });
-      toast({ title: "Home venue updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/club-home-venues", { clubId }] });
+      toast({ title: venue ? "Venue updated" : "Venue added" });
+      onOpenChange(false);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
-  if (!club) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Home className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground">Select a club to manage home venue</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (v) handleOpen(); onOpenChange(v); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle data-testid="text-home-venue-dialog-title">{venue ? "Edit Venue" : "Add Venue"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Venue Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Community Sports Centre" data-testid="input-home-venue-name" />
+          </div>
+          <div>
+            <Label>Address</Label>
+            <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Full address" data-testid="input-home-venue-address" />
+          </div>
+          <div>
+            <Label>Google Maps URL</Label>
+            <Input value={googleMapsUrl} onChange={e => setGoogleMapsUrl(e.target.value)} placeholder="https://maps.google.com/..." data-testid="input-home-google-maps-url" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is-default-venue"
+              checked={isDefault}
+              onCheckedChange={(checked) => setIsDefault(!!checked)}
+              data-testid="checkbox-default-venue"
+            />
+            <Label htmlFor="is-default-venue" className="cursor-pointer">Set as default venue</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name} data-testid="button-save-home-venue">
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            {venue ? "Update" : "Add"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function HomeVenueSettings({ clubId, homeVenues }: { clubId: number; homeVenues: any[] }) {
+  const { toast } = useToast();
+  const [venueDialogOpen, setVenueDialogOpen] = useState(false);
+  const [editingVenue, setEditingVenue] = useState<any>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (venueId: number) => {
+      await apiRequest("DELETE", `/api/club-home-venues/${venueId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/club-home-venues", { clubId }] });
+      toast({ title: "Venue deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Home className="h-5 w-5" />
-          Home Venue Settings
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label>Venue Name</Label>
-          <Input
-            value={venueName}
-            onChange={e => setVenueName(e.target.value)}
-            placeholder="e.g. Community Sports Centre"
-            data-testid="input-home-venue-name"
-          />
-        </div>
-        <div>
-          <Label>Venue Address</Label>
-          <Input
-            value={venueAddress}
-            onChange={e => setVenueAddress(e.target.value)}
-            placeholder="Full address e.g. 123 Main St, Birmingham, B1 1AA"
-            data-testid="input-home-venue-address"
-          />
-        </div>
-        <div>
-          <Label>Google Maps URL</Label>
-          <Input
-            value={googleMapsUrl}
-            onChange={e => setGoogleMapsUrl(e.target.value)}
-            placeholder="https://maps.google.com/..."
-            data-testid="input-home-google-maps-url"
-          />
-        </div>
-        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} data-testid="button-save-home-venue">
-          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-          Save Home Venue
-        </Button>
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Home className="h-5 w-5" />
+            Home Venues
+          </CardTitle>
+          <Button size="sm" onClick={() => { setEditingVenue(null); setVenueDialogOpen(true); }} data-testid="button-add-home-venue">
+            <Plus className="h-4 w-4 mr-1" /> Add Venue
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {homeVenues.length === 0 ? (
+            <div className="py-8 text-center">
+              <MapPin className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground" data-testid="text-no-home-venues">No home venues added yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {homeVenues.map((v: any) => (
+                <div key={v.id} className="flex items-center justify-between gap-3 p-3 border rounded-md" data-testid={`home-venue-row-${v.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm" data-testid={`text-home-venue-name-${v.id}`}>{v.name}</p>
+                      {v.isDefault && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          <Star className="h-3 w-3 mr-0.5" /> Default
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
+                      {v.address && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {v.address}
+                        </span>
+                      )}
+                      {v.googleMapsUrl && (
+                        <a href={v.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                          <Navigation className="h-3 w-3" />
+                          Map
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingVenue(v); setVenueDialogOpen(true); }} data-testid={`button-edit-home-venue-${v.id}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm("Delete this venue?")) deleteMutation.mutate(v.id); }} data-testid={`button-delete-home-venue-${v.id}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <HomeVenueDialog
+        open={venueDialogOpen}
+        onOpenChange={setVenueDialogOpen}
+        venue={editingVenue}
+        clubId={clubId}
+      />
+    </>
   );
 }
 
@@ -794,7 +896,7 @@ function OpponentDialog({ open, onOpenChange, opponent, clubId }: {
   );
 }
 
-function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, opponents, clubData }: {
+function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, opponents, clubData, homeVenues }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   match: any | null;
@@ -803,6 +905,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
   leagues: any[];
   opponents: any[];
   clubData: any;
+  homeVenues: any[];
 }) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -819,6 +922,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
     pairsCount: "3",
     setsPerPair: "3",
     selectedOpponentId: "",
+    selectedHomeVenueId: "",
   });
 
   const selectedOpponent = useMemo(() => {
@@ -829,6 +933,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
   const resetForm = () => {
     if (match) {
       const matchedOpponent = opponents.find(o => o.name === match.opponentClub);
+      const matchedVenue = homeVenues.find((v: any) => v.name === match.venue);
       setFormData({
         division: match.division || "",
         category: match.category,
@@ -843,6 +948,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
         pairsCount: String(match.pairsCount || 3),
         setsPerPair: String(match.setsPerPair || 3),
         selectedOpponentId: matchedOpponent ? String(matchedOpponent.id) : "",
+        selectedHomeVenueId: matchedVenue ? String(matchedVenue.id) : "",
       });
     } else {
       setFormData({
@@ -859,6 +965,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
         pairsCount: "3",
         setsPerPair: "3",
         selectedOpponentId: "",
+        selectedHomeVenueId: "",
       });
     }
   };
@@ -883,16 +990,36 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
 
   const handleLocationChange = (location: string) => {
     const updates: any = { location };
-    if (location === "HOME" && clubData) {
-      updates.venue = clubData.homeVenueName || "";
-      updates.venueAddress = clubData.homeVenueAddress || "";
-      updates.googleMapsUrl = clubData.homeGoogleMapsUrl || "";
+    if (location === "HOME") {
+      const defaultVenue = homeVenues.find((v: any) => v.isDefault) || homeVenues[0];
+      if (defaultVenue) {
+        updates.selectedHomeVenueId = String(defaultVenue.id);
+        updates.venue = defaultVenue.name || "";
+        updates.venueAddress = defaultVenue.address || "";
+        updates.googleMapsUrl = defaultVenue.googleMapsUrl || "";
+      }
     } else if (location === "AWAY" && selectedOpponent) {
+      updates.selectedHomeVenueId = "";
       updates.venue = selectedOpponent.venueName || "";
       updates.venueAddress = selectedOpponent.venueAddress || "";
       updates.googleMapsUrl = selectedOpponent.googleMapsUrl || "";
+    } else {
+      updates.selectedHomeVenueId = "";
     }
     setFormData(f => ({ ...f, ...updates }));
+  };
+
+  const handleHomeVenueChange = (venueId: string) => {
+    const venue = homeVenues.find((v: any) => String(v.id) === venueId);
+    if (venue) {
+      setFormData(f => ({
+        ...f,
+        selectedHomeVenueId: venueId,
+        venue: venue.name || "",
+        venueAddress: venue.address || "",
+        googleMapsUrl: venue.googleMapsUrl || "",
+      }));
+    }
   };
 
   const mutation = useMutation({
@@ -900,11 +1027,15 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
       const body = {
         ...formData,
         clubId,
+        venue: formData.venue || null,
+        venueAddress: formData.venueAddress || null,
+        googleMapsUrl: formData.googleMapsUrl || null,
         leagueTeamId: formData.leagueTeamId ? Number(formData.leagueTeamId) : null,
         leagueId: formData.leagueId ? Number(formData.leagueId) : null,
         pairsCount: Number(formData.pairsCount),
         setsPerPair: Number(formData.setsPerPair),
         selectedOpponentId: undefined,
+        selectedHomeVenueId: undefined,
       };
       if (match) {
         await apiRequest("PATCH", `/api/league/matches/${match.id}`, body);
@@ -987,6 +1118,20 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
               </SelectContent>
             </Select>
           </div>
+          {formData.location === "HOME" && homeVenues.length > 0 && (
+            <div>
+              <Label>Home Venue</Label>
+              <Select value={formData.selectedHomeVenueId || "none"} onValueChange={v => handleHomeVenueChange(v === "none" ? "" : v)}>
+                <SelectTrigger data-testid="select-home-venue"><SelectValue placeholder="Select venue" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select venue...</SelectItem>
+                  {homeVenues.map((v: any) => (
+                    <SelectItem key={v.id} value={String(v.id)}>{v.name}{v.address ? ` - ${v.address}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <Label>Match Date & Time</Label>
             <Input type="datetime-local" value={formData.matchDatetime} onChange={e => setFormData(f => ({ ...f, matchDatetime: e.target.value }))} data-testid="input-match-datetime" />
@@ -1422,23 +1567,20 @@ function TeamDialog({ open, onOpenChange, team, clubId }: {
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [division, setDivision] = useState("");
-  const [season, setSeason] = useState("");
 
   const handleOpen = () => {
     if (team) {
       setName(team.name);
       setDivision(team.division || "");
-      setSeason(team.season || "");
     } else {
       setName("");
       setDivision("");
-      setSeason("");
     }
   };
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const body = { clubId, name, division, season };
+      const body = { clubId, name, division };
       if (team) {
         await apiRequest("PATCH", `/api/league/teams/${team.id}`, body);
       } else {
@@ -1469,10 +1611,6 @@ function TeamDialog({ open, onOpenChange, team, clubId }: {
           <div>
             <Label>Division</Label>
             <Input value={division} onChange={e => setDivision(e.target.value)} placeholder="e.g. Division 1" data-testid="input-team-division" />
-          </div>
-          <div>
-            <Label>Season</Label>
-            <Input value={season} onChange={e => setSeason(e.target.value)} placeholder="e.g. 2025/26" data-testid="input-team-season" />
           </div>
         </div>
         <DialogFooter>

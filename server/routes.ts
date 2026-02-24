@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -17510,26 +17510,82 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/clubs/:id/home-venue", async (req, res) => {
+  // === CLUB HOME VENUES ROUTES ===
+
+  app.get("/api/club-home-venues", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const clubId = Number(req.params.id);
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      if (!clubId) return res.status(400).json({ message: "clubId is required" });
       const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
-      const homeVenueSchema = z.object({
-        homeVenueName: z.string().nullable().optional(),
-        homeVenueAddress: z.string().nullable().optional(),
-        homeGoogleMapsUrl: z.string().nullable().optional(),
-      });
-      const parsed = homeVenueSchema.safeParse(req.body);
+      const rows = await db.select().from(clubHomeVenues)
+        .where(eq(clubHomeVenues.clubId, clubId))
+        .orderBy(desc(clubHomeVenues.isDefault), clubHomeVenues.name);
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/club-home-venues", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const parsed = insertClubHomeVenueSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten() });
-      const { homeVenueName, homeVenueAddress, homeGoogleMapsUrl } = parsed.data;
-      const [updated] = await db.update(clubs).set({
-        homeVenueName: homeVenueName || null,
-        homeVenueAddress: homeVenueAddress || null,
-        homeGoogleMapsUrl: homeGoogleMapsUrl || null,
-      }).where(eq(clubs.id, clubId)).returning();
+      const { clubId, name, address, googleMapsUrl, isDefault } = parsed.data;
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      if (isDefault) {
+        await db.update(clubHomeVenues).set({ isDefault: false }).where(eq(clubHomeVenues.clubId, clubId));
+      }
+      const [venue] = await db.insert(clubHomeVenues).values({
+        clubId,
+        name,
+        address: address || null,
+        googleMapsUrl: googleMapsUrl || null,
+        isDefault: isDefault ?? false,
+      }).returning();
+      res.json(venue);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/club-home-venues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(clubHomeVenues).where(eq(clubHomeVenues.id, id));
+      if (!existing) return res.status(404).json({ message: "Venue not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const { name, address, googleMapsUrl, isDefault } = req.body;
+      if (isDefault) {
+        await db.update(clubHomeVenues).set({ isDefault: false }).where(eq(clubHomeVenues.clubId, existing.clubId));
+      }
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (address !== undefined) updates.address = address || null;
+      if (googleMapsUrl !== undefined) updates.googleMapsUrl = googleMapsUrl || null;
+      if (isDefault !== undefined) updates.isDefault = isDefault;
+      const [updated] = await db.update(clubHomeVenues).set(updates).where(eq(clubHomeVenues.id, id)).returning();
       res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/club-home-venues/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(clubHomeVenues).where(eq(clubHomeVenues.id, id));
+      if (!existing) return res.status(404).json({ message: "Venue not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      await db.delete(clubHomeVenues).where(eq(clubHomeVenues.id, id));
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

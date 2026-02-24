@@ -1627,3 +1627,21 @@ export const leagueOpponentRelations = relations(leagueOpponents, ({ one }) => (
 export const insertLeagueOpponentSchema = createInsertSchema(leagueOpponents).omit({ id: true, createdAt: true });
 export type LeagueOpponent = typeof leagueOpponents.$inferSelect;
 export type InsertLeagueOpponent = z.infer<typeof insertLeagueOpponentSchema>;
+
+export const clubHomeVenues = pgTable("club_home_venues", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  address: text("address"),
+  googleMapsUrl: text("google_maps_url"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const clubHomeVenueRelations = relations(clubHomeVenues, ({ one }) => ({
+  club: one(clubs, { fields: [clubHomeVenues.clubId], references: [clubs.id] }),
+}));
+
+export const insertClubHomeVenueSchema = createInsertSchema(clubHomeVenues).omit({ id: true, createdAt: true });
+export type ClubHomeVenue = typeof clubHomeVenues.$inferSelect;
+export type InsertClubHomeVenue = z.infer<typeof insertClubHomeVenueSchema>;
