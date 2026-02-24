@@ -238,6 +238,14 @@
   transform: none !important;
 }
 
+.reduced-motion [data-testid="card-upcoming-league-match"],
+.reduced-motion [data-testid="card-upcoming-league-match"] *,
+.migraine [data-testid="card-upcoming-league-match"],
+.migraine [data-testid="card-upcoming-league-match"] * {
+  animation-duration: revert !important;
+  animation-iteration-count: revert !important;
+}
+
 @layer base {
   * {
     @apply border-border;
