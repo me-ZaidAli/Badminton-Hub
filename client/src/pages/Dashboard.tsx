@@ -15,8 +15,10 @@ import { Link, Redirect, useLocation } from "wouter";
 import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
-  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift
+  Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
+  MapPin, Swords
 } from "lucide-react";
+import vsBannerBg from "@assets/vs-versus-battle-headline-modern-banner-template-red-and-blue-_1771919331474.jpg";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -189,6 +191,27 @@ function DashboardContent({
     },
   });
 
+  const { data: upcomingLeagueMatches } = useQuery<any[]>({
+    queryKey: ["/api/league/matches", { view: "upcoming", clubId: effectiveClubId }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ view: "upcoming" });
+      if (effectiveClubId) params.set("clubId", String(effectiveClubId));
+      const res = await fetch(`/api/league/matches?${params}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!effectiveClubId,
+  });
+
+  const nextLeagueMatch = useMemo(() => {
+    if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
+    const now = new Date();
+    const upcoming = upcomingLeagueMatches
+      .filter((m: any) => new Date(m.matchDatetime) >= now)
+      .sort((a: any, b: any) => new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime());
+    return upcoming[0] || upcomingLeagueMatches[0];
+  }, [upcomingLeagueMatches]);
+
   const { data: allAnnouncements } = useQuery<any[]>({
     queryKey: ["/api/announcements"],
   });
@@ -308,6 +331,80 @@ function DashboardContent({
           </Link>
         </CardContent>
       </Card>
+
+      {nextLeagueMatch && (
+        <Link href="/league">
+          <div
+            className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
+            data-testid="card-upcoming-league-match"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${vsBannerBg})` }}
+            />
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="relative z-10 p-4 sm:p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Swords className="h-4 w-4 text-amber-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                  Next League Match
+                </span>
+                {nextLeagueMatch.leagueName && (
+                  <Badge className="bg-white/20 text-white border-0 text-[10px]">
+                    {nextLeagueMatch.leagueName}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 text-right">
+                  <p className="text-white font-bold text-sm sm:text-base truncate">
+                    {nextLeagueMatch.clubName || "Your Club"}
+                  </p>
+                  {nextLeagueMatch.teamName && (
+                    <p className="text-white/70 text-[10px] sm:text-xs truncate">{nextLeagueMatch.teamName}</p>
+                  )}
+                </div>
+                <div className="shrink-0 flex flex-col items-center px-3 sm:px-4">
+                  <span className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-400 to-amber-600">
+                    VS
+                  </span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-white font-bold text-sm sm:text-base truncate">
+                    {nextLeagueMatch.opponentClub}
+                  </p>
+                  {nextLeagueMatch.category && (
+                    <p className="text-white/70 text-[10px] sm:text-xs truncate">{nextLeagueMatch.category}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
+                <div className="flex items-center gap-1.5 text-white/80 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-amber-400" />
+                  <span>{format(new Date(nextLeagueMatch.matchDatetime), "EEE, MMM d, yyyy")}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-white/80 text-xs">
+                  <Clock className="h-3.5 w-3.5 text-amber-400" />
+                  <span>{format(new Date(nextLeagueMatch.matchDatetime), "h:mm a")}</span>
+                </div>
+                {nextLeagueMatch.location && (
+                  <Badge className={`text-[10px] border-0 ${nextLeagueMatch.location === "HOME" ? "bg-green-500/30 text-green-300" : "bg-blue-500/30 text-blue-300"}`}>
+                    {nextLeagueMatch.location}
+                  </Badge>
+                )}
+              </div>
+              {nextLeagueMatch.venue && (
+                <div className="flex items-center justify-center gap-1.5 mt-2 text-white/60 text-[10px] sm:text-xs">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate">{nextLeagueMatch.venue}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </Link>
+      )}
 
       <Card data-testid="card-my-upcoming-sessions">
         <CardHeader className="pb-3">

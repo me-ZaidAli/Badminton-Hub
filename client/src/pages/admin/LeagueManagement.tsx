@@ -1217,7 +1217,8 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
   };
 
   const updatePosition = (userId: number, position: string) => {
-    setSelectedPlayers(prev => prev.map(p => p.userId === userId ? { ...p, position } : p));
+    const actualPosition = position === "none" ? "" : position;
+    setSelectedPlayers(prev => prev.map(p => p.userId === userId ? { ...p, position: actualPosition } : p));
   };
 
   const mutation = useMutation({
@@ -1258,10 +1259,10 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
             {selectedPlayers.map(p => (
               <div key={p.userId} className="flex items-center gap-2 bg-muted/50 rounded-md p-2">
                 <span className="text-sm flex-1 truncate">{p.userName}</span>
-                <Select value={p.position} onValueChange={v => updatePosition(p.userId, v)}>
+                <Select value={p.position || "none"} onValueChange={v => updatePosition(p.userId, v)}>
                   <SelectTrigger className="w-24 h-7 text-xs"><SelectValue placeholder="Pair" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="Pair A">Pair A</SelectItem>
                     <SelectItem value="Pair B">Pair B</SelectItem>
                     <SelectItem value="Pair C">Pair C</SelectItem>
