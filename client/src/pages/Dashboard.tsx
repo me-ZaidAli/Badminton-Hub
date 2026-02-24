@@ -330,7 +330,7 @@ function DashboardContent({
       </Card>
 
       {nextLeagueMatch && (
-        <Link href="/league">
+        <Link href="/league" className="mt-4 block">
           <div
             className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
             data-testid="card-upcoming-league-match"
