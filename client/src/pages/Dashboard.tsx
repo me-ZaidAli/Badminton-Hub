@@ -332,14 +332,15 @@ function DashboardContent({
       {nextLeagueMatch && (
         <Link href="/league" className="mt-4 block">
           <div
-            className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
+            className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate animate-[card-glow_3s_ease-in-out_infinite]"
             data-testid="card-upcoming-league-match"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-[#1a0a2e] via-[#0d1117] to-[#0a1628]" />
+            <div className="absolute inset-0 animate-[sweep_4s_linear_infinite] bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.03)_45%,rgba(255,255,255,0.06)_50%,rgba(255,255,255,0.03)_55%,transparent_100%)]" />
             <div className="relative z-10">
               <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 sm:px-5">
                 <div className="flex items-center gap-2">
-                  <Swords className="h-4 w-4 text-amber-400" />
+                  <Swords className="h-4 w-4 text-amber-400 animate-[pulse_2s_ease-in-out_infinite]" />
                   <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-400">
                     Next League Match
                   </span>
@@ -352,7 +353,7 @@ function DashboardContent({
               </div>
 
               <div className="flex items-stretch px-3 sm:px-4 py-2">
-                <div className="flex-1 flex items-center justify-center rounded-lg border border-red-500/30 bg-black/40 px-3 py-3 shadow-[inset_0_0_20px_rgba(239,68,68,0.1)]">
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-red-500/30 bg-black/40 px-3 py-3 animate-[glow-red_3s_ease-in-out_infinite]">
                   <div className="text-center overflow-hidden">
                     <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
                       {nextLeagueMatch.clubName || "Your Club"}
@@ -364,12 +365,12 @@ function DashboardContent({
                 </div>
 
                 <div className="shrink-0 w-14 sm:w-16 flex items-center justify-center">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-[heartbeat_1.2s_ease-in-out_infinite]">
                     <span className="text-white font-black text-sm sm:text-base">VS</span>
                   </div>
                 </div>
 
-                <div className="flex-1 flex items-center justify-center rounded-lg border border-blue-500/30 bg-black/40 px-3 py-3 shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]">
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-blue-500/30 bg-black/40 px-3 py-3 animate-[glow-blue_3s_ease-in-out_infinite]">
                   <div className="text-center overflow-hidden">
                     <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
                       {nextLeagueMatch.opponentClub}
