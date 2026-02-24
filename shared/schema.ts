@@ -1525,6 +1525,8 @@ export const leagueMatches = pgTable("league_matches", {
   division: text("division"),
   category: leagueMatchCategoryEnum("category").notNull(),
   venue: text("venue"),
+  venueAddress: text("venue_address"),
+  googleMapsUrl: text("google_maps_url"),
   location: text("location"),
   matchDatetime: timestamp("match_datetime").notNull(),
   opponentClub: text("opponent_club").notNull(),
