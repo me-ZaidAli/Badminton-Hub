@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -1021,6 +1021,10 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
       }));
     }
   };
+
+  useEffect(() => {
+    if (open) resetForm();
+  }, [open, match]);
 
   const mutation = useMutation({
     mutationFn: async () => {
