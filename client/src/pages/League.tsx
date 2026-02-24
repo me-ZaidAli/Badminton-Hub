@@ -308,92 +308,90 @@ function NextMatchSpotlight({ match }: { match: any }) {
   const isToday = format(matchDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
   return (
-    <div className="mx-4 sm:mx-6 lg:mx-8 -mt-10 relative z-10" data-testid="next-match-spotlight">
-      <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-[#0f2744] to-[#1a3a5c] text-white">
-        <div className="px-5 py-3 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">Next Match</span>
-          </div>
-          <span className="text-[10px] font-medium text-white/50">
-            {isToday ? "TODAY" : formatDistanceToNow(matchDate, { addSuffix: true })}
-          </span>
-        </div>
+    <div className="mx-4 sm:mx-6 lg:mx-8 mt-5" data-testid="next-match-spotlight">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Next Match</span>
+        <span className="text-[10px] text-muted-foreground ml-auto">
+          {isToday ? "TODAY" : formatDistanceToNow(matchDate, { addSuffix: true })}
+        </span>
+      </div>
 
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <Shield className="h-5 w-5 text-blue-300" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-extrabold text-sm uppercase truncate" data-testid="next-match-home-team">
-                  {match.teamName || match.clubName || "Your Club"}
-                </p>
-                <p className="text-[10px] text-white/50">{match.division}</p>
-              </div>
-            </div>
+      <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-[#0f2744] to-[#1a3a5c] text-white">
+        <CardContent className="p-0">
+          <div className="p-5 pb-4">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex items-center w-full">
+                <div className="flex flex-col items-center flex-1 min-w-0 gap-1.5">
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                    <Shield className="h-6 w-6 text-blue-300" />
+                  </div>
+                  <p className="font-extrabold text-xs sm:text-sm uppercase leading-tight text-center w-full px-1" data-testid="next-match-home-team">
+                    {match.teamName || match.clubName || "Your Club"}
+                  </p>
+                </div>
 
-            <div className="flex flex-col items-center px-4 shrink-0">
-              <span className="text-[10px] font-bold text-white/40 uppercase mb-1">VS</span>
-              <div className="text-2xl font-black text-amber-400 tabular-nums leading-none" data-testid="next-match-time">
-                {format(matchDate, "HH:mm")}
-              </div>
-              <CountdownTimer targetDate={matchDate} />
-            </div>
+                <div className="flex flex-col items-center px-3 shrink-0">
+                  <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">VS</span>
+                  <div className="text-3xl sm:text-4xl font-black text-amber-400 tabular-nums leading-none my-1" data-testid="next-match-time">
+                    {format(matchDate, "HH:mm")}
+                  </div>
+                  <CountdownTimer targetDate={matchDate} />
+                </div>
 
-            <div className="flex items-center gap-3 min-w-0 flex-1 justify-end">
-              <div className="min-w-0 text-right">
-                <p className="font-extrabold text-sm uppercase truncate" data-testid="next-match-opponent">
-                  {match.opponentClub}
-                </p>
-                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${match.location === "HOME" ? "bg-green-500/20 text-green-300" : "bg-orange-500/20 text-orange-300"}`}>
+                <div className="flex flex-col items-center flex-1 min-w-0 gap-1.5">
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-white/50" />
+                  </div>
+                  <p className="font-extrabold text-xs sm:text-sm uppercase leading-tight text-center w-full px-1" data-testid="next-match-opponent">
+                    {match.opponentClub}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${match.location === "HOME" ? "bg-green-500/20 text-green-300" : "bg-orange-500/20 text-orange-300"}`}>
                   {match.location}
                 </span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <Users className="h-5 w-5 text-white/60" />
+                <Badge className={`text-[9px] border-0 rounded-full ${match.category === "MENS" ? "bg-blue-500/20 text-blue-300" : match.category === "LADIES" ? "bg-pink-500/20 text-pink-300" : "bg-purple-500/20 text-purple-300"}`}>
+                  {match.category}
+                </Badge>
+                <span className="text-[10px] text-white/40">{match.division}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white/5 rounded-lg p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs">
-              <Calendar className="h-3.5 w-3.5 text-white/40 shrink-0" />
+          <div className="bg-white/5 border-t border-white/10 px-5 py-3.5 space-y-2.5">
+            <div className="flex items-center gap-2.5 text-xs">
+              <Calendar className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
               <span className="text-white/80">{format(matchDate, "EEEE, dd MMMM yyyy")}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Clock className="h-3.5 w-3.5 text-white/40 shrink-0" />
+            <div className="flex items-center gap-2.5 text-xs">
+              <Clock className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
               <span className="text-white/80">{format(matchDate, "HH:mm")} kick-off</span>
             </div>
             {match.venue && (
-              <div className="flex items-start gap-2 text-xs">
-                <MapPin className="h-3.5 w-3.5 text-white/40 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 text-xs">
+                <MapPin className="h-3.5 w-3.5 text-amber-400/70 shrink-0 mt-0.5" />
                 <span className="text-white/80">{match.venue}</span>
               </div>
             )}
             {match.leagueName && (
-              <div className="flex items-center gap-2 text-xs">
-                <Trophy className="h-3.5 w-3.5 text-white/40 shrink-0" />
-                <span className="text-white/80">{match.leagueName}{match.season ? ` (${match.season})` : ""}</span>
+              <div className="flex items-center gap-2.5 text-xs">
+                <Trophy className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
+                <span className="text-white/80">{match.leagueName}</span>
               </div>
             )}
-          </div>
-
-          <div className="flex items-center justify-between text-[10px]">
-            <div className="flex items-center gap-3">
-              <span className="text-white/40">Format:</span>
-              <span className="font-bold text-white/80">{match.pairsCount || 3} Pairs, Best of {match.setsPerPair || 3}</span>
+            <div className="flex items-center gap-2.5 text-xs">
+              <Swords className="h-3.5 w-3.5 text-amber-400/70 shrink-0" />
+              <span className="text-white/80">{match.pairsCount || 3} Pairs, Best of {match.setsPerPair || 3}</span>
             </div>
-            <Badge className={`text-[9px] border-0 ${match.category === "MENS" ? "bg-blue-500/20 text-blue-300" : match.category === "LADIES" ? "bg-pink-500/20 text-pink-300" : "bg-purple-500/20 text-purple-300"}`}>
-              {match.category}
-            </Badge>
           </div>
 
           {match.playersRevealed && match.players && match.players.length > 0 && (
-            <div>
-              <p className="text-[10px] text-white/40 uppercase font-bold mb-1.5">Lineup</p>
-              <div className="flex flex-wrap gap-1">
+            <div className="border-t border-white/10 px-5 py-3">
+              <p className="text-[10px] text-white/40 uppercase font-bold mb-2">Lineup</p>
+              <div className="flex flex-wrap gap-1.5">
                 {match.players.map((p: any) => (
                   <Badge key={p.id} className="text-[10px] font-medium py-0.5 bg-white/10 text-white/80 border-0">
                     {p.userName || "Player"} {p.position ? `(${p.position})` : ""}
@@ -404,9 +402,11 @@ function NextMatchSpotlight({ match }: { match: any }) {
           )}
 
           {!match.playersRevealed && match.status === "UPCOMING" && (
-            <p className="text-[10px] text-white/40 italic text-center">
-              Lineup revealed 2h before match
-            </p>
+            <div className="border-t border-white/10 px-5 py-3 text-center">
+              <p className="text-[10px] text-white/40 italic">
+                Lineup revealed 2h before match
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
