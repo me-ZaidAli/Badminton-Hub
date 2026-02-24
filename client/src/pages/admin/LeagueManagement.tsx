@@ -226,13 +226,13 @@ export default function LeagueManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6" data-testid="admin-league-tabs">
-          <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
-          <TabsTrigger value="results">Results</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-          <TabsTrigger value="leagues">Leagues</TabsTrigger>
-          <TabsTrigger value="opponents">Opponents</TabsTrigger>
-          <TabsTrigger value="homevenue">Home Venue</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto no-scrollbar" data-testid="admin-league-tabs">
+          <TabsTrigger value="fixtures" className="flex-shrink-0">Fixtures</TabsTrigger>
+          <TabsTrigger value="results" className="flex-shrink-0">Results</TabsTrigger>
+          <TabsTrigger value="teams" className="flex-shrink-0">Teams</TabsTrigger>
+          <TabsTrigger value="leagues" className="flex-shrink-0">Leagues</TabsTrigger>
+          <TabsTrigger value="opponents" className="flex-shrink-0">Opponents</TabsTrigger>
+          <TabsTrigger value="homevenue" className="flex-shrink-0 whitespace-nowrap">Home Venue</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fixtures" className="mt-4">
