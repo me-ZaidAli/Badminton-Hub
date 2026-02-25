@@ -15,6 +15,7 @@ The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query
 - Public views are privacy-enhanced, stripping gender data and allowing users to control public visibility and use nicknames.
 - Player Profile Dashboard provides modern metrics with drill-down capabilities.
 - An animated anniversary countdown card with a shaking present icon and progress bar is displayed on the profile page.
+- Premium Black & Gold theme: selectable luxurious dark theme with deep matte black backgrounds, metallic gold accents (hue 43), gold-tinted borders/glows, custom scrollbars, and chat styling. Available in Display & Accessibility settings alongside other themes.
 
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform (OWNER) and club (ADMIN, PLAYER) levels with club-scoped data access.

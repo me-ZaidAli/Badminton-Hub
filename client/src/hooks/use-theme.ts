@@ -5,6 +5,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 export const DISPLAY_MODES = [
   { value: "light", label: "Light Mode", description: "Standard bright theme" },
   { value: "dark", label: "Dark Mode", description: "Dark background, lighter text" },
+  { value: "premium-gold", label: "Premium Black & Gold", description: "Luxurious dark theme with metallic gold accents" },
   { value: "sepia", label: "Sepia / Warm Mode", description: "Reduced blue light, cream tones" },
   { value: "migraine", label: "Migraine-Friendly", description: "Low stimulation, no harsh contrast or animations" },
   { value: "high-contrast", label: "High Contrast", description: "Maximum readability with strong contrast" },
@@ -16,13 +17,14 @@ export type DisplayMode = typeof DISPLAY_MODES[number]["value"];
 const THEME_CLASSES: Record<DisplayMode, string> = {
   light: "",
   dark: "dark",
+  "premium-gold": "premium-gold",
   sepia: "sepia",
   migraine: "migraine",
   "high-contrast": "high-contrast",
   grayscale: "grayscale",
 };
 
-const ALL_THEME_CLASSES = ["dark", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
+const ALL_THEME_CLASSES = ["dark", "premium-gold", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
 
 function getInitialMode(): DisplayMode {
   if (typeof window !== "undefined") {

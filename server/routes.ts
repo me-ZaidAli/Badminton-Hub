@@ -646,7 +646,7 @@ export async function registerRoutes(
   app.patch("/api/user/display-preferences", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const validModes = ["light", "dark", "sepia", "migraine", "high-contrast", "grayscale"];
+      const validModes = ["light", "dark", "premium-gold", "sepia", "migraine", "high-contrast", "grayscale"];
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
         updates.displayMode = req.body.displayMode;
