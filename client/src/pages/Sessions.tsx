@@ -16,9 +16,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
+import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
@@ -601,18 +602,23 @@ export default function Sessions() {
       <PageHeader 
         title="Sessions" 
         description="Book your spot for upcoming games."
-        action={canManageSessions && (
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setLocation("/admin/calendar")}
-              data-testid="button-import-from-calendar"
-            >
-              <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
-            </Button>
-            <EventTypeChooser sessionClubs={sessionClubs || []} />
+        action={
+          <div className="flex items-center gap-2">
+            <MatchAlgorithmInfoButton />
+            {canManageSessions && (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setLocation("/admin/calendar")}
+                  data-testid="button-import-from-calendar"
+                >
+                  <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
+                </Button>
+                <EventTypeChooser sessionClubs={sessionClubs || []} />
+              </>
+            )}
           </div>
-        )}
+        }
       />
 
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
