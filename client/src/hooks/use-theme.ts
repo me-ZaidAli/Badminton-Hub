@@ -14,14 +14,14 @@ export const DISPLAY_MODES = [
 
 export type DisplayMode = typeof DISPLAY_MODES[number]["value"];
 
-const THEME_CLASSES: Record<DisplayMode, string> = {
-  light: "",
-  dark: "dark",
-  "premium-gold": "premium-gold",
-  sepia: "sepia",
-  migraine: "migraine",
-  "high-contrast": "high-contrast",
-  grayscale: "grayscale",
+const THEME_CLASSES: Record<DisplayMode, string[]> = {
+  light: [],
+  dark: ["dark"],
+  "premium-gold": ["dark", "premium-gold"],
+  sepia: ["sepia"],
+  migraine: ["migraine"],
+  "high-contrast": ["high-contrast"],
+  grayscale: ["grayscale"],
 };
 
 const ALL_THEME_CLASSES = ["dark", "premium-gold", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
@@ -58,8 +58,8 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 function applyThemeClasses(mode: DisplayMode, reducedMotion: boolean) {
   const root = document.documentElement;
   ALL_THEME_CLASSES.forEach(cls => root.classList.remove(cls));
-  const themeClass = THEME_CLASSES[mode];
-  if (themeClass) root.classList.add(themeClass);
+  const themeClasses = THEME_CLASSES[mode];
+  themeClasses.forEach(cls => root.classList.add(cls));
   if (reducedMotion || mode === "migraine") root.classList.add("reduced-motion");
 }
 
@@ -125,7 +125,7 @@ export function useTheme() {
     const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialMode);
     const [reducedMotion, setReducedMotion] = useState<boolean>(getInitialReducedMotion);
     return {
-      theme: displayMode === "dark" ? "dark" as const : "light" as const,
+      theme: (displayMode === "dark" || displayMode === "premium-gold") ? "dark" as const : "light" as const,
       displayMode,
       reducedMotion,
       setDisplayMode: (mode: DisplayMode) => {
@@ -153,7 +153,7 @@ export function useTheme() {
     };
   }
   return {
-    theme: ctx.displayMode === "dark" ? "dark" as const : "light" as const,
+    theme: (ctx.displayMode === "dark" || ctx.displayMode === "premium-gold") ? "dark" as const : "light" as const,
     displayMode: ctx.displayMode,
     reducedMotion: ctx.reducedMotion,
     setDisplayMode: ctx.setDisplayMode,

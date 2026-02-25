@@ -232,7 +232,7 @@
   --secondary-foreground: 43 25% 82%;
 
   --muted: 240 8% 14%;
-  --muted-foreground: 43 12% 50%;
+  --muted-foreground: 43 15% 60%;
 
   --accent: 43 72% 52%;
   --accent-foreground: 240 10% 6%;
@@ -250,8 +250,8 @@
 
   --sidebar-background: 240 10% 7%;
 
-  --border: 43 20% 16%;
-  --input: 43 20% 16%;
+  --border: 43 20% 18%;
+  --input: 43 20% 18%;
   --ring: 43 72% 52%;
 
   --chart-1: 43 72% 52%;
