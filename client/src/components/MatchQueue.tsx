@@ -816,7 +816,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                   match.teamBPlayer1?.id === currentPlayerProfileId ||
                   match.teamBPlayer2?.id === currentPlayerProfileId
                 ) : false;
-                const canPlayerEnterScore = (isPlayerInThisMatch || (isSignedUp && !currentPlayerProfileId)) && !scoreAlreadyEntered && !hasScore;
+                const canPlayerEnterScore = isPlayerInThisMatch && !scoreAlreadyEntered && !hasScore;
 
                 return (
                   <div

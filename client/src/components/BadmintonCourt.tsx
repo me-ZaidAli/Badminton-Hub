@@ -211,7 +211,7 @@ export function BadmintonCourt({
     match.teamBPlayer2?.id === currentPlayerProfileId
   ) : false;
 
-  const canEndMatch = isOrganiser || isPlayerInMatch || isSignedUp;
+  const canEndMatch = isOrganiser || isPlayerInMatch;
 
   useEffect(() => {
     setEditName(courtName || `Court ${courtNumber}`);

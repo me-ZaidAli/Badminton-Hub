@@ -3112,9 +3112,14 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
-      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
-      if (!isAdmin && !isSignedUp) {
-        return res.status(403).json({ message: "Only session participants or admins can end a set" });
+      if (!isAdmin) {
+        const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+        const userProfileIds = userProfiles.map(p => p.id);
+        const matchPlayerIds = [currentMatch.teamAPlayer1Id, currentMatch.teamAPlayer2Id, currentMatch.teamBPlayer1Id, currentMatch.teamBPlayer2Id].filter(Boolean);
+        const isPlayerInMatch = userProfileIds.some(pid => matchPlayerIds.includes(pid));
+        if (!isPlayerInMatch) {
+          return res.status(403).json({ message: "Only players in this match or admins can end a set" });
+        }
       }
 
       const target = currentMatch.pointsToPlayTo || session.defaultPointsToPlayTo || 21;
@@ -3234,10 +3239,14 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
 
       const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
-      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, currentMatch.sessionId);
-      
-      if (!isAdmin && !isSignedUp) {
-        return res.status(403).json({ message: "Only session participants or admins can complete matches" });
+      if (!isAdmin) {
+        const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+        const userProfileIds = userProfiles.map(p => p.id);
+        const matchPlayerIds = [currentMatch.teamAPlayer1Id, currentMatch.teamAPlayer2Id, currentMatch.teamBPlayer1Id, currentMatch.teamBPlayer2Id].filter(Boolean);
+        const isPlayerInMatch = userProfileIds.some(pid => matchPlayerIds.includes(pid));
+        if (!isPlayerInMatch) {
+          return res.status(403).json({ message: "Only players in this match or admins can complete matches" });
+        }
       }
 
       const target = currentMatch.pointsToPlayTo || session.defaultPointsToPlayTo || 21;
@@ -3769,14 +3778,26 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Score has already been entered. Contact an admin to amend." });
       }
 
-      const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, match.sessionId);
-      if (!isSignedUp) {
-        return res.status(403).json({ message: "Only session participants can enter scores" });
+      const userProfiles = await storage.getUserPlayerProfiles(req.user!.id);
+      const userProfileIds = userProfiles.map(p => p.id);
+      const matchPlayerIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean);
+      const isPlayerInMatch = userProfileIds.some(pid => matchPlayerIds.includes(pid));
+      if (!isPlayerInMatch) {
+        return res.status(403).json({ message: "Only players in this match can enter scores" });
+      }
+
+      const sA = Number(scoreA);
+      const sB = Number(scoreB);
+      if (sA === sB) {
+        return res.status(400).json({ message: "Scores cannot be tied." });
+      }
+      if (sA < 0 || sB < 0) {
+        return res.status(400).json({ message: "Scores cannot be negative." });
       }
 
       const updated = await storage.updateMatch(matchId, { 
-        scoreA, 
-        scoreB,
+        scoreA: sA, 
+        scoreB: sB,
         scoreEnteredByUserId: req.user!.id,
         scoreEnteredAt: new Date(),
       });
