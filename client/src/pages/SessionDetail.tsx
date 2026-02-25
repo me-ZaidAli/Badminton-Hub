@@ -1977,6 +1977,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     setsWonA: (m as any).setsWonA,
     setsWonB: (m as any).setsWonB,
     setScores: (m as any).setScores,
+    scoreEnteredByUserId: (m as any).scoreEnteredByUserId,
+    scoreEnteredAt: (m as any).scoreEnteredAt,
+    scoreEnteredByUser: (m as any).scoreEnteredByUser,
+    scoreUpdatedByUserId: (m as any).scoreUpdatedByUserId,
+    scoreUpdatedAt: (m as any).scoreUpdatedAt,
+    scoreUpdatedByUser: (m as any).scoreUpdatedByUser,
   }));
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
