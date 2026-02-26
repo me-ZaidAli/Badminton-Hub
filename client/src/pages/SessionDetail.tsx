@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
@@ -1999,16 +1999,13 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const completedMatches = typedMatches.filter(m => m.status === "COMPLETED");
   const completedCount = completedMatches.length;
 
-  const sessionMatchCounts = useMemo(() => {
-    const counts: Record<number, number> = {};
-    const countedMatches = typedMatches.filter(m => m.status === "LIVE" || m.status === "COMPLETED");
-    for (const m of countedMatches) {
-      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
-        if (p?.id) counts[p.id] = (counts[p.id] || 0) + 1;
-      }
+  const sessionMatchCounts: Record<number, number> = {};
+  const countedMatches = typedMatches.filter(m => m.status === "LIVE" || m.status === "COMPLETED");
+  for (const m of countedMatches) {
+    for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+      if (p?.id) sessionMatchCounts[p.id] = (sessionMatchCounts[p.id] || 0) + 1;
     }
-    return counts;
-  }, [typedMatches]);
+  }
   
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
