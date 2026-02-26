@@ -2372,12 +2372,17 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               isOrganiser={isOrganiser}
               isSignedUp={isSignedUp}
               currentPlayerProfileId={currentPlayerProfileId}
+              courtNames={courtNamesState}
+              defaultPointsToPlayTo={defaultPointsToPlayTo}
               onStartMatch={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
               onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
               onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
               onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
               onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
               onEditScore={(matchId, scoreA, scoreB) => editMatchScore({ matchId, scoreA, scoreB })}
+              onCourtNameChange={handleCourtNameChange}
+              onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
+              onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
             />
 
             {isOrganiser && (

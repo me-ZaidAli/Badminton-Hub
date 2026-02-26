@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock, Check, Pencil, Users } from "lucide-react";
+import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock, Check, Pencil, Users, Target } from "lucide-react";
 
 type Player = {
   id: number;
@@ -21,12 +22,17 @@ type CompactMatchViewProps = {
   isOrganiser: boolean;
   isSignedUp: boolean;
   currentPlayerProfileId?: number | null;
+  courtNames?: string[];
+  defaultPointsToPlayTo?: number;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   onEditScore?: (matchId: number, scoreA: number, scoreB: number) => void;
+  onCourtNameChange?: (courtNumber: number, name: string) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
 };
 
 function RollingDigit({ value, color = "green" }: { value: string; color?: "green" | "white" }) {
@@ -223,12 +229,17 @@ function MatchCard({
   currentPlayerProfileId,
   availablePlayers,
   availableCourts,
+  courtName,
+  defaultPointsToPlayTo = 21,
   onCompleteMatch,
   onEndSet,
   onCancelMatch,
   onSwapPlayer,
   onEditScore,
   onStartMatch,
+  onCourtNameChange,
+  onUpdatePointsTarget,
+  onUpdateSets,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -236,12 +247,17 @@ function MatchCard({
   currentPlayerProfileId?: number | null;
   availablePlayers: Player[];
   availableCourts?: number[];
+  courtName?: string;
+  defaultPointsToPlayTo?: number;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   onEditScore?: (matchId: number, scoreA: number, scoreB: number) => void;
   onStartMatch?: (matchId: number, courtNumber: number) => void;
+  onCourtNameChange?: (courtNumber: number, name: string) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [scoreA, setScoreA] = useState("");
@@ -249,15 +265,48 @@ function MatchCard({
   const [step, setStep] = useState<"input" | "confirm" | "success" | "edit-score">("input");
   const [submitting, setSubmitting] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [editingCourtName, setEditingCourtName] = useState(false);
+  const [editCourtNameValue, setEditCourtNameValue] = useState(courtName || "");
+  const [editingPoints, setEditingPoints] = useState(false);
+  const courtNameInputRef = useRef<HTMLInputElement>(null);
 
   const teamAGrades = [match.teamAPlayer1?.category, match.teamAPlayer2?.category].filter(Boolean);
   const teamBGrades = [match.teamBPlayer1?.category, match.teamBPlayer2?.category].filter(Boolean);
 
-  const isMultiSet = (match.numberOfSets || 1) > 1;
+  const matchSets = match.numberOfSets || 1;
+  const isMultiSet = matchSets > 1;
   const currentSet = match.currentSet || 1;
   const isCompleted = match.status === "COMPLETED";
   const isLive = match.status === "LIVE";
   const isQueued = match.status === "QUEUED";
+  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+  const displayCourtName = courtName || (match.courtNumber ? `Court ${match.courtNumber}` : null);
+
+  useEffect(() => {
+    setEditCourtNameValue(courtName || (match.courtNumber ? `Court ${match.courtNumber}` : ""));
+  }, [courtName, match.courtNumber]);
+
+  useEffect(() => {
+    if (editingCourtName && courtNameInputRef.current) {
+      courtNameInputRef.current.focus();
+      courtNameInputRef.current.select();
+    }
+  }, [editingCourtName]);
+
+  const handleCourtNameSave = () => {
+    const trimmed = editCourtNameValue.trim();
+    if (trimmed && match.courtNumber && onCourtNameChange) {
+      onCourtNameChange(match.courtNumber, trimmed);
+    }
+    setEditingCourtName(false);
+  };
+
+  const handlePointsSave = (val: number) => {
+    if (!isNaN(val) && val >= 1 && val !== pointsTarget && onUpdatePointsTarget) {
+      onUpdatePointsTarget(match.id, val);
+    }
+    setEditingPoints(false);
+  };
 
   const isPlayerInMatch = currentPlayerProfileId && (
     match.teamAPlayer1?.id === currentPlayerProfileId ||
@@ -435,17 +484,44 @@ function MatchCard({
         data-testid={`compact-match-toggle-${match.id}`}
       >
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             {match.courtNumber && (
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-600 shrink-0",
-                  isLive ? "text-[#39ff14] border-[#39ff14]/30 bg-[#39ff14]/5" : "text-zinc-400"
-                )}
-              >
-                C{match.courtNumber}
-              </Badge>
+              editingCourtName && isOrganiser ? (
+                <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                  <input
+                    ref={courtNameInputRef}
+                    type="text"
+                    value={editCourtNameValue}
+                    onChange={(e) => setEditCourtNameValue(e.target.value)}
+                    onBlur={handleCourtNameSave}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCourtNameSave();
+                      if (e.key === "Escape") { setEditCourtNameValue(displayCourtName || ""); setEditingCourtName(false); }
+                    }}
+                    className="w-28 text-[10px] px-1.5 py-0.5 font-semibold bg-zinc-800 border border-zinc-600 rounded text-white outline-none focus:border-[#39ff14]/50"
+                    data-testid={`input-compact-court-name-${match.courtNumber}`}
+                  />
+                </div>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-600 shrink-0",
+                    isLive ? "text-[#39ff14] border-[#39ff14]/30 bg-[#39ff14]/5" : "text-zinc-400",
+                    isOrganiser && "cursor-pointer"
+                  )}
+                  onClick={(e) => {
+                    if (isOrganiser) {
+                      e.stopPropagation();
+                      setEditingCourtName(true);
+                    }
+                  }}
+                  data-testid={`badge-compact-court-name-${match.courtNumber}`}
+                >
+                  {displayCourtName || `C${match.courtNumber}`}
+                  {isOrganiser && <Pencil className="w-2 h-2 ml-1 inline-block opacity-60" />}
+                </Badge>
+              )
             )}
             {isQueued && match.queuePosition && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-amber-500/20 text-amber-400/60 bg-amber-500/5 shrink-0">
@@ -467,6 +543,70 @@ function MatchCard({
               <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/50">
                 Queued
               </span>
+            )}
+            {(isLive || isQueued) && (
+              editingPoints && isOrganiser ? (
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                  <span className="text-[9px] text-zinc-500">Play to</span>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-12 border border-zinc-600 rounded px-1 py-0 text-[10px] bg-zinc-800 text-white text-center outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    defaultValue={pointsTarget}
+                    autoFocus
+                    onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10));
+                      if (e.key === "Escape") setEditingPoints(false);
+                    }}
+                    data-testid={`input-compact-points-target-${match.id}`}
+                  />
+                </div>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[9px] px-1.5 py-0 border-zinc-700 text-zinc-400 shrink-0",
+                    isOrganiser && "cursor-pointer"
+                  )}
+                  onClick={(e) => {
+                    if (isOrganiser) {
+                      e.stopPropagation();
+                      setEditingPoints(true);
+                    }
+                  }}
+                  data-testid={`badge-compact-points-target-${match.id}`}
+                >
+                  <Target className="w-2 h-2 mr-0.5 inline-block" />
+                  {pointsTarget}
+                  {isOrganiser && <Pencil className="w-2 h-2 ml-0.5 inline-block opacity-50" />}
+                </Badge>
+              )
+            )}
+            {(isLive || isQueued) && isOrganiser && onUpdateSets && (
+              <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                <Select
+                  value={String(matchSets)}
+                  onValueChange={(v) => {
+                    const val = Number(v);
+                    if (onUpdateSets) onUpdateSets(match.id, val);
+                  }}
+                >
+                  <SelectTrigger className="h-5 w-auto min-w-0 gap-0.5 px-1.5 text-[9px] bg-zinc-800 border-zinc-700 text-zinc-400" data-testid={`select-compact-sets-${match.id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1" data-testid="compact-select-sets-1">1 Set</SelectItem>
+                    <SelectItem value="2" data-testid="compact-select-sets-2">2 Sets</SelectItem>
+                    <SelectItem value="3" data-testid="compact-select-sets-3">Best of 3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {(isLive || isQueued) && !isOrganiser && isMultiSet && (
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-zinc-700 text-zinc-400 shrink-0" data-testid={`badge-compact-sets-${match.id}`}>
+                {matchSets === 3 ? "Bo3" : `${matchSets}S`}
+              </Badge>
             )}
             {isMultiSet && isLive && (
               <span className="text-[10px] text-zinc-500">Set {currentSet}</span>
@@ -829,12 +969,17 @@ export function CompactMatchView({
   isOrganiser,
   isSignedUp,
   currentPlayerProfileId,
+  courtNames,
+  defaultPointsToPlayTo,
   onStartMatch,
   onCompleteMatch,
   onEndSet,
   onCancelMatch,
   onSwapPlayer,
   onEditScore,
+  onCourtNameChange,
+  onUpdatePointsTarget,
+  onUpdateSets,
 }: CompactMatchViewProps) {
   const liveMatches = matches.filter(m => m.status === "LIVE");
   const queuedMatches = matches.filter(m => m.status === "QUEUED").sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
@@ -866,11 +1011,16 @@ export function CompactMatchView({
                 isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId}
                 availablePlayers={availablePlayers}
+                courtName={match.courtNumber ? courtNames?.[match.courtNumber - 1] : undefined}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onCancelMatch={onCancelMatch}
                 onSwapPlayer={onSwapPlayer}
                 onEditScore={onEditScore}
+                onCourtNameChange={onCourtNameChange}
+                onUpdatePointsTarget={onUpdatePointsTarget}
+                onUpdateSets={onUpdateSets}
               />
             ))}
           </div>
@@ -896,11 +1046,14 @@ export function CompactMatchView({
                 currentPlayerProfileId={currentPlayerProfileId}
                 availablePlayers={availablePlayers}
                 availableCourts={availableCourts}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onSwapPlayer={onSwapPlayer}
                 onEditScore={onEditScore}
                 onStartMatch={onStartMatch}
+                onUpdatePointsTarget={onUpdatePointsTarget}
+                onUpdateSets={onUpdateSets}
               />
             ))}
           </div>
