@@ -18,6 +18,7 @@ import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapP
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
+import { CompactMatchView } from "@/components/CompactMatchView";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
@@ -25,10 +26,11 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const PAIR_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -1865,6 +1867,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
+  const [matchViewMode, setMatchViewMode] = useState<"court" | "compact">("court");
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
@@ -2284,6 +2287,34 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     {completedCount} Completed
                   </Badge>
                   {!isOrganiser && <MatchAlgorithmInfoButton />}
+                  <div className="flex items-center border rounded-lg overflow-hidden ml-auto" data-testid="match-view-toggle">
+                    <button
+                      onClick={() => setMatchViewMode("court")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                        matchViewMode === "court"
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                      data-testid="button-court-view"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      Courts
+                    </button>
+                    <button
+                      onClick={() => setMatchViewMode("compact")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                        matchViewMode === "compact"
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                      data-testid="button-compact-view"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      Cards
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2330,67 +2361,111 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-primary" />
-              Live Courts
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
-                const match = liveMatches.find(m => m.courtNumber === courtNum) || null;
-                return (
-                  <BadmintonCourt
-                    key={courtNum}
-                    courtNumber={courtNum}
-                    courtName={courtNamesState[courtNum - 1]}
-                    match={match}
-                    availablePlayers={availablePlayers}
-                    isOrganiser={isOrganiser}
-                    isSignedUp={isSignedUp}
-                    currentPlayerProfileId={currentPlayerProfileId}
-                    onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
-                    onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
-                    onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
-                    onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                    onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
-                    onCourtNameChange={handleCourtNameChange}
-                    onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
-                    onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
-                    defaultPointsToPlayTo={defaultPointsToPlayTo}
-                  />
-                );
-              })}
+      {matchViewMode === "compact" ? (
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-6">
+            <CompactMatchView
+              matches={typedMatches}
+              courtsToUse={courtsToUse}
+              availablePlayers={availablePlayers}
+              isOrganiser={isOrganiser}
+              isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId}
+              onStartMatch={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+              onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+              onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
+              onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
+            />
+
+            {isOrganiser && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <MatchQueue
+                  matches={typedMatches}
+                  availablePlayers={availablePlayers}
+                  isOrganiser={isOrganiser}
+                  onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                  onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+                  availableCourts={availableCourts}
+                  activeMode={activeMode}
+                  genderType={generateGenderType}
+                  defaultPointsToPlayTo={defaultPointsToPlayTo}
+                  onGenerateMatch={handleSmartGenerate}
+                  isGenerating={isSmartGenerating}
+                  queueTargetSize={queueTargetSize}
+                  onQueueTargetSizeChange={handleQueueTargetSizeChange}
+                  onClearQueue={handleClearQueue}
+                  notEnoughPlayersMessage={notEnoughPlayersMessage}
+                />
+              </div>
+            )}
+          </div>
+          <div className="xl:sticky xl:top-4 xl:self-start">
+            <SessionLiveLeaderboard sessionId={sessionId} />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                Live Courts
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
+                  const match = liveMatches.find(m => m.courtNumber === courtNum) || null;
+                  return (
+                    <BadmintonCourt
+                      key={courtNum}
+                      courtNumber={courtNum}
+                      courtName={courtNamesState[courtNum - 1]}
+                      match={match}
+                      availablePlayers={availablePlayers}
+                      isOrganiser={isOrganiser}
+                      isSignedUp={isSignedUp}
+                      currentPlayerProfileId={currentPlayerProfileId}
+                      onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
+                      onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+                      onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
+                      onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                      onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
+                      onCourtNameChange={handleCourtNameChange}
+                      onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
+                      onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
+                      defaultPointsToPlayTo={defaultPointsToPlayTo}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <MatchQueue
+                matches={typedMatches}
+                availablePlayers={availablePlayers}
+                isOrganiser={isOrganiser}
+                onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+                availableCourts={availableCourts}
+                activeMode={activeMode}
+                genderType={generateGenderType}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
+                onGenerateMatch={handleSmartGenerate}
+                isGenerating={isSmartGenerating}
+                queueTargetSize={queueTargetSize}
+                onQueueTargetSizeChange={handleQueueTargetSizeChange}
+                onClearQueue={handleClearQueue}
+                notEnoughPlayersMessage={notEnoughPlayersMessage}
+              />
+              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <MatchQueue
-              matches={typedMatches}
-              availablePlayers={availablePlayers}
-              isOrganiser={isOrganiser}
-              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-              onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-              availableCourts={availableCourts}
-              activeMode={activeMode}
-              genderType={generateGenderType}
-              defaultPointsToPlayTo={defaultPointsToPlayTo}
-              onGenerateMatch={handleSmartGenerate}
-              isGenerating={isSmartGenerating}
-              queueTargetSize={queueTargetSize}
-              onQueueTargetSizeChange={handleQueueTargetSizeChange}
-              onClearQueue={handleClearQueue}
-              notEnoughPlayersMessage={notEnoughPlayersMessage}
-            />
-            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
+          <div className="xl:sticky xl:top-4 xl:self-start">
+            <SessionLiveLeaderboard sessionId={sessionId} />
           </div>
         </div>
-
-        <div className="xl:sticky xl:top-4 xl:self-start">
-          <SessionLiveLeaderboard sessionId={sessionId} />
-        </div>
-      </div>
+      )}
 
 
       <Dialog open={forcedCompletionActive && (!!fcMatch || fcStep === 5)} onOpenChange={() => {}}>
