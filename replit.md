@@ -16,6 +16,7 @@ The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query
 - Player Profile Dashboard provides modern metrics with drill-down capabilities.
 - An animated anniversary countdown card with a shaking present icon and progress bar is displayed on the profile page.
 - Premium Black & Gold theme: selectable luxurious dark theme with deep matte black backgrounds, metallic gold accents (hue 43), gold-tinted borders/glows, custom scrollbars, and chat styling. Available in Display & Accessibility settings alongside other themes.
+- Ultra-Premium Charcoal & Gold theme: elite charcoal black (hue 220/40) with realistic brushed metallic gold accents (hue 40), subtle crosshatch texture, inset card shadows, gradient gold dividers, slow hover transitions (0.45s), champagne-gold secondary text, increased heading letter-spacing, metallic gradient buttons/progress bars with specular highlights, and styled scrollbars/tables/modals.
 
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform (OWNER) and club (ADMIN, PLAYER) levels with club-scoped data access.

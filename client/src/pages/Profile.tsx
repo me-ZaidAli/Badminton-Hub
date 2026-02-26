@@ -16,7 +16,7 @@ import {
   LogOut, User, Settings, Shield, Loader2, XCircle, MapPin, Phone, Calendar,
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
-  CircleOff, Zap, Crown, Trophy, Target, BarChart3, Activity, CalendarDays,
+  CircleOff, Zap, Crown, Gem, Trophy, Target, BarChart3, Activity, CalendarDays,
   PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
-  light: Sun, dark: Moon, "premium-gold": Crown, sepia: Palette, migraine: Eye,
+  light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, sepia: Palette, migraine: Eye,
   "high-contrast": Contrast, grayscale: CircleOff,
 };
 

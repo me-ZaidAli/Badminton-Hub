@@ -6,6 +6,7 @@ export const DISPLAY_MODES = [
   { value: "light", label: "Light Mode", description: "Standard bright theme" },
   { value: "dark", label: "Dark Mode", description: "Dark background, lighter text" },
   { value: "premium-gold", label: "Premium Black & Gold", description: "Luxurious dark theme with metallic gold accents" },
+  { value: "ultra-premium", label: "Ultra-Premium Charcoal & Gold", description: "Elite charcoal black with brushed metallic gold accents" },
   { value: "sepia", label: "Sepia / Warm Mode", description: "Reduced blue light, cream tones" },
   { value: "migraine", label: "Migraine-Friendly", description: "Low stimulation, no harsh contrast or animations" },
   { value: "high-contrast", label: "High Contrast", description: "Maximum readability with strong contrast" },
@@ -18,13 +19,14 @@ const THEME_CLASSES: Record<DisplayMode, string[]> = {
   light: [],
   dark: ["dark"],
   "premium-gold": ["dark", "premium-gold"],
+  "ultra-premium": ["dark", "ultra-premium"],
   sepia: ["sepia"],
   migraine: ["migraine"],
   "high-contrast": ["high-contrast"],
   grayscale: ["grayscale"],
 };
 
-const ALL_THEME_CLASSES = ["dark", "premium-gold", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
+const ALL_THEME_CLASSES = ["dark", "premium-gold", "ultra-premium", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
 
 function getInitialMode(): DisplayMode {
   if (typeof window !== "undefined") {
@@ -125,7 +127,7 @@ export function useTheme() {
     const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialMode);
     const [reducedMotion, setReducedMotion] = useState<boolean>(getInitialReducedMotion);
     return {
-      theme: (displayMode === "dark" || displayMode === "premium-gold") ? "dark" as const : "light" as const,
+      theme: (displayMode === "dark" || displayMode === "premium-gold" || displayMode === "ultra-premium") ? "dark" as const : "light" as const,
       displayMode,
       reducedMotion,
       setDisplayMode: (mode: DisplayMode) => {
@@ -153,7 +155,7 @@ export function useTheme() {
     };
   }
   return {
-    theme: (ctx.displayMode === "dark" || ctx.displayMode === "premium-gold") ? "dark" as const : "light" as const,
+    theme: (ctx.displayMode === "dark" || ctx.displayMode === "premium-gold" || ctx.displayMode === "ultra-premium") ? "dark" as const : "light" as const,
     displayMode: ctx.displayMode,
     reducedMotion: ctx.reducedMotion,
     setDisplayMode: ctx.setDisplayMode,

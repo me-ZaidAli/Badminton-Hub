@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -14,6 +14,7 @@ const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
   light: Sun,
   dark: Moon,
   "premium-gold": Crown,
+  "ultra-premium": Gem,
   sepia: Palette,
   migraine: Eye,
   "high-contrast": Contrast,
