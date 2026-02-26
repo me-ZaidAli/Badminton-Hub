@@ -341,7 +341,7 @@ function MatchCard({
   const canExpand = canInteract || canEditCompleted || canSwapPlayers;
 
   const teamANames = (
-    <div className="flex items-center gap-1 min-w-0">
+    <div className="flex items-center gap-1 min-w-0 flex-wrap">
       <ClickablePlayerName
         player={match.teamAPlayer1}
         matchId={match.id}
@@ -349,11 +349,11 @@ function MatchCard({
         availablePlayers={availablePlayers}
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
-        className="text-sm font-semibold text-white truncate"
+        className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamAPlayer2 && (
         <>
-          <span className="text-zinc-600 text-xs">&</span>
+          <span className="text-zinc-600 text-[10px] sm:text-xs">&</span>
           <ClickablePlayerName
             player={match.teamAPlayer2}
             matchId={match.id}
@@ -361,7 +361,7 @@ function MatchCard({
             availablePlayers={availablePlayers}
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
-            className="text-sm font-semibold text-white truncate"
+            className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
           />
         </>
       )}
@@ -369,7 +369,7 @@ function MatchCard({
   );
 
   const teamBNames = (
-    <div className="flex items-center gap-1 min-w-0">
+    <div className="flex items-center gap-1 min-w-0 flex-wrap">
       <ClickablePlayerName
         player={match.teamBPlayer1}
         matchId={match.id}
@@ -377,11 +377,11 @@ function MatchCard({
         availablePlayers={availablePlayers}
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
-        className="text-sm font-semibold text-zinc-300 truncate"
+        className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamBPlayer2 && (
         <>
-          <span className="text-zinc-600 text-xs">&</span>
+          <span className="text-zinc-600 text-[10px] sm:text-xs">&</span>
           <ClickablePlayerName
             player={match.teamBPlayer2}
             matchId={match.id}
@@ -389,7 +389,7 @@ function MatchCard({
             availablePlayers={availablePlayers}
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
-            className="text-sm font-semibold text-zinc-300 truncate"
+            className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
           />
         </>
       )}
@@ -415,7 +415,7 @@ function MatchCard({
         aria-expanded={expanded}
         aria-label={`Match: ${teamADisplayNames.join(" & ")} vs ${teamBDisplayNames.join(" & ")}${isLive ? " - Live" : isCompleted ? " - Completed" : " - Queued"}`}
         className={cn(
-          "flex items-center gap-3 px-4 py-3 select-none",
+          "flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 select-none",
           canExpand ? "cursor-pointer" : "cursor-default"
         )}
         onClick={toggleExpand}
@@ -469,13 +469,13 @@ function MatchCard({
               <div className="flex items-center gap-1.5">
                 {teamANames}
                 {teamAGrades.length > 0 && (
-                  <span className="text-[10px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
+                  <span className="text-[9px] sm:text-[10px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5">
                 {teamBNames}
                 {teamBGrades.length > 0 && (
-                  <span className="text-[10px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
+                  <span className="text-[9px] sm:text-[10px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
                 )}
               </div>
             </div>
@@ -530,7 +530,7 @@ function MatchCard({
           maxHeight: expanded ? contentRef.current?.scrollHeight ? `${contentRef.current.scrollHeight + 20}px` : "400px" : "0px"
         }}
       >
-        <div className="px-4 pb-4 pt-1 border-t border-zinc-700/50">
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t border-zinc-700/50">
           {isQueued && isOrganiser ? (
             <div className="space-y-3 pt-2">
               <p className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">Assign to Court</p>
@@ -603,10 +603,10 @@ function MatchCard({
           ) : step === "edit-score" ? (
             <div className="space-y-3 pt-2">
               <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Edit Score (Admin)</p>
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamADisplayNames[0]}{teamADisplayNames[1] ? ` & ${teamADisplayNames[1]}` : ""}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex-1 min-w-0">
+                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    Team A
                   </label>
                   <Input
                     type="number"
@@ -620,9 +620,9 @@ function MatchCard({
                   />
                 </div>
                 <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
-                <div className="flex-1">
-                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamBDisplayNames[0]}{teamBDisplayNames[1] ? ` & ${teamBDisplayNames[1]}` : ""}
+                <div className="flex-1 min-w-0">
+                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    Team B
                   </label>
                   <Input
                     type="number"
@@ -709,10 +709,10 @@ function MatchCard({
             </div>
           ) : (
             <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamADisplayNames[0]}{teamADisplayNames[1] ? ` & ${teamADisplayNames[1]}` : ""}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex-1 min-w-0">
+                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    Team A
                   </label>
                   <Input
                     type="number"
@@ -726,9 +726,9 @@ function MatchCard({
                   />
                 </div>
                 <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
-                <div className="flex-1">
-                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamBDisplayNames[0]}{teamBDisplayNames[1] ? ` & ${teamBDisplayNames[1]}` : ""}
+                <div className="flex-1 min-w-0">
+                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    Team B
                   </label>
                   <Input
                     type="number"
@@ -747,12 +747,12 @@ function MatchCard({
                 <p className="text-[11px] text-red-400 text-center">Scores cannot be tied</p>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                 {isOrganiser && onCancelMatch && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-red-900/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+                    className="border-red-900/50 text-red-400 hover:bg-red-950/30 hover:text-red-300 text-xs"
                     onClick={(e) => { e.stopPropagation(); handleCancel(); }}
                     data-testid={`compact-match-cancel-${match.id}`}
                   >
@@ -762,7 +762,7 @@ function MatchCard({
                 )}
                 <Button
                   size="sm"
-                  className="flex-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 compact-submit-btn"
+                  className="flex-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 compact-submit-btn text-xs"
                   onClick={(e) => { e.stopPropagation(); handleSubmitScore(); }}
                   disabled={!scoreA || !scoreB || scoreA === scoreB || submitting}
                   data-testid={`compact-match-submit-${match.id}`}
