@@ -102,7 +102,7 @@ function MatchFixtureRow({ match, expanded, onToggle }: { match: any; expanded: 
         </div>
       </div>
 
-      <div className="text-center pb-2 -mt-1 flex items-center justify-center gap-2">
+      <div className="text-center pb-2 -mt-1 flex items-center justify-center gap-2 flex-wrap">
         {match.location && (
           <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${match.location === "HOME" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"}`} data-testid={`badge-location-${match.id}`}>
             {match.location}
@@ -114,6 +114,11 @@ function MatchFixtureRow({ match, expanded, onToggle }: { match: any; expanded: 
           </span>
         )}
         <span className="text-[10px] text-muted-foreground">{match.division}</span>
+        {match.category && (
+          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${match.category === "MENS" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" : match.category === "LADIES" ? "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300" : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"}`} data-testid={`badge-category-${match.id}`}>
+            {match.category}
+          </span>
+        )}
         <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
       </div>
 
@@ -244,6 +249,11 @@ function MatchResultRow({ match, expanded, onToggle }: { match: any; expanded: b
             </span>
           )}
           <span>{match.leagueName ? `${match.leagueName} · ` : ""}{match.division} - {format(matchDate, "dd MMM yyyy")}</span>
+          {match.category && (
+            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${match.category === "MENS" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" : match.category === "LADIES" ? "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300" : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"}`} data-testid={`badge-result-category-${match.id}`}>
+              {match.category}
+            </span>
+          )}
           <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </div>
         <span className={`font-bold ${outcome === "WIN" ? "text-green-600 dark:text-green-400" : outcome === "LOSS" ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"}`}>
