@@ -3,8 +3,10 @@ import { type CourtMatch } from "@/components/BadmintonCourt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock } from "lucide-react";
+import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock, Check, Pencil, Users } from "lucide-react";
 
 type Player = {
   id: number;
@@ -23,34 +25,52 @@ type CompactMatchViewProps = {
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onEditScore?: (matchId: number, scoreA: number, scoreB: number) => void;
 };
 
 function RollingDigit({ value, color = "green" }: { value: string; color?: "green" | "white" }) {
   const [displayValue, setDisplayValue] = useState(value);
+  const [prevVal, setPrevVal] = useState(value);
   const [isRolling, setIsRolling] = useState(false);
-  const prevValue = useRef(value);
 
   useEffect(() => {
-    if (prevValue.current !== value) {
+    if (prevVal !== value) {
       setIsRolling(true);
-      const timeout = setTimeout(() => {
+      const t = setTimeout(() => {
         setDisplayValue(value);
+        setPrevVal(value);
         setIsRolling(false);
-      }, 150);
-      prevValue.current = value;
-      return () => clearTimeout(timeout);
+      }, 400);
+      return () => clearTimeout(t);
     }
-  }, [value]);
+  }, [value, prevVal]);
 
   return (
     <span
       className={cn(
-        "inline-block w-[1.1ch] text-center font-mono transition-all duration-150",
-        isRolling && "compact-digit-roll",
+        "inline-block w-[1.2ch] text-center font-mono overflow-hidden relative transition-all duration-[400ms]",
         color === "green" ? "text-[#39ff14] drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]" : "text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]"
       )}
+      style={{ height: "1.2em", lineHeight: "1.2em" }}
     >
-      {displayValue}
+      <span
+        className={cn(
+          "inline-block transition-transform duration-[400ms] ease-out",
+          isRolling ? "compact-digit-exit" : ""
+        )}
+        style={{ display: "block" }}
+      >
+        {isRolling ? prevVal : displayValue}
+      </span>
+      {isRolling && (
+        <span
+          className="inline-block compact-digit-enter absolute left-0 w-full"
+          style={{ display: "block" }}
+        >
+          {value}
+        </span>
+      )}
     </span>
   );
 }
@@ -89,32 +109,140 @@ function FuturisticTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
+function SwapPlayerDialog({
+  open,
+  onOpenChange,
+  currentPlayer,
+  availablePlayers,
+  onSwap,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentPlayer: { id: number; fullName: string; category: string | null } | null;
+  availablePlayers: Player[];
+  onSwap: (playerId: number) => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filteredPlayers = availablePlayers.filter(p =>
+    p.fullName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Swap Player</DialogTitle>
+          <DialogDescription>Select a player to replace the current one in this match.</DialogDescription>
+        </DialogHeader>
+        <Command className="rounded-lg border shadow-md">
+          <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} data-testid="input-search-swap-player" />
+          <CommandList>
+            <CommandEmpty>No players found.</CommandEmpty>
+            <CommandGroup>
+              {filteredPlayers.map((p) => (
+                <CommandItem
+                  key={p.id}
+                  value={p.fullName}
+                  onSelect={() => {
+                    onSwap(p.id);
+                    onOpenChange(false);
+                    setSearch("");
+                  }}
+                  data-testid={`compact-select-player-${p.id}`}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", currentPlayer?.id === p.id ? "opacity-100" : "opacity-0")} />
+                  {p.fullName} ({p.category || "?"})
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ClickablePlayerName({
+  player,
+  matchId,
+  position,
+  availablePlayers,
+  canSwap,
+  onSwapPlayer,
+  className,
+}: {
+  player: { id: number; user?: { fullName?: string } | null; category?: string | null } | null;
+  matchId: number;
+  position: string;
+  availablePlayers: Player[];
+  canSwap: boolean;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  className?: string;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const name = player?.user?.fullName || "Unknown";
+
+  if (!canSwap || !onSwapPlayer) {
+    return <span className={className}>{name}</span>;
+  }
+
+  return (
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        className={cn(className, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
+        onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
+        data-testid={`compact-swap-${position}-${matchId}`}
+      >
+        {name}
+      </span>
+      <SwapPlayerDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        currentPlayer={player ? { id: player.id, fullName: name, category: player.category || null } : null}
+        availablePlayers={availablePlayers}
+        onSwap={(newPlayerId) => onSwapPlayer(matchId, position, newPlayerId)}
+      />
+    </>
+  );
+}
+
 function MatchCard({
   match,
   isOrganiser,
   isSignedUp,
   currentPlayerProfileId,
+  availablePlayers,
+  availableCourts,
   onCompleteMatch,
   onEndSet,
   onCancelMatch,
+  onSwapPlayer,
+  onEditScore,
+  onStartMatch,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
   isSignedUp: boolean;
   currentPlayerProfileId?: number | null;
+  availablePlayers: Player[];
+  availableCourts?: number[];
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onEditScore?: (matchId: number, scoreA: number, scoreB: number) => void;
+  onStartMatch?: (matchId: number, courtNumber: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
-  const [step, setStep] = useState<"input" | "confirm" | "success">("input");
+  const [step, setStep] = useState<"input" | "confirm" | "success" | "edit-score">("input");
   const [submitting, setSubmitting] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
 
   const teamAGrades = [match.teamAPlayer1?.category, match.teamAPlayer2?.category].filter(Boolean);
   const teamBGrades = [match.teamBPlayer1?.category, match.teamBPlayer2?.category].filter(Boolean);
@@ -123,6 +251,7 @@ function MatchCard({
   const currentSet = match.currentSet || 1;
   const isCompleted = match.status === "COMPLETED";
   const isLive = match.status === "LIVE";
+  const isQueued = match.status === "QUEUED";
 
   const isPlayerInMatch = currentPlayerProfileId && (
     match.teamAPlayer1?.id === currentPlayerProfileId ||
@@ -132,6 +261,8 @@ function MatchCard({
   );
 
   const canInteract = isLive && (isOrganiser || (isSignedUp && isPlayerInMatch));
+  const canSwapPlayers = (isLive || isQueued) && isOrganiser;
+  const canEditCompleted = isCompleted && isOrganiser;
 
   const handleSubmitScore = useCallback(async () => {
     const a = parseInt(scoreA);
@@ -165,6 +296,30 @@ function MatchCard({
     }
   }, [scoreA, scoreB, step, isMultiSet, currentSet, match.id, onCompleteMatch, onEndSet]);
 
+  const handleEditScore = useCallback(() => {
+    const a = parseInt(scoreA);
+    const b = parseInt(scoreB);
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0 || a === b) return;
+
+    setSubmitting(true);
+    try {
+      if (onEditScore) {
+        onEditScore(match.id, a, b);
+      }
+      setStep("success");
+      setTimeout(() => {
+        setExpanded(false);
+        setStep("input");
+        setScoreA("");
+        setScoreB("");
+      }, 1500);
+    } catch {
+      setStep("edit-score");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [scoreA, scoreB, match.id, onEditScore]);
+
   const handleCancel = () => {
     if (onCancelMatch) {
       onCancelMatch(match.id);
@@ -178,10 +333,71 @@ function MatchCard({
   };
 
   const toggleExpand = () => {
-    if (!canInteract && !isCompleted) return;
+    if (!canInteract && !canEditCompleted && !canSwapPlayers) return;
     setExpanded(!expanded);
     if (expanded) resetForm();
   };
+
+  const canExpand = canInteract || canEditCompleted || canSwapPlayers;
+
+  const teamANames = (
+    <div className="flex items-center gap-1 min-w-0">
+      <ClickablePlayerName
+        player={match.teamAPlayer1}
+        matchId={match.id}
+        position="teamAPlayer1Id"
+        availablePlayers={availablePlayers}
+        canSwap={canSwapPlayers}
+        onSwapPlayer={onSwapPlayer}
+        className="text-sm font-semibold text-white truncate"
+      />
+      {match.teamAPlayer2 && (
+        <>
+          <span className="text-zinc-600 text-xs">&</span>
+          <ClickablePlayerName
+            player={match.teamAPlayer2}
+            matchId={match.id}
+            position="teamAPlayer2Id"
+            availablePlayers={availablePlayers}
+            canSwap={canSwapPlayers}
+            onSwapPlayer={onSwapPlayer}
+            className="text-sm font-semibold text-white truncate"
+          />
+        </>
+      )}
+    </div>
+  );
+
+  const teamBNames = (
+    <div className="flex items-center gap-1 min-w-0">
+      <ClickablePlayerName
+        player={match.teamBPlayer1}
+        matchId={match.id}
+        position="teamBPlayer1Id"
+        availablePlayers={availablePlayers}
+        canSwap={canSwapPlayers}
+        onSwapPlayer={onSwapPlayer}
+        className="text-sm font-semibold text-zinc-300 truncate"
+      />
+      {match.teamBPlayer2 && (
+        <>
+          <span className="text-zinc-600 text-xs">&</span>
+          <ClickablePlayerName
+            player={match.teamBPlayer2}
+            matchId={match.id}
+            position="teamBPlayer2Id"
+            availablePlayers={availablePlayers}
+            canSwap={canSwapPlayers}
+            onSwapPlayer={onSwapPlayer}
+            className="text-sm font-semibold text-zinc-300 truncate"
+          />
+        </>
+      )}
+    </div>
+  );
+
+  const teamADisplayNames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
+  const teamBDisplayNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
 
   return (
     <div
@@ -189,18 +405,18 @@ function MatchCard({
         "compact-match-card group relative overflow-hidden rounded-2xl border transition-all duration-300",
         isLive && "compact-match-card-live border-zinc-700/80",
         isCompleted && "compact-match-card-completed border-zinc-800/60",
-        !isLive && !isCompleted && "border-zinc-800/40 bg-zinc-900/60"
+        isQueued && "border-zinc-800/40 bg-zinc-900/60"
       )}
       data-testid={`compact-match-card-${match.id}`}
     >
       <div
         role="button"
-        tabIndex={canInteract || isCompleted ? 0 : -1}
+        tabIndex={canExpand ? 0 : -1}
         aria-expanded={expanded}
-        aria-label={`Match: ${teamANames.join(" & ")} vs ${teamBNames.join(" & ")}${isLive ? " - Live" : isCompleted ? " - Completed" : ""}`}
+        aria-label={`Match: ${teamADisplayNames.join(" & ")} vs ${teamBDisplayNames.join(" & ")}${isLive ? " - Live" : isCompleted ? " - Completed" : " - Queued"}`}
         className={cn(
           "flex items-center gap-3 px-4 py-3 select-none",
-          canInteract || isCompleted ? "cursor-pointer" : "cursor-default"
+          canExpand ? "cursor-pointer" : "cursor-default"
         )}
         onClick={toggleExpand}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(); } }}
@@ -219,6 +435,11 @@ function MatchCard({
                 C{match.courtNumber}
               </Badge>
             )}
+            {isQueued && match.queuePosition && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-700 text-zinc-500 shrink-0">
+                #{match.queuePosition}
+              </Badge>
+            )}
             {isLive && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#39ff14]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#39ff14] animate-pulse" />
@@ -230,21 +451,29 @@ function MatchCard({
                 Finished
               </span>
             )}
+            {isQueued && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Queued
+              </span>
+            )}
             {isMultiSet && isLive && (
               <span className="text-[10px] text-zinc-500">Set {currentSet}</span>
+            )}
+            {canSwapPlayers && (
+              <Users className="w-3 h-3 text-amber-400/50 ml-auto" />
             )}
           </div>
 
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-white truncate">{teamANames.join(" & ")}</span>
+                {teamANames}
                 {teamAGrades.length > 0 && (
                   <span className="text-[10px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-sm font-semibold text-zinc-300 truncate">{teamBNames.join(" & ")}</span>
+                {teamBNames}
                 {teamBGrades.length > 0 && (
                   <span className="text-[10px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
                 )}
@@ -280,7 +509,7 @@ function MatchCard({
           </div>
         )}
 
-        {(canInteract || isCompleted) && (
+        {canExpand && (
           <ChevronDown
             className={cn(
               "w-4 h-4 text-zinc-500 transition-transform duration-300 shrink-0",
@@ -302,7 +531,30 @@ function MatchCard({
         }}
       >
         <div className="px-4 pb-4 pt-1 border-t border-zinc-700/50">
-          {isCompleted ? (
+          {isQueued && isOrganiser ? (
+            <div className="space-y-3 pt-2">
+              <p className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">Assign to Court</p>
+              {availableCourts && availableCourts.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {availableCourts.map(court => (
+                    <Button
+                      key={court}
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-xs border-zinc-700 text-zinc-300 hover:text-white hover:border-amber-500/50 hover:bg-amber-500/10"
+                      onClick={(e) => { e.stopPropagation(); onStartMatch?.(match.id, court); }}
+                      data-testid={`compact-assign-court-${match.id}-${court}`}
+                    >
+                      Court {court}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500">All courts are occupied</p>
+              )}
+              <p className="text-[11px] text-zinc-600">Tap a player name above to swap them</p>
+            </div>
+          ) : isCompleted && step !== "edit-score" && step !== "success" ? (
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -328,6 +580,86 @@ function MatchCard({
                   {match.scoreUpdatedByUser && ` · Amended by ${match.scoreUpdatedByUser.fullName}`}
                 </p>
               )}
+              {canEditCompleted && onEditScore && (
+                <div className="pt-2 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScoreA(String(match.scoreA ?? ""));
+                      setScoreB(String(match.scoreB ?? ""));
+                      setStep("edit-score");
+                    }}
+                    data-testid={`compact-edit-score-${match.id}`}
+                  >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Edit Score
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : step === "edit-score" ? (
+            <div className="space-y-3 pt-2">
+              <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Edit Score (Admin)</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    {teamADisplayNames[0]}{teamADisplayNames[1] ? ` & ${teamADisplayNames[1]}` : ""}
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={scoreA}
+                    onChange={(e) => setScoreA(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    placeholder="0"
+                    data-testid={`compact-edit-score-a-${match.id}`}
+                  />
+                </div>
+                <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
+                <div className="flex-1">
+                  <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                    {teamBDisplayNames[0]}{teamBDisplayNames[1] ? ` & ${teamBDisplayNames[1]}` : ""}
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={scoreB}
+                    onChange={(e) => setScoreB(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    placeholder="0"
+                    data-testid={`compact-edit-score-b-${match.id}`}
+                  />
+                </div>
+              </div>
+              {scoreA && scoreB && scoreA === scoreB && (
+                <p className="text-[11px] text-red-400 text-center">Scores cannot be tied</p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                  onClick={(e) => { e.stopPropagation(); resetForm(); }}
+                  data-testid={`compact-edit-cancel-${match.id}`}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
+                  onClick={(e) => { e.stopPropagation(); handleEditScore(); }}
+                  disabled={!scoreA || !scoreB || scoreA === scoreB || submitting}
+                  data-testid={`compact-edit-save-${match.id}`}
+                >
+                  <Pencil className="w-3 h-3 mr-1" />
+                  {submitting ? "Saving..." : "Save Score"}
+                </Button>
+              </div>
             </div>
           ) : step === "success" ? (
             <div className="flex flex-col items-center justify-center py-4 gap-2">
@@ -343,14 +675,14 @@ function MatchCard({
                     <div className={cn("text-2xl font-bold font-mono", parseInt(scoreA) > parseInt(scoreB) ? "text-[#39ff14]" : "text-white")}>
                       {scoreA}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamANames[0]}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamADisplayNames[0]}</p>
                   </div>
                   <Swords className="w-5 h-5 text-amber-400/60" />
                   <div className="text-center">
                     <div className={cn("text-2xl font-bold font-mono", parseInt(scoreB) > parseInt(scoreA) ? "text-[#39ff14]" : "text-white")}>
                       {scoreB}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamBNames[0]}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamBDisplayNames[0]}</p>
                   </div>
                 </div>
               </div>
@@ -380,7 +712,7 @@ function MatchCard({
               <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamANames[0]}{teamANames[1] ? ` & ${teamANames[1]}` : ""}
+                    {teamADisplayNames[0]}{teamADisplayNames[1] ? ` & ${teamADisplayNames[1]}` : ""}
                   </label>
                   <Input
                     type="number"
@@ -396,7 +728,7 @@ function MatchCard({
                 <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
                 <div className="flex-1">
                   <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
-                    {teamBNames[0]}{teamBNames[1] ? ` & ${teamBNames[1]}` : ""}
+                    {teamBDisplayNames[0]}{teamBDisplayNames[1] ? ` & ${teamBDisplayNames[1]}` : ""}
                   </label>
                   <Input
                     type="number"
@@ -450,6 +782,7 @@ function MatchCard({
 export function CompactMatchView({
   matches,
   courtsToUse,
+  availablePlayers,
   isOrganiser,
   isSignedUp,
   currentPlayerProfileId,
@@ -457,6 +790,8 @@ export function CompactMatchView({
   onCompleteMatch,
   onEndSet,
   onCancelMatch,
+  onSwapPlayer,
+  onEditScore,
 }: CompactMatchViewProps) {
   const liveMatches = matches.filter(m => m.status === "LIVE");
   const queuedMatches = matches.filter(m => m.status === "QUEUED").sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
@@ -487,9 +822,12 @@ export function CompactMatchView({
                 isOrganiser={isOrganiser}
                 isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId}
+                availablePlayers={availablePlayers}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onCancelMatch={onCancelMatch}
+                onSwapPlayer={onSwapPlayer}
+                onEditScore={onEditScore}
               />
             ))}
           </div>
@@ -506,52 +844,22 @@ export function CompactMatchView({
             <span className="text-xs text-zinc-600">({queuedMatches.length})</span>
           </div>
           <div className="space-y-2">
-            {queuedMatches.map(match => {
-              const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-              const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
-              const teamAGrades = [match.teamAPlayer1?.category, match.teamAPlayer2?.category].filter(Boolean);
-              const teamBGrades = [match.teamBPlayer1?.category, match.teamBPlayer2?.category].filter(Boolean);
-
-              return (
-                <div
-                  key={match.id}
-                  className="compact-match-card rounded-2xl border border-zinc-800/40 bg-zinc-900/40 px-4 py-3"
-                  data-testid={`compact-queued-card-${match.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-700 text-zinc-500 shrink-0">
-                      #{match.queuePosition}
-                    </Badge>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-zinc-400 truncate">{teamANames.join(" & ")}</span>
-                        {teamAGrades.length > 0 && <span className="text-[10px] text-amber-400/50 font-mono">{teamAGrades.join("/")}</span>}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-zinc-500 truncate">{teamBNames.join(" & ")}</span>
-                        {teamBGrades.length > 0 && <span className="text-[10px] text-amber-400/50 font-mono">{teamBGrades.join("/")}</span>}
-                      </div>
-                    </div>
-                    {isOrganiser && availableCourts.length > 0 && (
-                      <div className="flex gap-1 shrink-0">
-                        {availableCourts.slice(0, 3).map(court => (
-                          <Button
-                            key={court}
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-[10px] border-zinc-700 text-zinc-400 hover:text-white hover:border-amber-500/50 hover:bg-amber-500/10"
-                            onClick={() => onStartMatch(match.id, court)}
-                            data-testid={`compact-assign-court-${match.id}-${court}`}
-                          >
-                            C{court}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {queuedMatches.map(match => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                isOrganiser={isOrganiser}
+                isSignedUp={isSignedUp}
+                currentPlayerProfileId={currentPlayerProfileId}
+                availablePlayers={availablePlayers}
+                availableCourts={availableCourts}
+                onCompleteMatch={onCompleteMatch}
+                onEndSet={onEndSet}
+                onSwapPlayer={onSwapPlayer}
+                onEditScore={onEditScore}
+                onStartMatch={onStartMatch}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -573,9 +881,12 @@ export function CompactMatchView({
                 isOrganiser={isOrganiser}
                 isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId}
+                availablePlayers={availablePlayers}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onCancelMatch={onCancelMatch}
+                onSwapPlayer={onSwapPlayer}
+                onEditScore={onEditScore}
               />
             ))}
           </div>

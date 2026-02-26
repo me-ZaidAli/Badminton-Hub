@@ -947,17 +947,32 @@
   opacity: 1;
 }
 
-.compact-digit-roll {
-  animation: digitRoll 0.15s ease-out;
+.compact-digit-exit {
+  animation: digitExit 0.4s ease-in forwards;
 }
 
-@keyframes digitRoll {
+.compact-digit-enter {
+  animation: digitEnter 0.4s ease-out forwards;
+}
+
+@keyframes digitExit {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes digitEnter {
   0% {
     transform: translateY(-100%);
     opacity: 0;
   }
-  50% {
-    opacity: 0.5;
+  40% {
+    opacity: 0.6;
   }
   100% {
     transform: translateY(0);

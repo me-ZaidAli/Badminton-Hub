@@ -1858,6 +1858,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const { mutate: cancelLiveMatch } = useCancelLiveMatch();
   const { mutate: trimQueue } = useTrimQueue();
   const { mutate: clearQueue, isPending: isClearingQueue } = useClearQueue();
+  const { mutate: editMatchScore } = useEditMatchScore();
   const queryClient = useQueryClient();
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
@@ -2375,6 +2376,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
               onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
               onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
+              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+              onEditScore={(matchId, scoreA, scoreB) => editMatchScore({ matchId, scoreA, scoreB })}
             />
 
             {isOrganiser && (
