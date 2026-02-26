@@ -932,6 +932,25 @@
   box-shadow: 0 0 30px rgba(57, 255, 20, 0.08), inset 0 1px 0 rgba(57, 255, 20, 0.1);
 }
 
+.compact-match-card-queued {
+  background: linear-gradient(145deg, #0a0906 0%, #0d0b08 40%, #0a0906 100%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(217, 169, 56, 0.06);
+  position: relative;
+}
+
+.compact-match-card-queued::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(217, 169, 56, 0.03) 0%, transparent 50%, rgba(217, 169, 56, 0.02) 100%);
+  pointer-events: none;
+}
+
+.compact-match-card-queued:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(217, 169, 56, 0.05), inset 0 1px 0 rgba(217, 169, 56, 0.1);
+}
+
 .compact-match-card-completed {
   background: linear-gradient(135deg, #080808 0%, #0c0c0c 100%);
   opacity: 0.85;

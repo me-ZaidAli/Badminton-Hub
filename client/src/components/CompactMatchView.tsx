@@ -49,14 +49,14 @@ function RollingDigit({ value, color = "green" }: { value: string; color?: "gree
   return (
     <span
       className={cn(
-        "inline-block w-[1.2ch] text-center font-mono overflow-hidden relative transition-all duration-[400ms]",
+        "inline-block w-[1.2ch] text-center font-mono overflow-hidden relative transition-all duration-500",
         color === "green" ? "text-[#39ff14] drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]" : "text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]"
       )}
       style={{ height: "1.2em", lineHeight: "1.2em" }}
     >
       <span
         className={cn(
-          "inline-block transition-transform duration-[400ms] ease-out",
+          "inline-block transition-transform duration-500 ease-out",
           isRolling ? "compact-digit-exit" : ""
         )}
         style={{ display: "block" }}
@@ -170,21 +170,27 @@ function ClickablePlayerName({
   availablePlayers,
   canSwap,
   onSwapPlayer,
+  showMatchCount,
   className,
 }: {
-  player: { id: number; user?: { fullName?: string } | null; category?: string | null } | null;
+  player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
   matchId: number;
   position: string;
   availablePlayers: Player[];
   canSwap: boolean;
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  showMatchCount?: boolean;
   className?: string;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player?.user?.fullName || "Unknown";
+  const matchCount = player?.matchesPlayed ?? null;
+  const nameWithCount = showMatchCount && matchCount != null ? (
+    <>{name} <span className="text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
+  ) : name;
 
   if (!canSwap || !onSwapPlayer) {
-    return <span className={className}>{name}</span>;
+    return <span className={className}>{nameWithCount}</span>;
   }
 
   return (
@@ -197,7 +203,7 @@ function ClickablePlayerName({
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`compact-swap-${position}-${matchId}`}
       >
-        {name}
+        {nameWithCount}
       </span>
       <SwapPlayerDialog
         open={dialogOpen}
@@ -263,6 +269,7 @@ function MatchCard({
   const canInteract = isLive && (isOrganiser || (isSignedUp && isPlayerInMatch));
   const canSwapPlayers = (isLive || isQueued) && isOrganiser;
   const canEditCompleted = isCompleted && isOrganiser;
+  const canExpandQueued = isQueued;
 
   const handleSubmitScore = useCallback(async () => {
     const a = parseInt(scoreA);
@@ -333,12 +340,13 @@ function MatchCard({
   };
 
   const toggleExpand = () => {
-    if (!canInteract && !canEditCompleted && !canSwapPlayers) return;
+    if (!canInteract && !canEditCompleted && !canSwapPlayers && !canExpandQueued) return;
     setExpanded(!expanded);
     if (expanded) resetForm();
   };
 
-  const canExpand = canInteract || canEditCompleted || canSwapPlayers;
+  const canExpand = canInteract || canEditCompleted || canSwapPlayers || canExpandQueued;
+  const showMatchCount = isLive || isQueued;
 
   const teamANames = (
     <div className="flex items-center gap-1 min-w-0 flex-wrap">
@@ -349,6 +357,7 @@ function MatchCard({
         availablePlayers={availablePlayers}
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
+        showMatchCount={showMatchCount}
         className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamAPlayer2 && (
@@ -361,6 +370,7 @@ function MatchCard({
             availablePlayers={availablePlayers}
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
+            showMatchCount={showMatchCount}
             className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
           />
         </>
@@ -377,6 +387,7 @@ function MatchCard({
         availablePlayers={availablePlayers}
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
+        showMatchCount={showMatchCount}
         className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamBPlayer2 && (
@@ -389,6 +400,7 @@ function MatchCard({
             availablePlayers={availablePlayers}
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
+            showMatchCount={showMatchCount}
             className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
           />
         </>
@@ -405,7 +417,7 @@ function MatchCard({
         "compact-match-card group relative overflow-hidden rounded-2xl border transition-all duration-300",
         isLive && "compact-match-card-live border-zinc-700/80",
         isCompleted && "compact-match-card-completed border-zinc-800/60",
-        isQueued && "border-zinc-800/40 bg-zinc-900/60"
+        isQueued && "compact-match-card-queued border-amber-500/15 hover:border-amber-500/30"
       )}
       data-testid={`compact-match-card-${match.id}`}
     >
@@ -436,7 +448,7 @@ function MatchCard({
               </Badge>
             )}
             {isQueued && match.queuePosition && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-700 text-zinc-500 shrink-0">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-amber-500/20 text-amber-400/60 bg-amber-500/5 shrink-0">
                 #{match.queuePosition}
               </Badge>
             )}
@@ -452,7 +464,7 @@ function MatchCard({
               </span>
             )}
             {isQueued && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/50">
                 Queued
               </span>
             )}
@@ -530,29 +542,60 @@ function MatchCard({
           maxHeight: expanded ? contentRef.current?.scrollHeight ? `${contentRef.current.scrollHeight + 20}px` : "400px" : "0px"
         }}
       >
-        <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t border-zinc-700/50">
-          {isQueued && isOrganiser ? (
+        <div className={cn("px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t", isQueued ? "border-amber-500/10" : "border-zinc-700/50")}>
+          {isQueued ? (
             <div className="space-y-3 pt-2">
-              <p className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">Assign to Court</p>
-              {availableCourts && availableCourts.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {availableCourts.map(court => (
-                    <Button
-                      key={court}
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-3 text-xs border-zinc-700 text-zinc-300 hover:text-white hover:border-amber-500/50 hover:bg-amber-500/10"
-                      onClick={(e) => { e.stopPropagation(); onStartMatch?.(match.id, court); }}
-                      data-testid={`compact-assign-court-${match.id}-${court}`}
-                    >
-                      Court {court}
-                    </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-zinc-900/80 rounded-xl p-2.5 border border-zinc-800/60">
+                  <p className="text-[9px] uppercase tracking-wider text-amber-400/60 mb-1.5 font-semibold">Team A</p>
+                  {[match.teamAPlayer1, match.teamAPlayer2].filter(Boolean).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between py-0.5">
+                      <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
+                      <div className="flex items-center gap-1.5 ml-1 shrink-0">
+                        <span className="text-[9px] font-mono text-zinc-500">{p?.matchesPlayed ?? 0}p</span>
+                        <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs text-zinc-500">All courts are occupied</p>
+                <div className="bg-zinc-900/80 rounded-xl p-2.5 border border-zinc-800/60">
+                  <p className="text-[9px] uppercase tracking-wider text-amber-400/60 mb-1.5 font-semibold">Team B</p>
+                  {[match.teamBPlayer1, match.teamBPlayer2].filter(Boolean).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between py-0.5">
+                      <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
+                      <div className="flex items-center gap-1.5 ml-1 shrink-0">
+                        <span className="text-[9px] font-mono text-zinc-500">{p?.matchesPlayed ?? 0}p</span>
+                        <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {isOrganiser && (
+                <>
+                  <div className="h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
+                  <p className="text-[10px] text-amber-400/50 uppercase tracking-wider font-semibold">Admin Controls</p>
+                  {availableCourts && availableCourts.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {availableCourts.map(court => (
+                        <Button
+                          key={court}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-3 text-xs border-amber-500/20 text-amber-400/80 hover:text-amber-300 hover:border-amber-500/40 hover:bg-amber-500/10 bg-amber-500/5"
+                          onClick={(e) => { e.stopPropagation(); onStartMatch?.(match.id, court); }}
+                          data-testid={`compact-assign-court-${match.id}-${court}`}
+                        >
+                          Court {court}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-zinc-500">All courts occupied</p>
+                  )}
+                  <p className="text-[10px] text-zinc-600">Tap a player name to swap</p>
+                </>
               )}
-              <p className="text-[11px] text-zinc-600">Tap a player name above to swap them</p>
             </div>
           ) : isCompleted && step !== "edit-score" && step !== "success" ? (
             <div className="space-y-2 pt-2">

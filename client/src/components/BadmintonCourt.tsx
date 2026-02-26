@@ -20,6 +20,7 @@ type MatchPlayer = {
   id: number;
   user: { fullName: string };
   category: string | null;
+  matchesPlayed?: number | null;
 };
 
 export type SetScore = {
