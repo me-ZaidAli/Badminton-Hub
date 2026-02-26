@@ -24,6 +24,7 @@ type CompactMatchViewProps = {
   currentPlayerProfileId?: number | null;
   courtNames?: string[];
   defaultPointsToPlayTo?: number;
+  sessionMatchCounts?: Record<number, number>;
   onStartMatch: (matchId: number, courtNumber: number) => void;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
@@ -177,6 +178,7 @@ function ClickablePlayerName({
   canSwap,
   onSwapPlayer,
   showMatchCount,
+  sessionMatchCount,
   className,
 }: {
   player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
@@ -186,11 +188,12 @@ function ClickablePlayerName({
   canSwap: boolean;
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   showMatchCount?: boolean;
+  sessionMatchCount?: number;
   className?: string;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player?.user?.fullName || "Unknown";
-  const matchCount = player?.matchesPlayed ?? null;
+  const matchCount = sessionMatchCount ?? null;
   const nameWithCount = showMatchCount && matchCount != null ? (
     <>{name} <span className="text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
   ) : name;
@@ -231,6 +234,7 @@ function MatchCard({
   availableCourts,
   courtName,
   defaultPointsToPlayTo = 21,
+  sessionMatchCounts,
   onCompleteMatch,
   onEndSet,
   onCancelMatch,
@@ -249,6 +253,7 @@ function MatchCard({
   availableCourts?: number[];
   courtName?: string;
   defaultPointsToPlayTo?: number;
+  sessionMatchCounts?: Record<number, number>;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
@@ -407,6 +412,7 @@ function MatchCard({
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
+        sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
         className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamAPlayer2 && (
@@ -420,6 +426,7 @@ function MatchCard({
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
+            sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
             className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
           />
         </>
@@ -437,6 +444,7 @@ function MatchCard({
         canSwap={canSwapPlayers}
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
+        sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
         className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
       />
       {match.teamBPlayer2 && (
@@ -450,6 +458,7 @@ function MatchCard({
             canSwap={canSwapPlayers}
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
+            sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
             className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
           />
         </>
@@ -692,7 +701,7 @@ function MatchCard({
                     <div key={i} className="flex items-center justify-between py-0.5">
                       <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[9px] font-mono text-zinc-500">{p?.matchesPlayed ?? 0}p</span>
+                        <span className="text-[9px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
                         <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
@@ -704,7 +713,7 @@ function MatchCard({
                     <div key={i} className="flex items-center justify-between py-0.5">
                       <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[9px] font-mono text-zinc-500">{p?.matchesPlayed ?? 0}p</span>
+                        <span className="text-[9px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
                         <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
@@ -971,6 +980,7 @@ export function CompactMatchView({
   currentPlayerProfileId,
   courtNames,
   defaultPointsToPlayTo,
+  sessionMatchCounts,
   onStartMatch,
   onCompleteMatch,
   onEndSet,
@@ -1013,6 +1023,7 @@ export function CompactMatchView({
                 availablePlayers={availablePlayers}
                 courtName={match.courtNumber ? courtNames?.[match.courtNumber - 1] : undefined}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
+                sessionMatchCounts={sessionMatchCounts}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onCancelMatch={onCancelMatch}
@@ -1047,6 +1058,7 @@ export function CompactMatchView({
                 availablePlayers={availablePlayers}
                 availableCourts={availableCourts}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
+                sessionMatchCounts={sessionMatchCounts}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onSwapPlayer={onSwapPlayer}

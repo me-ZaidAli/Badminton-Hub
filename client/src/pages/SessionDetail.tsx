@@ -21,6 +21,7 @@ import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { CompactMatchView } from "@/components/CompactMatchView";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
+import { CrowdControlPanel } from "@/components/CrowdControlPanel";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1872,6 +1873,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     const saved = localStorage.getItem("matchViewMode");
     return saved === "compact" ? "compact" : "court";
   });
+  const [crowdControlOpen, setCrowdControlOpen] = useState(false);
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
@@ -1996,6 +1998,17 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const queuedMatches = typedMatches.filter(m => m.status === "QUEUED");
   const completedMatches = typedMatches.filter(m => m.status === "COMPLETED");
   const completedCount = completedMatches.length;
+
+  const sessionMatchCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    const countedMatches = typedMatches.filter(m => m.status === "LIVE" || m.status === "COMPLETED");
+    for (const m of countedMatches) {
+      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+        if (p?.id) counts[p.id] = (counts[p.id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [typedMatches]);
   
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
@@ -2291,6 +2304,18 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     {completedCount} Completed
                   </Badge>
                   {!isOrganiser && <MatchAlgorithmInfoButton />}
+                  {isOrganiser && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs gap-1.5"
+                      onClick={() => setCrowdControlOpen(true)}
+                      data-testid="button-crowd-control"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Crowd
+                    </Button>
+                  )}
                   <div className="flex items-center border rounded-lg overflow-hidden ml-auto" data-testid="match-view-toggle">
                     <button
                       onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
@@ -2377,6 +2402,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               currentPlayerProfileId={currentPlayerProfileId}
               courtNames={courtNamesState}
               defaultPointsToPlayTo={defaultPointsToPlayTo}
+              sessionMatchCounts={sessionMatchCounts}
               onStartMatch={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
               onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
               onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
@@ -2478,6 +2504,23 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         </div>
       )}
 
+
+      {isOrganiser && (
+        <CrowdControlPanel
+          open={crowdControlOpen}
+          onOpenChange={setCrowdControlOpen}
+          sessionMatchCounts={sessionMatchCounts}
+          players={attendingSignups.map(s => ({
+            id: s.player?.id || s.playerId,
+            fullName: s.player?.user?.fullName || "",
+            category: s.player?.category || null,
+            isPaused: s.isPaused || false,
+          }))}
+          liveCount={liveMatches.length}
+          queuedCount={queuedMatches.length}
+          completedCount={completedCount}
+        />
+      )}
 
       <Dialog open={forcedCompletionActive && (!!fcMatch || fcStep === 5)} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
