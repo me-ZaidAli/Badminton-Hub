@@ -26,40 +26,41 @@ const controlSections = [
   {
     label: "People & Clubs",
     items: [
-      { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-      { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-      { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
-      { href: "/admin/inactive-members", label: "Inactive Members", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
+      { href: "/super-admin/users-management", label: "Users Management", desc: "Manage all platform users", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/clubs-management", label: "Clubs Management", desc: "Oversee all registered clubs", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/import-members", label: "Import Members", desc: "Bulk upload via CSV", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
+      { href: "/admin/inactive-members", label: "Inactive Members", desc: "Re-engage or remove inactive players", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
     ],
   },
   {
     label: "Finance & Memberships",
     items: [
-      { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
-      { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
-      { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+      { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+      { href: "/admin/membership-board", label: "Membership Board", desc: "Plans, requests, and status", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
+      { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     ],
   },
   {
     label: "Rewards & Referrals",
     items: [
-      { href: "/admin/rewards", label: "Club Rewards", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
-      { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/super-admin/referrals", label: "Referral Programs", icon: Share2, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/admin/rewards", label: "Club Rewards", desc: "Anniversary and milestone rewards", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+      { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", desc: "View all claimed rewards", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
+      { href: "/admin/referrals", label: "Referral Management", desc: "Approve referrals and award credits", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/super-admin/referrals", label: "Referral Programs", desc: "Configure multi-level reward tiers", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
     ],
   },
   {
     label: "Analytics & Insights",
     items: [
-      { href: "/admin/acquisition-analytics", label: "Acquisition & KPI Analytics", icon: BarChart3, color: "text-amber-500", bg: "bg-amber-500/10" },
-      { href: "/admin/attendance-analytics", label: "Attendance Analytics", icon: Activity, color: "text-teal-500", bg: "bg-teal-500/10" },
+      { href: "/admin/acquisition-analytics", label: "Acquisition & KPI", desc: "Growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/attendance-analytics", label: "Attendance Analytics", desc: "Session attendance and engagement", icon: Activity, color: "text-teal-500", bg: "bg-teal-500/10" },
     ],
   },
   {
     label: "Communication",
     items: [
-      { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/admin/notifications", label: "Notification Settings", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+      { href: "/admin/messages", label: "Messages", desc: "View and manage contact messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
+      { href: "/admin/notifications", label: "Notification Settings", desc: "Reminders, schedules, and logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
     ],
   },
 ];
@@ -1234,19 +1235,26 @@ export default function GodMode() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-5">
             {controlSections.map(section => (
               <div key={section.label}>
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{section.label}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="h-px flex-1 bg-border/50" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">{section.label}</p>
+                  <div className="h-px flex-1 bg-border/50" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                   {section.items.map(item => (
                     <Link key={item.href} href={item.href}>
-                      <Card className="hover-elevate cursor-pointer h-full" data-testid={`card-control-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
-                        <CardContent className="flex flex-col items-center justify-center gap-2 p-4 text-center">
-                          <div className={`${item.bg} rounded-lg p-2.5`}>
-                            <item.icon className={`w-5 h-5 ${item.color}`} />
+                      <Card className="group border-border/40 hover:border-border hover:shadow-md transition-all duration-200 cursor-pointer h-full" data-testid={`card-control-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                        <CardContent className="flex items-start gap-3 p-3.5">
+                          <div className={`${item.bg} rounded-xl p-2 shrink-0 group-hover:scale-105 transition-transform`}>
+                            <item.icon className={`w-4 h-4 ${item.color}`} />
                           </div>
-                          <span className="text-sm font-medium">{item.label}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground leading-tight">{item.label}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{item.desc}</p>
+                          </div>
                         </CardContent>
                       </Card>
                     </Link>

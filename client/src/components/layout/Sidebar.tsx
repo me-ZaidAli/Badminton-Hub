@@ -15,7 +15,6 @@ import {
   X,
   User,
   Zap,
-  Shield,
   Building2,
   Mail,
   Trophy,
@@ -27,6 +26,7 @@ import {
   BookOpen,
   FileText,
   Swords,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -75,6 +75,8 @@ function useNavGroups(): NavGroup[] {
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
 
   const items: NavItem[] = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity" },
@@ -101,10 +103,11 @@ function useNavGroups(): NavGroup[] {
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
   }
 
-  const groupOrder = ["activity", "club", "comms", "info", "admin", "godmode"];
+  const groupOrder = ["main", "activity", "club", "comms", "info", "admin", "godmode"];
   const groupLabels: Record<string, string> = {
+    main: "",
     activity: "Activity",
-    club: "Club",
+    club: "My Club",
     comms: "Communication",
     info: "Help & Info",
     admin: "Management",
@@ -140,7 +143,7 @@ export function Sidebar() {
 
   return (
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
-      <div className="p-6 border-b border-border/50">
+      <div className="p-5 border-b border-border/50">
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
             <div className="flex items-center gap-3 cursor-pointer group">
@@ -156,11 +159,11 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
+      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-1">
         {navGroups.map((group) => (
-          <div key={group.key}>
+          <div key={group.key} className={cn(group.key !== "main" && "mt-3")}>
             {group.key === "admin" ? (
-              <div className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="section-admin-panel">
+              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="section-admin-panel">
                 <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400" data-testid="label-admin-section">
                   <ShieldCheck className="w-3 h-3" /> {group.label}
                 </span>
@@ -171,14 +174,14 @@ export function Sidebar() {
                     <Link key={item.href} href={item.href}>
                       <div
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer border",
+                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
                           isActive
-                            ? "bg-emerald-600 text-white shadow-md border-emerald-700"
-                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 hover:shadow-sm"
+                            ? "bg-emerald-600 text-white shadow-md"
+                            : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
                         )}
                         data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <item.icon className="h-5 w-5" />
+                        <item.icon className="h-4 w-4" />
                         {item.label}
                         <BadgeCount count={badgeCount} />
                       </div>
@@ -187,7 +190,7 @@ export function Sidebar() {
                 })}
               </div>
             ) : group.key === "godmode" ? (
-              <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="section-god-mode">
+              <div className="mt-2 rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="section-god-mode">
                 <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-destructive" data-testid="label-super-admin-section">
                   <Zap className="w-3 h-3" /> Super Admin
                 </span>
@@ -197,15 +200,37 @@ export function Sidebar() {
                     <Link key={item.href} href={item.href}>
                       <div
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-200 cursor-pointer border",
+                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
                           isActive
-                            ? "bg-destructive text-destructive-foreground shadow-md border-destructive"
-                            : "bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 hover:border-destructive/40 hover:shadow-sm"
+                            ? "bg-destructive text-destructive-foreground shadow-md"
+                            : "text-destructive hover:bg-destructive/15"
                         )}
                         data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <item.icon className="h-5 w-5" />
+                        <item.icon className="h-4 w-4" />
                         {item.label}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : group.key === "main" ? (
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const isActive = location === item.href;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          isActive
+                            ? "bg-primary/10 text-primary shadow-sm"
+                            : "text-foreground hover:bg-muted"
+                        )}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "")} />
+                        <span className="truncate">{item.label}</span>
                       </div>
                     </Link>
                   );
@@ -213,7 +238,7 @@ export function Sidebar() {
               </div>
             ) : (
               <>
-                <span className="flex items-center px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70" data-testid={`label-section-${group.key}`}>
+                <span className="flex items-center px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60" data-testid={`label-section-${group.key}`}>
                   {group.label}
                 </span>
                 <div className="space-y-0.5">
@@ -226,14 +251,14 @@ export function Sidebar() {
                       <Link key={item.href} href={item.href}>
                         <div
                           className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer group",
+                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
                             isActive
-                              ? "bg-primary/10 text-primary shadow-sm"
+                              ? "bg-primary/10 text-primary"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                           data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                         >
-                          <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                          <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
                           <span className="truncate">{item.label}</span>
                           <BadgeCount count={badgeCount} />
                         </div>
@@ -249,17 +274,17 @@ export function Sidebar() {
 
       <div className="p-4 border-t border-border/50 bg-muted/20">
         {user ? (
-          <div className="flex items-center gap-3 mb-4">
-            <Avatar>
+          <div className="flex items-center gap-3 mb-3">
+            <Avatar className="h-9 w-9">
               <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`} />
-              <AvatarFallback>{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="text-xs">{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-1 overflow-hidden">
               <p className="text-sm font-semibold truncate">{user.fullName}</p>
-              <p className="text-xs text-muted-foreground truncate capitalize">{user.role.toLowerCase()}</p>
+              <p className="text-[11px] text-muted-foreground truncate capitalize">{user.role.toLowerCase()}</p>
             </div>
             <Link href="/profile">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>
@@ -269,11 +294,12 @@ export function Sidebar() {
         <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
-            className="flex-1 justify-start text-muted-foreground"
+            size="sm"
+            className="flex-1 justify-start text-muted-foreground h-8 text-xs"
             onClick={() => logout()}
             data-testid="button-logout"
           >
-            <LogOut className="h-4 w-4 mr-2" />
+            <LogOut className="h-3.5 w-3.5 mr-2" />
             Sign Out
           </Button>
           <ThemeToggle />
@@ -332,11 +358,11 @@ export function MobileTopNav() {
               </div>
             </div>
           </div>
-          <div className="py-2 px-2 space-y-3">
+          <div className="py-2 px-2 space-y-2">
             {navGroups.map((group) => (
               <div key={group.key}>
                 {group.key === "admin" ? (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
                     <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                       <ShieldCheck className="w-3 h-3" /> {group.label}
                     </span>
@@ -362,7 +388,7 @@ export function MobileTopNav() {
                     })}
                   </div>
                 ) : group.key === "godmode" ? (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
                     <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
                       <Zap className="w-3 h-3" /> Super Admin
                     </span>
@@ -387,9 +413,29 @@ export function MobileTopNav() {
                       );
                     })}
                   </div>
+                ) : group.key === "main" ? (
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const isActive = location === item.href;
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <Button
+                            variant={isActive ? "secondary" : "ghost"}
+                            className="w-full justify-start gap-3 font-semibold"
+                            size="sm"
+                            onClick={() => setMenuOpen(false)}
+                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.label}
+                          </Button>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <>
-                    <span className="flex items-center px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    <span className="flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                       {group.label}
                     </span>
                     <div className="space-y-0.5">

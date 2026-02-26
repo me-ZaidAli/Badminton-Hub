@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, ArrowRight, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -34,6 +34,33 @@ interface AnalyticsData {
     totalRevenue: number;
     paidRevenue: number;
   };
+}
+
+interface AdminTile {
+  href: string;
+  label: string;
+  description: string;
+  icon: any;
+  color: string;
+  bg: string;
+}
+
+function AdminTileCard({ tile }: { tile: AdminTile }) {
+  return (
+    <Link href={tile.href}>
+      <Card className="group border-border/40 hover:border-border hover:shadow-md transition-all duration-200 cursor-pointer h-full" data-testid={`card-admin-${tile.label.toLowerCase().replace(/\s+/g, '-')}`}>
+        <CardContent className="p-4 flex items-start gap-3.5">
+          <div className={`${tile.bg} rounded-xl p-2.5 shrink-0 group-hover:scale-105 transition-transform`}>
+            <tile.icon className={`w-5 h-5 ${tile.color}`} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-tight">{tile.label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{tile.description}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 export default function AdminDashboard() {
@@ -89,12 +116,49 @@ export default function AdminDashboard() {
   const upcomingSessions = sessions?.filter(s => new Date(s.date) >= new Date()).length || 0;
   const pendingCount = pendingUsers?.length || 0;
 
+  const peopleSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/players", label: "Player Management", description: "Add, edit, and manage player profiles", icon: UserPlus, color: "text-purple-500", bg: "bg-purple-500/10" }] : []),
+    { href: "/sessions", label: "Session Management", description: "Create sessions, manage signups and attendance", icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
+    ...(!isOrganiserOnly ? [{ href: "/admin/inactive-members", label: "Inactive Members", description: "Re-engage or manage inactive players", icon: Users, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/import-members", label: "Import Members", description: "Bulk upload members via CSV", icon: Upload, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
+  ];
+
+  const financeSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/financials", label: "Financials", description: "Track payments, fees, and revenue", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/memberships", label: "Memberships", description: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" }] : []),
+    { href: "/admin/league", label: "League Management", description: "Fixtures, teams, and results", icon: Swords, color: "text-blue-500", bg: "bg-blue-500/10" },
+  ];
+
+  const rewardsSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/rewards", label: "Club Rewards", description: "Anniversary, milestone, and referral rewards", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/rewards-dashboard", label: "Rewards Dashboard", description: "View all claimed rewards", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/referrals", label: "Referral Management", description: "Review submissions and award credits", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+  ];
+
+  const analyticsSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/acquisition-analytics", label: "Acquisition & KPI", description: "Track growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/attendance-analytics", label: "Attendance Analytics", description: "Session attendance and engagement metrics", icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+  ];
+
+  const commsSections: AdminTile[] = [
+    ...((myAdminClubs?.length ?? 0) > 0 ? [{ href: "/admin/announcements", label: "Announcements", description: "Post updates to club members", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/notifications", label: "Notification Settings", description: "Reminders, schedules, and delivery logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
+  ];
+
+  const allSections = [
+    { label: "People & Sessions", tiles: peopleSections },
+    { label: "Finance & Memberships", tiles: financeSections },
+    { label: "Rewards & Referrals", tiles: rewardsSections },
+    { label: "Analytics & Insights", tiles: analyticsSections },
+    { label: "Communication", tiles: commsSections },
+  ].filter(s => s.tiles.length > 0);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold" data-testid="text-dashboard-title">{isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel"}</h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mt-1">
             {`Overview of your managed club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}.`}
           </p>
         </div>
@@ -104,70 +168,70 @@ export default function AdminDashboard() {
         </Badge>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-clubs" onClick={() => setKpiDetail("total-clubs")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Clubs</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <Card className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-total-clubs" onClick={() => setKpiDetail("total-clubs")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Total Clubs</span>
+              <Building2 className="h-4 w-4 text-muted-foreground/60" />
+            </div>
             {analyticsLoading ? (
-              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-12 bg-muted rounded animate-pulse" />
             ) : (
-              <div className="text-3xl font-bold" data-testid="value-total-clubs">{totalClubs}</div>
+              <div className="text-2xl font-bold" data-testid="value-total-clubs">{totalClubs}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-members" onClick={() => setKpiDetail("total-members")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Players</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+        <Card className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-total-members" onClick={() => setKpiDetail("total-members")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Players</span>
+              <Users className="h-4 w-4 text-muted-foreground/60" />
+            </div>
             {analyticsLoading ? (
-              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-12 bg-muted rounded animate-pulse" />
             ) : (
-              <div className="text-3xl font-bold" data-testid="value-total-members">{totalPlayers}</div>
+              <div className="text-2xl font-bold" data-testid="value-total-members">{totalPlayers}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-sessions" onClick={() => setKpiDetail("total-sessions")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+        <Card className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-total-sessions" onClick={() => setKpiDetail("total-sessions")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Sessions</span>
+              <Calendar className="h-4 w-4 text-muted-foreground/60" />
+            </div>
             {analyticsLoading ? (
-              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-12 bg-muted rounded animate-pulse" />
             ) : (
-              <div className="text-3xl font-bold" data-testid="value-total-sessions">{totalSessions}</div>
+              <div className="text-2xl font-bold" data-testid="value-total-sessions">{totalSessions}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-total-matches" onClick={() => setKpiDetail("total-matches")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Matches</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+        <Card className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-total-matches" onClick={() => setKpiDetail("total-matches")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Matches</span>
+              <Trophy className="h-4 w-4 text-muted-foreground/60" />
+            </div>
             {analyticsLoading ? (
-              <div className="h-9 w-12 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-12 bg-muted rounded animate-pulse" />
             ) : (
-              <div className="text-3xl font-bold" data-testid="value-total-matches">{totalMatches}</div>
+              <div className="text-2xl font-bold" data-testid="value-total-matches">{totalMatches}</div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 cursor-pointer hover-elevate" data-testid="card-pending-approvals" onClick={() => setKpiDetail("pending-approvals")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approvals</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold" data-testid="value-pending-approvals">
+        <Card className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-pending-approvals" onClick={() => setKpiDetail("pending-approvals")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Pending</span>
+              <UserCheck className="h-4 w-4 text-muted-foreground/60" />
+            </div>
+            <div className="text-2xl font-bold" data-testid="value-pending-approvals">
               {pendingCount}
             </div>
           </CardContent>
@@ -175,320 +239,20 @@ export default function AdminDashboard() {
       </div>
 
       <div className="space-y-6">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">People & Sessions</p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer">
-                <Link href="/admin/players">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <UserPlus className="h-5 w-5 text-purple-500" />
-                        Player Management
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Add new players and edit their profiles and details.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            <Card className="border-border/50 hover-elevate cursor-pointer">
-              <Link href="/sessions">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Calendar className="h-5 w-5 text-blue-500" />
-                      Session Management
-                    </span>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Create and manage sessions, handle signups and attendance.
-                  </p>
-                </CardContent>
-              </Link>
-            </Card>
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-inactive-members">
-                <Link href="/admin/inactive-members">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Users className="h-5 w-5 text-orange-500" />
-                        Inactive Members
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Identify and manage inactive members, send re-engagement messages, and handle account deletions.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-import-members">
-                <Link href="/admin/import-members">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Upload className="h-5 w-5 text-indigo-500" />
-                        Import Members
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Bulk upload members via CSV or add them manually.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
+        {allSections.map(section => (
+          <div key={section.label}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-px flex-1 bg-border/50" />
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">{section.label}</p>
+              <div className="h-px flex-1 bg-border/50" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {section.tiles.map(tile => (
+                <AdminTileCard key={tile.href} tile={tile} />
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Finance & Memberships</p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer">
-                <Link href="/admin/financials">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <DollarSign className="h-5 w-5 text-green-500" />
-                        Financials
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Track payments, view unpaid sessions, and manage fees.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-membership-management">
-                <Link href="/admin/memberships">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-teal-500" />
-                        Membership Management
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Manage membership plans, requests, and payment status.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-league-management">
-              <Link href="/admin/league">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Swords className="h-5 w-5 text-blue-500" />
-                      League Management
-                    </span>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Manage league fixtures, teams, player assignments, and results.
-                  </p>
-                </CardContent>
-              </Link>
-            </Card>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Rewards & Referrals</p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-rewards">
-                <Link href="/admin/rewards">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Trophy className="h-5 w-5 text-amber-500" />
-                        Club Rewards
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Manage anniversary, attendance milestones, and referral reward programs.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-rewards-dashboard">
-                <Link href="/admin/rewards-dashboard">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Award className="h-5 w-5 text-pink-500" />
-                        Rewards Dashboard
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      View and manage all rewards claimed by players across your clubs.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-referral-management">
-                <Link href="/admin/referrals">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Share2 className="h-5 w-5 text-emerald-500" />
-                        Referral Management
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Review and approve referral submissions, award credits.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Analytics & Insights</p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-acquisition-analytics">
-                <Link href="/admin/acquisition-analytics">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5 text-blue-500" />
-                        Acquisition & KPI Analytics
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Track user acquisition channels, conversion rates, retention, and growth metrics.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-attendance-analytics">
-                <Link href="/admin/attendance-analytics">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-emerald-500" />
-                        Attendance Analytics
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Track session attendance, member engagement, and performance metrics.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Communication</p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {(myAdminClubs?.length ?? 0) > 0 && (
-              <Card className="border-border/50 hover-elevate cursor-pointer">
-                <Link href="/admin/announcements">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-orange-500" />
-                        Announcements
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Post announcements and updates to club members.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-
-            {!isOrganiserOnly && (
-              <Card className="border-border/50 hover-elevate cursor-pointer" data-testid="card-notification-management">
-                <Link href="/admin/notifications">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Bell className="h-5 w-5 text-indigo-500" />
-                        Notification Settings
-                      </span>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
-                      Configure automated reminders, notification schedules, bank details, and view delivery logs.
-                    </p>
-                  </CardContent>
-                </Link>
-              </Card>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
       <KpiDetailDialog
@@ -595,49 +359,53 @@ export default function AdminDashboard() {
 
       {isOwner && (
         <div className="space-y-4">
-          <h2 className="text-xl font-display font-bold">Export Data</h2>
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  Export All Users
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Download a CSV file with all user details including name, email, club membership, role, category, and ranking stats.
-                </p>
-                <Button
-                  onClick={() => handleExport("users")}
-                  disabled={downloadingUsers}
-                  data-testid="button-export-users"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {downloadingUsers ? "Downloading..." : "Download Users CSV"}
-                </Button>
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-border/50" />
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">Data Export</p>
+            <div className="h-px flex-1 bg-border/50" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card className="border-border/40">
+              <CardContent className="p-4 flex items-start gap-3.5">
+                <div className="bg-primary/10 rounded-xl p-2.5 shrink-0">
+                  <Users className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Export All Users</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Download CSV with all user details, club memberships, and stats.</p>
+                  <Button
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => handleExport("users")}
+                    disabled={downloadingUsers}
+                    data-testid="button-export-users"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    {downloadingUsers ? "Downloading..." : "Download CSV"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-500" />
-                  Export Attendance History
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Download a CSV file with all users and their session attendance history, including session dates, payment status, and fees.
-                </p>
-                <Button
-                  onClick={() => handleExport("attendance")}
-                  disabled={downloadingAttendance}
-                  data-testid="button-export-attendance"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {downloadingAttendance ? "Downloading..." : "Download Attendance CSV"}
-                </Button>
+            <Card className="border-border/40">
+              <CardContent className="p-4 flex items-start gap-3.5">
+                <div className="bg-blue-500/10 rounded-xl p-2.5 shrink-0">
+                  <Calendar className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Export Attendance</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Download CSV with attendance history, dates, and payment status.</p>
+                  <Button
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => handleExport("attendance")}
+                    disabled={downloadingAttendance}
+                    data-testid="button-export-attendance"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    {downloadingAttendance ? "Downloading..." : "Download CSV"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
