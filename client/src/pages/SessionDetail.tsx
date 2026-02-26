@@ -1868,7 +1868,10 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
-  const [matchViewMode, setMatchViewMode] = useState<"court" | "compact">("court");
+  const [matchViewMode, setMatchViewMode] = useState<"court" | "compact">(() => {
+    const saved = localStorage.getItem("matchViewMode");
+    return saved === "compact" ? "compact" : "court";
+  });
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
@@ -2290,7 +2293,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   {!isOrganiser && <MatchAlgorithmInfoButton />}
                   <div className="flex items-center border rounded-lg overflow-hidden ml-auto" data-testid="match-view-toggle">
                     <button
-                      onClick={() => setMatchViewMode("court")}
+                      onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
                       className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
                         matchViewMode === "court"
@@ -2303,7 +2306,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       Courts
                     </button>
                     <button
-                      onClick={() => setMatchViewMode("compact")}
+                      onClick={() => { setMatchViewMode("compact"); localStorage.setItem("matchViewMode", "compact"); }}
                       className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
                         matchViewMode === "compact"
