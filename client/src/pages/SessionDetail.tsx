@@ -2006,6 +2006,21 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       if (p?.id) sessionMatchCounts[p.id] = (sessionMatchCounts[p.id] || 0) + 1;
     }
   }
+
+  const busyPlayerIds = (() => {
+    const playerMatchCount = new Map<number, number>();
+    const liveAndQueued = typedMatches.filter(m => m.status === "LIVE" || m.status === "QUEUED");
+    for (const m of liveAndQueued) {
+      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+        if (p?.id) playerMatchCount.set(p.id, (playerMatchCount.get(p.id) || 0) + 1);
+      }
+    }
+    const dupes = new Set<number>();
+    for (const [id, count] of playerMatchCount) {
+      if (count > 1) dupes.add(id);
+    }
+    return dupes;
+  })();
   
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
   const availableCourts = Array.from({ length: courtsToUse }, (_, i) => i + 1)
@@ -2232,23 +2247,51 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2" data-testid="mode-toggle-container">
                       <Label className="text-sm font-medium">Mode:</Label>
-                      <div className="flex items-center gap-2 rounded-md border p-1">
-                        <Button
-                          size="sm"
-                          variant={activeMode === "SOCIAL" ? "default" : "ghost"}
-                          onClick={() => setActiveMode("SOCIAL")}
+                      <div className="flex items-center rounded-full border-2 border-primary/30 p-0.5 bg-muted/50 relative">
+                        <button
+                          className={cn(
+                            "relative z-10 px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-300 flex items-center gap-1.5",
+                            activeMode === "SOCIAL"
+                              ? "text-white"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                          onClick={() => {
+                            setActiveMode("SOCIAL");
+                            updateSession({ sessionId, updates: { matchMode: "SOCIAL" } });
+                          }}
                           data-testid="button-mode-social"
                         >
+                          <span className={cn(
+                            "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                            activeMode === "SOCIAL" ? "bg-white shadow-sm" : "bg-muted-foreground/30"
+                          )} />
                           Social
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={activeMode === "COMPETITIVE" ? "default" : "ghost"}
-                          onClick={() => setActiveMode("COMPETITIVE")}
+                        </button>
+                        <button
+                          className={cn(
+                            "relative z-10 px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-300 flex items-center gap-1.5",
+                            activeMode === "COMPETITIVE"
+                              ? "text-white"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                          onClick={() => {
+                            setActiveMode("COMPETITIVE");
+                            updateSession({ sessionId, updates: { matchMode: "COMPETITIVE" } });
+                          }}
                           data-testid="button-mode-competitive"
                         >
+                          <span className={cn(
+                            "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                            activeMode === "COMPETITIVE" ? "bg-white shadow-sm" : "bg-muted-foreground/30"
+                          )} />
                           Competitive
-                        </Button>
+                        </button>
+                        <div
+                          className={cn(
+                            "absolute top-0.5 bottom-0.5 rounded-full bg-primary transition-all duration-300 ease-in-out",
+                            activeMode === "SOCIAL" ? "left-0.5 w-[calc(50%-2px)]" : "left-[calc(50%+2px)] w-[calc(50%-2px)]"
+                          )}
+                        />
                       </div>
                       <MatchAlgorithmInfoButton />
                     </div>
@@ -2409,6 +2452,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               onCourtNameChange={handleCourtNameChange}
               onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
               onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
+              busyPlayerIds={busyPlayerIds}
               queueSlot={isOrganiser ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <MatchQueue
@@ -2427,6 +2471,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     onQueueTargetSizeChange={handleQueueTargetSizeChange}
                     onClearQueue={handleClearQueue}
                     notEnoughPlayersMessage={notEnoughPlayersMessage}
+                    sessionId={sessionId}
+                    busyPlayerIds={busyPlayerIds}
                   />
                 </div>
               ) : undefined}
@@ -2489,6 +2535,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 onQueueTargetSizeChange={handleQueueTargetSizeChange}
                 onClearQueue={handleClearQueue}
                 notEnoughPlayersMessage={notEnoughPlayersMessage}
+                sessionId={sessionId}
+                busyPlayerIds={busyPlayerIds}
               />
               <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
             </div>

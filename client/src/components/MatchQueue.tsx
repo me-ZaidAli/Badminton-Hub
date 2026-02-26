@@ -11,7 +11,7 @@ import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch } from "@/hooks/use-matches";
 import { format } from "date-fns";
 
 type Player = {
@@ -36,6 +36,8 @@ type MatchQueueProps = {
   onQueueTargetSizeChange?: (size: number) => void;
   onClearQueue?: () => void;
   notEnoughPlayersMessage?: string | null;
+  sessionId?: number;
+  busyPlayerIds?: Set<number>;
 };
 
 function PlayerBadge({
@@ -45,6 +47,7 @@ function PlayerBadge({
   availablePlayers,
   isOrganiser,
   onSwap,
+  isBusy,
 }: {
   player: { id: number; user: { fullName: string }; category: string | null } | null;
   position: string;
@@ -52,6 +55,7 @@ function PlayerBadge({
   availablePlayers: Player[];
   isOrganiser: boolean;
   onSwap: (matchId: number, position: string, playerId: number) => void;
+  isBusy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -60,7 +64,48 @@ function PlayerBadge({
     p.fullName.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (!player) return null;
+  if (!player) {
+    if (!isOrganiser) return <Badge variant="outline" className="text-xs py-1 border-dashed opacity-50">Empty</Badge>;
+    return (
+      <>
+        <Badge
+          variant="outline"
+          className="text-xs py-1 border-dashed cursor-pointer hover:bg-primary/10"
+          onClick={() => setOpen(true)}
+          data-testid={`queue-player-empty-${matchId}-${position}`}
+        >
+          + Select
+        </Badge>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Select Player</DialogTitle>
+            </DialogHeader>
+            <Command className="rounded-lg border shadow-md">
+              <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} />
+              <CommandList>
+                <CommandEmpty>No players found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredPlayers.map((p) => (
+                    <CommandItem
+                      key={p.id}
+                      value={p.fullName}
+                      onSelect={() => {
+                        onSwap(matchId, position, p.id);
+                        setOpen(false);
+                      }}
+                    >
+                      {p.fullName} ({p.category || "?"})
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
     <>
@@ -68,10 +113,12 @@ function PlayerBadge({
         variant="outline"
         className={cn(
           "text-xs py-1 max-w-[140px] truncate",
-          isOrganiser && "cursor-pointer hover:bg-primary/10"
+          isOrganiser && "cursor-pointer hover:bg-primary/10",
+          isBusy && "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30"
         )}
         onClick={() => isOrganiser && setOpen(true)}
         data-testid={`queue-player-${matchId}-${position}`}
+        title={isBusy ? "This player is already in another live or queued match" : undefined}
       >
         {player.user?.fullName || player.fullName || "Unknown"}
       </Badge>
@@ -193,12 +240,36 @@ export function MatchQueue({
   onQueueTargetSizeChange,
   onClearQueue,
   notEnoughPlayersMessage,
+  sessionId,
+  busyPlayerIds,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
   const { mutate: updateTarget } = useUpdateMatchTarget();
+  const { mutate: createEmptyMatch, isPending: isCreatingEmpty } = useCreateEmptyMatch();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
+
+  const computedBusyIds = (() => {
+    if (busyPlayerIds && busyPlayerIds.size > 0) return busyPlayerIds;
+    const playerMatchCount = new Map<number, number>();
+    const liveAndQueued = matches.filter(m => m.status === "LIVE" || m.status === "QUEUED");
+    for (const m of liveAndQueued) {
+      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+        if (p?.id) playerMatchCount.set(p.id, (playerMatchCount.get(p.id) || 0) + 1);
+      }
+    }
+    const dupes = new Set<number>();
+    for (const [id, count] of playerMatchCount) {
+      if (count > 1) dupes.add(id);
+    }
+    return dupes;
+  })();
+
+  const isPlayerBusy = (playerId: number | undefined) => {
+    if (!playerId) return false;
+    return computedBusyIds.has(playerId);
+  };
 
   const handleFilteredReshuffle = (matchId: number, filterType: string) => {
     setReshuffleErrors(prev => { const n = { ...prev }; delete n[matchId]; return n; });
@@ -255,6 +326,18 @@ export function MatchQueue({
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
                     Generate
+                  </Button>
+                )}
+                {isOrganiser && sessionId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => createEmptyMatch({ sessionId })}
+                    disabled={isCreatingEmpty}
+                    data-testid="button-create-empty-match"
+                  >
+                    {isCreatingEmpty ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Users className="w-4 h-4 mr-1" />}
+                    Empty Match
                   </Button>
                 )}
                 {onClearQueue && queuedMatches.length > 0 && (
@@ -314,17 +397,17 @@ export function MatchQueue({
                             availablePlayers={availablePlayers}
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
+                            isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
                           />
-                          {match.teamAPlayer2 && (
-                            <PlayerBadge
-                              player={match.teamAPlayer2}
-                              position="teamAPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                            />
-                          )}
+                          <PlayerBadge
+                            player={match.teamAPlayer2 || null}
+                            position="teamAPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                            isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
+                          />
                         </div>
                       </div>
 
@@ -341,17 +424,17 @@ export function MatchQueue({
                             availablePlayers={availablePlayers}
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
+                            isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
                           />
-                          {match.teamBPlayer2 && (
-                            <PlayerBadge
-                              player={match.teamBPlayer2}
-                              position="teamBPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                            />
-                          )}
+                          <PlayerBadge
+                            player={match.teamBPlayer2 || null}
+                            position="teamBPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                            isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
+                          />
                         </div>
                       </div>
 
@@ -487,17 +570,19 @@ export function MatchQueue({
                               availablePlayers={availablePlayers}
                               isOrganiser={isOrganiser}
                               onSwap={onSwapPlayer}
+                              isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
                             />
-                            {match.teamAPlayer2 && (
+                            {(match.teamAPlayer2 || isOrganiser) && (
                               <>
-                                <span className="text-muted-foreground text-xs">&</span>
+                                {match.teamAPlayer2 && <span className="text-muted-foreground text-xs">&</span>}
                                 <PlayerBadge
-                                  player={match.teamAPlayer2}
+                                  player={match.teamAPlayer2 || null}
                                   position="teamAPlayer2Id"
                                   matchId={match.id}
                                   availablePlayers={availablePlayers}
                                   isOrganiser={isOrganiser}
                                   onSwap={onSwapPlayer}
+                                  isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
                                 />
                               </>
                             )}
@@ -513,17 +598,19 @@ export function MatchQueue({
                               availablePlayers={availablePlayers}
                               isOrganiser={isOrganiser}
                               onSwap={onSwapPlayer}
+                              isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
                             />
-                            {match.teamBPlayer2 && (
+                            {(match.teamBPlayer2 || isOrganiser) && (
                               <>
-                                <span className="text-muted-foreground text-xs">&</span>
+                                {match.teamBPlayer2 && <span className="text-muted-foreground text-xs">&</span>}
                                 <PlayerBadge
-                                  player={match.teamBPlayer2}
+                                  player={match.teamBPlayer2 || null}
                                   position="teamBPlayer2Id"
                                   matchId={match.id}
                                   availablePlayers={availablePlayers}
                                   isOrganiser={isOrganiser}
                                   onSwap={onSwapPlayer}
+                                  isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
                                 />
                               </>
                             )}

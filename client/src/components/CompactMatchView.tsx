@@ -34,6 +34,7 @@ type CompactMatchViewProps = {
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  busyPlayerIds?: Set<number>;
   queueSlot?: React.ReactNode;
 };
 
@@ -181,6 +182,7 @@ function ClickablePlayerName({
   showMatchCount,
   sessionMatchCount,
   className,
+  isBusy,
 }: {
   player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
   matchId: number;
@@ -191,6 +193,7 @@ function ClickablePlayerName({
   showMatchCount?: boolean;
   sessionMatchCount?: number;
   className?: string;
+  isBusy?: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player?.user?.fullName || "Unknown";
@@ -199,8 +202,10 @@ function ClickablePlayerName({
     <>{name} <span className="text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
   ) : name;
 
+  const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
+
   if (!canSwap || !onSwapPlayer) {
-    return <span className={className}>{nameWithCount}</span>;
+    return <span className={cn(className, busyClass)} title={isBusy ? "This player is in multiple live/queued matches" : undefined}>{nameWithCount}</span>;
   }
 
   return (
@@ -208,7 +213,7 @@ function ClickablePlayerName({
       <span
         role="button"
         tabIndex={0}
-        className={cn(className, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
+        className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
         onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`compact-swap-${position}-${matchId}`}
@@ -245,6 +250,7 @@ function MatchCard({
   onCourtNameChange,
   onUpdatePointsTarget,
   onUpdateSets,
+  busyPlayerIds,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -264,6 +270,7 @@ function MatchCard({
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  busyPlayerIds?: Set<number>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [scoreA, setScoreA] = useState("");
@@ -415,6 +422,7 @@ function MatchCard({
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
         className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
+        isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
       />
       {match.teamAPlayer2 && (
         <>
@@ -429,6 +437,7 @@ function MatchCard({
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
             className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
+            isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
           />
         </>
       )}
@@ -447,6 +456,7 @@ function MatchCard({
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
         className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
+        isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)}
       />
       {match.teamBPlayer2 && (
         <>
@@ -461,6 +471,7 @@ function MatchCard({
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
             className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
+            isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
           />
         </>
       )}
@@ -991,6 +1002,7 @@ export function CompactMatchView({
   onCourtNameChange,
   onUpdatePointsTarget,
   onUpdateSets,
+  busyPlayerIds,
   queueSlot,
 }: CompactMatchViewProps) {
   const liveMatches = matches.filter(m => m.status === "LIVE");
@@ -1034,6 +1046,7 @@ export function CompactMatchView({
                 onCourtNameChange={onCourtNameChange}
                 onUpdatePointsTarget={onUpdatePointsTarget}
                 onUpdateSets={onUpdateSets}
+                busyPlayerIds={busyPlayerIds}
               />
             ))}
           </div>
@@ -1068,6 +1081,7 @@ export function CompactMatchView({
                 onStartMatch={onStartMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget}
                 onUpdateSets={onUpdateSets}
+                busyPlayerIds={busyPlayerIds}
               />
             ))}
           </div>

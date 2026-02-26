@@ -4169,6 +4169,50 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sessions/:sessionId/matches/create-empty", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can create empty matches" });
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const maxQueuePos = Math.max(0, ...existingMatches
+        .filter(m => m.queuePosition !== null)
+        .map(m => m.queuePosition || 0));
+
+      const defaultTarget = session.defaultPointsToPlayTo || 21;
+      const newMatch = await storage.createMatch({
+        sessionId,
+        courtNumber: null,
+        queuePosition: maxQueuePos + 1,
+        status: "QUEUED" as const,
+        teamAPlayer1Id: null,
+        teamAPlayer2Id: null,
+        teamBPlayer1Id: null,
+        teamBPlayer2Id: null,
+        scoreA: 0,
+        scoreB: 0,
+        isCompleted: false,
+        pointsToPlayTo: defaultTarget,
+        numberOfSets: session.numberOfSets || 1,
+        currentSet: 1,
+        setsWonA: 0,
+        setsWonB: 0,
+        setScores: [],
+      });
+
+      res.status(201).json(newMatch);
+    } catch (err: any) {
+      console.error("Error creating empty match:", err);
+      res.status(500).json({ message: err.message || "Failed to create empty match" });
+    }
+  });
+
   // === Trim Queue - reduce queued matches to target size ===
   app.post("/api/sessions/:sessionId/matches/trim-queue", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

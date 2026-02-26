@@ -515,6 +515,32 @@ export function useClearQueue() {
   });
 }
 
+export function useCreateEmptyMatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/create-empty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to create empty match");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      toast({ title: "Empty Match Created", description: "Select players to fill the match slots." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useStopAllMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

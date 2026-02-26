@@ -552,6 +552,8 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
       const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
       if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
 
+      if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+
       candidatesEvaluated++;
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
@@ -733,23 +735,53 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
       if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
 
+      if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+
       candidatesEvaluated++;
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
       let { score: s, factors } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
 
-      if (!hasFixedPairs) {
-        const gradeA1 = getGradeRank(eligible.find(p => p.id === candidate.teamAPlayer1Id)?.grade || null);
-        const gradeA2 = getGradeRank(eligible.find(p => p.id === candidate.teamAPlayer2Id)?.grade || null);
-        const gradeB1 = getGradeRank(eligible.find(p => p.id === candidate.teamBPlayer1Id)?.grade || null);
-        const gradeB2 = getGradeRank(eligible.find(p => p.id === candidate.teamBPlayer2Id)?.grade || null);
+      const pA1 = eligible.find(p => p.id === candidate.teamAPlayer1Id);
+      const pA2 = eligible.find(p => p.id === candidate.teamAPlayer2Id);
+      const pB1 = eligible.find(p => p.id === candidate.teamBPlayer1Id);
+      const pB2 = eligible.find(p => p.id === candidate.teamBPlayer2Id);
+
+      if (!hasFixedPairs && pA1 && pA2 && pB1 && pB2) {
+        const gradeA1 = getGradeRank(pA1.grade);
+        const gradeA2 = getGradeRank(pA2.grade);
+        const gradeB1 = getGradeRank(pB1.grade);
+        const gradeB2 = getGradeRank(pB2.grade);
         const teamAAvg = (gradeA1 + gradeA2) / 2;
         const teamBAvg = (gradeB1 + gradeB2) / 2;
         const diff = Math.abs(teamAAvg - teamBAvg);
         if (diff > 0) {
-          const balancePenalty = -diff * 3;
+          const balancePenalty = -diff * 5;
           s += balancePenalty;
           factors.push(`grade balance diff(${diff.toFixed(1)}): ${balancePenalty.toFixed(1)}`);
+        }
+
+        const catA1 = getCategoryFromGrade(pA1.grade);
+        const catA2 = getCategoryFromGrade(pA2.grade);
+        const catB1 = getCategoryFromGrade(pB1.grade);
+        const catB2 = getCategoryFromGrade(pB2.grade);
+        const allCats = [catA1, catA2, catB1, catB2];
+        const uniqueCats = new Set(allCats);
+        if (uniqueCats.size === 1) {
+          s += 20;
+          factors.push(`all same category(${catA1}): +20`);
+        } else if (catA1 === catA2 && catB1 === catB2) {
+          s += 10;
+          factors.push(`teams same category(${catA1} vs ${catB1}): +10`);
+        }
+
+        const highCount = [gradeA1, gradeA2, gradeB1, gradeB2].filter(g => g >= 6).length;
+        if (highCount === 4) {
+          s += 15;
+          factors.push(`all high ranked: +15`);
+        } else if (highCount >= 3) {
+          s += 8;
+          factors.push(`mostly high ranked(${highCount}/4): +8`);
         }
       }
 
@@ -852,7 +884,7 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       const countB = localCounts.get(candidate.teamBPlayer1Id) || 0;
       const deficitA = countA - globalMin;
       const deficitB = countB - globalMin;
-      const gradeBalancePenalty = -gradeDiff * 3;
+      const gradeBalancePenalty = -gradeDiff * 5;
 
       let total = -(oppCount * 10) - ((deficitA + deficitB) * 15) - ((countA + countB) * 3) + gradeBalancePenalty;
       const factors: string[] = [];
@@ -860,6 +892,18 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       if (oppCount > 0) factors.push(`opponent repeat x${oppCount}: ${-oppCount * 10}`);
       if (gradeDiff > 0) factors.push(`grade diff(${gradeDiff}): ${gradeBalancePenalty}`);
       if (deficitA > 0 || deficitB > 0) factors.push(`deficit(${deficitA}+${deficitB}): ${-(deficitA + deficitB) * 15}`);
+
+      const catA = getCategoryFromGrade(pA.grade);
+      const catB = getCategoryFromGrade(pB.grade);
+      if (catA === catB) {
+        total += 15;
+        factors.push(`same category(${catA}): +15`);
+      }
+
+      if (getGradeRank(pA.grade) >= 6 && getGradeRank(pB.grade) >= 6) {
+        total += 10;
+        factors.push(`both high ranked: +10`);
+      }
 
       if (priorityPlayerIds && priorityPlayerIds.length > 0) {
         if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 50; factors.push(`priority: +50`); }
@@ -970,6 +1014,33 @@ function filterByGender(players: Player[], genderType: string): Player[] {
   if (genderType === "FEMALE") return players.filter(p => getEffectiveGender(p) === "FEMALE");
   if (genderType === "MALE") return players.filter(p => getEffectiveGender(p) !== "FEMALE");
   return players;
+}
+
+function isGenderUnfairDoubles(candidate: MatchResult, playerPool: Player[]): boolean {
+  const getPlayer = (id: number) => playerPool.find(p => p.id === id);
+  const p1 = getPlayer(candidate.teamAPlayer1Id);
+  const p2 = candidate.teamAPlayer2Id ? getPlayer(candidate.teamAPlayer2Id) : null;
+  const p3 = getPlayer(candidate.teamBPlayer1Id);
+  const p4 = candidate.teamBPlayer2Id ? getPlayer(candidate.teamBPlayer2Id) : null;
+  if (!p1 || !p2 || !p3 || !p4) return false;
+
+  const teamAFemales = [p1, p2].filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const teamBFemales = [p3, p4].filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const teamAMales = 2 - teamAFemales;
+  const teamBMales = 2 - teamBFemales;
+
+  if (teamAFemales === 2 && teamBMales === 2) return true;
+  if (teamBFemales === 2 && teamAMales === 2) return true;
+
+  return false;
+}
+
+function getCategoryFromGrade(grade: string | null): string {
+  if (!grade) return "D";
+  if (grade.startsWith("A")) return "A";
+  if (grade.startsWith("B")) return "B";
+  if (grade.startsWith("C")) return "C";
+  return "D";
 }
 
 function updateTrackingMaps(
