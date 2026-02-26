@@ -2409,29 +2409,28 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               onCourtNameChange={handleCourtNameChange}
               onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
               onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
+              queueSlot={isOrganiser ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <MatchQueue
+                    matches={typedMatches}
+                    availablePlayers={availablePlayers}
+                    isOrganiser={isOrganiser}
+                    onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                    onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+                    availableCourts={availableCourts}
+                    activeMode={activeMode}
+                    genderType={generateGenderType}
+                    defaultPointsToPlayTo={defaultPointsToPlayTo}
+                    onGenerateMatch={handleSmartGenerate}
+                    isGenerating={isSmartGenerating}
+                    queueTargetSize={queueTargetSize}
+                    onQueueTargetSizeChange={handleQueueTargetSizeChange}
+                    onClearQueue={handleClearQueue}
+                    notEnoughPlayersMessage={notEnoughPlayersMessage}
+                  />
+                </div>
+              ) : undefined}
             />
-
-            {isOrganiser && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <MatchQueue
-                  matches={typedMatches}
-                  availablePlayers={availablePlayers}
-                  isOrganiser={isOrganiser}
-                  onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                  onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-                  availableCourts={availableCourts}
-                  activeMode={activeMode}
-                  genderType={generateGenderType}
-                  defaultPointsToPlayTo={defaultPointsToPlayTo}
-                  onGenerateMatch={handleSmartGenerate}
-                  isGenerating={isSmartGenerating}
-                  queueTargetSize={queueTargetSize}
-                  onQueueTargetSizeChange={handleQueueTargetSizeChange}
-                  onClearQueue={handleClearQueue}
-                  notEnoughPlayersMessage={notEnoughPlayersMessage}
-                />
-              </div>
-            )}
           </div>
           <div className="xl:sticky xl:top-4 xl:self-start">
             <SessionLiveLeaderboard sessionId={sessionId} />

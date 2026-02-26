@@ -34,6 +34,7 @@ type CompactMatchViewProps = {
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  queueSlot?: React.ReactNode;
 };
 
 function RollingDigit({ value, color = "green" }: { value: string; color?: "green" | "white" }) {
@@ -990,6 +991,7 @@ export function CompactMatchView({
   onCourtNameChange,
   onUpdatePointsTarget,
   onUpdateSets,
+  queueSlot,
 }: CompactMatchViewProps) {
   const liveMatches = matches.filter(m => m.status === "LIVE");
   const queuedMatches = matches.filter(m => m.status === "QUEUED").sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
@@ -1071,6 +1073,8 @@ export function CompactMatchView({
           </div>
         </div>
       )}
+
+      {queueSlot}
 
       {completedMatches.length > 0 && (
         <div>
