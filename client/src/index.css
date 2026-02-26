@@ -689,6 +689,349 @@
   background-color: hsl(0 0% 5%);
 }
 
+.green-glow {
+  --background: 150 10% 3%;
+  --foreground: 150 15% 88%;
+
+  --primary: 145 80% 42%;
+  --primary-foreground: 150 10% 2%;
+
+  --secondary: 150 25% 10%;
+  --secondary-foreground: 150 18% 78%;
+
+  --muted: 150 8% 7%;
+  --muted-foreground: 150 10% 48%;
+
+  --accent: 145 80% 42%;
+  --accent-foreground: 150 10% 2%;
+
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 150 15% 92%;
+
+  --card: 150 8% 5%;
+  --card-foreground: 150 15% 88%;
+  --card-border: 145 20% 10%;
+
+  --popover: 150 8% 6%;
+  --popover-foreground: 150 15% 88%;
+  --popover-border: 145 20% 10%;
+
+  --sidebar-background: 150 10% 3%;
+
+  --border: 145 15% 8%;
+  --input: 145 15% 8%;
+  --ring: 145 80% 42%;
+
+  --chart-1: 145 80% 42%;
+  --chart-2: 160 65% 35%;
+  --chart-3: 130 50% 30%;
+  --chart-4: 155 70% 38%;
+  --chart-5: 140 35% 24%;
+}
+
+.green-glow body,
+.green-glow {
+  background-color: hsl(150 10% 3%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(145 80% 42% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(160 70% 35% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(145 60% 30% / 0.015) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.green-glow h1,
+.green-glow h2,
+.green-glow h3,
+.green-glow h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(
+    135deg,
+    hsl(145 70% 70%) 0%,
+    hsl(145 90% 50%) 25%,
+    hsl(155 80% 40%) 50%,
+    hsl(145 90% 55%) 75%,
+    hsl(140 70% 65%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: green-glow-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes green-glow-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.green-glow .bg-gradient-primary {
+  background: linear-gradient(
+    135deg,
+    hsl(145 85% 55%) 0%,
+    hsl(145 90% 42%) 20%,
+    hsl(155 75% 35%) 50%,
+    hsl(145 90% 45%) 80%,
+    hsl(140 85% 55%) 100%
+  );
+}
+
+.green-glow .text-gradient {
+  background-image: linear-gradient(
+    135deg,
+    hsl(145 75% 65%) 0%,
+    hsl(145 90% 45%) 30%,
+    hsl(155 70% 38%) 60%,
+    hsl(140 80% 55%) 100%
+  );
+}
+
+.green-glow .hover-card-effect {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 0 1px hsl(145 80% 42% / 0.15),
+    0 2px 10px hsl(0 0% 0% / 0.5);
+}
+.green-glow .hover-card-effect:hover {
+  box-shadow:
+    0 0 20px hsl(145 80% 42% / 0.15),
+    0 0 40px hsl(145 80% 42% / 0.06),
+    0 8px 30px hsl(0 0% 0% / 0.6);
+  transform: translateY(-1px);
+}
+
+.green-glow [data-slot="card"],
+.green-glow .rounded-lg[class*="border"],
+.green-glow .rounded-xl[class*="border"] {
+  background: hsl(150 8% 5% / 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(145 40% 20% / 0.15) !important;
+  box-shadow:
+    0 0 1px hsl(145 80% 42% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.4);
+}
+
+.green-glow [data-slot="badge"][class*="bg-primary"],
+.green-glow .bg-primary {
+  background: linear-gradient(
+    165deg,
+    hsl(140 85% 55%) 0%,
+    hsl(145 90% 42%) 30%,
+    hsl(155 75% 32%) 60%,
+    hsl(145 90% 45%) 100%
+  );
+  box-shadow:
+    0 0 12px hsl(145 80% 42% / 0.35),
+    0 0 4px hsl(145 80% 42% / 0.2);
+  text-shadow: 0 1px 2px hsl(0 0% 0% / 0.4);
+}
+
+.green-glow .border-primary\/20,
+.green-glow .border-primary {
+  border-color: hsl(145 40% 25% / 0.3) !important;
+}
+
+.green-glow hr,
+.green-glow [role="separator"] {
+  border-color: transparent;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(145 40% 18% / 0.4) 10%,
+    hsl(145 80% 42% / 0.3) 50%,
+    hsl(145 40% 18% / 0.4) 90%,
+    transparent 100%
+  );
+  height: 1px;
+  border: none;
+  box-shadow: 0 0 8px hsl(145 80% 42% / 0.1);
+}
+
+.green-glow input:focus,
+.green-glow textarea:focus,
+.green-glow select:focus,
+.green-glow [data-state="open"] {
+  box-shadow:
+    0 0 0 2px hsl(145 80% 42% / 0.2),
+    0 0 15px hsl(145 80% 42% / 0.08);
+  transition: box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.green-glow .chat-bg-default {
+  background-image:
+    radial-gradient(circle at 20% 50%, hsl(145 80% 42% / 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(160 60% 35% / 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, hsl(145 80% 42% / 0.02) 0%, transparent 50%);
+}
+
+.green-glow .chat-bubble-admin {
+  border-left: 3px solid hsl(145 80% 42%);
+  box-shadow: -2px 0 8px hsl(145 80% 42% / 0.1);
+}
+.green-glow .chat-bubble-coach {
+  border-left: 3px solid hsl(160 70% 38%);
+  box-shadow: -2px 0 8px hsl(145 80% 42% / 0.08);
+}
+.green-glow .chat-bubble-organiser {
+  border-left: 3px solid hsl(140 80% 50%);
+  box-shadow: -2px 0 8px hsl(145 80% 42% / 0.08);
+}
+
+.green-glow .mention-highlight {
+  color: hsl(145 90% 55%);
+  background: hsl(145 80% 42% / 0.12);
+  text-shadow: 0 0 8px hsl(145 80% 42% / 0.3);
+}
+
+.green-glow .chat-header-gradient {
+  background: linear-gradient(180deg, hsl(150 10% 3%) 0%, hsl(150 10% 3% / 0.97) 100%);
+}
+
+.green-glow .pinned-banner {
+  background: linear-gradient(90deg, hsl(145 80% 42% / 0.08) 0%, hsl(145 80% 42% / 0.02) 100%);
+  border-left: 3px solid hsl(145 80% 42%);
+}
+
+.green-glow .system-message-bubble {
+  background: linear-gradient(135deg, hsl(150 8% 7% / 0.8) 0%, hsl(150 8% 5% / 0.6) 100%);
+}
+
+.green-glow .reaction-chip-active {
+  background: hsl(145 80% 42% / 0.15);
+  border-color: hsl(145 80% 42% / 0.4);
+  box-shadow: 0 0 8px hsl(145 80% 42% / 0.1);
+}
+
+.green-glow * {
+  scrollbar-color: hsl(145 30% 15%) hsl(150 10% 3%);
+}
+.green-glow ::-webkit-scrollbar {
+  width: 5px;
+}
+.green-glow ::-webkit-scrollbar-track {
+  background: hsl(150 10% 3%);
+}
+.green-glow ::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    hsl(145 40% 18%) 0%,
+    hsl(145 80% 32%) 50%,
+    hsl(145 40% 18%) 100%
+  );
+  border-radius: 3px;
+  box-shadow: 0 0 4px hsl(145 80% 42% / 0.15);
+}
+.green-glow ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    hsl(145 50% 25%) 0%,
+    hsl(145 80% 40%) 50%,
+    hsl(145 50% 25%) 100%
+  );
+}
+
+.green-glow [data-radix-popper-content-wrapper] [role="listbox"],
+.green-glow [data-radix-popper-content-wrapper] [role="menu"],
+.green-glow [cmdk-list] {
+  background: hsl(150 8% 5% / 0.95);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 20px hsl(145 80% 42% / 0.06),
+    0 12px 40px hsl(0 0% 0% / 0.6);
+}
+
+.green-glow table th {
+  color: hsl(145 60% 50%);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  text-shadow: 0 0 6px hsl(145 80% 42% / 0.15);
+}
+
+.green-glow table tbody tr {
+  transition: background-color 0.35s ease;
+}
+.green-glow table tbody tr:hover {
+  background-color: hsl(145 80% 42% / 0.05);
+}
+
+.green-glow [role="progressbar"] > div {
+  background: linear-gradient(
+    90deg,
+    hsl(155 50% 25%) 0%,
+    hsl(145 90% 42%) 25%,
+    hsl(140 85% 55%) 50%,
+    hsl(145 90% 42%) 75%,
+    hsl(155 50% 25%) 100%
+  );
+  box-shadow:
+    0 0 12px hsl(145 80% 42% / 0.3),
+    inset 0 1px 2px hsl(140 100% 75% / 0.2);
+}
+
+.green-glow [role="dialog"] {
+  background: hsl(150 8% 4% / 0.95);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 0 30px hsl(145 80% 42% / 0.08),
+    0 30px 80px hsl(0 0% 0% / 0.7),
+    0 0 0 1px hsl(145 30% 14% / 0.3);
+}
+
+.green-glow .lucide,
+.green-glow [data-lucide],
+.green-glow svg.w-4,
+.green-glow svg.w-5,
+.green-glow svg.w-6,
+.green-glow svg.h-4,
+.green-glow svg.h-5,
+.green-glow svg.h-6 {
+  filter: drop-shadow(0 0 3px hsl(145 80% 42% / 0.3));
+}
+
+.green-glow .text-primary {
+  color: hsl(145 90% 48%);
+  text-shadow: 0 0 10px hsl(145 80% 42% / 0.3);
+}
+
+.green-glow .text-muted-foreground {
+  color: hsl(150 8% 48%);
+}
+
+.green-glow a:hover,
+.green-glow button:hover {
+  text-shadow: 0 0 8px hsl(145 80% 42% / 0.2);
+}
+
+.green-glow .border {
+  border-color: hsl(145 15% 10% / 0.4);
+}
+
+.green-glow [data-slot="card"] {
+  border-color: hsl(145 20% 12% / 0.3);
+}
+
+.green-glow .bg-background {
+  background-color: hsl(150 10% 3%);
+}
+
+.green-glow .bg-card {
+  background: hsl(150 8% 5% / 0.85);
+  backdrop-filter: blur(12px);
+}
+
+.green-glow .bg-muted {
+  background-color: hsl(150 8% 6% / 0.8);
+}
+
+.green-glow .compact-match-card-live {
+  border-color: hsl(145 80% 42% / 0.3) !important;
+  box-shadow: 0 0 15px hsl(145 80% 42% / 0.1);
+}
+
+.green-glow .compact-match-card-queued {
+  border-color: hsl(145 40% 25% / 0.2) !important;
+}
+
 .reduced-motion *,
 .reduced-motion *::before,
 .reduced-motion *::after,
