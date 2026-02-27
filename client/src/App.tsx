@@ -75,6 +75,7 @@ const InactiveMembers = lazy(() => import("@/pages/admin/InactiveMembers"));
 const AllRankings = lazy(() => import("@/pages/AllRankings"));
 const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
 const LeaguePage = lazy(() => import("@/pages/League"));
+const Juniors = lazy(() => import("@/pages/Juniors"));
 const LeagueManagement = lazy(() => import("@/pages/admin/LeagueManagement"));
 const Venues = lazy(() => import("@/pages/Venues"));
 const ClubsManagement = lazy(() => import("@/pages/ClubsManagement"));
@@ -332,6 +333,9 @@ function Router() {
       </Route>
       <Route path="/my-sessions">
         <PrivateRoute component={MySessions} />
+      </Route>
+      <Route path="/juniors">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Juniors /></Suspense>} />
       </Route>
       <Route path="/sessions/:id">
         <PrivateRoute component={SessionDetail} />

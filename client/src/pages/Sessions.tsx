@@ -518,6 +518,7 @@ export default function Sessions() {
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
+    result = result.filter(s => (s as any).sessionType !== "JUNIORS_ONLY");
     if (!isPlatformAdmin && clubScope === "my") {
       result = result.filter(s => myClubIds.has(s.clubId));
     }

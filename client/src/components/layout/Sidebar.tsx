@@ -27,6 +27,7 @@ import {
   FileText,
   Swords,
   LayoutDashboard,
+  Baby,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -79,6 +80,7 @@ function useNavGroups(): NavGroup[] {
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity" },
+    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity" },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
 
