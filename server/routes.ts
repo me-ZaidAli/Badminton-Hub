@@ -18113,6 +18113,7 @@ export async function registerRoutes(
       const clubPlayerProfs = await db.select().from(playerProfiles).where(
         and(eq(playerProfiles.clubId, clubId), inArray(playerProfiles.userId, juniorUserIds))
       );
+      const playerProfileIdMap = Object.fromEntries(clubPlayerProfs.map(p => [p.userId, p.id]));
       const juniorProfilesList = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
       const juniorProfileMap = Object.fromEntries(juniorProfilesList.map(p => [p.userId, p]));
 
@@ -18153,6 +18154,7 @@ export async function registerRoutes(
         id: existingMap[s.userId]?.id || i + 1,
         userId: s.userId,
         clubId,
+        playerProfileId: playerProfileIdMap[s.userId] || null,
         overallSkillPercent: s.skillPct,
         attendancePercent: s.attendPct,
         effortRating: s.effort,

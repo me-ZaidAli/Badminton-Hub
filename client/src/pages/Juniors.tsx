@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useSearch } from "wouter";
+import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { format } from "date-fns";
 import {
   Baby,
@@ -681,10 +682,20 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
 }
 
 function RankingsPanel({ clubId }: { clubId: number }) {
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+
   const { data: rankings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/junior-rankings", String(clubId)],
     enabled: !!clubId,
   });
+
+  const handlePlayerClick = (rank: any) => {
+    if (rank.playerProfileId) {
+      setSelectedProfileId(rank.playerProfileId);
+      setStatsDialogOpen(true);
+    }
+  };
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
@@ -712,7 +723,12 @@ function RankingsPanel({ clubId }: { clubId: number }) {
         const achievements: any[] = rank.achievements || [];
         const matchStats = rank.matchStats;
         return (
-          <Card key={rank.id} className={`${i < 3 ? "border-amber-500/20" : ""}`} data-testid={`card-ranking-${rank.userId}`}>
+          <Card
+            key={rank.id}
+            className={`cursor-pointer transition-all hover:shadow-md hover:border-primary/30 ${i < 3 ? "border-amber-500/20" : ""}`}
+            data-testid={`card-ranking-${rank.userId}`}
+            onClick={() => handlePlayerClick(rank)}
+          >
             <CardContent className="p-3">
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-slate-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"}`}>
@@ -771,6 +787,12 @@ function RankingsPanel({ clubId }: { clubId: number }) {
           </Card>
         );
       })}
+
+      <PlayerStatsDialog
+        profileId={selectedProfileId}
+        open={statsDialogOpen}
+        onOpenChange={setStatsDialogOpen}
+      />
     </div>
   );
 }
@@ -938,11 +960,20 @@ function VideosPanel({ userId, videos, isAdmin }: { userId: number; videos: any[
 function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number; clubName: string }[] }) {
   const [selectedClub, setSelectedClub] = useState<string>(parentClubs.length > 0 ? String(parentClubs[0].clubId) : "");
   const clubId = Number(selectedClub) || (parentClubs.length > 0 ? parentClubs[0].clubId : 0);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
 
   const { data: rankings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/junior-rankings", String(clubId)],
     enabled: !!clubId,
   });
+
+  const handlePlayerClick = (rank: any) => {
+    if (rank.playerProfileId) {
+      setSelectedProfileId(rank.playerProfileId);
+      setStatsDialogOpen(true);
+    }
+  };
 
   return (
     <div>
@@ -981,7 +1012,12 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
             const achievements: any[] = rank.achievements || [];
             const matchStats = rank.matchStats;
             return (
-              <Card key={rank.id} className={`overflow-hidden ${i < 3 ? "border-amber-500/20" : ""}`} data-testid={`card-full-ranking-${rank.userId}`}>
+              <Card
+                key={rank.id}
+                className={`overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-primary/30 ${i < 3 ? "border-amber-500/20" : ""}`}
+                data-testid={`card-full-ranking-${rank.userId}`}
+                onClick={() => handlePlayerClick(rank)}
+              >
                 {i < 3 && <div className={`h-1 ${i === 0 ? "bg-gradient-to-r from-amber-400 to-yellow-300" : i === 1 ? "bg-gradient-to-r from-slate-300 to-slate-400" : "bg-gradient-to-r from-amber-700 to-amber-600"}`} />}
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
@@ -1051,6 +1087,12 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
           })}
         </div>
       )}
+
+      <PlayerStatsDialog
+        profileId={selectedProfileId}
+        open={statsDialogOpen}
+        onOpenChange={setStatsDialogOpen}
+      />
     </div>
   );
 }
