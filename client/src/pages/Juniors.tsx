@@ -20,6 +20,21 @@ import { Link, useSearch } from "wouter";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { format } from "date-fns";
 import {
+  ResponsiveContainer,
+  RadarChart as RechartsRadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Cell,
+} from "recharts";
+import {
   Baby,
   Users,
   Star,
@@ -458,8 +473,188 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
   );
 }
 
+function AnimatedGauge({ value, size = 120, strokeWidth = 10, label, sublabel, color }: { value: number; size?: number; strokeWidth?: number; label?: string; sublabel?: string; color?: string }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  const gradientId = `gauge-grad-${label?.replace(/\s/g, '') || Math.random()}`;
+  const startColor = color || (value >= 80 ? "#22c55e" : value >= 50 ? "#f59e0b" : value >= 25 ? "#3b82f6" : "#6b7280");
+  const endColor = value >= 80 ? "#86efac" : value >= 50 ? "#fcd34d" : value >= 25 ? "#93c5fd" : "#9ca3af";
+  return (
+    <div className="relative flex flex-col items-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={startColor} />
+            <stop offset="100%" stopColor={endColor} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} stroke="hsl(var(--muted))" fill="none" opacity={0.15} />
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} stroke={`url(#${gradientId})`} fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-1000 ease-out" style={{ filter: `drop-shadow(0 0 6px ${startColor}40)` }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-black tracking-tight">{value}%</span>
+        {label && <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">{label}</span>}
+        {sublabel && <span className="text-[9px] text-muted-foreground/70">{sublabel}</span>}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, subtitle, gradient, iconColor }: { icon: any; label: string; value: string | number; subtitle?: string; gradient: string; iconColor: string }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl p-4 ${gradient}`} data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, '-')}`}>
+      <div className="absolute top-2 right-2 opacity-10">
+        <Icon className="h-12 w-12" />
+      </div>
+      <div className="relative z-10">
+        <Icon className={`h-5 w-5 ${iconColor} mb-2`} />
+        <p className="text-2xl font-black tracking-tight text-white">{value}</p>
+        <p className="text-[11px] text-white/70 uppercase tracking-wider font-medium mt-0.5">{label}</p>
+        {subtitle && <p className="text-[10px] text-white/50 mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function SkillRadarChart({ categories, progressMap }: { categories: any[]; progressMap: Map<number, any> }) {
+  const data = useMemo(() => {
+    return categories.map((cat: any) => {
+      const skills = cat.skills || [];
+      const avg = skills.length > 0
+        ? Math.round(skills.reduce((sum: number, s: any) => sum + (progressMap.get(s.id)?.percentage || 0), 0) / skills.length)
+        : 0;
+      const shortName = cat.name.length > 10 ? cat.name.substring(0, 8) + '...' : cat.name;
+      return { category: shortName, fullName: cat.name, value: avg, fullMark: 100 };
+    });
+  }, [categories, progressMap]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <div className="w-full" style={{ height: 280 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsRadarChart cx="50%" cy="50%" outerRadius="72%" data={data}>
+          <PolarGrid stroke="hsl(var(--muted))" strokeOpacity={0.3} />
+          <PolarAngleAxis dataKey="category" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 500 }} />
+          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+          <Radar name="Skills" dataKey="value" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2} dot={{ r: 4, fill: '#f59e0b', strokeWidth: 0 }} />
+        </RechartsRadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function SkillBarChart({ categories, progressMap }: { categories: any[]; progressMap: Map<number, any> }) {
+  const data = useMemo(() => {
+    return categories.map((cat: any) => {
+      const skills = cat.skills || [];
+      const avg = skills.length > 0
+        ? Math.round(skills.reduce((sum: number, s: any) => sum + (progressMap.get(s.id)?.percentage || 0), 0) / skills.length)
+        : 0;
+      return { name: cat.name.length > 12 ? cat.name.substring(0, 10) + '..' : cat.name, value: avg };
+    });
+  }, [categories, progressMap]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <div className="w-full" style={{ height: 220 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" strokeOpacity={0.15} horizontal={false} />
+          <XAxis type="number" domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+          <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+          <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.value >= 80 ? '#22c55e' : entry.value >= 50 ? '#f59e0b' : entry.value >= 25 ? '#3b82f6' : '#4b5563'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function TopSkillsList({ categories, progressMap }: { categories: any[]; progressMap: Map<number, any> }) {
+  const topSkills = useMemo(() => {
+    const all: { name: string; category: string; pct: number }[] = [];
+    for (const cat of categories) {
+      for (const skill of (cat.skills || [])) {
+        const pct = progressMap.get(skill.id)?.percentage || 0;
+        if (pct > 0) all.push({ name: skill.name, category: cat.name, pct });
+      }
+    }
+    return all.sort((a, b) => b.pct - a.pct).slice(0, 5);
+  }, [categories, progressMap]);
+
+  const weakSkills = useMemo(() => {
+    const all: { name: string; category: string; pct: number }[] = [];
+    for (const cat of categories) {
+      for (const skill of (cat.skills || [])) {
+        const pct = progressMap.get(skill.id)?.percentage || 0;
+        all.push({ name: skill.name, category: cat.name, pct });
+      }
+    }
+    return all.sort((a, b) => a.pct - b.pct).slice(0, 5);
+  }, [categories, progressMap]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="h-4 w-4 text-emerald-400" />
+          <span className="text-sm font-bold text-emerald-400">Strongest Skills</span>
+        </div>
+        <div className="space-y-2.5">
+          {topSkills.map((s, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-xs font-bold text-emerald-400/60 w-5">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{s.name}</p>
+                <p className="text-[9px] text-muted-foreground">{s.category}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${s.pct}%` }} />
+                </div>
+                <span className="text-xs font-bold text-emerald-400 w-8 text-right">{s.pct}%</span>
+              </div>
+            </div>
+          ))}
+          {topSkills.length === 0 && <p className="text-xs text-muted-foreground">No skills assessed yet</p>}
+        </div>
+      </div>
+      <div className="rounded-2xl bg-orange-500/5 border border-orange-500/20 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Target className="h-4 w-4 text-orange-400" />
+          <span className="text-sm font-bold text-orange-400">Focus Areas</span>
+        </div>
+        <div className="space-y-2.5">
+          {weakSkills.map((s, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-xs font-bold text-orange-400/60 w-5">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{s.name}</p>
+                <p className="text-[9px] text-muted-foreground">{s.category}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-orange-500 transition-all duration-700" style={{ width: `${s.pct}%` }} />
+                </div>
+                <span className="text-xs font-bold text-orange-400 w-8 text-right">{s.pct}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
-  const [activeSubTab, setActiveSubTab] = useState("skills");
+  const [activeSubTab, setActiveSubTab] = useState("overview");
   const [filterWeakest, setFilterWeakest] = useState(false);
 
   const { data: profileData, isLoading } = useQuery<any>({
@@ -491,6 +686,33 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
       return aAvg - bAvg;
     });
   }, [categories, filterWeakest, progressMap]);
+
+  const totalSkillsAssessed = useMemo(() => {
+    if (!categories) return 0;
+    let count = 0;
+    for (const cat of categories) {
+      for (const skill of (cat.skills || [])) {
+        if ((progressMap.get(skill.id)?.percentage || 0) > 0) count++;
+      }
+    }
+    return count;
+  }, [categories, progressMap]);
+
+  const totalSkills = useMemo(() => {
+    if (!categories) return 0;
+    return categories.reduce((sum: number, cat: any) => sum + (cat.skills?.length || 0), 0);
+  }, [categories]);
+
+  const prioritySkills = useMemo(() => {
+    if (!categories) return 0;
+    let count = 0;
+    for (const cat of categories) {
+      for (const skill of (cat.skills || [])) {
+        if (progressMap.get(skill.id)?.priority) count++;
+      }
+    }
+    return count;
+  }, [categories, progressMap]);
 
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -526,82 +748,173 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
     );
   }
 
+  const matchStats = profileData.matchStats;
+  const overallSkill = profile?.overallSkillPercentage || 0;
+  const attendance = matchStats?.attendancePercent ?? profile?.attendancePercentage ?? 0;
+  const winRate = matchStats?.winPercent || 0;
+
   return (
     <div className="space-y-4">
-      <Card className="overflow-hidden border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" data-testid="card-junior-profile-header">
-        <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-        <CardContent className="p-5">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50" data-testid="card-junior-profile-header">
+        <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="relative p-5">
           <div className="flex items-start gap-4">
-            <Avatar className="h-14 w-14 border-2 border-amber-500/30">
+            <Avatar className="h-16 w-16 border-2 border-amber-500/40 shadow-lg shadow-amber-500/10">
               <AvatarImage src={profileData.user.profilePictureUrl} />
-              <AvatarFallback className="bg-amber-500/20 text-amber-400 text-lg font-bold">
+              <AvatarFallback className="bg-gradient-to-br from-amber-500/30 to-orange-500/30 text-amber-400 text-xl font-black">
                 {profileData.user.fullName?.charAt(0) || "J"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-bold text-white truncate">{profileData.user.fullName}</h2>
-              <Badge className={`mt-0.5 ${LEVEL_COLORS[profile?.juniorLevel || "BEGINNER"]} border`}>
-                {LEVEL_NAMES[profile?.juniorLevel || "BEGINNER"]}
-              </Badge>
-            </div>
-            <CircularGauge value={profile?.overallSkillPercentage || 0} size={72} strokeWidth={5} />
-          </div>
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-attendance">
-              <p className="text-base font-bold text-white">{profileData.matchStats?.attendancePercent ?? profile?.attendancePercentage ?? 0}%</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Attendance</p>
-              {profileData.matchStats?.totalSessions > 0 && (
-                <p className="text-[9px] text-muted-foreground">{profileData.matchStats.sessionsAttended}/{profileData.matchStats.totalSessions} sessions</p>
-              )}
-            </div>
-            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-matches">
-              <p className="text-base font-bold text-white">{profileData.matchStats?.matchesPlayed || 0}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Matches</p>
-              {profileData.matchStats?.matchesPlayed > 0 && (
-                <p className="text-[9px] text-emerald-400">{profileData.matchStats.matchesWon}W / {profileData.matchStats.matchesLost}L</p>
-              )}
-            </div>
-            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-winrate">
-              <p className={`text-base font-bold ${(profileData.matchStats?.winPercent || 0) >= 50 ? "text-emerald-400" : "text-white"}`}>{profileData.matchStats?.winPercent || 0}%</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate</p>
-              {profileData.matchStats?.setsWon > 0 && (
-                <p className="text-[9px] text-muted-foreground">{profileData.matchStats.setsWon} sets won</p>
-              )}
+              <h2 className="text-xl font-black text-white tracking-tight truncate">{profileData.user.fullName}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className={`${LEVEL_COLORS[profile?.juniorLevel || "BEGINNER"]} border font-semibold`}>
+                  {LEVEL_NAMES[profile?.juniorLevel || "BEGINNER"]}
+                </Badge>
+                {isAdmin && (
+                  <button onClick={() => { setEditLevel(profile?.juniorLevel || "BEGINNER"); setEditAttendance(profile?.attendancePercentage || 0); setEditEffort(profile?.effortRating || 0); setEditCoachRating(profile?.coachRating || 0); setEditOpen(true); }} className="text-amber-400/60 hover:text-amber-400 transition-colors" data-testid="button-edit-junior-profile">
+                    <Settings className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-effort">
-              <StarRating value={profile?.effortRating || 0} size="sm" />
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Effort</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+            <StatCard icon={Activity} label="Overall Skill" value={`${overallSkill}%`} gradient="bg-gradient-to-br from-amber-600/80 to-orange-700/80" iconColor="text-amber-300" />
+            <StatCard icon={Calendar} label="Attendance" value={`${attendance}%`} subtitle={matchStats?.totalSessions > 0 ? `${matchStats.sessionsAttended}/${matchStats.totalSessions} sessions` : undefined} gradient="bg-gradient-to-br from-emerald-600/80 to-teal-700/80" iconColor="text-emerald-300" />
+            <StatCard icon={Gamepad2} label="Matches" value={matchStats?.matchesPlayed || 0} subtitle={matchStats?.matchesPlayed > 0 ? `${matchStats.matchesWon}W / ${matchStats.matchesLost}L` : undefined} gradient="bg-gradient-to-br from-blue-600/80 to-indigo-700/80" iconColor="text-blue-300" />
+            <StatCard icon={Trophy} label="Win Rate" value={`${winRate}%`} subtitle={matchStats?.setsWon > 0 ? `${matchStats.setsWon} sets won` : undefined} gradient="bg-gradient-to-br from-purple-600/80 to-violet-700/80" iconColor="text-purple-300" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="rounded-xl bg-white/5 backdrop-blur-sm p-3 flex items-center gap-3 border border-white/5" data-testid="stat-effort">
+              <Star className="h-5 w-5 text-amber-400" />
+              <div>
+                <StarRating value={profile?.effortRating || 0} size="sm" />
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Effort</p>
+              </div>
             </div>
-            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-coach">
-              <StarRating value={profile?.coachRating || 0} size="sm" />
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Coach</p>
+            <div className="rounded-xl bg-white/5 backdrop-blur-sm p-3 flex items-center gap-3 border border-white/5" data-testid="stat-coach">
+              <Award className="h-5 w-5 text-emerald-400" />
+              <div>
+                <StarRating value={profile?.coachRating || 0} size="sm" />
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Coach</p>
+              </div>
             </div>
           </div>
-          {isAdmin && (
-            <Button variant="outline" size="sm" className="w-full mt-3 border-amber-500/30 text-amber-400" onClick={() => { setEditLevel(profile?.juniorLevel || "BEGINNER"); setEditAttendance(profile?.attendancePercentage || 0); setEditEffort(profile?.effortRating || 0); setEditCoachRating(profile?.coachRating || 0); setEditOpen(true); }} data-testid="button-edit-junior-profile">
-              Edit Profile
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
+              <p className="text-lg font-black text-white">{totalSkillsAssessed}</p>
+              <p className="text-[9px] text-muted-foreground uppercase">Skills Assessed</p>
+            </div>
+            <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
+              <p className="text-lg font-black text-white">{totalSkills}</p>
+              <p className="text-[9px] text-muted-foreground uppercase">Total Skills</p>
+            </div>
+            <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
+              <p className="text-lg font-black text-amber-400">{prioritySkills}</p>
+              <p className="text-[9px] text-muted-foreground uppercase">Priority</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-slate-900/50">
-          <TabsTrigger value="skills" className="text-xs" data-testid="tab-skills">Skills</TabsTrigger>
-          <TabsTrigger value="rankings" className="text-xs" data-testid="tab-rankings">Rankings</TabsTrigger>
-          <TabsTrigger value="achievements" className="text-xs" data-testid="tab-achievements">Awards</TabsTrigger>
-          <TabsTrigger value="videos" className="text-xs" data-testid="tab-videos">Videos</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5 bg-slate-900/60 rounded-xl p-1 h-auto">
+          <TabsTrigger value="overview" className="text-[11px] py-2 rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400" data-testid="tab-overview">
+            <Activity className="h-3.5 w-3.5 mr-1" />Overview
+          </TabsTrigger>
+          <TabsTrigger value="skills" className="text-[11px] py-2 rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400" data-testid="tab-skills">
+            <Target className="h-3.5 w-3.5 mr-1" />Skills
+          </TabsTrigger>
+          <TabsTrigger value="rankings" className="text-[11px] py-2 rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400" data-testid="tab-rankings">
+            <Trophy className="h-3.5 w-3.5 mr-1" />Rank
+          </TabsTrigger>
+          <TabsTrigger value="achievements" className="text-[11px] py-2 rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400" data-testid="tab-achievements">
+            <Award className="h-3.5 w-3.5 mr-1" />Awards
+          </TabsTrigger>
+          <TabsTrigger value="videos" className="text-[11px] py-2 rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400" data-testid="tab-videos">
+            <Video className="h-3.5 w-3.5 mr-1" />Video
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-amber-400" />
+                  <span className="text-sm font-bold text-white">Skill Radar</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">{overallSkill}% Overall</Badge>
+              </div>
+              <div className="flex items-center justify-center">
+                {categories && categories.length > 0 ? (
+                  <SkillRadarChart categories={categories} progressMap={progressMap} />
+                ) : (
+                  <div className="flex flex-col items-center py-8 text-muted-foreground">
+                    <BarChart3 className="h-8 w-8 mb-2 opacity-30" />
+                    <p className="text-xs">No skill data yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Activity className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-bold text-white">Category Progress</span>
+              </div>
+              {categories && categories.length > 0 ? (
+                <SkillBarChart categories={categories} progressMap={progressMap} />
+              ) : (
+                <div className="flex flex-col items-center py-8 text-muted-foreground">
+                  <Activity className="h-8 w-8 mb-2 opacity-30" />
+                  <p className="text-xs">No data available</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {categories && categories.length > 0 && (
+            <TopSkillsList categories={categories} progressMap={progressMap} />
+          )}
+
+          <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Zap className="h-4 w-4 text-amber-400" />
+              <span className="text-sm font-bold text-white">Quick Category View</span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {(categories || []).map((cat: any) => {
+                const IconComp = ICON_MAP[cat.iconName] || Target;
+                const skills = cat.skills || [];
+                const avg = skills.length > 0 ? Math.round(skills.reduce((sum: number, s: any) => sum + (progressMap.get(s.id)?.percentage || 0), 0) / skills.length) : 0;
+                const color = avg >= 80 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" : avg >= 50 ? "text-amber-400 border-amber-500/30 bg-amber-500/10" : avg >= 25 ? "text-blue-400 border-blue-500/30 bg-blue-500/10" : "text-slate-400 border-slate-500/30 bg-slate-500/10";
+                return (
+                  <button key={cat.id} onClick={() => setActiveSubTab("skills")} className={`rounded-xl border p-3 text-center transition-colors cursor-pointer ${color}`} data-testid={`quick-cat-${cat.id}`}>
+                    <IconComp className="h-5 w-5 mx-auto mb-1.5" />
+                    <p className="text-[10px] font-bold">{avg}%</p>
+                    <p className="text-[8px] opacity-70 truncate">{cat.name}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="skills" className="mt-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-amber-400" />
-              <span className="text-sm font-medium">Skill Development</span>
+              <span className="text-sm font-bold">Skill Development</span>
+              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">{totalSkillsAssessed}/{totalSkills}</Badge>
             </div>
-            <Button variant={filterWeakest ? "default" : "outline"} size="sm" className="text-xs" onClick={() => setFilterWeakest(!filterWeakest)} data-testid="button-filter-weakest">
+            <Button variant={filterWeakest ? "default" : "outline"} size="sm" className="text-xs h-8 rounded-lg" onClick={() => setFilterWeakest(!filterWeakest)} data-testid="button-filter-weakest">
               {filterWeakest ? "Show All" : "Weakest First"}
             </Button>
           </div>
