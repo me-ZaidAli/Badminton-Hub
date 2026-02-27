@@ -532,18 +532,23 @@ export function UnifiedMemberEditDialog({
                 <Baby className="w-4 h-4" /> Junior / Guardian
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 col-span-2">
-                  <Checkbox id="editIsJunior" checked={form.isJunior} onCheckedChange={(v) => setForm(f => ({ ...f, isJunior: !!v }))} data-testid="checkbox-edit-junior" />
-                  <Label htmlFor="editIsJunior" className="cursor-pointer">Junior Player (Under 18)</Label>
-                </div>
+                <button
+                  type="button"
+                  className="flex items-center gap-3 col-span-2 p-2 -m-2 rounded-lg cursor-pointer hover:bg-muted/50 active:bg-muted/70 transition-colors text-left"
+                  onClick={() => setForm(f => ({ ...f, isJunior: !f.isJunior }))}
+                  data-testid="container-edit-junior"
+                >
+                  <Checkbox checked={form.isJunior === true} tabIndex={-1} className="pointer-events-none" data-testid="checkbox-edit-junior" />
+                  <span className="select-none text-sm">Junior Player (Under 18)</span>
+                </button>
                 {form.isJunior && (
                   <>
                     <div>
-                      <Label>Parent/Guardian Name</Label>
+                      <Label className="text-xs">Parent/Guardian Name <span className="text-muted-foreground">(optional)</span></Label>
                       <Input value={form.parentGuardianName} onChange={(e) => setForm(f => ({ ...f, parentGuardianName: e.target.value }))} placeholder="Guardian name" data-testid="input-edit-guardian-name" />
                     </div>
                     <div>
-                      <Label>Parent/Guardian Email</Label>
+                      <Label className="text-xs">Parent/Guardian Email <span className="text-muted-foreground">(optional)</span></Label>
                       <Input type="email" value={form.parentGuardianEmail} onChange={(e) => setForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} placeholder="guardian@email.com" data-testid="input-edit-guardian-email" />
                     </div>
                   </>
