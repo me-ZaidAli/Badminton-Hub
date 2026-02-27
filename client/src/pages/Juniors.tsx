@@ -568,39 +568,40 @@ function StripedLevelBar({ value, label }: { value: number; label?: string }) {
   const segments = 20;
   const filledSegments = Math.round((value / 100) * segments);
   const levelText = value >= 80 ? "Advanced" : value >= 60 ? "Intermediate+" : value >= 40 ? "Intermediate" : value >= 20 ? "Developing" : "Beginner";
+  const activeLevelIndex = value >= 80 ? 3 : value >= 60 ? 2 : value >= 40 ? 1 : 0;
+  const levels = ["Beginner", "Developing", "Intermediate", "Advanced"];
   return (
-    <div className="w-full">
+    <div className="w-full rounded-2xl bg-[hsl(220,25%,12%)] border border-[hsl(220,20%,18%)] p-5">
       {label && (
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm font-semibold text-[hsl(45,10%,70%)] tracking-wide">{label}</span>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{levelText}</span>
-            <span className="text-lg font-black">{value}%</span>
+            <span className="text-xs font-medium text-[hsl(45,10%,55%)]">{levelText}</span>
+            <span className="text-2xl font-black text-white tabular-nums">{value}%</span>
           </div>
         </div>
       )}
-      <div className="flex gap-[2px] h-6 rounded-lg overflow-hidden bg-muted/20 p-0.5">
+      <div className="flex gap-[3px] h-7 rounded-lg overflow-hidden bg-[hsl(220,20%,8%)] p-1">
         {Array.from({ length: segments }).map((_, i) => {
           const isFilled = i < filledSegments;
-          const hue = 100 + (i / segments) * 80;
           return (
             <div
               key={i}
-              className="flex-1 rounded-sm transition-all duration-500"
+              className="flex-1 rounded-[3px] transition-all duration-500"
               style={{
-                backgroundColor: isFilled ? `hsl(${hue}, 70%, 50%)` : 'hsl(var(--muted))',
-                opacity: isFilled ? 1 : 0.15,
+                backgroundColor: isFilled ? 'hsl(100, 75%, 48%)' : 'hsl(220, 15%, 15%)',
+                boxShadow: isFilled ? '0 0 6px hsl(100, 75%, 48%, 0.5), inset 0 1px 0 hsl(100, 75%, 65%, 0.3)' : 'none',
+                opacity: isFilled ? 1 : 0.3,
                 transitionDelay: `${i * 30}ms`,
               }}
             />
           );
         })}
       </div>
-      <div className="flex justify-between mt-1">
-        <span className="text-[9px] text-muted-foreground">Beginner</span>
-        <span className="text-[9px] text-muted-foreground">Developing</span>
-        <span className="text-[9px] text-muted-foreground">Intermediate</span>
-        <span className="text-[9px] text-muted-foreground">Advanced</span>
+      <div className="flex justify-between mt-2.5 px-0.5">
+        {levels.map((lbl, i) => (
+          <span key={lbl} className={`text-[10px] font-medium transition-colors ${i === activeLevelIndex ? 'text-[hsl(100,75%,48%)]' : 'text-[hsl(220,10%,40%)]'}`}>{lbl}</span>
+        ))}
       </div>
     </div>
   );
@@ -1001,6 +1002,8 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
 
   return (
     <div className="space-y-4">
+      <StripedLevelBar value={overallSkill} label="Badminton Level Progress" />
+
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50" data-testid="card-junior-profile-header">
         <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
         <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl" />
@@ -1119,10 +1122,6 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5" data-testid="card-level-progress">
-            <StripedLevelBar value={overallSkill} label="Badminton Level Progress" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2855,7 +2854,7 @@ export default function Juniors() {
 
   return (
     <div className="space-y-6 pb-8">
-      <JuniorHero />
+      {mainTab !== "performance" && <JuniorHero />}
 
       {mainTab === "menu" ? (
         <div className="space-y-4">
