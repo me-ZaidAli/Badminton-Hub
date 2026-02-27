@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -17814,6 +17814,423 @@ export async function registerRoutes(
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
       await db.delete(clubHomeVenues).where(eq(clubHomeVenues.id, id));
       res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === JUNIOR SKILL DEVELOPMENT ROUTES ===
+
+  app.get("/api/junior-skills/categories", async (_req, res) => {
+    try {
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills).orderBy(juniorSkills.displayOrder);
+      const result = categories.map(cat => ({
+        ...cat,
+        skills: skills.filter(s => s.categoryId === cat.id),
+      }));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/junior-profiles/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      const isParent = targetUser.parentUserId === req.user!.id;
+      const isSelf = req.user!.id === userId;
+      if (!isAdmin && !isParent && !isSelf) return res.status(403).json({ message: "Access denied" });
+
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, userId));
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      const achievements = await db.select().from(juniorAchievements).where(eq(juniorAchievements.userId, userId));
+      const videos = await db.select().from(juniorVideos).where(eq(juniorVideos.userId, userId));
+
+      res.json({
+        user: { id: targetUser.id, fullName: targetUser.fullName, profilePictureUrl: targetUser.profilePictureUrl, isJunior: targetUser.isJunior, dateOfBirth: targetUser.dateOfBirth },
+        profiles,
+        progress,
+        achievements,
+        videos,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/junior-profiles/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) {
+        const adminClubs = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (adminClubs.length === 0) return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { clubId, juniorLevel, attendancePercentage, effortRating, coachRating } = req.body;
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const [existing] = await db.select().from(juniorProfiles).where(and(eq(juniorProfiles.userId, userId), eq(juniorProfiles.clubId, clubId)));
+
+      if (existing) {
+        const [updated] = await db.update(juniorProfiles).set({
+          ...(juniorLevel && { juniorLevel }),
+          ...(attendancePercentage !== undefined && { attendancePercentage }),
+          ...(effortRating !== undefined && { effortRating }),
+          ...(coachRating !== undefined && { coachRating }),
+          updatedAt: new Date(),
+        }).where(eq(juniorProfiles.id, existing.id)).returning();
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(juniorProfiles).values({
+          userId,
+          clubId,
+          juniorLevel: juniorLevel || "BEGINNER",
+          attendancePercentage: attendancePercentage || 0,
+          effortRating: effortRating || 0,
+          coachRating: coachRating || 0,
+        }).returning();
+        res.json(created);
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/junior-skills/progress/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      const isParent = targetUser.parentUserId === req.user!.id;
+      const isSelf = req.user!.id === userId;
+      if (!isAdmin && !isParent && !isSelf) return res.status(403).json({ message: "Access denied" });
+
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      res.json(progress);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/junior-skills/progress/:userId/:skillId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const skillId = Number(req.params.skillId);
+
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) {
+        const adminClubs = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (adminClubs.length === 0) return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { level, percentage, comment, priority } = req.body;
+
+      const [existing] = await db.select().from(juniorSkillProgress).where(and(eq(juniorSkillProgress.childId, userId), eq(juniorSkillProgress.skillId, skillId)));
+
+      let result;
+      if (existing) {
+        const [updated] = await db.update(juniorSkillProgress).set({
+          ...(level !== undefined && { level }),
+          ...(percentage !== undefined && { percentage }),
+          ...(comment !== undefined && { comment }),
+          ...(priority !== undefined && { priority }),
+          updatedBy: req.user!.id,
+          updatedAt: new Date(),
+        }).where(eq(juniorSkillProgress.id, existing.id)).returning();
+        result = updated;
+      } else {
+        const [created] = await db.insert(juniorSkillProgress).values({
+          childId: userId,
+          skillId,
+          level: level || 0,
+          percentage: percentage || 0,
+          comment: comment || null,
+          priority: priority || false,
+          updatedBy: req.user!.id,
+        }).returning();
+        result = created;
+      }
+
+      await recalculateJuniorOverall(userId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/junior-skills/progress/:userId/bulk", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) {
+        const adminClubs = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (adminClubs.length === 0) return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { updates } = req.body;
+      if (!Array.isArray(updates)) return res.status(400).json({ message: "updates array required" });
+
+      for (const update of updates) {
+        const { skillId, level, percentage, comment, priority } = update;
+        const [existing] = await db.select().from(juniorSkillProgress).where(and(eq(juniorSkillProgress.childId, userId), eq(juniorSkillProgress.skillId, skillId)));
+
+        if (existing) {
+          await db.update(juniorSkillProgress).set({
+            ...(level !== undefined && { level }),
+            ...(percentage !== undefined && { percentage }),
+            ...(comment !== undefined && { comment }),
+            ...(priority !== undefined && { priority }),
+            updatedBy: req.user!.id,
+            updatedAt: new Date(),
+          }).where(eq(juniorSkillProgress.id, existing.id));
+        } else {
+          await db.insert(juniorSkillProgress).values({
+            childId: userId,
+            skillId,
+            level: level || 0,
+            percentage: percentage || 0,
+            comment: comment || null,
+            priority: priority || false,
+            updatedBy: req.user!.id,
+          });
+        }
+      }
+
+      await recalculateJuniorOverall(userId);
+      res.json({ success: true, count: updates.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  async function recalculateJuniorOverall(userId: number) {
+    const allSkills = await db.select().from(juniorSkills);
+    const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+
+    if (allSkills.length === 0) return;
+    const totalPercentage = progress.reduce((sum, p) => sum + p.percentage, 0);
+    const overallPercent = Math.round(totalPercentage / allSkills.length);
+
+    const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, userId));
+    for (const profile of profiles) {
+      await db.update(juniorProfiles).set({
+        overallSkillPercentage: overallPercent,
+        updatedAt: new Date(),
+      }).where(eq(juniorProfiles.id, profile.id));
+    }
+  }
+
+  app.get("/api/junior-rankings/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const rankings = await db.select().from(juniorRankings)
+        .where(eq(juniorRankings.clubId, clubId))
+        .orderBy(juniorRankings.rankPosition);
+
+      const userIds = rankings.map(r => r.userId);
+      let userMap: Record<number, any> = {};
+      if (userIds.length > 0) {
+        const usersData = await db.select({ id: users.id, fullName: users.fullName, profilePictureUrl: users.profilePictureUrl }).from(users).where(inArray(users.id, userIds));
+        userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
+      }
+
+      res.json(rankings.map(r => ({ ...r, user: userMap[r.userId] || null })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/junior-rankings/recalculate/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const clubId = Number(req.params.clubId);
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+
+      const scored = profiles.map(p => ({
+        userId: p.userId,
+        score: (p.overallSkillPercentage * 0.5) + (p.attendancePercentage * 0.2) + (p.effortRating * 4) + (p.coachRating * 2),
+      })).sort((a, b) => b.score - a.score);
+
+      for (let i = 0; i < scored.length; i++) {
+        const { userId } = scored[i];
+        const profile = profiles.find(p => p.userId === userId)!;
+        const [existing] = await db.select().from(juniorRankings).where(and(eq(juniorRankings.userId, userId), eq(juniorRankings.clubId, clubId)));
+
+        const rankData = {
+          overallSkillPercent: profile.overallSkillPercentage,
+          attendancePercent: profile.attendancePercentage,
+          effortRating: profile.effortRating,
+          consistencyScore: 0,
+          rankPosition: i + 1,
+          previousPosition: existing?.rankPosition || 0,
+          updatedAt: new Date(),
+        };
+
+        if (existing) {
+          await db.update(juniorRankings).set(rankData).where(eq(juniorRankings.id, existing.id));
+        } else {
+          await db.insert(juniorRankings).values({ userId, clubId, ...rankData });
+        }
+      }
+
+      res.json({ success: true, count: scored.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/junior-videos/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      const isParent = targetUser.parentUserId === req.user!.id;
+      const isSelf = req.user!.id === userId;
+      if (!isAdmin && !isParent && !isSelf) return res.status(403).json({ message: "Access denied" });
+
+      const videos = await db.select().from(juniorVideos).where(eq(juniorVideos.userId, userId)).orderBy(desc(juniorVideos.createdAt));
+      res.json(videos);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/junior-videos", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) {
+        const adminClubs = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (adminClubs.length === 0) return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { userId, clubId, title, youtubeUrl, categoryTag, coachComment } = req.body;
+      if (!userId || !title || !youtubeUrl) return res.status(400).json({ message: "userId, title, and youtubeUrl required" });
+
+      const [video] = await db.insert(juniorVideos).values({
+        userId,
+        clubId: clubId || null,
+        title,
+        youtubeUrl,
+        categoryTag: categoryTag || null,
+        coachComment: coachComment || null,
+        addedBy: req.user!.id,
+      }).returning();
+      res.json(video);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/junior-videos/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const id = Number(req.params.id);
+      await db.delete(juniorVideos).where(eq(juniorVideos.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/junior-achievements/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+      const isAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      const isParent = targetUser.parentUserId === req.user!.id;
+      const isSelf = req.user!.id === userId;
+      if (!isAdmin && !isParent && !isSelf) return res.status(403).json({ message: "Access denied" });
+
+      const achievements = await db.select().from(juniorAchievements).where(eq(juniorAchievements.userId, userId));
+      res.json(achievements);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/junior-achievements/check/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const allSkills = await db.select().from(juniorSkills);
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      const existing = await db.select().from(juniorAchievements).where(eq(juniorAchievements.userId, userId));
+      const existingKeys = new Set(existing.map(a => a.achievementKey));
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, userId));
+      const categories = await db.select().from(juniorSkillCategories);
+
+      const progressMap = new Map(progress.map(p => [p.skillId, p]));
+      const newAchievements: any[] = [];
+
+      for (const cat of categories) {
+        const catSkills = allSkills.filter(s => s.categoryId === cat.id);
+        if (catSkills.length === 0) continue;
+        const catProgress = catSkills.map(s => progressMap.get(s.id)?.percentage || 0);
+        const avg = catProgress.reduce((a, b) => a + b, 0) / catSkills.length;
+        const key = `category_80_${cat.id}`;
+        if (avg >= 80 && !existingKeys.has(key)) {
+          newAchievements.push({ userId, achievementKey: key, title: `${cat.name} Master`, description: `Achieved 80%+ in ${cat.name}`, iconName: "Trophy" });
+        }
+      }
+
+      for (const profile of profiles) {
+        if (profile.effortRating >= 4 && !existingKeys.has("effort_star")) {
+          newAchievements.push({ userId, achievementKey: "effort_star", title: "Effort Champion", description: "Maintained an effort rating of 4+", iconName: "Star" });
+        }
+        if (profile.attendancePercentage >= 90 && !existingKeys.has("attendance_streak")) {
+          newAchievements.push({ userId, achievementKey: "attendance_streak", title: "Attendance Star", description: "90%+ attendance rate", iconName: "Calendar" });
+        }
+      }
+
+      const smashSkill = allSkills.find(s => s.name === "Smash");
+      if (smashSkill) {
+        const smashProgress = progressMap.get(smashSkill.id);
+        if (smashProgress && smashProgress.percentage >= 90 && !existingKeys.has("smash_90")) {
+          newAchievements.push({ userId, achievementKey: "smash_90", title: "Smash King", description: "90%+ smash proficiency", iconName: "Zap" });
+        }
+      }
+
+      const footworkCat = categories.find(c => c.name === "Footwork");
+      if (footworkCat) {
+        const fwSkills = allSkills.filter(s => s.categoryId === footworkCat.id);
+        const fwAvg = fwSkills.reduce((sum, s) => sum + (progressMap.get(s.id)?.percentage || 0), 0) / (fwSkills.length || 1);
+        if (fwAvg >= 85 && !existingKeys.has("footwork_85")) {
+          newAchievements.push({ userId, achievementKey: "footwork_85", title: "Fleet Feet", description: "85%+ footwork proficiency", iconName: "Footprints" });
+        }
+      }
+
+      if (newAchievements.length > 0) {
+        for (const ach of newAchievements) {
+          await db.insert(juniorAchievements).values(ach);
+        }
+      }
+
+      res.json({ newAchievements, totalAchievements: existing.length + newAchievements.length });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

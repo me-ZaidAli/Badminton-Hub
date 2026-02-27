@@ -1645,3 +1645,142 @@ export const clubHomeVenueRelations = relations(clubHomeVenues, ({ one }) => ({
 export const insertClubHomeVenueSchema = createInsertSchema(clubHomeVenues).omit({ id: true, createdAt: true });
 export type ClubHomeVenue = typeof clubHomeVenues.$inferSelect;
 export type InsertClubHomeVenue = z.infer<typeof insertClubHomeVenueSchema>;
+
+// === JUNIOR SKILL DEVELOPMENT SYSTEM ===
+
+export const juniorLevelEnum = pgEnum("junior_level", ["BEGINNER", "IMPROVER", "PERFORMANCE", "SQUAD", "COMPETITION_READY"]);
+
+export const juniorSkillCategories = pgTable("junior_skill_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").notNull(),
+  iconName: text("icon_name"),
+});
+
+export const juniorSkills = pgTable("junior_skills", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").references(() => juniorSkillCategories.id).notNull(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").notNull(),
+});
+
+export const juniorSkillCategoryRelations = relations(juniorSkillCategories, ({ many }) => ({
+  skills: many(juniorSkills),
+}));
+
+export const juniorSkillRelations = relations(juniorSkills, ({ one }) => ({
+  category: one(juniorSkillCategories, { fields: [juniorSkills.categoryId], references: [juniorSkillCategories.id] }),
+}));
+
+export const juniorProfiles = pgTable("junior_profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  juniorLevel: juniorLevelEnum("junior_level").default("BEGINNER").notNull(),
+  overallSkillPercentage: integer("overall_skill_percentage").default(0).notNull(),
+  attendancePercentage: integer("attendance_percentage").default(0).notNull(),
+  effortRating: integer("effort_rating").default(0).notNull(),
+  coachRating: integer("coach_rating").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const juniorProfileRelations = relations(juniorProfiles, ({ one }) => ({
+  user: one(users, { fields: [juniorProfiles.userId], references: [users.id] }),
+  club: one(clubs, { fields: [juniorProfiles.clubId], references: [clubs.id] }),
+}));
+
+export const juniorSkillProgress = pgTable("junior_skill_progress", {
+  id: serial("id").primaryKey(),
+  childId: integer("child_id").references(() => users.id).notNull(),
+  skillId: integer("skill_id").references(() => juniorSkills.id).notNull(),
+  level: integer("level").default(0).notNull(),
+  percentage: integer("percentage").default(0).notNull(),
+  comment: text("comment"),
+  priority: boolean("priority").default(false).notNull(),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const juniorSkillProgressRelations = relations(juniorSkillProgress, ({ one }) => ({
+  child: one(users, { fields: [juniorSkillProgress.childId], references: [users.id] }),
+  skill: one(juniorSkills, { fields: [juniorSkillProgress.skillId], references: [juniorSkills.id] }),
+  updater: one(users, { fields: [juniorSkillProgress.updatedBy], references: [users.id] }),
+}));
+
+export const juniorAchievements = pgTable("junior_achievements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  achievementKey: text("achievement_key").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  iconName: text("icon_name"),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+});
+
+export const juniorAchievementRelations = relations(juniorAchievements, ({ one }) => ({
+  user: one(users, { fields: [juniorAchievements.userId], references: [users.id] }),
+}));
+
+export const juniorVideos = pgTable("junior_videos", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  title: text("title").notNull(),
+  youtubeUrl: text("youtube_url").notNull(),
+  categoryTag: text("category_tag"),
+  coachComment: text("coach_comment"),
+  addedBy: integer("added_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const juniorVideoRelations = relations(juniorVideos, ({ one }) => ({
+  user: one(users, { fields: [juniorVideos.userId], references: [users.id] }),
+  club: one(clubs, { fields: [juniorVideos.clubId], references: [clubs.id] }),
+  author: one(users, { fields: [juniorVideos.addedBy], references: [users.id] }),
+}));
+
+export const juniorRankings = pgTable("junior_rankings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  overallSkillPercent: integer("overall_skill_percent").default(0).notNull(),
+  attendancePercent: integer("attendance_percent").default(0).notNull(),
+  effortRating: integer("effort_rating").default(0).notNull(),
+  consistencyScore: integer("consistency_score").default(0).notNull(),
+  rankPosition: integer("rank_position").default(0).notNull(),
+  previousPosition: integer("previous_position").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const juniorRankingRelations = relations(juniorRankings, ({ one }) => ({
+  user: one(users, { fields: [juniorRankings.userId], references: [users.id] }),
+  club: one(clubs, { fields: [juniorRankings.clubId], references: [clubs.id] }),
+}));
+
+export const insertJuniorSkillCategorySchema = createInsertSchema(juniorSkillCategories).omit({ id: true });
+export type JuniorSkillCategory = typeof juniorSkillCategories.$inferSelect;
+export type InsertJuniorSkillCategory = z.infer<typeof insertJuniorSkillCategorySchema>;
+
+export const insertJuniorSkillSchema = createInsertSchema(juniorSkills).omit({ id: true });
+export type JuniorSkill = typeof juniorSkills.$inferSelect;
+export type InsertJuniorSkill = z.infer<typeof insertJuniorSkillSchema>;
+
+export const insertJuniorProfileSchema = createInsertSchema(juniorProfiles).omit({ id: true, updatedAt: true });
+export type JuniorProfile = typeof juniorProfiles.$inferSelect;
+export type InsertJuniorProfile = z.infer<typeof insertJuniorProfileSchema>;
+
+export const insertJuniorSkillProgressSchema = createInsertSchema(juniorSkillProgress).omit({ id: true, updatedAt: true });
+export type JuniorSkillProgress = typeof juniorSkillProgress.$inferSelect;
+export type InsertJuniorSkillProgress = z.infer<typeof insertJuniorSkillProgressSchema>;
+
+export const insertJuniorAchievementSchema = createInsertSchema(juniorAchievements).omit({ id: true, unlockedAt: true });
+export type JuniorAchievement = typeof juniorAchievements.$inferSelect;
+export type InsertJuniorAchievement = z.infer<typeof insertJuniorAchievementSchema>;
+
+export const insertJuniorVideoSchema = createInsertSchema(juniorVideos).omit({ id: true, createdAt: true });
+export type JuniorVideo = typeof juniorVideos.$inferSelect;
+export type InsertJuniorVideo = z.infer<typeof insertJuniorVideoSchema>;
+
+export const insertJuniorRankingSchema = createInsertSchema(juniorRankings).omit({ id: true, updatedAt: true });
+export type JuniorRanking = typeof juniorRankings.$inferSelect;
+export type InsertJuniorRanking = z.infer<typeof insertJuniorRankingSchema>;

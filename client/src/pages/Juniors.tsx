@@ -619,8 +619,14 @@ function MyChildrenSection() {
                     </div>
                   )}
                 </div>
-                {parentClubs.length > 0 && (
-                  <div className="mt-3 pt-3 border-t">
+                <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
+                  <Link href={`/juniors/dashboard/${junior.id}`}>
+                    <Button size="sm" variant="default" className="bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:from-amber-600 hover:to-yellow-600" data-testid={`button-view-dashboard-${junior.id}`}>
+                      <Target className="h-3.5 w-3.5 mr-1" />
+                      Skill Dashboard
+                    </Button>
+                  </Link>
+                  {parentClubs.length > 0 && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -634,8 +640,8 @@ function MyChildrenSection() {
                       <Building2 className="h-3.5 w-3.5 mr-1" />
                       Add to Club
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
