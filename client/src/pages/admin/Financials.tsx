@@ -43,6 +43,7 @@ import {
   AlertTriangle,
   CheckSquare,
   Square,
+  UserPlus,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -213,6 +214,19 @@ export default function Financials() {
   const [mcAmount, setMcAmount] = useState("");
   const [mcReason, setMcReason] = useState("");
   const [mcFixBalance, setMcFixBalance] = useState("");
+
+  const [addPlayerDialog, setAddPlayerDialog] = useState<{
+    sessionId: number;
+    clubId: number;
+    sessionTitle: string;
+    sessionFee: number;
+  } | null>(null);
+  const [addPlayerMode, setAddPlayerMode] = useState<"existing" | "new">("existing");
+  const [addPlayerSearch, setAddPlayerSearch] = useState("");
+  const [addPlayerSelectedId, setAddPlayerSelectedId] = useState<number | null>(null);
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [newPlayerEmail, setNewPlayerEmail] = useState("");
+  const [newPlayerGender, setNewPlayerGender] = useState("MALE");
 
   const [revenueClubDialog, setRevenueClubDialog] = useState<{ clubId: number; clubName: string } | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<"month" | "quarter" | "year">("month");
@@ -627,6 +641,38 @@ export default function Financials() {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/sessions") });
     },
+  });
+
+  const addExistingPlayer = useMutation({
+    mutationFn: async ({ sessionId, playerId }: { sessionId: number; playerId: number }) => {
+      const res = await apiRequest("POST", `/api/admin/sessions/${sessionId}/players`, { playerId });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/sessions") });
+    },
+  });
+
+  const addGuestPlayer = useMutation({
+    mutationFn: async ({ sessionId, fullName, email, gender }: { sessionId: number; fullName: string; email?: string; gender: string }) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/guest-player`, { fullName, email: email || undefined, gender, forceCreate: true });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/sessions") });
+    },
+  });
+
+  const { data: addPlayerMembers } = useQuery<any[]>({
+    queryKey: ["/api/clubs", addPlayerDialog?.clubId, "members-comprehensive"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${addPlayerDialog!.clubId}/members-comprehensive`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch members");
+      return res.json();
+    },
+    enabled: !!addPlayerDialog && addPlayerMode === "existing",
   });
 
   const editCredit = useMutation({
@@ -1973,21 +2019,46 @@ export default function Financials() {
                             </Button>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAddCreditDialog({ sessionId, entries });
-                            setCreditSelectedPlayers([]);
-                            setCreditAmount("");
-                            setCreditReason("");
-                          }}
-                          data-testid={`button-add-credit-session-${sessionId}`}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add Credit
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddPlayerDialog({
+                                sessionId,
+                                clubId: first.clubId,
+                                sessionTitle: first.sessionTitle,
+                                sessionFee: first.sessionFee || 0,
+                              });
+                              setAddPlayerMode("existing");
+                              setAddPlayerSearch("");
+                              setAddPlayerSelectedId(null);
+                              setNewPlayerName("");
+                              setNewPlayerEmail("");
+                              setNewPlayerGender("MALE");
+                            }}
+                            data-testid={`button-add-player-session-${sessionId}`}
+                          >
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Add Player
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddCreditDialog({ sessionId, entries });
+                              setCreditSelectedPlayers([]);
+                              setCreditAmount("");
+                              setCreditReason("");
+                            }}
+                            data-testid={`button-add-credit-session-${sessionId}`}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Credit
+                          </Button>
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <Table>
@@ -3478,6 +3549,187 @@ export default function Financials() {
                 Remove
               </Button>
             </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!addPlayerDialog} onOpenChange={(open) => { if (!open) setAddPlayerDialog(null); }}>
+        <DialogContent className="max-w-md" data-testid="dialog-add-player">
+          <DialogHeader>
+            <DialogTitle>Add Player to Session</DialogTitle>
+            <DialogDescription>
+              {addPlayerDialog ? `Session: ${addPlayerDialog.sessionTitle}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {addPlayerDialog && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-1 border rounded-md p-0.5">
+                <Button
+                  size="sm"
+                  variant={addPlayerMode === "existing" ? "default" : "ghost"}
+                  onClick={() => setAddPlayerMode("existing")}
+                  className="flex-1"
+                  data-testid="button-add-existing-player"
+                >
+                  <Users className="h-3 w-3 mr-1" />
+                  Existing Member
+                </Button>
+                <Button
+                  size="sm"
+                  variant={addPlayerMode === "new" ? "default" : "ghost"}
+                  onClick={() => setAddPlayerMode("new")}
+                  className="flex-1"
+                  data-testid="button-add-new-player"
+                >
+                  <UserPlus className="h-3 w-3 mr-1" />
+                  New Player
+                </Button>
+              </div>
+
+              {addPlayerMode === "existing" ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="add-player-search" className="text-sm font-medium">Search Members</Label>
+                    <Input
+                      id="add-player-search"
+                      placeholder="Search by name..."
+                      value={addPlayerSearch}
+                      onChange={(e) => {
+                        setAddPlayerSearch(e.target.value);
+                        setAddPlayerSelectedId(null);
+                      }}
+                      data-testid="input-add-player-search"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto border rounded-md">
+                    {(() => {
+                      const filtered = (addPlayerMembers || [])
+                        .filter((m: any) => m.user?.fullName?.toLowerCase().includes(addPlayerSearch.toLowerCase()) || m.user?.email?.toLowerCase().includes(addPlayerSearch.toLowerCase()))
+                        .slice(0, 20);
+                      if (filtered.length === 0) {
+                        return <p className="text-sm text-muted-foreground p-3 text-center">No members found</p>;
+                      }
+                      return filtered.map((m: any) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between ${addPlayerSelectedId === m.id ? "bg-primary/10 text-primary" : ""}`}
+                          onClick={() => setAddPlayerSelectedId(m.id)}
+                          data-testid={`option-member-${m.id}`}
+                        >
+                          <div>
+                            <span className="font-medium">{m.user?.fullName}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{m.user?.email?.includes("@guest.local") ? "Guest" : m.user?.email}</span>
+                          </div>
+                          {addPlayerSelectedId === m.id && <CheckCircle className="h-4 w-4 text-primary shrink-0" />}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setAddPlayerDialog(null)} data-testid="button-cancel-add-player">
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={!addPlayerSelectedId || addExistingPlayer.isPending}
+                      onClick={() => {
+                        if (!addPlayerSelectedId) return;
+                        addExistingPlayer.mutate(
+                          { sessionId: addPlayerDialog.sessionId, playerId: addPlayerSelectedId },
+                          {
+                            onSuccess: (data: any) => {
+                              const msg = data?.addedToWaitingList
+                                ? "Player added to waiting list (session is full)."
+                                : "Player added to session.";
+                              toast({ title: "Player Added", description: msg });
+                              setAddPlayerDialog(null);
+                            },
+                            onError: (err: any) => {
+                              const msg = err?.message || "Failed to add player.";
+                              toast({ title: "Error", description: msg, variant: "destructive" });
+                            },
+                          }
+                        );
+                      }}
+                      data-testid="button-confirm-add-existing"
+                    >
+                      {addExistingPlayer.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                      Add to Session
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="new-player-name" className="text-sm font-medium">Full Name</Label>
+                    <Input
+                      id="new-player-name"
+                      placeholder="e.g. John Smith"
+                      value={newPlayerName}
+                      onChange={(e) => setNewPlayerName(e.target.value)}
+                      data-testid="input-new-player-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-player-email" className="text-sm font-medium">Email (optional)</Label>
+                    <Input
+                      id="new-player-email"
+                      type="email"
+                      placeholder="e.g. john@email.com"
+                      value={newPlayerEmail}
+                      onChange={(e) => setNewPlayerEmail(e.target.value)}
+                      data-testid="input-new-player-email"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">If provided, they will receive an email to claim their account.</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Gender</Label>
+                    <Select value={newPlayerGender} onValueChange={setNewPlayerGender}>
+                      <SelectTrigger data-testid="select-new-player-gender">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MALE">Male</SelectItem>
+                        <SelectItem value="FEMALE">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setAddPlayerDialog(null)} data-testid="button-cancel-add-new-player">
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={!newPlayerName.trim() || addGuestPlayer.isPending}
+                      onClick={() => {
+                        if (!newPlayerName.trim()) return;
+                        addGuestPlayer.mutate(
+                          {
+                            sessionId: addPlayerDialog.sessionId,
+                            fullName: newPlayerName.trim(),
+                            email: newPlayerEmail.trim() || undefined,
+                            gender: newPlayerGender,
+                          },
+                          {
+                            onSuccess: () => {
+                              toast({ title: "Player Created & Added", description: `${newPlayerName.trim()} has been created and added to the session.` });
+                              setAddPlayerDialog(null);
+                            },
+                            onError: (err: any) => {
+                              const msg = err?.message || "Failed to create and add player.";
+                              toast({ title: "Error", description: msg, variant: "destructive" });
+                            },
+                          }
+                        );
+                      }}
+                      data-testid="button-confirm-add-new"
+                    >
+                      {addGuestPlayer.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                      Create & Add
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
