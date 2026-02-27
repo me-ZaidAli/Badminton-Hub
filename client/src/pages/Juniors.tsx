@@ -946,7 +946,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
   });
 
   const profile = profileData?.profiles?.[0] || null;
-  const clubId = profile?.clubId || 0;
+  const clubId = profile?.clubId || profileData?.playerClubId || 0;
 
   const progressMap = useMemo(() => {
     const map = new Map<number, any>();

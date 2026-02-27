@@ -17862,11 +17862,15 @@ export async function registerRoutes(
       const achievements = await db.select().from(juniorAchievements).where(eq(juniorAchievements.userId, userId));
       const videos = await db.select().from(juniorVideos).where(eq(juniorVideos.userId, userId));
 
+      const playerProfileRows = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
+      const playerClubId = playerProfileRows[0]?.clubId || null;
+
       const matchStats = await computeJuniorMatchStats(userId);
 
       res.json({
         user: { id: targetUser.id, fullName: targetUser.fullName, profilePictureUrl: targetUser.profilePictureUrl, isJunior: targetUser.isJunior, dateOfBirth: targetUser.dateOfBirth },
         profiles,
+        playerClubId,
         progress,
         achievements,
         videos,
