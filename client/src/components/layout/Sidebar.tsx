@@ -2,7 +2,9 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { useState } from "react";
 import { 
@@ -29,10 +31,13 @@ import {
   LayoutDashboard,
   Baby,
   Heart,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -129,50 +134,255 @@ function useNavGroups(): NavGroup[] {
   return groups;
 }
 
+function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { toast } = useToast();
+  const [amount, setAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [reference, setReference] = useState("");
+  const [message, setMessage] = useState("");
+  const [step, setStep] = useState<"form" | "bank" | "done">("form");
+
+  const { data: bankDetails } = useQuery<{
+    bankName: string | null;
+    bankAccountName: string | null;
+    bankSortCode: string | null;
+    bankAccountNumber: string | null;
+    bankReference: string | null;
+  }>({
+    queryKey: ["/api/donation-bank-details"],
+    enabled: open,
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/donations", {
+        amount: parseFloat(amount),
+        paymentDate: paymentDate || null,
+        reference: reference || null,
+        message: message || null,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/donations"] });
+      setStep("done");
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to submit donation. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const handleClose = () => {
+    setStep("form");
+    setAmount("");
+    setPaymentDate("");
+    setReference("");
+    setMessage("");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
+            Support Club Master
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === "form" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              We continuously take on board your feedback and improve the platform to give you a better experience. A donation of as little as {"\u00A3"}2 helps keep development going and makes a real difference.
+            </p>
+
+            <div className="grid grid-cols-4 gap-2">
+              {[2, 5, 10, 20].map(v => (
+                <button
+                  key={v}
+                  onClick={() => setAmount(String(v))}
+                  className={cn(
+                    "py-2 rounded-lg text-sm font-semibold border transition-all",
+                    amount === String(v)
+                      ? "border-pink-500 bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                      : "border-border hover:border-pink-500/50 text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid={`button-amount-${v}`}
+                >
+                  {"\u00A3"}{v}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <Label className="text-xs">Custom Amount ({"\u00A3"})</Label>
+              <Input
+                type="number"
+                min="1"
+                step="0.01"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                data-testid="input-donation-amount"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">When will you make the transfer?</Label>
+              <Input
+                type="date"
+                value={paymentDate}
+                onChange={e => setPaymentDate(e.target.value)}
+                data-testid="input-payment-date"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Your transfer reference (optional)</Label>
+              <Input
+                placeholder="e.g. Your Name - Donation"
+                value={reference}
+                onChange={e => setReference(e.target.value)}
+                data-testid="input-donation-reference"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Message (optional)</Label>
+              <Textarea
+                placeholder="Any message you'd like to share..."
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={2}
+                data-testid="input-donation-message"
+              />
+            </div>
+
+            <Button
+              className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+              disabled={!amount || parseFloat(amount) < 1}
+              onClick={() => setStep("bank")}
+              data-testid="button-continue-to-bank"
+            >
+              Continue
+            </Button>
+          </div>
+        )}
+
+        {step === "bank" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Please make a bank transfer of <span className="font-bold text-foreground">{"\u00A3"}{parseFloat(amount).toFixed(2)}</span> using the details below{paymentDate && <> on <span className="font-bold text-foreground">{new Date(paymentDate).toLocaleDateString("en-GB")}</span></>}:
+            </p>
+
+            <div className="rounded-xl border bg-muted/50 p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Account Name</span>
+                <span className="font-medium text-foreground">{bankDetails?.bankAccountName || "Dragon Badminton Club - BPG Ltd"}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Sort Code</span>
+                <span className="font-mono font-medium text-foreground">{bankDetails?.bankSortCode || "04-06-05"}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Account Number</span>
+                <span className="font-mono font-medium text-foreground">{bankDetails?.bankAccountNumber || "29999001"}</span>
+              </div>
+              {(reference || bankDetails?.bankReference) && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Reference</span>
+                  <span className="font-medium text-foreground">{reference || bankDetails?.bankReference}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              After making the transfer, click "Confirm" below. An admin will verify your donation once it arrives.
+            </p>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setStep("form")} data-testid="button-back-to-form">
+                Back
+              </Button>
+              <Button
+                className="flex-1 bg-pink-500 hover:bg-pink-600 text-white"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending}
+                data-testid="button-confirm-donation"
+              >
+                {submitMutation.isPending ? "Submitting..." : "Confirm Donation"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "done" && (
+          <div className="text-center space-y-4 py-4">
+            <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto">
+              <Heart className="h-8 w-8 text-pink-500 fill-pink-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Thank You!</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your donation of {"\u00A3"}{parseFloat(amount).toFixed(2)} has been recorded. We truly appreciate your support in helping us improve Club Master.
+              </p>
+            </div>
+            <Button onClick={handleClose} className="w-full" data-testid="button-close-donation">
+              Close
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DonationCard({ compact = false }: { compact?: boolean }) {
   const [dismissed, setDismissed] = useState(false);
-  
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   if (dismissed) return null;
-  
+
   return (
-    <div className={cn(
-      "rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-rose-500/10 dark:from-pink-500/15 dark:to-rose-500/15",
-      compact ? "p-3 mx-2 mb-2" : "p-3 mx-3 mb-2"
-    )} data-testid="donation-cta-card">
-      <div className="flex items-start gap-2">
-        <div className="flex-shrink-0 mt-0.5">
-          <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-foreground leading-tight">
-            Help Us Improve Club Master
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-            We listen to your feedback and continuously improve the platform for a better experience. A donation of as little as {"\u00A3"}2 helps keep development going.
-          </p>
-          <div className="flex items-center gap-2 mt-2">
-            <a
-              href="https://buy.stripe.com/4gw6oS2Xh0nraE84gh"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-[11px] font-semibold transition-colors shadow-sm"
-              data-testid="button-donate"
-            >
-              <Heart className="h-3 w-3" />
-              Donate
-              <ExternalLink className="h-2.5 w-2.5 opacity-70" />
-            </a>
-            <button
-              onClick={() => setDismissed(true)}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="button-dismiss-donation"
-            >
-              Maybe later
-            </button>
+    <>
+      <div className={cn(
+        "rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-rose-500/10 dark:from-pink-500/15 dark:to-rose-500/15",
+        compact ? "p-3 mx-2 mb-2" : "p-3 mx-3 mb-2"
+      )} data-testid="donation-cta-card">
+        <div className="flex items-start gap-2">
+          <div className="flex-shrink-0 mt-0.5">
+            <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-foreground leading-tight">
+              Help Us Improve Club Master
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+              We take your feedback on board and continuously improve the platform. A donation of as little as {"\u00A3"}2 helps keep development going.
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => setDialogOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-[11px] font-semibold transition-colors shadow-sm"
+                data-testid="button-donate"
+              >
+                <Heart className="h-3 w-3" />
+                Donate
+              </button>
+              <button
+                onClick={() => setDismissed(true)}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="button-dismiss-donation"
+              >
+                Maybe later
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <DonationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    </>
   );
 }
 

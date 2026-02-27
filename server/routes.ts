@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -10978,7 +10978,14 @@ export async function registerRoutes(
         isOverdue: !m.paymentConfirmed && m.endDate && new Date(m.endDate) < new Date(),
       }));
 
-      const totalIncome = sessionIncome + inventorySales + membershipPaid;
+      const donationsData = await db.select({
+        amount: donations.amount,
+        status: donations.status,
+      }).from(donations);
+      const donationsReceived = donationsData.filter(d => d.status === "RECEIVED").reduce((s, d) => s + d.amount, 0);
+      const donationsPending = donationsData.filter(d => d.status === "PLEDGED" || d.status === "CONFIRMED").reduce((s, d) => s + d.amount, 0);
+
+      const totalIncome = sessionIncome + inventorySales + membershipPaid + donationsReceived;
       const totalExpenses = inventoryPurchases + generalExpenses;
       const netRevenue = totalIncome - totalExpenses;
 
@@ -11001,6 +11008,9 @@ export async function registerRoutes(
         membershipOverdue,
         membershipActiveCount: activeMemberships.length,
         membershipMembers,
+        donationsReceived,
+        donationsPending,
+        donationsTotal: donationsData.reduce((s, d) => s + d.amount, 0),
       });
     } catch (err: any) {
       console.error("Error fetching financial dashboard:", err);
@@ -19063,6 +19073,192 @@ export async function registerRoutes(
       await db.delete(juniorExerciseVideos).where(eq(juniorExerciseVideos.id, parseInt(req.params.id)));
       res.json({ message: "Deleted" });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // === DONATIONS SYSTEM ===
+
+  app.get("/api/donation-bank-details", async (_req, res) => {
+    try {
+      const settings = await db.select({
+        bankName: clubs.bankName,
+        bankAccountName: clubs.bankAccountName,
+        bankSortCode: clubs.bankSortCode,
+        bankAccountNumber: clubs.bankAccountNumber,
+        bankReference: clubs.bankReference,
+      }).from(clubs).where(eq(clubs.name, "Dragon Badminton Club")).limit(1);
+
+      if (settings.length > 0) {
+        res.json(settings[0]);
+      } else {
+        res.json({
+          bankName: "Dragon Badminton Club - BPG Ltd",
+          bankSortCode: "04-06-05",
+          bankAccountNumber: "29999001",
+          bankAccountName: "Dragon Badminton Club - BPG Ltd",
+          bankReference: null,
+        });
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch bank details" });
+    }
+  });
+
+  app.put("/api/admin/donation-bank-details", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const { bankName, bankAccountName, bankSortCode, bankAccountNumber, bankReference } = req.body;
+      await db.update(clubs)
+        .set({ bankName, bankAccountName, bankSortCode, bankAccountNumber, bankReference })
+        .where(eq(clubs.name, "Dragon Badminton Club"));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update bank details" });
+    }
+  });
+
+  app.get("/api/donations", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user as any;
+      const isAdminOrOwner = user.role === "OWNER" || user.role === "ADMIN";
+
+      let donationList;
+      if (isAdminOrOwner) {
+        donationList = await db.select({
+          id: donations.id,
+          userId: donations.userId,
+          amount: donations.amount,
+          paymentDate: donations.paymentDate,
+          reference: donations.reference,
+          message: donations.message,
+          status: donations.status,
+          confirmedByAdminId: donations.confirmedByAdminId,
+          confirmedAt: donations.confirmedAt,
+          adminNotes: donations.adminNotes,
+          createdAt: donations.createdAt,
+          fullName: users.fullName,
+          email: users.email,
+        }).from(donations)
+          .leftJoin(users, eq(donations.userId, users.id))
+          .orderBy(desc(donations.createdAt));
+      } else {
+        donationList = await db.select({
+          id: donations.id,
+          userId: donations.userId,
+          amount: donations.amount,
+          paymentDate: donations.paymentDate,
+          reference: donations.reference,
+          message: donations.message,
+          status: donations.status,
+          confirmedAt: donations.confirmedAt,
+          adminNotes: donations.adminNotes,
+          createdAt: donations.createdAt,
+          fullName: users.fullName,
+          email: users.email,
+        }).from(donations)
+          .leftJoin(users, eq(donations.userId, users.id))
+          .where(eq(donations.userId, user.id))
+          .orderBy(desc(donations.createdAt));
+      }
+      res.json(donationList);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch donations" });
+    }
+  });
+
+  app.post("/api/donations", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user as any;
+      const { amount, paymentDate, reference, message } = req.body;
+      if (!amount || amount < 1) return res.status(400).json({ message: "Amount must be at least £1" });
+
+      const [newDonation] = await db.insert(donations).values({
+        userId: user.id,
+        amount: Math.round(amount * 100),
+        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        reference: reference || null,
+        message: message || null,
+        status: "PLEDGED",
+      }).returning();
+
+      res.json(newDonation);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to create donation" });
+    }
+  });
+
+  app.patch("/api/donations/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const donationId = Number(req.params.id);
+      const { status, adminNotes } = req.body;
+      if (!["PLEDGED", "CONFIRMED", "RECEIVED", "CANCELLED"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      const updateData: any = { status };
+      if (status === "RECEIVED" || status === "CONFIRMED") {
+        updateData.confirmedByAdminId = user.id;
+        updateData.confirmedAt = new Date();
+      }
+      if (adminNotes !== undefined) updateData.adminNotes = adminNotes;
+
+      const [updated] = await db.update(donations)
+        .set(updateData)
+        .where(eq(donations.id, donationId))
+        .returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update donation status" });
+    }
+  });
+
+  app.delete("/api/donations/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER") return res.sendStatus(403);
+    try {
+      await db.delete(donations).where(eq(donations.id, Number(req.params.id)));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to delete donation" });
+    }
+  });
+
+  app.get("/api/admin/donation-summary", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const allDonations = await db.select({
+        userId: donations.userId,
+        amount: donations.amount,
+        status: donations.status,
+      }).from(donations);
+
+      const totalPledged = allDonations.reduce((s, d) => s + d.amount, 0);
+      const totalReceived = allDonations.filter(d => d.status === "RECEIVED").reduce((s, d) => s + d.amount, 0);
+      const totalPending = allDonations.filter(d => d.status === "PLEDGED" || d.status === "CONFIRMED").reduce((s, d) => s + d.amount, 0);
+      const totalCancelled = allDonations.filter(d => d.status === "CANCELLED").reduce((s, d) => s + d.amount, 0);
+      const donorCount = new Set(allDonations.map(d => d.userId)).size;
+
+      res.json({
+        totalPledged,
+        totalReceived,
+        totalPending,
+        totalCancelled,
+        donationCount: allDonations.length,
+        donorCount,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch donation summary" });
+    }
   });
 
   // === GROUP CHAT ROUTES ===

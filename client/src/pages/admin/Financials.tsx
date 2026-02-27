@@ -44,6 +44,7 @@ import {
   CheckSquare,
   Square,
   UserPlus,
+  Heart,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -117,6 +118,385 @@ function formatPounds(pence: number): string {
   return (pence / 100).toFixed(2);
 }
 
+interface DonationRecord {
+  id: number;
+  userId: number;
+  amount: number;
+  paymentDate: string | null;
+  reference: string | null;
+  message: string | null;
+  status: "PLEDGED" | "CONFIRMED" | "RECEIVED" | "CANCELLED";
+  confirmedByAdminId?: number;
+  confirmedAt: string | null;
+  adminNotes: string | null;
+  createdAt: string;
+  fullName: string | null;
+  email: string | null;
+}
+
+interface BankDetailsForm {
+  bankName: string;
+  bankAccountName: string;
+  bankSortCode: string;
+  bankAccountNumber: string;
+  bankReference: string;
+}
+
+function DonationsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: currentUser } = useQuery<{ role: string }>({ queryKey: ["/api/user"] });
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [editBankOpen, setEditBankOpen] = useState(false);
+  const [editDonationId, setEditDonationId] = useState<number | null>(null);
+  const [editStatus, setEditStatus] = useState<string>("");
+  const [editNotes, setEditNotes] = useState<string>("");
+
+  const { data: allDonations, isLoading } = useQuery<DonationRecord[]>({
+    queryKey: ["/api/donations"],
+  });
+
+  const { data: bankDetails } = useQuery<BankDetailsForm>({
+    queryKey: ["/api/donation-bank-details"],
+  });
+
+  const [bankForm, setBankForm] = useState<BankDetailsForm>({
+    bankName: "", bankAccountName: "", bankSortCode: "", bankAccountNumber: "", bankReference: "",
+  });
+
+  const updateBankMutation = useMutation({
+    mutationFn: async (data: BankDetailsForm) => {
+      const res = await apiRequest("PUT", "/api/admin/donation-bank-details", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/donation-bank-details"] });
+      setEditBankOpen(false);
+      toast({ title: "Bank details updated" });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, adminNotes }: { id: number; status: string; adminNotes: string }) => {
+      const res = await apiRequest("PATCH", `/api/donations/${id}/status`, { status, adminNotes });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/donations"] });
+      setEditDonationId(null);
+      toast({ title: "Donation status updated" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/donations/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/donations"] });
+      toast({ title: "Donation deleted" });
+    },
+  });
+
+  const filtered = useMemo(() => {
+    if (!allDonations) return [];
+    if (statusFilter === "all") return allDonations;
+    return allDonations.filter(d => d.status === statusFilter);
+  }, [allDonations, statusFilter]);
+
+  const summary = useMemo(() => {
+    if (!allDonations) return { total: 0, received: 0, pending: 0, cancelled: 0, count: 0 };
+    return {
+      total: allDonations.reduce((s, d) => s + d.amount, 0),
+      received: allDonations.filter(d => d.status === "RECEIVED").reduce((s, d) => s + d.amount, 0),
+      pending: allDonations.filter(d => d.status === "PLEDGED" || d.status === "CONFIRMED").reduce((s, d) => s + d.amount, 0),
+      cancelled: allDonations.filter(d => d.status === "CANCELLED").reduce((s, d) => s + d.amount, 0),
+      count: allDonations.length,
+    };
+  }, [allDonations]);
+
+  const statusColor = (s: string) => {
+    switch (s) {
+      case "RECEIVED": return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30";
+      case "CONFIRMED": return "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30";
+      case "PLEDGED": return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30";
+      case "CANCELLED": return "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Heart className="h-5 w-5 text-pink-500" />
+          Donations
+        </h2>
+        <Button variant="outline" size="sm" onClick={() => {
+          setBankForm({
+            bankName: bankDetails?.bankName || "",
+            bankAccountName: bankDetails?.bankAccountName || "",
+            bankSortCode: bankDetails?.bankSortCode || "",
+            bankAccountNumber: bankDetails?.bankAccountNumber || "",
+            bankReference: bankDetails?.bankReference || "",
+          });
+          setEditBankOpen(true);
+        }} data-testid="button-edit-bank-details">
+          <Pencil className="h-3.5 w-3.5 mr-1" />
+          Edit Bank Details
+        </Button>
+      </div>
+
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Card data-testid="card-total-donations">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Total Pledged</p>
+            <p className="text-xl font-bold">{"\u00A3"}{formatPounds(summary.total)}</p>
+            <p className="text-[10px] text-muted-foreground">{summary.count} donations</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-received-donations">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Received</p>
+            <p className="text-xl font-bold text-green-600">{"\u00A3"}{formatPounds(summary.received)}</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-pending-donations">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Pending</p>
+            <p className="text-xl font-bold text-amber-600">{"\u00A3"}{formatPounds(summary.pending)}</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-cancelled-donations">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Cancelled</p>
+            <p className="text-xl font-bold text-red-600">{"\u00A3"}{formatPounds(summary.cancelled)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {bankDetails && (
+        <Card data-testid="card-bank-details-display">
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">DONATION BANK DETAILS</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">Account Name:</span>
+                <span className="ml-1 font-medium">{bankDetails.bankAccountName || "Not set"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Sort Code:</span>
+                <span className="ml-1 font-mono font-medium">{bankDetails.bankSortCode || "Not set"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Account No:</span>
+                <span className="ml-1 font-mono font-medium">{bankDetails.bankAccountNumber || "Not set"}</span>
+              </div>
+              {bankDetails.bankReference && (
+                <div>
+                  <span className="text-muted-foreground">Reference:</span>
+                  <span className="ml-1 font-medium">{bankDetails.bankReference}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-donation-status-filter">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="PLEDGED">Pledged</SelectItem>
+            <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+            <SelectItem value="RECEIVED">Received</SelectItem>
+            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+            <p className="text-sm text-muted-foreground mt-2">Loading donations...</p>
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Heart className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground">No donations yet</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Donor</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Payment Date</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map(d => (
+                  <TableRow key={d.id} data-testid={`row-donation-${d.id}`}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{d.fullName || "Unknown"}</p>
+                        <p className="text-xs text-muted-foreground">{d.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-semibold">{"\u00A3"}{formatPounds(d.amount)}</TableCell>
+                    <TableCell className="text-sm">
+                      {d.paymentDate ? format(new Date(d.paymentDate), "dd MMM yyyy") : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">{d.reference || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusColor(d.status)} data-testid={`badge-status-${d.id}`}>
+                        {d.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm max-w-[200px] truncate">{d.message || "-"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {format(new Date(d.createdAt), "dd MMM yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {d.status !== "RECEIVED" && d.status !== "CANCELLED" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-600"
+                            title="Mark as Received"
+                            onClick={() => updateStatusMutation.mutate({ id: d.id, status: "RECEIVED", adminNotes: d.adminNotes || "" })}
+                            data-testid={`button-receive-${d.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Edit Status"
+                          onClick={() => {
+                            setEditDonationId(d.id);
+                            setEditStatus(d.status);
+                            setEditNotes(d.adminNotes || "");
+                          }}
+                          data-testid={`button-edit-donation-${d.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {currentUser?.role === "OWNER" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            title="Delete"
+                            onClick={() => {
+                              if (confirm("Delete this donation record?")) deleteMutation.mutate(d.id);
+                            }}
+                            data-testid={`button-delete-donation-${d.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={editBankOpen} onOpenChange={setEditBankOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Donation Bank Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Bank / Account Name</Label>
+              <Input value={bankForm.bankAccountName} onChange={e => setBankForm(p => ({ ...p, bankAccountName: e.target.value }))} data-testid="input-edit-account-name" />
+            </div>
+            <div>
+              <Label className="text-xs">Sort Code</Label>
+              <Input value={bankForm.bankSortCode} onChange={e => setBankForm(p => ({ ...p, bankSortCode: e.target.value }))} placeholder="e.g. 04-06-05" data-testid="input-edit-sort-code" />
+            </div>
+            <div>
+              <Label className="text-xs">Account Number</Label>
+              <Input value={bankForm.bankAccountNumber} onChange={e => setBankForm(p => ({ ...p, bankAccountNumber: e.target.value }))} data-testid="input-edit-account-number" />
+            </div>
+            <div>
+              <Label className="text-xs">Default Payment Reference</Label>
+              <Input value={bankForm.bankReference} onChange={e => setBankForm(p => ({ ...p, bankReference: e.target.value }))} placeholder="e.g. DONATION - [Name]" data-testid="input-edit-bank-reference" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBankOpen(false)}>Cancel</Button>
+            <Button onClick={() => updateBankMutation.mutate(bankForm)} disabled={updateBankMutation.isPending} data-testid="button-save-bank-details">
+              {updateBankMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDonationId !== null} onOpenChange={() => setEditDonationId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Update Donation Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Status</Label>
+              <Select value={editStatus} onValueChange={setEditStatus}>
+                <SelectTrigger data-testid="select-edit-donation-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PLEDGED">Pledged</SelectItem>
+                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                  <SelectItem value="RECEIVED">Received</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Admin Notes</Label>
+              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} data-testid="input-edit-admin-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDonationId(null)}>Cancel</Button>
+            <Button
+              onClick={() => editDonationId && updateStatusMutation.mutate({ id: editDonationId, status: editStatus, adminNotes: editNotes })}
+              disabled={updateStatusMutation.isPending}
+              data-testid="button-save-donation-status"
+            >
+              {updateStatusMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function Financials() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -126,7 +506,7 @@ export default function Financials() {
   const [matchMode, setMatchMode] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits">("session");
+  const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits" | "donations">("session");
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
@@ -1465,6 +1845,14 @@ export default function Financials() {
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Manage Credits
+              </Button>
+              <Button
+                variant={viewMode === "donations" ? "default" : "outline"}
+                onClick={() => setViewMode("donations")}
+                data-testid="button-view-donations"
+              >
+                <Heart className="h-4 w-4 mr-1" />
+                Donations
               </Button>
             </div>
           </div>
@@ -2823,6 +3211,8 @@ export default function Financials() {
             </CardContent>
           </Card>
         </div>
+      ) : viewMode === "donations" ? (
+        <DonationsPanel />
       ) : (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">

@@ -1913,3 +1913,29 @@ export const juniorExerciseVideosRelations = relations(juniorExerciseVideos, ({ 
 export const insertJuniorExerciseVideoSchema = createInsertSchema(juniorExerciseVideos).omit({ id: true, createdAt: true });
 export type JuniorExerciseVideo = typeof juniorExerciseVideos.$inferSelect;
 export type InsertJuniorExerciseVideo = z.infer<typeof insertJuniorExerciseVideoSchema>;
+
+// === DONATIONS SYSTEM ===
+export const donationStatusEnum = pgEnum("donation_status", ["PLEDGED", "CONFIRMED", "RECEIVED", "CANCELLED"]);
+
+export const donations = pgTable("donations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  amount: integer("amount").notNull(),
+  paymentDate: timestamp("payment_date"),
+  reference: text("reference"),
+  message: text("message"),
+  status: donationStatusEnum("status").default("PLEDGED").notNull(),
+  confirmedByAdminId: integer("confirmed_by_admin_id").references(() => users.id),
+  confirmedAt: timestamp("confirmed_at"),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const donationsRelations = relations(donations, ({ one }) => ({
+  user: one(users, { fields: [donations.userId], references: [users.id] }),
+  confirmedByAdmin: one(users, { fields: [donations.confirmedByAdminId], references: [users.id] }),
+}));
+
+export const insertDonationSchema = createInsertSchema(donations).omit({ id: true, createdAt: true, confirmedAt: true, confirmedByAdminId: true });
+export type Donation = typeof donations.$inferSelect;
+export type InsertDonation = z.infer<typeof insertDonationSchema>;
