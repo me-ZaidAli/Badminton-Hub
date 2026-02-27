@@ -41,6 +41,11 @@ import {
   Eye,
   Plus,
   Building2,
+  Award,
+  Video,
+  TrendingUp,
+  BarChart3,
+  Activity,
 } from "lucide-react";
 
 function JuniorHero() {
@@ -408,6 +413,193 @@ function JuniorSessionsSection() {
   );
 }
 
+function MiniGauge({ value, size = 48 }: { value: number; size?: number }) {
+  const strokeWidth = 4;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  const color = value >= 80 ? "#22c55e" : value >= 50 ? "#f59e0b" : value >= 25 ? "#3b82f6" : "#6b7280";
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} stroke="hsl(var(--muted))" fill="none" opacity={0.3} />
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} stroke={color} fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold">{value}%</span>
+      </div>
+    </div>
+  );
+}
+
+const LEVEL_COLORS: Record<string, string> = {
+  BEGINNER: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  IMPROVER: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  PERFORMANCE: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  SQUAD: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  COMPETITION_READY: "bg-red-500/15 text-red-400 border-red-500/30",
+};
+const LEVEL_NAMES: Record<string, string> = {
+  BEGINNER: "Beginner",
+  IMPROVER: "Improver",
+  PERFORMANCE: "Performance",
+  SQUAD: "Squad",
+  COMPETITION_READY: "Competition Ready",
+};
+
+function ChildProfileCard({ junior, onEdit, onDelete, onAddToClub, hasClubs }: { junior: any; onEdit: () => void; onDelete: () => void; onAddToClub: () => void; hasClubs: boolean }) {
+  const { data: profileData } = useQuery<any>({
+    queryKey: ["/api/junior-profiles", String(junior.id)],
+    enabled: !!junior.id,
+  });
+
+  const profile = profileData?.profiles?.[0] || null;
+  const achievements = profileData?.achievements || [];
+  const videos = profileData?.videos || [];
+  const progress = profileData?.progress || [];
+
+  const skillPercent = profile?.overallSkillPercentage || 0;
+  const attendance = profile?.attendancePercentage || 0;
+  const effortRating = profile?.effortRating || 0;
+  const coachRating = profile?.coachRating || 0;
+  const level = profile?.juniorLevel || "BEGINNER";
+  const skillsAssessed = progress.filter((p: any) => p.percentage > 0).length;
+
+  return (
+    <Card className="overflow-hidden group" data-testid={`card-child-${junior.id}`}>
+      <div className="h-1.5 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-full p-2.5">
+              <Baby className="h-6 w-6 text-emerald-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg" data-testid={`text-child-name-${junior.id}`}>{junior.fullName}</h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                {junior.dateOfBirth && (
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(junior.dateOfBirth), "d MMM yyyy")}
+                  </span>
+                )}
+                <Badge className={`text-[10px] py-0 h-5 border ${LEVEL_COLORS[level]}`} data-testid={`badge-level-${junior.id}`}>
+                  {LEVEL_NAMES[level]}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={onEdit} data-testid={`button-edit-child-${junior.id}`}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={onDelete} data-testid={`button-delete-child-${junior.id}`}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="flex flex-col items-center p-2.5 rounded-xl bg-muted/40" data-testid={`stat-skill-${junior.id}`}>
+            <MiniGauge value={skillPercent} size={44} />
+            <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">Skills</span>
+          </div>
+          <div className="flex flex-col items-center p-2.5 rounded-xl bg-muted/40" data-testid={`stat-attendance-${junior.id}`}>
+            <div className="text-lg font-bold text-emerald-500">{attendance}%</div>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Attend.</span>
+          </div>
+          <div className="flex flex-col items-center p-2.5 rounded-xl bg-muted/40" data-testid={`stat-effort-${junior.id}`}>
+            <div className="flex items-center gap-0.5">
+              <Star className={`h-4 w-4 ${effortRating >= 1 ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`} />
+              <span className="text-lg font-bold">{effortRating}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Effort</span>
+          </div>
+          <div className="flex flex-col items-center p-2.5 rounded-xl bg-muted/40" data-testid={`stat-coach-${junior.id}`}>
+            <div className="flex items-center gap-0.5">
+              <Star className={`h-4 w-4 ${coachRating >= 1 ? "text-emerald-400 fill-emerald-400" : "text-muted-foreground/30"}`} />
+              <span className="text-lg font-bold">{coachRating}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Coach</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 text-sm" data-testid={`info-assessed-${junior.id}`}>
+            <BarChart3 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+            <span className="text-xs"><strong>{skillsAssessed}</strong> skills</span>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 text-sm" data-testid={`info-awards-${junior.id}`}>
+            <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="text-xs"><strong>{achievements.length}</strong> award{achievements.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 text-sm" data-testid={`info-videos-${junior.id}`}>
+            <Video className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+            <span className="text-xs"><strong>{videos.length}</strong> video{videos.length !== 1 ? "s" : ""}</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/5 to-yellow-500/5 border border-amber-500/10 mb-4" data-testid={`info-fees-${junior.id}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Session Fees</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-sm font-bold">£15</p>
+              <p className="text-[10px] text-muted-foreground">Group</p>
+            </div>
+            <div>
+              <p className="text-sm font-bold">£25</p>
+              <p className="text-[10px] text-muted-foreground">1-to-1</p>
+            </div>
+            <div>
+              <p className="text-sm font-bold">£8</p>
+              <p className="text-[10px] text-muted-foreground">Match</p>
+            </div>
+          </div>
+        </div>
+
+        {(junior.emergencyContact || junior.medicalNotes) && (
+          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+            {junior.emergencyContact && (
+              <div className="p-2 rounded-lg bg-muted/30">
+                <span className="text-muted-foreground">Emergency:</span>
+                <p className="font-medium mt-0.5">{junior.emergencyContact}</p>
+              </div>
+            )}
+            {junior.medicalNotes && (
+              <div className="p-2 rounded-lg bg-muted/30">
+                <span className="text-muted-foreground">Medical:</span>
+                <p className="font-medium mt-0.5">{junior.medicalNotes}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/juniors/dashboard/${junior.id}`}>
+            <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600" data-testid={`button-view-dashboard-${junior.id}`}>
+              <Activity className="h-3.5 w-3.5 mr-1" />
+              Full Dashboard
+            </Button>
+          </Link>
+          {hasClubs && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onAddToClub}
+              data-testid={`button-add-to-club-${junior.id}`}
+            >
+              <Building2 className="h-3.5 w-3.5 mr-1" />
+              Add to Club
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MyChildrenSection() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -577,73 +769,20 @@ function MyChildrenSection() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {juniors.map((junior: any) => (
-            <Card key={junior.id} className="overflow-hidden" data-testid={`card-child-${junior.id}`}>
-              <div className="h-1 bg-gradient-to-r from-pink-400 to-rose-400" />
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-pink-500/10 rounded-full p-2.5">
-                      <Baby className="h-5 w-5 text-pink-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg" data-testid={`text-child-name-${junior.id}`}>{junior.fullName}</h3>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        {junior.dateOfBirth && (
-                          <span>DOB: {format(new Date(junior.dateOfBirth), "d MMM yyyy")}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(junior)} data-testid={`button-edit-child-${junior.id}`}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingJuniorId(junior.id)} data-testid={`button-delete-child-${junior.id}`}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {junior.emergencyContact && (
-                    <div>
-                      <span className="text-muted-foreground">Emergency Contact:</span>
-                      <p className="font-medium">{junior.emergencyContact}</p>
-                    </div>
-                  )}
-                  {junior.medicalNotes && (
-                    <div>
-                      <span className="text-muted-foreground">Medical Notes:</span>
-                      <p className="font-medium">{junior.medicalNotes}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
-                  <Link href={`/juniors/dashboard/${junior.id}`}>
-                    <Button size="sm" variant="default" className="bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:from-amber-600 hover:to-yellow-600" data-testid={`button-view-dashboard-${junior.id}`}>
-                      <Target className="h-3.5 w-3.5 mr-1" />
-                      Skill Dashboard
-                    </Button>
-                  </Link>
-                  {parentClubs.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setAddToClubDialog({ juniorId: junior.id, juniorName: junior.fullName });
-                        setSelectedClubId("");
-                        setSelectedGrade("C3");
-                      }}
-                      data-testid={`button-add-to-club-${junior.id}`}
-                    >
-                      <Building2 className="h-3.5 w-3.5 mr-1" />
-                      Add to Club
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <ChildProfileCard
+              key={junior.id}
+              junior={junior}
+              onEdit={() => openEdit(junior)}
+              onDelete={() => setDeletingJuniorId(junior.id)}
+              onAddToClub={() => {
+                setAddToClubDialog({ juniorId: junior.id, juniorName: junior.fullName });
+                setSelectedClubId("");
+                setSelectedGrade("C3");
+              }}
+              hasClubs={parentClubs.length > 0}
+            />
           ))}
         </div>
       )}
@@ -815,11 +954,11 @@ export default function Juniors() {
   return (
     <div className="space-y-8 pb-8">
       <JuniorHero />
+      <MyChildrenSection />
       <JuniorSessionsSection />
       <WhatWeDoSection />
       <PricingSection />
       <SafeguardingSection />
-      <MyChildrenSection />
     </div>
   );
 }
