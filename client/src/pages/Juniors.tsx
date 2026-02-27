@@ -2962,7 +2962,7 @@ export default function Juniors() {
 
   return (
     <div className="space-y-6 pb-8">
-      {mainTab !== "performance" && <JuniorHero />}
+      {mainTab === "menu" && <JuniorHero />}
 
       {mainTab === "menu" ? (
         <div className="space-y-4">
