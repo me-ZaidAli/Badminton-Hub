@@ -1805,3 +1805,111 @@ export const juniorProgressHistoryRelations = relations(juniorProgressHistory, (
 }));
 
 export type JuniorProgressHistory = typeof juniorProgressHistory.$inferSelect;
+
+export const exerciseCategoryEnum = pgEnum("exercise_category", ["HOME", "GYM", "COURT", "FOOTWORK", "CORE", "FLEXIBILITY", "STRENGTH", "CARDIO"]);
+export const exerciseDifficultyEnum = pgEnum("exercise_difficulty", ["EASY", "MEDIUM", "HARD"]);
+
+export const juniorExercises = pgTable("junior_exercises", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: exerciseCategoryEnum("category").notNull(),
+  difficulty: exerciseDifficultyEnum("difficulty").notNull(),
+  durationMinutes: integer("duration_minutes"),
+  reps: integer("reps"),
+  sets: integer("sets"),
+  equipment: text("equipment"),
+  videoUrl: text("video_url"),
+  location: text("location").default("home").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const juniorExercisesRelations = relations(juniorExercises, ({ many }) => ({
+  challengeDays: many(juniorChallengeDays),
+  videos: many(juniorExerciseVideos),
+}));
+
+export const insertJuniorExerciseSchema = createInsertSchema(juniorExercises).omit({ id: true, createdAt: true });
+export type JuniorExercise = typeof juniorExercises.$inferSelect;
+export type InsertJuniorExercise = z.infer<typeof insertJuniorExerciseSchema>;
+
+export const juniorWeeklyChallenges = pgTable("junior_weekly_challenges", {
+  id: serial("id").primaryKey(),
+  weekNumber: integer("week_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  isRevealed: boolean("is_revealed").default(false).notNull(),
+  skillPointsReward: integer("skill_points_reward").default(10).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const juniorWeeklyChallengesRelations = relations(juniorWeeklyChallenges, ({ many }) => ({
+  days: many(juniorChallengeDays),
+  completions: many(juniorChallengeCompletions),
+}));
+
+export const insertJuniorWeeklyChallengeSchema = createInsertSchema(juniorWeeklyChallenges).omit({ id: true, createdAt: true });
+export type JuniorWeeklyChallenge = typeof juniorWeeklyChallenges.$inferSelect;
+export type InsertJuniorWeeklyChallenge = z.infer<typeof insertJuniorWeeklyChallengeSchema>;
+
+export const juniorChallengeDays = pgTable("junior_challenge_days", {
+  id: serial("id").primaryKey(),
+  challengeId: integer("challenge_id").references(() => juniorWeeklyChallenges.id).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  exerciseId: integer("exercise_id").references(() => juniorExercises.id).notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  targetReps: integer("target_reps"),
+  targetSets: integer("target_sets"),
+  targetDurationMinutes: integer("target_duration_minutes"),
+});
+
+export const juniorChallengeDaysRelations = relations(juniorChallengeDays, ({ one, many }) => ({
+  challenge: one(juniorWeeklyChallenges, { fields: [juniorChallengeDays.challengeId], references: [juniorWeeklyChallenges.id] }),
+  exercise: one(juniorExercises, { fields: [juniorChallengeDays.exerciseId], references: [juniorExercises.id] }),
+  completions: many(juniorChallengeCompletions),
+}));
+
+export const insertJuniorChallengeDaySchema = createInsertSchema(juniorChallengeDays).omit({ id: true });
+export type JuniorChallengeDay = typeof juniorChallengeDays.$inferSelect;
+export type InsertJuniorChallengeDay = z.infer<typeof insertJuniorChallengeDaySchema>;
+
+export const juniorChallengeCompletions = pgTable("junior_challenge_completions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  challengeDayId: integer("challenge_day_id").references(() => juniorChallengeDays.id).notNull(),
+  challengeId: integer("challenge_id").references(() => juniorWeeklyChallenges.id).notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+  skillPointsEarned: integer("skill_points_earned").default(0).notNull(),
+});
+
+export const juniorChallengeCompletionsRelations = relations(juniorChallengeCompletions, ({ one }) => ({
+  user: one(users, { fields: [juniorChallengeCompletions.userId], references: [users.id] }),
+  challengeDay: one(juniorChallengeDays, { fields: [juniorChallengeCompletions.challengeDayId], references: [juniorChallengeDays.id] }),
+  challenge: one(juniorWeeklyChallenges, { fields: [juniorChallengeCompletions.challengeId], references: [juniorWeeklyChallenges.id] }),
+}));
+
+export const insertJuniorChallengeCompletionSchema = createInsertSchema(juniorChallengeCompletions).omit({ id: true, completedAt: true });
+export type JuniorChallengeCompletion = typeof juniorChallengeCompletions.$inferSelect;
+export type InsertJuniorChallengeCompletion = z.infer<typeof insertJuniorChallengeCompletionSchema>;
+
+export const juniorExerciseVideos = pgTable("junior_exercise_videos", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  youtubeUrl: text("youtube_url").notNull(),
+  exerciseId: integer("exercise_id").references(() => juniorExercises.id),
+  category: exerciseCategoryEnum("category"),
+  description: text("description"),
+  addedBy: integer("added_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const juniorExerciseVideosRelations = relations(juniorExerciseVideos, ({ one }) => ({
+  exercise: one(juniorExercises, { fields: [juniorExerciseVideos.exerciseId], references: [juniorExercises.id] }),
+  addedByUser: one(users, { fields: [juniorExerciseVideos.addedBy], references: [users.id] }),
+}));
+
+export const insertJuniorExerciseVideoSchema = createInsertSchema(juniorExerciseVideos).omit({ id: true, createdAt: true });
+export type JuniorExerciseVideo = typeof juniorExerciseVideos.$inferSelect;
+export type InsertJuniorExerciseVideo = z.infer<typeof insertJuniorExerciseVideoSchema>;

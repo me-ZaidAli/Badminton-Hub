@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -18617,6 +18617,211 @@ export async function registerRoutes(
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
+  });
+
+  // === JUNIOR EXERCISE & CHALLENGE ROUTES ===
+
+  app.get("/api/junior-exercises", async (req, res) => {
+    try {
+      const category = req.query.category as string | undefined;
+      let exercises;
+      if (category) {
+        exercises = await db.select().from(juniorExercises).where(and(eq(juniorExercises.isActive, true), eq(juniorExercises.category, category as any))).orderBy(juniorExercises.displayOrder);
+      } else {
+        exercises = await db.select().from(juniorExercises).where(eq(juniorExercises.isActive, true)).orderBy(juniorExercises.displayOrder);
+      }
+      res.json(exercises);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/junior-exercises", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    try {
+      const [exercise] = await db.insert(juniorExercises).values(req.body).returning();
+      res.json(exercise);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/junior-exercises/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+      if (adminProfiles.length === 0) return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [updated] = await db.update(juniorExercises).set(req.body).where(eq(juniorExercises.id, parseInt(req.params.id))).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/junior-exercises/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    try {
+      await db.update(juniorExercises).set({ isActive: false }).where(eq(juniorExercises.id, parseInt(req.params.id)));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/junior-weekly-challenges", async (req, res) => {
+    try {
+      const challenges = await db.select().from(juniorWeeklyChallenges).orderBy(juniorWeeklyChallenges.weekNumber);
+      const allDays = await db.select().from(juniorChallengeDays).orderBy(juniorChallengeDays.dayOfWeek, juniorChallengeDays.displayOrder);
+      const allExercises = await db.select().from(juniorExercises);
+      const exerciseMap = new Map(allExercises.map(e => [e.id, e]));
+
+      const result = challenges.map(c => ({
+        ...c,
+        days: allDays.filter(d => d.challengeId === c.id).map(d => ({
+          ...d,
+          exercise: exerciseMap.get(d.exerciseId) || null,
+        })),
+      }));
+
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/junior-weekly-challenges/:id", async (req, res) => {
+    try {
+      const [challenge] = await db.select().from(juniorWeeklyChallenges).where(eq(juniorWeeklyChallenges.id, parseInt(req.params.id)));
+      if (!challenge) return res.status(404).json({ message: "Not found" });
+      const days = await db.select().from(juniorChallengeDays).where(eq(juniorChallengeDays.challengeId, challenge.id)).orderBy(juniorChallengeDays.dayOfWeek, juniorChallengeDays.displayOrder);
+      const exerciseIds = days.map(d => d.exerciseId);
+      const exercises = exerciseIds.length > 0 ? await db.select().from(juniorExercises).where(inArray(juniorExercises.id, exerciseIds)) : [];
+      const exerciseMap = new Map(exercises.map(e => [e.id, e]));
+      res.json({ ...challenge, days: days.map(d => ({ ...d, exercise: exerciseMap.get(d.exerciseId) || null })) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/junior-weekly-challenges", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    try {
+      const { days, ...challengeData } = req.body;
+      const [challenge] = await db.insert(juniorWeeklyChallenges).values(challengeData).returning();
+      if (days && Array.isArray(days)) {
+        for (const day of days) {
+          await db.insert(juniorChallengeDays).values({ ...day, challengeId: challenge.id });
+        }
+      }
+      res.json(challenge);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/junior-weekly-challenges/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+      if (adminProfiles.length === 0) return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const { days, ...challengeData } = req.body;
+      const [updated] = await db.update(juniorWeeklyChallenges).set(challengeData).where(eq(juniorWeeklyChallenges.id, parseInt(req.params.id))).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/junior-weekly-challenges/:id/reveal", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+      if (adminProfiles.length === 0) return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [updated] = await db.update(juniorWeeklyChallenges).set({ isRevealed: true }).where(eq(juniorWeeklyChallenges.id, parseInt(req.params.id))).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/junior-challenge-completions/:userId", async (req, res) => {
+    try {
+      const completions = await db.select().from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, parseInt(req.params.userId)));
+      res.json(completions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/junior-challenge-completions", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { userId, challengeDayId, challengeId } = req.body;
+      const existing = await db.select().from(juniorChallengeCompletions).where(and(eq(juniorChallengeCompletions.userId, userId), eq(juniorChallengeCompletions.challengeDayId, challengeDayId)));
+      if (existing.length > 0) return res.status(400).json({ message: "Already completed" });
+
+      const [challenge] = await db.select().from(juniorWeeklyChallenges).where(eq(juniorWeeklyChallenges.id, challengeId));
+      const challengeDays = await db.select().from(juniorChallengeDays).where(eq(juniorChallengeDays.challengeId, challengeId));
+      const pointsPerExercise = Math.max(1, Math.round((challenge?.skillPointsReward || 10) / Math.max(1, challengeDays.length)));
+
+      const [completion] = await db.insert(juniorChallengeCompletions).values({
+        userId,
+        challengeDayId,
+        challengeId,
+        skillPointsEarned: pointsPerExercise,
+      }).returning();
+      res.json(completion);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/junior-challenge-completions/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      await db.delete(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.id, parseInt(req.params.id)));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/junior-skill-points/:userId", async (req, res) => {
+    try {
+      const result = await db.select({ total: sql<number>`COALESCE(SUM(${juniorChallengeCompletions.skillPointsEarned}), 0)` }).from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, parseInt(req.params.userId)));
+      res.json({ totalPoints: Number(result[0]?.total || 0) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/junior-exercise-videos", async (req, res) => {
+    try {
+      const category = req.query.category as string | undefined;
+      let videos;
+      if (category) {
+        videos = await db.select().from(juniorExerciseVideos).where(eq(juniorExerciseVideos.category, category as any)).orderBy(desc(juniorExerciseVideos.createdAt));
+      } else {
+        videos = await db.select().from(juniorExerciseVideos).orderBy(desc(juniorExerciseVideos.createdAt));
+      }
+      res.json(videos);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/junior-exercise-videos", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+      if (adminProfiles.length === 0) return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [video] = await db.insert(juniorExerciseVideos).values({ ...req.body, addedBy: req.user.id }).returning();
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/junior-exercise-videos/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+      const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+      if (adminProfiles.length === 0) return res.status(403).json({ message: "Admin only" });
+    }
+    try {
+      const [updated] = await db.update(juniorExerciseVideos).set(req.body).where(eq(juniorExerciseVideos.id, parseInt(req.params.id))).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/junior-exercise-videos/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
+    try {
+      await db.delete(juniorExerciseVideos).where(eq(juniorExerciseVideos.id, parseInt(req.params.id)));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // === GROUP CHAT ROUTES ===

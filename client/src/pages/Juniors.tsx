@@ -87,6 +87,12 @@ import {
   DatabaseZap,
   Crown,
   Search,
+  Play,
+  Timer,
+  Check,
+  CircleCheck,
+  Repeat,
+  Unlock,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
@@ -1888,6 +1894,621 @@ function AboutPanel() {
   );
 }
 
+const CATEGORY_CHIPS = [
+  { key: "ALL", label: "All", icon: Dumbbell },
+  { key: "HOME", label: "Home", icon: Heart },
+  { key: "FOOTWORK", label: "Footwork", icon: Footprints },
+  { key: "CORE", label: "Core", icon: Target },
+  { key: "STRENGTH", label: "Strength", icon: Flame },
+  { key: "CARDIO", label: "Cardio", icon: Zap },
+  { key: "FLEXIBILITY", label: "Flexibility", icon: Activity },
+  { key: "GYM", label: "Gym", icon: Dumbbell },
+];
+
+const DIFFICULTY_COLORS: Record<string, string> = {
+  EASY: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+  MEDIUM: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+  HARD: "bg-red-500/20 text-red-400 border-red-500/40",
+};
+
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; juniors: any[] | undefined }) {
+  const [activeTab, setActiveTab] = useState<"challenges" | "exercises" | "videos">("challenges");
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [selectedChild, setSelectedChild] = useState<number | null>(null);
+  const [editExerciseOpen, setEditExerciseOpen] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<any>(null);
+  const [addVideoOpen, setAddVideoOpen] = useState(false);
+  const [videoTitle, setVideoTitle] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoCategory, setVideoCategory] = useState("HOME");
+  const [videoDescription, setVideoDescription] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (juniors && juniors.length > 0 && !selectedChild) {
+      setSelectedChild(juniors[0].id);
+    }
+  }, [juniors, selectedChild]);
+
+  const { data: challenges } = useQuery<any[]>({ queryKey: ["/api/junior-weekly-challenges"] });
+  const { data: exercises } = useQuery<any[]>({ queryKey: ["/api/junior-exercises"] });
+  const { data: exerciseVideos } = useQuery<any[]>({ queryKey: ["/api/junior-exercise-videos"] });
+  const { data: completions } = useQuery<any[]>({
+    queryKey: ["/api/junior-challenge-completions", String(selectedChild)],
+    enabled: !!selectedChild,
+  });
+  const { data: skillPoints } = useQuery<{ totalPoints: number }>({
+    queryKey: ["/api/junior-skill-points", String(selectedChild)],
+    enabled: !!selectedChild,
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async (data: { userId: number; challengeDayId: number; challengeId: number }) => {
+      const res = await apiRequest("POST", "/api/junior-challenge-completions", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-challenge-completions", String(selectedChild)] });
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-skill-points", String(selectedChild)] });
+      toast({ title: "Exercise completed!", description: "Skill points earned!" });
+    },
+  });
+
+  const uncompleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/junior-challenge-completions/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-challenge-completions", String(selectedChild)] });
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-skill-points", String(selectedChild)] });
+    },
+  });
+
+  const revealMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/junior-weekly-challenges/${id}/reveal`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-weekly-challenges"] });
+      toast({ title: "Week revealed!" });
+    },
+  });
+
+  const updateExerciseMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/junior-exercises/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-exercises"] });
+      setEditExerciseOpen(false);
+      toast({ title: "Exercise updated" });
+    },
+  });
+
+  const addVideoMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/junior-exercise-videos", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-exercise-videos"] });
+      setAddVideoOpen(false);
+      setVideoTitle(""); setVideoUrl(""); setVideoDescription("");
+      toast({ title: "Video added" });
+    },
+  });
+
+  const deleteVideoMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/junior-exercise-videos/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-exercise-videos"] });
+      toast({ title: "Video deleted" });
+    },
+  });
+
+  const currentWeek = useMemo(() => {
+    if (!challenges) return null;
+    if (selectedWeek !== null) return challenges.find((c: any) => c.weekNumber === selectedWeek) || null;
+    const revealed = challenges.filter((c: any) => c.isRevealed);
+    return revealed.length > 0 ? revealed[revealed.length - 1] : challenges[0] || null;
+  }, [challenges, selectedWeek]);
+
+  const dayExercises = useMemo(() => {
+    if (!currentWeek?.days) return [];
+    return currentWeek.days.filter((d: any) => d.dayOfWeek === selectedDay);
+  }, [currentWeek, selectedDay]);
+
+  const completionSet = useMemo(() => {
+    if (!completions) return new Set<number>();
+    return new Set(completions.map((c: any) => c.challengeDayId));
+  }, [completions]);
+
+  const completionMap = useMemo(() => {
+    if (!completions) return new Map<number, any>();
+    return new Map(completions.map((c: any) => [c.challengeDayId, c]));
+  }, [completions]);
+
+  const weekProgress = useMemo(() => {
+    if (!currentWeek?.days || !completions) return 0;
+    const totalDays = currentWeek.days.length;
+    const completed = currentWeek.days.filter((d: any) => completionSet.has(d.id)).length;
+    return totalDays > 0 ? Math.round((completed / totalDays) * 100) : 0;
+  }, [currentWeek, completions, completionSet]);
+
+  const filteredExercises = useMemo(() => {
+    if (!exercises) return [];
+    if (categoryFilter === "ALL") return exercises;
+    return exercises.filter((e: any) => e.category === categoryFilter);
+  }, [exercises, categoryFilter]);
+
+  const filteredVideos = useMemo(() => {
+    if (!exerciseVideos) return [];
+    if (categoryFilter === "ALL") return exerciseVideos;
+    return exerciseVideos.filter((v: any) => v.category === categoryFilter);
+  }, [exerciseVideos, categoryFilter]);
+
+  function getYoutubeId(url: string) {
+    const match = url.match(/(?:v=|\/embed\/|youtu\.be\/)([^&?#]+)/);
+    return match ? match[1] : null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Dumbbell className="h-5 w-5 text-orange-500" />
+          <h2 className="text-xl font-bold" data-testid="text-training-title">Training Challenges</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1">
+            <Zap className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-sm font-bold text-amber-400" data-testid="text-skill-points">{skillPoints?.totalPoints || 0}</span>
+            <span className="text-[10px] text-amber-400/70">pts</span>
+          </div>
+        </div>
+      </div>
+
+      {juniors && juniors.length > 1 && (
+        <Select value={selectedChild?.toString() || ""} onValueChange={(v) => setSelectedChild(parseInt(v))}>
+          <SelectTrigger className="w-full" data-testid="select-child-training">
+            <SelectValue placeholder="Select child" />
+          </SelectTrigger>
+          <SelectContent>
+            {juniors.map((j: any) => (
+              <SelectItem key={j.id} value={j.id.toString()}>{j.fullName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <div className="flex gap-1 p-1 rounded-xl bg-muted/30">
+        {[
+          { key: "challenges", label: "Challenges", icon: Trophy },
+          { key: "exercises", label: "Exercises", icon: Dumbbell },
+          { key: "videos", label: "Videos", icon: Play },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as any)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === tab.key ? "bg-orange-500 text-white shadow-lg" : "text-muted-foreground hover:text-foreground"}`}
+            data-testid={`tab-training-${tab.key}`}
+          >
+            <tab.icon className="h-3.5 w-3.5" />{tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "challenges" && (
+        <div className="space-y-4">
+          {currentWeek && (
+            <div className="rounded-2xl bg-gradient-to-r from-orange-600 to-amber-500 p-4 text-white" data-testid="card-current-challenge">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5" />
+                  <span className="font-bold text-sm">Week {currentWeek.weekNumber}</span>
+                </div>
+                <Badge className="bg-white/20 text-white border-0 text-[10px]">{currentWeek.skillPointsReward} pts</Badge>
+              </div>
+              <h3 className="text-lg font-black mb-1">{currentWeek.title}</h3>
+              <p className="text-xs text-white/80 mb-3">{currentWeek.description}</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${weekProgress}%` }} />
+                </div>
+                <span className="text-xs font-bold">{weekProgress}%</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {(challenges || []).map((c: any) => (
+              <button
+                key={c.id}
+                onClick={() => { if (c.isRevealed) setSelectedWeek(c.weekNumber); }}
+                className={`shrink-0 rounded-xl px-3 py-2 text-center min-w-[60px] transition-all ${
+                  currentWeek?.weekNumber === c.weekNumber
+                    ? "bg-orange-500 text-white shadow-lg"
+                    : c.isRevealed
+                    ? "bg-muted/50 hover:bg-muted"
+                    : "bg-muted/20 opacity-50"
+                }`}
+                disabled={!c.isRevealed && !isAdmin}
+                data-testid={`week-btn-${c.weekNumber}`}
+              >
+                {!c.isRevealed && <Lock className="h-3 w-3 mx-auto mb-0.5 opacity-50" />}
+                <span className="text-[10px] font-medium block">Wk {c.weekNumber}</span>
+              </button>
+            ))}
+          </div>
+
+          {isAdmin && (
+            <div className="flex gap-2 overflow-x-auto">
+              {(challenges || []).filter((c: any) => !c.isRevealed).slice(0, 3).map((c: any) => (
+                <Button key={c.id} size="sm" variant="outline" className="gap-1 text-xs shrink-0 border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={() => revealMutation.mutate(c.id)} data-testid={`btn-reveal-week-${c.weekNumber}`}>
+                  <Unlock className="h-3 w-3" /> Reveal Week {c.weekNumber}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          {currentWeek?.isRevealed && (
+            <>
+              <div className="flex gap-2 justify-center">
+                {DAY_NAMES.map((day, i) => {
+                  const dayNum = i + 1;
+                  const dayItems = (currentWeek?.days || []).filter((d: any) => d.dayOfWeek === dayNum);
+                  const allDone = dayItems.length > 0 && dayItems.every((d: any) => completionSet.has(d.id));
+                  return (
+                    <button
+                      key={dayNum}
+                      onClick={() => setSelectedDay(dayNum)}
+                      className={`flex flex-col items-center rounded-xl px-3 py-2 min-w-[52px] transition-all ${
+                        selectedDay === dayNum
+                          ? "bg-orange-500 text-white shadow-lg scale-105"
+                          : allDone
+                          ? "bg-emerald-500/10 border border-emerald-500/30"
+                          : "bg-muted/30 hover:bg-muted/50"
+                      }`}
+                      data-testid={`day-btn-${dayNum}`}
+                    >
+                      <span className="text-[10px] font-medium">{day}</span>
+                      {allDone && selectedDay !== dayNum && <CircleCheck className="h-3 w-3 text-emerald-400 mt-0.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3">
+                {dayExercises.length === 0 ? (
+                  <div className="rounded-2xl bg-muted/20 p-8 text-center">
+                    <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">Rest day! No exercises scheduled.</p>
+                  </div>
+                ) : (
+                  dayExercises.map((item: any) => {
+                    const exercise = item.exercise;
+                    if (!exercise) return null;
+                    const isCompleted = completionSet.has(item.id);
+                    const completion = completionMap.get(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-2xl border transition-all ${isCompleted ? "bg-emerald-500/5 border-emerald-500/30" : "bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50"}`}
+                        data-testid={`exercise-card-${item.id}`}
+                      >
+                        <div className="p-4">
+                          <div className="flex items-start gap-3">
+                            <button
+                              onClick={() => {
+                                if (!selectedChild) return;
+                                if (isCompleted && completion) {
+                                  uncompleteMutation.mutate(completion.id);
+                                } else {
+                                  completeMutation.mutate({ userId: selectedChild, challengeDayId: item.id, challengeId: currentWeek.id });
+                                }
+                              }}
+                              className={`shrink-0 mt-0.5 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${isCompleted ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground/30 hover:border-orange-400"}`}
+                              data-testid={`complete-btn-${item.id}`}
+                            >
+                              {isCompleted && <Check className="h-4 w-4" />}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className={`text-sm font-bold ${isCompleted ? "line-through text-muted-foreground" : ""}`}>{exercise.name}</h4>
+                                <Badge className={`text-[9px] px-1.5 py-0 border ${DIFFICULTY_COLORS[exercise.difficulty] || ""}`}>
+                                  {exercise.difficulty}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{exercise.description}</p>
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                {(item.targetDurationMinutes || exercise.durationMinutes) && (
+                                  <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{item.targetDurationMinutes || exercise.durationMinutes} min</span>
+                                )}
+                                {(item.targetReps || exercise.reps) && (
+                                  <span className="flex items-center gap-1"><Repeat className="h-3 w-3" />{item.targetReps || exercise.reps} reps</span>
+                                )}
+                                {(item.targetSets || exercise.sets) && (
+                                  <span className="flex items-center gap-1">{item.targetSets || exercise.sets} sets</span>
+                                )}
+                                {exercise.equipment && (
+                                  <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" />{exercise.equipment}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {exercise.videoUrl && (
+                            <a href={exercise.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1.5 text-[10px] text-orange-400 hover:text-orange-300">
+                              <Play className="h-3 w-3" /> Watch Tutorial
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+
+          {currentWeek && !currentWeek.isRevealed && (
+            <div className="rounded-2xl bg-muted/20 p-8 text-center">
+              <Lock className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+              <h3 className="font-semibold mb-1">Week Locked</h3>
+              <p className="text-sm text-muted-foreground">This week's challenges haven't been revealed yet. Check back soon!</p>
+              {isAdmin && (
+                <Button size="sm" className="mt-3 gap-1 bg-orange-500 hover:bg-orange-600" onClick={() => revealMutation.mutate(currentWeek.id)}>
+                  <Unlock className="h-3.5 w-3.5" /> Reveal This Week
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "exercises" && (
+        <div className="space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {CATEGORY_CHIPS.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => setCategoryFilter(cat.key)}
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                  categoryFilter === cat.key
+                    ? "bg-orange-500 text-white"
+                    : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                }`}
+                data-testid={`cat-chip-${cat.key}`}
+              >
+                <cat.icon className="h-3 w-3" />{cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            {filteredExercises.map((ex: any) => (
+              <div key={ex.id} className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-4" data-testid={`exercise-lib-${ex.id}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-bold">{ex.name}</h4>
+                      <Badge className={`text-[9px] px-1.5 py-0 border ${DIFFICULTY_COLORS[ex.difficulty] || ""}`}>{ex.difficulty}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{ex.description}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                      {ex.durationMinutes && <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{ex.durationMinutes} min</span>}
+                      {ex.reps && <span className="flex items-center gap-1"><Repeat className="h-3 w-3" />{ex.reps} reps</span>}
+                      {ex.sets && <span>{ex.sets} sets</span>}
+                      {ex.equipment && <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" />{ex.equipment}</span>}
+                      <Badge variant="outline" className="text-[8px] px-1 py-0">{ex.location}</Badge>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0" onClick={() => { setEditingExercise(ex); setEditExerciseOpen(true); }} data-testid={`btn-edit-exercise-${ex.id}`}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {ex.videoUrl && (
+                  <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1.5 text-[10px] text-orange-400 hover:text-orange-300">
+                    <Play className="h-3 w-3" /> Watch Tutorial
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "videos" && (
+        <div className="space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {CATEGORY_CHIPS.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => setCategoryFilter(cat.key)}
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                  categoryFilter === cat.key
+                    ? "bg-orange-500 text-white"
+                    : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                }`}
+                data-testid={`video-cat-${cat.key}`}
+              >
+                <cat.icon className="h-3 w-3" />{cat.label}
+              </button>
+            ))}
+          </div>
+
+          {isAdmin && (
+            <Button size="sm" className="gap-1 bg-orange-500 hover:bg-orange-600" onClick={() => setAddVideoOpen(true)} data-testid="btn-add-video">
+              <Plus className="h-3.5 w-3.5" /> Add Video
+            </Button>
+          )}
+
+          <div className="space-y-4">
+            {filteredVideos.map((video: any) => {
+              const ytId = getYoutubeId(video.youtubeUrl);
+              return (
+                <div key={video.id} className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 overflow-hidden" data-testid={`video-card-${video.id}`}>
+                  {ytId && (
+                    <div className="aspect-video">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${ytId}`}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title={video.title}
+                      />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold mb-1">{video.title}</h4>
+                        {video.category && <Badge variant="outline" className="text-[9px] mb-1">{video.category}</Badge>}
+                        {video.description && <p className="text-xs text-muted-foreground">{video.description}</p>}
+                      </div>
+                      {isAdmin && (
+                        <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0 text-red-400 hover:text-red-300" onClick={() => deleteVideoMutation.mutate(video.id)} data-testid={`btn-delete-video-${video.id}`}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {filteredVideos.length === 0 && (
+              <div className="rounded-2xl bg-muted/20 p-8 text-center">
+                <Play className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No videos found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={editExerciseOpen} onOpenChange={setEditExerciseOpen}>
+        <DialogContent className="max-w-lg" data-testid="dialog-edit-exercise">
+          <DialogHeader>
+            <DialogTitle>Edit Exercise</DialogTitle>
+          </DialogHeader>
+          {editingExercise && (
+            <div className="space-y-3">
+              <div>
+                <Label>Name</Label>
+                <Input value={editingExercise.name} onChange={(e) => setEditingExercise({ ...editingExercise, name: e.target.value })} data-testid="input-exercise-name" />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea value={editingExercise.description} onChange={(e) => setEditingExercise({ ...editingExercise, description: e.target.value })} rows={3} data-testid="input-exercise-desc" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Category</Label>
+                  <Select value={editingExercise.category} onValueChange={(v) => setEditingExercise({ ...editingExercise, category: v })}>
+                    <SelectTrigger data-testid="select-exercise-cat"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["HOME", "GYM", "COURT", "FOOTWORK", "CORE", "FLEXIBILITY", "STRENGTH", "CARDIO"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Difficulty</Label>
+                  <Select value={editingExercise.difficulty} onValueChange={(v) => setEditingExercise({ ...editingExercise, difficulty: v })}>
+                    <SelectTrigger data-testid="select-exercise-diff"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EASY">Easy</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HARD">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Duration (min)</Label>
+                  <Input type="number" value={editingExercise.durationMinutes || ""} onChange={(e) => setEditingExercise({ ...editingExercise, durationMinutes: e.target.value ? parseInt(e.target.value) : null })} data-testid="input-exercise-duration" />
+                </div>
+                <div>
+                  <Label>Reps</Label>
+                  <Input type="number" value={editingExercise.reps || ""} onChange={(e) => setEditingExercise({ ...editingExercise, reps: e.target.value ? parseInt(e.target.value) : null })} data-testid="input-exercise-reps" />
+                </div>
+                <div>
+                  <Label>Sets</Label>
+                  <Input type="number" value={editingExercise.sets || ""} onChange={(e) => setEditingExercise({ ...editingExercise, sets: e.target.value ? parseInt(e.target.value) : null })} data-testid="input-exercise-sets" />
+                </div>
+              </div>
+              <div>
+                <Label>Equipment</Label>
+                <Input value={editingExercise.equipment || ""} onChange={(e) => setEditingExercise({ ...editingExercise, equipment: e.target.value || null })} data-testid="input-exercise-equip" />
+              </div>
+              <div>
+                <Label>Video URL</Label>
+                <Input value={editingExercise.videoUrl || ""} onChange={(e) => setEditingExercise({ ...editingExercise, videoUrl: e.target.value || null })} data-testid="input-exercise-video" />
+              </div>
+              <DialogFooter>
+                <Button className="w-full bg-orange-500 hover:bg-orange-600" disabled={updateExerciseMutation.isPending} onClick={() => updateExerciseMutation.mutate({ id: editingExercise.id, data: editingExercise })} data-testid="btn-save-exercise">
+                  {updateExerciseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Save Changes
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addVideoOpen} onOpenChange={setAddVideoOpen}>
+        <DialogContent className="max-w-lg" data-testid="dialog-add-video">
+          <DialogHeader>
+            <DialogTitle>Add Exercise Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Title</Label>
+              <Input value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} placeholder="Video title" data-testid="input-video-title" />
+            </div>
+            <div>
+              <Label>YouTube URL</Label>
+              <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." data-testid="input-video-url" />
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Select value={videoCategory} onValueChange={setVideoCategory}>
+                <SelectTrigger data-testid="select-video-cat"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["HOME", "GYM", "COURT", "FOOTWORK", "CORE", "FLEXIBILITY", "STRENGTH", "CARDIO"].map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={videoDescription} onChange={(e) => setVideoDescription(e.target.value)} placeholder="Brief description..." rows={2} data-testid="input-video-desc" />
+            </div>
+            <DialogFooter>
+              <Button className="w-full bg-orange-500 hover:bg-orange-600" disabled={addVideoMutation.isPending || !videoTitle || !videoUrl} onClick={() => addVideoMutation.mutate({ title: videoTitle, youtubeUrl: videoUrl, category: videoCategory, description: videoDescription })} data-testid="btn-save-video">
+                {addVideoMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Add Video
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function Juniors() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -1987,6 +2608,7 @@ export default function Juniors() {
     { key: "performance", icon: Activity, title: "Skill Dashboard", description: "Track skills, rankings & achievements", iconBg: "bg-amber-500/10", iconColor: "text-amber-500" },
     { key: "rankings", icon: Trophy, title: "Rankings", description: "Junior leaderboard & badges", iconBg: "bg-purple-500/10", iconColor: "text-purple-500" },
     { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
+    { key: "training", icon: Dumbbell, title: "Training Challenges", description: "Weekly exercise programs & videos", iconBg: "bg-orange-500/10", iconColor: "text-orange-500" },
     { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
     { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
   ];
@@ -2224,6 +2846,8 @@ export default function Juniors() {
             )}
           </div>
         );
+      case "training":
+        return <ExerciseChallengePanel isAdmin={isAdmin} juniors={juniors} />;
       default:
         return null;
     }
