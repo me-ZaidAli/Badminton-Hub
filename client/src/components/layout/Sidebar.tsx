@@ -31,6 +31,7 @@ import {
   LayoutDashboard,
   Baby,
   Heart,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -186,45 +187,82 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
-            Support Club Master
+            <Rocket className="h-5 w-5 text-amber-500" />
+            Support Platform Development
           </DialogTitle>
         </DialogHeader>
 
         {step === "form" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              We continuously take on board your feedback and improve the platform to give you a better experience. A donation of as little as {"\u00A3"}2 helps keep development going and makes a real difference.
+              We continuously invest in improving analytics, development tools, and competition systems to give every player a better experience. Your contribution helps us build the future of badminton performance.
             </p>
 
-            <div className="grid grid-cols-4 gap-2">
-              {[2, 5, 10, 20].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setAmount(String(v))}
-                  className={cn(
-                    "py-2 rounded-lg text-sm font-semibold border transition-all",
-                    amount === String(v)
-                      ? "border-pink-500 bg-pink-500/10 text-pink-600 dark:text-pink-400"
-                      : "border-border hover:border-pink-500/50 text-muted-foreground hover:text-foreground"
-                  )}
-                  data-testid={`button-amount-${v}`}
-                >
-                  {"\u00A3"}{v}
-                </button>
-              ))}
+            <div className="space-y-2">
+              <button
+                onClick={() => setAmount("10")}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left",
+                  amount === "10"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-border hover:border-amber-500/50"
+                )}
+                data-testid="button-tier-supporter"
+              >
+                <span className="text-lg">🥉</span>
+                <div className="flex-1">
+                  <span className="text-sm font-semibold text-foreground">Supporter</span>
+                  <span className="text-xs text-muted-foreground ml-2">{"\u00A3"}10</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Helps maintain app infrastructure</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setAmount("25")}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left",
+                  amount === "25"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-border hover:border-amber-500/50"
+                )}
+                data-testid="button-tier-partner"
+              >
+                <span className="text-lg">🥈</span>
+                <div className="flex-1">
+                  <span className="text-sm font-semibold text-foreground">Performance Partner</span>
+                  <span className="text-xs text-muted-foreground ml-2">{"\u00A3"}25</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Supports new features & analytics improvements</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setAmount("50")}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left",
+                  amount === "50"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-border hover:border-amber-500/50"
+                )}
+                data-testid="button-tier-elite"
+              >
+                <span className="text-lg">🥇</span>
+                <div className="flex-1">
+                  <span className="text-sm font-semibold text-foreground">Elite Backer</span>
+                  <span className="text-xs text-muted-foreground ml-2">{"\u00A3"}50+</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Supports platform expansion & competition systems</p>
+                </div>
+              </button>
             </div>
 
             <div>
-              <Label className="text-xs">Custom Amount ({"\u00A3"})</Label>
+              <Label className="text-xs">Custom Contribution ({"\u00A3"})</Label>
               <Input
                 type="number"
                 min="1"
                 step="0.01"
                 placeholder="Enter amount"
-                value={amount}
+                value={!["10", "25", "50"].includes(amount) ? amount : ""}
                 onChange={e => setAmount(e.target.value)}
-                data-testid="input-donation-amount"
+                onFocus={() => { if (["10", "25", "50"].includes(amount)) setAmount(""); }}
+                data-testid="input-support-amount"
               />
             </div>
 
@@ -241,10 +279,10 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             <div>
               <Label className="text-xs">Your transfer reference (optional)</Label>
               <Input
-                placeholder="e.g. Your Name - Donation"
+                placeholder="e.g. Your Name - Support"
                 value={reference}
                 onChange={e => setReference(e.target.value)}
-                data-testid="input-donation-reference"
+                data-testid="input-support-reference"
               />
             </div>
 
@@ -255,12 +293,12 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 rows={2}
-                data-testid="input-donation-message"
+                data-testid="input-support-message"
               />
             </div>
 
             <Button
-              className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
               disabled={!amount || parseFloat(amount) < 1}
               onClick={() => setStep("bank")}
               data-testid="button-continue-to-bank"
@@ -298,7 +336,7 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             </div>
 
             <p className="text-xs text-muted-foreground">
-              After making the transfer, click "Confirm" below. An admin will verify your donation once it arrives.
+              After making the transfer, click "Confirm" below. An admin will verify your contribution once it arrives.
             </p>
 
             <div className="flex gap-2">
@@ -306,12 +344,12 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
                 Back
               </Button>
               <Button
-                className="flex-1 bg-pink-500 hover:bg-pink-600 text-white"
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
                 onClick={() => submitMutation.mutate()}
                 disabled={submitMutation.isPending}
-                data-testid="button-confirm-donation"
+                data-testid="button-confirm-support"
               >
-                {submitMutation.isPending ? "Submitting..." : "Confirm Donation"}
+                {submitMutation.isPending ? "Submitting..." : "Confirm Contribution"}
               </Button>
             </div>
           </div>
@@ -319,16 +357,16 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
         {step === "done" && (
           <div className="text-center space-y-4 py-4">
-            <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto">
-              <Heart className="h-8 w-8 text-pink-500 fill-pink-500" />
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+              <Rocket className="h-8 w-8 text-amber-500" />
             </div>
             <div>
               <h3 className="font-semibold text-lg">Thank You!</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Your donation of {"\u00A3"}{parseFloat(amount).toFixed(2)} has been recorded. We truly appreciate your support in helping us improve Club Master.
+                Your contribution of {"\u00A3"}{parseFloat(amount).toFixed(2)} has been recorded. Every contribution helps us improve ranking systems, performance dashboards, and training analytics.
               </p>
             </div>
-            <Button onClick={handleClose} className="w-full" data-testid="button-close-donation">
+            <Button onClick={handleClose} className="w-full" data-testid="button-close-support">
               Close
             </Button>
           </div>
@@ -347,33 +385,33 @@ function DonationCard({ compact = false }: { compact?: boolean }) {
   return (
     <>
       <div className={cn(
-        "rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-rose-500/10 dark:from-pink-500/15 dark:to-rose-500/15",
+        "rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/10 dark:from-amber-500/15 dark:to-orange-500/15",
         compact ? "p-3 mx-2 mb-2" : "p-3 mx-3 mb-2"
-      )} data-testid="donation-cta-card">
+      )} data-testid="support-cta-card">
         <div className="flex items-start gap-2">
           <div className="flex-shrink-0 mt-0.5">
-            <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
+            <Rocket className="h-4 w-4 text-amber-500" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-foreground leading-tight">
-              Help Us Improve Club Master
+              Support Platform Development
             </p>
             <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-              We take your feedback on board and continuously improve the platform. A donation of as little as {"\u00A3"}2 helps keep development going.
+              Help us build better performance tracking, rankings, and training tools for every player.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <button
                 onClick={() => setDialogOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-[11px] font-semibold transition-colors shadow-sm"
-                data-testid="button-donate"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors shadow-sm"
+                data-testid="button-support"
               >
-                <Heart className="h-3 w-3" />
-                Donate
+                <Rocket className="h-3 w-3" />
+                Support
               </button>
               <button
                 onClick={() => setDismissed(true)}
                 className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                data-testid="button-dismiss-donation"
+                data-testid="button-dismiss-support"
               >
                 Maybe later
               </button>
