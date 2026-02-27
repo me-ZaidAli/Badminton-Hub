@@ -935,6 +935,126 @@ function VideosPanel({ userId, videos, isAdmin }: { userId: number; videos: any[
   );
 }
 
+function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number; clubName: string }[] }) {
+  const [selectedClub, setSelectedClub] = useState<string>(parentClubs.length > 0 ? String(parentClubs[0].clubId) : "");
+  const clubId = Number(selectedClub) || (parentClubs.length > 0 ? parentClubs[0].clubId : 0);
+
+  const { data: rankings, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/junior-rankings", String(clubId)],
+    enabled: !!clubId,
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <Trophy className="h-5 w-5 text-purple-500" />
+          <h2 className="text-xl font-bold" data-testid="text-junior-rankings">Junior Rankings</h2>
+          {rankings && <Badge variant="secondary">{rankings.length} players</Badge>}
+        </div>
+        {parentClubs.length > 1 && (
+          <Select value={selectedClub} onValueChange={setSelectedClub}>
+            <SelectTrigger className="w-40" data-testid="select-rankings-club">
+              <SelectValue placeholder="Select club" />
+            </SelectTrigger>
+            <SelectContent>
+              {parentClubs.map((c) => <SelectItem key={c.clubId} value={String(c.clubId)}>{c.clubName}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : !rankings || rankings.length === 0 ? (
+        <Card className="border-dashed" data-testid="card-no-rankings">
+          <CardContent className="p-8 text-center">
+            <Trophy className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <h3 className="font-semibold mb-1">No Rankings Yet</h3>
+            <p className="text-sm text-muted-foreground">Rankings will appear once junior players have been assessed and the leaderboard recalculated.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {rankings.map((rank: any, i: number) => {
+            const movement = rank.previousPosition > 0 ? rank.previousPosition - rank.rankPosition : 0;
+            const achievements: any[] = rank.achievements || [];
+            const matchStats = rank.matchStats;
+            return (
+              <Card key={rank.id} className={`overflow-hidden ${i < 3 ? "border-amber-500/20" : ""}`} data-testid={`card-full-ranking-${rank.userId}`}>
+                {i < 3 && <div className={`h-1 ${i === 0 ? "bg-gradient-to-r from-amber-400 to-yellow-300" : i === 1 ? "bg-gradient-to-r from-slate-300 to-slate-400" : "bg-gradient-to-r from-amber-700 to-amber-600"}`} />}
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-slate-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"}`}>
+                      {rank.rankPosition}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={rank.user?.profilePictureUrl} />
+                          <AvatarFallback className="text-xs bg-purple-500/20 text-purple-400">{rank.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{rank.user?.fullName || "Unknown"}</p>
+                          <p className="text-[10px] text-muted-foreground">{rank.overallSkillPercent}% overall skill</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        <div className="text-center p-1.5 rounded-lg bg-muted/40">
+                          <p className="text-xs font-bold">{matchStats?.matchesPlayed || 0}</p>
+                          <p className="text-[9px] text-muted-foreground">Matches</p>
+                        </div>
+                        <div className="text-center p-1.5 rounded-lg bg-muted/40">
+                          <p className="text-xs font-bold text-emerald-500">{matchStats?.matchesWon || 0}</p>
+                          <p className="text-[9px] text-muted-foreground">Wins</p>
+                        </div>
+                        <div className="text-center p-1.5 rounded-lg bg-muted/40">
+                          <p className={`text-xs font-bold ${(matchStats?.winPercent || 0) >= 50 ? "text-emerald-500" : "text-muted-foreground"}`}>{matchStats?.winPercent || 0}%</p>
+                          <p className="text-[9px] text-muted-foreground">Win Rate</p>
+                        </div>
+                        <div className="text-center p-1.5 rounded-lg bg-muted/40">
+                          <p className="text-xs font-bold">{matchStats?.attendancePercent || rank.attendancePercent || 0}%</p>
+                          <p className="text-[9px] text-muted-foreground">Attend.</p>
+                        </div>
+                      </div>
+
+                      {achievements.length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                          {achievements.map((ach: any) => {
+                            const AchIcon = ICON_MAP[ach.iconName] || Award;
+                            return (
+                              <div key={ach.id} className="bg-amber-500/10 rounded-full px-2 py-0.5 flex items-center gap-1" title={ach.description}>
+                                <AchIcon className="h-3 w-3 text-amber-400" />
+                                <span className="text-[9px] text-amber-400 font-medium">{ach.title}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      {movement > 0 && <div className="flex items-center gap-0.5"><TrendingUp className="h-4 w-4 text-emerald-400" /><span className="text-xs font-medium text-emerald-400">{Math.abs(movement)}</span></div>}
+                      {movement < 0 && <div className="flex items-center gap-0.5"><TrendingDown className="h-4 w-4 text-red-400" /><span className="text-xs font-medium text-red-400">{Math.abs(movement)}</span></div>}
+                      {achievements.length > 0 && (
+                        <div className="flex items-center gap-0.5 mt-1">
+                          <Award className="h-3.5 w-3.5 text-amber-400" />
+                          <span className="text-xs text-amber-400 font-medium">{achievements.length}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function JuniorSessionsPanel() {
   const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/sessions"] });
   const { data: user } = useUser();
@@ -1246,6 +1366,7 @@ export default function Juniors() {
   const menuItems = [
     { key: "children", icon: Baby, title: "My Children", description: "Manage your children's profiles", iconBg: "bg-pink-500/10", iconColor: "text-pink-500" },
     { key: "performance", icon: Activity, title: "Skill Dashboard", description: "Track skills, rankings & achievements", iconBg: "bg-amber-500/10", iconColor: "text-amber-500" },
+    { key: "rankings", icon: Trophy, title: "Rankings", description: "Junior leaderboard & badges", iconBg: "bg-purple-500/10", iconColor: "text-purple-500" },
     { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
     { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
     { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
@@ -1347,6 +1468,8 @@ export default function Juniors() {
             )}
           </div>
         );
+      case "rankings":
+        return <JuniorRankingsSection parentClubs={parentClubs} />;
       case "sessions":
         return <JuniorSessionsPanel />;
       case "fees":
