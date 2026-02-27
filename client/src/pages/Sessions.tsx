@@ -1640,6 +1640,27 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="sessionType"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <Baby className="h-4 w-4 text-emerald-500" />
+                      <FormLabel className="!mt-0 font-medium">Junior Session</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === "JUNIORS_ONLY"}
+                        onCheckedChange={(checked) => field.onChange(checked ? "JUNIORS_ONLY" : "OPEN")}
+                        data-testid="toggle-session-type"
+                      />
+                    </FormControl>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="clubId"
               render={({ field }) => (
                 <FormItem>
@@ -1892,27 +1913,6 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
                 )}
               />
             </div>
-            <FormField
-              control={form.control}
-              name="sessionType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Session Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-session-type">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="OPEN">Open (All Ages)</SelectItem>
-                      <SelectItem value="JUNIORS_ONLY">Juniors Only (Under 18)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             {watchSessionType === "JUNIORS_ONLY" && (
               <FormField
                 control={form.control}
@@ -2329,6 +2329,17 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
               <p className="text-xs text-muted-foreground mt-1">No venues configured for this club</p>
             )}
           </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center gap-2">
+              <Baby className="h-4 w-4 text-emerald-500" />
+              <Label className="!mt-0 font-medium">Junior Session</Label>
+            </div>
+            <Switch
+              checked={editSessionType === "JUNIORS_ONLY"}
+              onCheckedChange={(checked) => setEditSessionType(checked ? "JUNIORS_ONLY" : "OPEN")}
+              data-testid="toggle-edit-session-type"
+            />
+          </div>
           <div>
             <Label>Session Title</Label>
             <Input
@@ -2476,18 +2487,6 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div>
-            <Label>Session Type</Label>
-            <Select value={editSessionType} onValueChange={setEditSessionType}>
-              <SelectTrigger className="mt-2" data-testid="select-edit-session-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="OPEN">Open (All Ages)</SelectItem>
-                <SelectItem value="JUNIORS_ONLY">Juniors Only (Under 18)</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           {editSessionType === "JUNIORS_ONLY" && (
             <div>

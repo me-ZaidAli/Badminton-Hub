@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -411,6 +411,17 @@ export default function SessionDetail() {
                     <DialogTitle>Edit Session</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="flex items-center gap-2">
+                        <Baby className="h-4 w-4 text-emerald-500" />
+                        <Label className="!mt-0 font-medium">Junior Session</Label>
+                      </div>
+                      <Switch
+                        checked={editSessionType === "JUNIORS_ONLY"}
+                        onCheckedChange={(checked) => setEditSessionType(checked ? "JUNIORS_ONLY" : "OPEN")}
+                        data-testid="toggle-edit-session-type"
+                      />
+                    </div>
                     <div>
                       <Label>Session Title</Label>
                       <Input
@@ -558,18 +569,6 @@ export default function SessionDetail() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-                    <div>
-                      <Label>Session Type</Label>
-                      <Select value={editSessionType} onValueChange={setEditSessionType}>
-                        <SelectTrigger className="mt-2" data-testid="select-edit-session-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="OPEN">Open (All Ages)</SelectItem>
-                          <SelectItem value="JUNIORS_ONLY">Juniors Only (Under 18)</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                     {editSessionType === "JUNIORS_ONLY" && (
                       <div>
