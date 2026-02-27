@@ -579,7 +579,7 @@ function DashboardContent({
                   <TableCell className="font-medium">{s.sessionTitle || "Untitled"}</TableCell>
                   <TableCell>{format(new Date(s.sessionDate), "MMM d, yyyy")}</TableCell>
                   <TableCell><Badge variant="outline" className="text-[10px]">{s.signupStatus}</Badge></TableCell>
-                  <TableCell className="text-right">{"\u00A3"}{s.fee ?? 0}</TableCell>
+                  <TableCell className="text-right">{"\u00A3"}{((s.fee ?? 0) / 100).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
