@@ -1079,7 +1079,7 @@ export default function Juniors() {
   const urlTab = searchParams.get("tab");
   const urlChild = searchParams.get("child");
 
-  const [mainTab, setMainTab] = useState(urlTab || "children");
+  const [mainTab, setMainTab] = useState(urlTab || "menu");
   const [selectedChildId, setSelectedChildId] = useState<number | null>(urlChild ? Number(urlChild) : null);
 
   useEffect(() => {
@@ -1143,128 +1143,167 @@ export default function Juniors() {
     else addMutation.mutate(payload);
   };
 
+  const menuItems = [
+    { key: "children", icon: Baby, title: "My Children", description: "Manage your children's profiles", iconBg: "bg-pink-500/10", iconColor: "text-pink-500" },
+    { key: "performance", icon: Activity, title: "Skill Dashboard", description: "Track skills, rankings & achievements", iconBg: "bg-amber-500/10", iconColor: "text-amber-500" },
+    { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
+    { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
+    { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
+  ];
+
+  const renderSectionContent = () => {
+    switch (mainTab) {
+      case "children":
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Heart className="h-5 w-5 text-pink-500" />
+                <h2 className="text-xl font-bold" data-testid="text-my-children">My Children</h2>
+                {juniors && <Badge variant="secondary">{juniors.length}</Badge>}
+              </div>
+              <Button onClick={openAdd} size="sm" data-testid="button-add-child">
+                <UserPlus className="h-4 w-4 mr-2" /> Add Child
+              </Button>
+            </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : !juniors || juniors.length === 0 ? (
+              <Card className="border-dashed" data-testid="card-no-children">
+                <CardContent className="p-8 text-center">
+                  <Baby className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <h3 className="font-semibold mb-1">No Children Added Yet</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Add your child's profile to sign them up for junior sessions and manage their account.</p>
+                  <Button onClick={openAdd} variant="outline" data-testid="button-add-first-child"><UserPlus className="h-4 w-4 mr-2" /> Add Your First Child</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {juniors.map((junior: any) => (
+                  <ChildProfileCard
+                    key={junior.id}
+                    junior={junior}
+                    isSelected={selectedChildId === junior.id}
+                    onSelect={() => { setSelectedChildId(junior.id); setMainTab("performance"); }}
+                    onEdit={() => openEdit(junior)}
+                    onDelete={() => setDeletingJuniorId(junior.id)}
+                    onAddToClub={() => { setAddToClubDialog({ juniorId: junior.id, juniorName: junior.fullName }); setSelectedClubId(""); setSelectedGrade("C3"); }}
+                    hasClubs={parentClubs.length > 0}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      case "performance":
+        return (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <Activity className="h-5 w-5 text-amber-500" />
+              <h2 className="text-xl font-bold">Skill Dashboard</h2>
+            </div>
+            {!juniors || juniors.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <h3 className="font-semibold mb-1">No Children Yet</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Add a child first to view their performance dashboard.</p>
+                  <Button onClick={() => { setMainTab("children"); openAdd(); }} variant="outline"><UserPlus className="h-4 w-4 mr-2" /> Add Child</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {juniors && juniors.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                    {juniors.map((junior: any) => (
+                      <Button
+                        key={junior.id}
+                        variant={selectedChildId === junior.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedChildId(junior.id)}
+                        className="shrink-0"
+                        data-testid={`button-select-child-${junior.id}`}
+                      >
+                        <Baby className="h-3.5 w-3.5 mr-1" />
+                        {junior.fullName}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                {selectedChildId ? (
+                  <PerformancePanel userId={selectedChildId} isAdmin={isAdmin} />
+                ) : juniors && juniors.length === 1 ? (
+                  <PerformancePanel userId={juniors[0].id} isAdmin={isAdmin} />
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="p-8 text-center">
+                      <Target className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                      <h3 className="font-semibold mb-1">Select a Child</h3>
+                      <p className="text-sm text-muted-foreground">Choose a child above to view their skill development and performance.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      case "sessions":
+        return <JuniorSessionsPanel />;
+      case "fees":
+        return <FeesPanel />;
+      case "about":
+        return <AboutPanel />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6 pb-8">
       <JuniorHero />
 
-      <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-11" data-testid="tabs-juniors-main">
-          <TabsTrigger value="children" className="text-xs sm:text-sm gap-1" data-testid="tab-children">
-            <Baby className="h-4 w-4 hidden sm:block" /> My Children
-          </TabsTrigger>
-          <TabsTrigger value="performance" className="text-xs sm:text-sm gap-1" data-testid="tab-performance">
-            <Activity className="h-4 w-4 hidden sm:block" /> Performance
-          </TabsTrigger>
-          <TabsTrigger value="sessions" className="text-xs sm:text-sm gap-1" data-testid="tab-sessions">
-            <Calendar className="h-4 w-4 hidden sm:block" /> Sessions
-          </TabsTrigger>
-          <TabsTrigger value="fees" className="text-xs sm:text-sm gap-1" data-testid="tab-fees">
-            <PoundSterling className="h-4 w-4 hidden sm:block" /> Fees
-          </TabsTrigger>
-          <TabsTrigger value="about" className="text-xs sm:text-sm gap-1" data-testid="tab-about">
-            <Info className="h-4 w-4 hidden sm:block" /> About
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="children" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Heart className="h-5 w-5 text-pink-500" />
-              <h2 className="text-xl font-bold" data-testid="text-my-children">My Children</h2>
-              {juniors && <Badge variant="secondary">{juniors.length}</Badge>}
+      {mainTab === "menu" ? (
+        <Card className="border-border/50" data-testid="card-juniors-menu">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-emerald-500" />
+              <h2 className="text-lg font-bold">Junior Hub</h2>
             </div>
-            <Button onClick={openAdd} size="sm" data-testid="button-add-child">
-              <UserPlus className="h-4 w-4 mr-2" /> Add Child
-            </Button>
-          </div>
-
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-          ) : !juniors || juniors.length === 0 ? (
-            <Card className="border-dashed" data-testid="card-no-children">
-              <CardContent className="p-8 text-center">
-                <Baby className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <h3 className="font-semibold mb-1">No Children Added Yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">Add your child's profile to sign them up for junior sessions and manage their account.</p>
-                <Button onClick={openAdd} variant="outline" data-testid="button-add-first-child"><UserPlus className="h-4 w-4 mr-2" /> Add Your First Child</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {juniors.map((junior: any) => (
-                <ChildProfileCard
-                  key={junior.id}
-                  junior={junior}
-                  isSelected={selectedChildId === junior.id}
-                  onSelect={() => { setSelectedChildId(junior.id); setMainTab("performance"); }}
-                  onEdit={() => openEdit(junior)}
-                  onDelete={() => setDeletingJuniorId(junior.id)}
-                  onAddToClub={() => { setAddToClubDialog({ juniorId: junior.id, juniorName: junior.fullName }); setSelectedClubId(""); setSelectedGrade("C3"); }}
-                  hasClubs={parentClubs.length > 0}
-                />
+            <div className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setMainTab(item.key)}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 active:bg-muted/70 transition-colors text-left group"
+                  data-testid={`menu-item-${item.key}`}
+                >
+                  <div className={`${item.iconBg} rounded-xl p-2.5 shrink-0`}>
+                    <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm">{item.title}</h3>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               ))}
             </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="performance" className="mt-6">
-          {!juniors || juniors.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <h3 className="font-semibold mb-1">No Children Yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">Add a child first to view their performance dashboard.</p>
-                <Button onClick={() => { setMainTab("children"); openAdd(); }} variant="outline"><UserPlus className="h-4 w-4 mr-2" /> Add Child</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {juniors && juniors.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {juniors.map((junior: any) => (
-                    <Button
-                      key={junior.id}
-                      variant={selectedChildId === junior.id ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedChildId(junior.id)}
-                      className="shrink-0"
-                      data-testid={`button-select-child-${junior.id}`}
-                    >
-                      <Baby className="h-3.5 w-3.5 mr-1" />
-                      {junior.fullName}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {selectedChildId ? (
-                <PerformancePanel userId={selectedChildId} isAdmin={isAdmin} />
-              ) : juniors && juniors.length === 1 ? (
-                <PerformancePanel userId={juniors[0].id} isAdmin={isAdmin} />
-              ) : (
-                <Card className="border-dashed">
-                  <CardContent className="p-8 text-center">
-                    <Target className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                    <h3 className="font-semibold mb-1">Select a Child</h3>
-                    <p className="text-sm text-muted-foreground">Choose a child above to view their skill development and performance.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="sessions" className="mt-6">
-          <JuniorSessionsPanel />
-        </TabsContent>
-
-        <TabsContent value="fees" className="mt-6">
-          <FeesPanel />
-        </TabsContent>
-
-        <TabsContent value="about" className="mt-6">
-          <AboutPanel />
-        </TabsContent>
-      </Tabs>
+          </CardContent>
+        </Card>
+      ) : (
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 mb-4 -ml-2"
+            onClick={() => setMainTab("menu")}
+            data-testid="button-back-to-menu"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to Junior Hub
+          </Button>
+          {renderSectionContent()}
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditingJunior(null); resetForm(); } }}>
         <DialogContent className="max-w-lg" data-testid="dialog-child-form">
