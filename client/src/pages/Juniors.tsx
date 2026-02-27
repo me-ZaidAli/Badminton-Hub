@@ -1093,7 +1093,6 @@ export default function Juniors() {
 
   const { data: juniors, isLoading } = useQuery<any[]>({ queryKey: ["/api/juniors"], enabled: !!user });
   const { data: profiles } = useQuery<any[]>({ queryKey: ["/api/player-profiles"], enabled: !!user });
-  const { data: adminJuniors, isLoading: adminJuniorsLoading } = useQuery<any[]>({ queryKey: ["/api/admin/juniors"], enabled: !!user && isAdmin });
 
   const parentClubs = useMemo(() => {
     if (!profiles) return [];
@@ -1106,6 +1105,8 @@ export default function Juniors() {
     return profiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
   }, [profiles]);
   const isAdmin = isPlatformAdmin || isClubAdmin;
+
+  const { data: adminJuniors, isLoading: adminJuniorsLoading } = useQuery<any[]>({ queryKey: ["/api/admin/juniors"], enabled: !!user && isAdmin });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJunior, setEditingJunior] = useState<any>(null);
