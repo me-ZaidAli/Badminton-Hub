@@ -1377,9 +1377,20 @@ function JuniorRankingDetailDialog({ rank, open, onOpenChange }: { rank: any; op
   if (!rank) return null;
   const achievements: any[] = rank.achievements || [];
   const matchStats = rank.matchStats;
+  const userId = rank.userId;
+  const { data: sessionHistory } = useQuery<any[]>({
+    queryKey: ["/api/junior-session-history", String(userId)],
+    enabled: open && !!userId,
+  });
+  const allMatches = useMemo(() => {
+    if (!sessionHistory) return [];
+    return sessionHistory
+      .filter((s: any) => s.status === "COMPLETED" && s.matches && s.matches.length > 0)
+      .flatMap((s: any) => s.matches.map((m: any) => ({ ...m, sessionTitle: s.title, sessionDate: s.date })));
+  }, [sessionHistory]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden" data-testid="dialog-junior-ranking-detail" aria-describedby={undefined}>
+      <DialogContent className="max-w-md p-0 overflow-hidden max-h-[85vh] overflow-y-auto" data-testid="dialog-junior-ranking-detail" aria-describedby={undefined}>
         <DialogHeader className="sr-only">
           <DialogTitle>Player Details</DialogTitle>
         </DialogHeader>
@@ -1465,6 +1476,30 @@ function JuniorRankingDetailDialog({ rank, open, onOpenChange }: { rank: any; op
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {allMatches.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Swords className="h-3.5 w-3.5 text-blue-400" /> Match Results ({allMatches.length})</p>
+              <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                {allMatches.map((match: any, idx: number) => (
+                  <div key={match.id || idx} className={`flex items-center gap-2.5 p-2 rounded-lg text-sm ${match.won ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-red-500/5 border border-red-500/20"}`} data-testid={`popup-match-${match.id || idx}`}>
+                    <div className={`w-1 h-7 rounded-full shrink-0 ${match.won ? "bg-emerald-500" : "bg-red-500"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold ${match.won ? "text-emerald-500" : "text-red-400"}`}>{match.won ? "W" : "L"}</span>
+                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{match.isTeamA ? `${match.scoreA}-${match.scoreB}` : `${match.scoreB}-${match.scoreA}`}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">{match.sessionTitle}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {match.partner && <span>w/ {match.partner}</span>}
+                        {match.opponents && match.opponents.length > 0 && <span>{match.partner ? " vs " : "vs "}{match.opponents.join(" & ")}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
