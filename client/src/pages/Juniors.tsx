@@ -1075,6 +1075,226 @@ function AboutPanel() {
   );
 }
 
+function AdminSkillEditor({ userId, onClose }: { userId: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const { data: categories } = useQuery<any[]>({ queryKey: ["/api/junior-skills/categories"] });
+  const { data: progress, refetch: refetchProgress } = useQuery<any[]>({ queryKey: ["/api/junior-skills/progress", userId], queryFn: async () => { const res = await fetch(`/api/junior-skills/progress/${userId}`); if (!res.ok) throw new Error("Failed"); return res.json(); } });
+  const { data: profileData } = useQuery<any>({ queryKey: ["/api/junior-profiles", userId], queryFn: async () => { const res = await fetch(`/api/junior-profiles/${userId}`); if (!res.ok) throw new Error("Failed"); return res.json(); } });
+
+  const progressMap = useMemo(() => {
+    const m = new Map<number, any>();
+    if (progress) progress.forEach((p: any) => m.set(p.skillId, p));
+    return m;
+  }, [progress]);
+
+  const [editingSkill, setEditingSkill] = useState<{ skillId: number; name: string; percentage: number; comment: string; priority: boolean } | null>(null);
+  const [expandedCat, setExpandedCat] = useState<number | null>(null);
+
+  const updateSkillMutation = useMutation({
+    mutationFn: async ({ skillId, percentage, comment, priority }: { skillId: number; percentage: number; comment: string; priority: boolean }) => {
+      const level = percentage >= 80 ? 5 : percentage >= 60 ? 4 : percentage >= 40 ? 3 : percentage >= 20 ? 2 : percentage > 0 ? 1 : 0;
+      const res = await apiRequest("PATCH", `/api/junior-skills/progress/${userId}/${skillId}`, { percentage, level, comment: comment || null, priority });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Skill Updated" });
+      refetchProgress();
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-profiles", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/juniors"] });
+      setEditingSkill(null);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("PATCH", `/api/junior-profiles/${userId}`, data);
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Profile Updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/junior-profiles", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/juniors"] });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const profile = profileData?.profiles?.[0];
+  const [profileForm, setProfileForm] = useState<{ juniorLevel: string; attendancePercentage: number; effortRating: number; coachRating: number } | null>(null);
+
+  useEffect(() => {
+    if (profile && !profileForm) {
+      setProfileForm({
+        juniorLevel: profile.juniorLevel || "BEGINNER",
+        attendancePercentage: profile.attendancePercentage || 0,
+        effortRating: profile.effortRating || 0,
+        coachRating: profile.coachRating || 0,
+      });
+    }
+  }, [profile]);
+
+  if (!categories) return <div className="flex items-center justify-center h-20"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="mt-3 pt-3 border-t space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="font-semibold text-sm flex items-center gap-2"><Zap className="h-4 w-4 text-amber-500" /> Skill Editor</h4>
+        <Button variant="ghost" size="sm" onClick={onClose} data-testid={`button-close-skill-editor-${userId}`}>
+          <ChevronUp className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {profileForm && profile && (
+        <Card className="bg-muted/30">
+          <CardContent className="p-3 space-y-3">
+            <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile Settings</h5>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Level</Label>
+                <Select value={profileForm.juniorLevel} onValueChange={(v) => setProfileForm({ ...profileForm, juniorLevel: v })}>
+                  <SelectTrigger className="h-8 text-xs mt-1" data-testid={`select-level-${userId}`}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(LEVEL_NAMES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Attendance %</Label>
+                <Input type="number" min={0} max={100} className="h-8 text-xs mt-1" value={profileForm.attendancePercentage} onChange={(e) => setProfileForm({ ...profileForm, attendancePercentage: Number(e.target.value) })} data-testid={`input-attendance-${userId}`} />
+              </div>
+              <div>
+                <Label className="text-xs">Effort (1-5)</Label>
+                <Input type="number" min={0} max={5} className="h-8 text-xs mt-1" value={profileForm.effortRating} onChange={(e) => setProfileForm({ ...profileForm, effortRating: Number(e.target.value) })} data-testid={`input-effort-${userId}`} />
+              </div>
+              <div>
+                <Label className="text-xs">Coach Rating (1-5)</Label>
+                <Input type="number" min={0} max={5} className="h-8 text-xs mt-1" value={profileForm.coachRating} onChange={(e) => setProfileForm({ ...profileForm, coachRating: Number(e.target.value) })} data-testid={`input-coach-rating-${userId}`} />
+              </div>
+            </div>
+            <Button size="sm" className="w-full h-8 text-xs" disabled={updateProfileMutation.isPending} onClick={() => { if (profileForm) updateProfileMutation.mutate({ clubId: profile.clubId, ...profileForm }); }} data-testid={`button-save-profile-${userId}`}>
+              {updateProfileMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
+              Save Profile
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {categories.map((cat: any) => {
+        const catSkills = cat.skills || [];
+        const isExpanded = expandedCat === cat.id;
+        const catProgress = catSkills.map((s: any) => progressMap.get(s.id)?.percentage || 0);
+        const catAvg = catProgress.length > 0 ? Math.round(catProgress.reduce((a: number, b: number) => a + b, 0) / catProgress.length) : 0;
+        const IconComp = ICON_MAP[cat.iconName] || Target;
+        return (
+          <div key={cat.id} className="border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedCat(isExpanded ? null : cat.id)}
+              className="w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors text-left"
+              data-testid={`button-expand-cat-${cat.id}-${userId}`}
+            >
+              <IconComp className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="flex-1 text-sm font-medium">{cat.name}</span>
+              <Badge variant="outline" className="text-xs">{catAvg}%</Badge>
+              <span className="text-xs text-muted-foreground">{catSkills.length} skills</span>
+              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            {isExpanded && (
+              <div className="border-t">
+                {catSkills.map((skill: any) => {
+                  const prog = progressMap.get(skill.id);
+                  const pct = prog?.percentage || 0;
+                  const isEditing = editingSkill?.skillId === skill.id;
+                  return (
+                    <div key={skill.id} className="px-3 py-2 border-b last:border-b-0">
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{skill.name}</span>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setEditingSkill(null)}>Cancel</Button>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Progress: {editingSkill.percentage}%</Label>
+                            <Slider
+                              value={[editingSkill.percentage]}
+                              min={0}
+                              max={100}
+                              step={5}
+                              onValueChange={([v]) => setEditingSkill({ ...editingSkill, percentage: v })}
+                              className="mt-1"
+                              data-testid={`slider-skill-${skill.id}-${userId}`}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Coach Comment</Label>
+                            <Input
+                              className="h-7 text-xs mt-1"
+                              value={editingSkill.comment}
+                              onChange={(e) => setEditingSkill({ ...editingSkill, comment: e.target.value })}
+                              placeholder="Add a comment..."
+                              data-testid={`input-comment-${skill.id}-${userId}`}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={editingSkill.priority}
+                                onCheckedChange={(v) => setEditingSkill({ ...editingSkill, priority: v })}
+                                data-testid={`switch-priority-${skill.id}-${userId}`}
+                              />
+                              <Label className="text-xs">Priority</Label>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={updateSkillMutation.isPending}
+                              onClick={() => updateSkillMutation.mutate({ skillId: editingSkill.skillId, percentage: editingSkill.percentage, comment: editingSkill.comment, priority: editingSkill.priority })}
+                              data-testid={`button-save-skill-${skill.id}-${userId}`}
+                            >
+                              {updateSkillMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{skill.name}</span>
+                              {prog?.priority && <Flame className="h-3 w-3 text-orange-500" />}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: pct >= 80 ? "#22c55e" : pct >= 50 ? "#f59e0b" : pct >= 25 ? "#3b82f6" : "#6b7280" }} />
+                              </div>
+                              <span className="text-xs font-medium w-8 text-right">{pct}%</span>
+                            </div>
+                            {prog?.comment && <p className="text-xs text-muted-foreground mt-0.5 italic">"{prog.comment}"</p>}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setEditingSkill({ skillId: skill.id, name: skill.name, percentage: pct, comment: prog?.comment || "", priority: prog?.priority || false })}
+                            data-testid={`button-edit-skill-${skill.id}-${userId}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Juniors() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -1155,6 +1375,7 @@ export default function Juniors() {
   });
 
   const [adminSearch, setAdminSearch] = useState("");
+  const [skillEditorOpen, setSkillEditorOpen] = useState<number | null>(null);
   const filteredAdminJuniors = useMemo(() => {
     if (!adminJuniors) return [];
     if (!adminSearch) return adminJuniors;
@@ -1387,6 +1608,14 @@ export default function Juniors() {
                             <Eye className="h-4 w-4 mr-1" /> View
                           </Button>
                           <Button
+                            variant={skillEditorOpen === junior.id ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => setSkillEditorOpen(skillEditorOpen === junior.id ? null : junior.id)}
+                            data-testid={`button-skills-junior-${junior.id}`}
+                          >
+                            <Zap className="h-4 w-4 mr-1" /> Skills
+                          </Button>
+                          <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => openEdit(junior)}
@@ -1401,6 +1630,9 @@ export default function Juniors() {
                           Emergency: {junior.emergencyContact}
                           {junior.medicalNotes && <span className="ml-3">Medical: {junior.medicalNotes}</span>}
                         </div>
+                      )}
+                      {skillEditorOpen === junior.id && (
+                        <AdminSkillEditor userId={junior.id} onClose={() => setSkillEditorOpen(null)} />
                       )}
                     </CardContent>
                   </Card>
