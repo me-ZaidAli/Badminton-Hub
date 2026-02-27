@@ -2116,6 +2116,121 @@ export async function registerRoutes(
     }
   });
 
+  // === ADMIN CHILDREN ACCOUNT MANAGEMENT ===
+  app.get("/api/admin/users/:userId/children", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const isAdminOrOwner = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+    if (!isAdminOrOwner) {
+      const playerProfiles = await storage.getPlayerProfiles(req.user!.id);
+      const isClubAdmin = playerProfiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+      if (!isClubAdmin) return res.sendStatus(403);
+    }
+    const parentId = Number(req.params.userId);
+    const children = await storage.getJuniorAccounts(parentId);
+    res.json(children);
+  });
+
+  app.post("/api/admin/users/:userId/children", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+      const playerProfiles = await storage.getPlayerProfiles(req.user!.id);
+      const isClubAdmin = playerProfiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+      if (!isClubAdmin) return res.sendStatus(403);
+    }
+    try {
+      const parentId = Number(req.params.userId);
+      const parent = await storage.getUser(parentId);
+      if (!parent) return res.status(404).json({ message: "Parent user not found" });
+      const { fullName, dateOfBirth, gender, emergencyContact, medicalNotes } = req.body;
+      if (!fullName || fullName.trim().length === 0) {
+        return res.status(400).json({ message: "Full name is required" });
+      }
+      const junior = await storage.createJuniorAccount(parentId, {
+        fullName: fullName.trim(),
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        gender,
+        emergencyContact,
+        medicalNotes,
+      });
+      res.status(201).json(junior);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/users/:userId/children/:childId/assign", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+      const playerProfiles = await storage.getPlayerProfiles(req.user!.id);
+      const isClubAdmin = playerProfiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+      if (!isClubAdmin) return res.sendStatus(403);
+    }
+    try {
+      const parentId = Number(req.params.userId);
+      const childId = Number(req.params.childId);
+      const child = await storage.getUser(childId);
+      if (!child) return res.status(404).json({ message: "Child account not found" });
+      if (!child.isJunior) return res.status(400).json({ message: "This account is not a junior account" });
+      if (child.parentUserId === parentId) return res.status(400).json({ message: "Child is already assigned to this parent" });
+      if (child.parentUserId && !req.body.forceReassign) {
+        return res.status(409).json({ message: "This child is already assigned to another parent. Use force reassign to override." });
+      }
+      const parent = await storage.getUser(parentId);
+      if (!parent) return res.status(404).json({ message: "Parent user not found" });
+      const updated = await storage.updateUser(childId, {
+        parentUserId: parentId,
+        parentGuardianName: parent.fullName,
+        parentGuardianEmail: parent.email,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/users/:userId/children/:childId/unassign", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+      const playerProfiles = await storage.getPlayerProfiles(req.user!.id);
+      const isClubAdmin = playerProfiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+      if (!isClubAdmin) return res.sendStatus(403);
+    }
+    try {
+      const parentId = Number(req.params.userId);
+      const childId = Number(req.params.childId);
+      const child = await storage.getUser(childId);
+      if (!child) return res.status(404).json({ message: "Child account not found" });
+      if (child.parentUserId !== parentId) return res.status(400).json({ message: "Child is not assigned to this parent" });
+      const updated = await storage.updateUser(childId, {
+        parentUserId: null,
+        parentGuardianName: null,
+        parentGuardianEmail: null,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/children/search", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+      const playerProfiles = await storage.getPlayerProfiles(req.user!.id);
+      const isClubAdmin = playerProfiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+      if (!isClubAdmin) return res.sendStatus(403);
+    }
+    try {
+      const search = (req.query.q as string || "").toLowerCase();
+      const allUsers = await db.select().from(users).where(eq(users.isJunior, true)).orderBy(users.fullName);
+      const filtered = search
+        ? allUsers.filter((u: any) => u.fullName?.toLowerCase().includes(search))
+        : allUsers;
+      res.json(filtered.slice(0, 30));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === MULTI-ATTENDEE SESSION JOIN ===
   app.post("/api/sessions/:id/join-multi", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

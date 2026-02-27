@@ -55,6 +55,7 @@ The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query
 - **Inactive Members Management**: Dashboard for identifying and managing inactive members, including re-engagement and scheduled deletion.
 - **Admin Player Rewards Viewer**: Allows admins to view player-specific rewards data.
 - **Club Anniversary Rewards**: Per-club configurable anniversary reward settings with automated issuance.
+- **Admin Children Account Management**: Admins/owners can manage children (junior) accounts for any member via the UnifiedMemberEditDialog. Supports viewing assigned children, assigning existing junior accounts (with force-reassign confirmation for children already linked to another parent), creating new child accounts, and unassigning children. Backend endpoints under `/api/admin/users/:userId/children`.
 - **League Management System**: Full league fixture and results management with player-facing and admin interfaces for teams, matches, player assignments, and score entry. Supports multiple named leagues (e.g., Birmingham Badminton League) per club with filtering by league, category, and division. Admin workflow includes opponent management (with venue details), club home venue configuration, and dropdown-based fixture creation with auto-filled venue based on home/away selection. Schema includes `leagueOpponents` table and `homeVenueName/homeVenueAddress/homeGoogleMapsUrl` fields on clubs.
 
 ## External Dependencies

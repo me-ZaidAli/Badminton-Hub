@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  User, Pencil, Save, Trash2, Ban, Loader2, Lock, KeyRound, Copy, Plus, Building2, MapPin, Baby, Megaphone, BarChart3, Shield
+  User, Pencil, Save, Trash2, Ban, Loader2, Lock, KeyRound, Copy, Plus, Building2, MapPin, Baby, Megaphone, BarChart3, Shield, UserPlus, Users, Search, X, Link2Off
 } from "lucide-react";
 
 export const ACQUISITION_SOURCES = [
@@ -143,6 +143,93 @@ export function UnifiedMemberEditDialog({
   const [assignRole, setAssignRole] = useState("PLAYER");
   const [assignGrade, setAssignGrade] = useState("C3");
 
+  const [childrenMode, setChildrenMode] = useState<"list" | "add-existing" | "create-new">("list");
+  const [childSearchQuery, setChildSearchQuery] = useState("");
+  const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildDob, setNewChildDob] = useState("");
+  const [newChildGender, setNewChildGender] = useState("MALE");
+  const [newChildEmergencyContact, setNewChildEmergencyContact] = useState("");
+  const [newChildMedicalNotes, setNewChildMedicalNotes] = useState("");
+
+  const { data: childrenData, refetch: refetchChildren } = useQuery<any[]>({
+    queryKey: ["/api/admin/users", form.userId, "children"],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/users/${form.userId}/children`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && form.userId > 0,
+  });
+
+  const { data: childSearchResults } = useQuery<any[]>({
+    queryKey: ["/api/admin/children/search", childSearchQuery],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/children/search?q=${encodeURIComponent(childSearchQuery)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && childrenMode === "add-existing" && childSearchQuery.length > 0,
+  });
+
+  const [forceReassignChildId, setForceReassignChildId] = useState<number | null>(null);
+
+  const assignChild = useMutation({
+    mutationFn: async ({ childId, forceReassign }: { childId: number; forceReassign?: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${form.userId}/children/${childId}/assign`, { forceReassign: !!forceReassign });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchChildren();
+      setChildrenMode("list");
+      setSelectedChildId(null);
+      setChildSearchQuery("");
+      setForceReassignChildId(null);
+      toast({ title: "Child Assigned", description: "Child account has been assigned to this member." });
+    },
+    onError: (err: any) => {
+      if (err.message?.includes("already assigned to another parent") && selectedChildId) {
+        setForceReassignChildId(selectedChildId);
+      } else {
+        toast({ title: "Error", description: err.message || "Failed to assign child", variant: "destructive" });
+      }
+    },
+  });
+
+  const unassignChild = useMutation({
+    mutationFn: async ({ childId }: { childId: number }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${form.userId}/children/${childId}/unassign`);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchChildren();
+      toast({ title: "Child Unassigned", description: "Child account has been removed from this member." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to unassign child", variant: "destructive" });
+    },
+  });
+
+  const createChild = useMutation({
+    mutationFn: async (data: { fullName: string; dateOfBirth?: string; gender: string; emergencyContact?: string; medicalNotes?: string }) => {
+      const res = await apiRequest("POST", `/api/admin/users/${form.userId}/children`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchChildren();
+      setChildrenMode("list");
+      setNewChildName("");
+      setNewChildDob("");
+      setNewChildGender("MALE");
+      setNewChildEmergencyContact("");
+      setNewChildMedicalNotes("");
+      toast({ title: "Child Created", description: "New child account has been created and assigned to this member." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to create child", variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (data && open) {
       setForm({
@@ -155,6 +242,15 @@ export function UnifiedMemberEditDialog({
       setShowAssignPanel(false);
       setBanConfirmOpen(false);
       setRemoveConfirmOpen(false);
+      setChildrenMode("list");
+      setChildSearchQuery("");
+      setSelectedChildId(null);
+      setForceReassignChildId(null);
+      setNewChildName("");
+      setNewChildDob("");
+      setNewChildGender("MALE");
+      setNewChildEmergencyContact("");
+      setNewChildMedicalNotes("");
     }
   }, [data, open]);
 
@@ -451,6 +547,232 @@ export function UnifiedMemberEditDialog({
                       <Input type="email" value={form.parentGuardianEmail} onChange={(e) => setForm(f => ({ ...f, parentGuardianEmail: e.target.value }))} placeholder="guardian@email.com" data-testid="input-edit-guardian-email" />
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4" /> Children Accounts
+                <span className="text-xs font-normal ml-auto">
+                  {(childrenData || []).length} child{(childrenData || []).length !== 1 ? "ren" : ""}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {childrenMode === "list" && (
+                  <>
+                    {(childrenData || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {(childrenData || []).map((child: any) => (
+                          <div key={child.id} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
+                            <div className="flex items-center gap-2">
+                              <Baby className="w-4 h-4 text-muted-foreground" />
+                              <div>
+                                <span className="text-sm font-medium">{child.fullName}</span>
+                                {child.dateOfBirth && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    DOB: {new Date(child.dateOfBirth).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-destructive hover:text-destructive"
+                              onClick={() => unassignChild.mutate({ childId: child.id })}
+                              disabled={unassignChild.isPending}
+                              data-testid={`button-unassign-child-${child.id}`}
+                            >
+                              {unassignChild.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2Off className="h-3 w-3" />}
+                              <span className="ml-1 text-xs">Unassign</span>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">No children accounts assigned</p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => { setChildrenMode("add-existing"); setChildSearchQuery(""); setSelectedChildId(null); }}
+                        data-testid="button-assign-existing-child"
+                      >
+                        <Search className="h-3 w-3 mr-1" />
+                        Assign Existing
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => { setChildrenMode("create-new"); setNewChildName(""); setNewChildDob(""); setNewChildGender("MALE"); setNewChildEmergencyContact(""); setNewChildMedicalNotes(""); }}
+                        data-testid="button-create-new-child"
+                      >
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Create New
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {childrenMode === "add-existing" && (
+                  <div className="space-y-2 border rounded-md p-3 bg-muted/20">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">Assign Existing Child</span>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setChildrenMode("list")} data-testid="button-cancel-assign-child">
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Search junior accounts by name..."
+                      value={childSearchQuery}
+                      onChange={(e) => { setChildSearchQuery(e.target.value); setSelectedChildId(null); }}
+                      data-testid="input-search-child"
+                    />
+                    {childSearchQuery.length > 0 && (
+                      <div className="max-h-36 overflow-y-auto border rounded-md">
+                        {(() => {
+                          const currentChildIds = new Set((childrenData || []).map((c: any) => c.id));
+                          const available = (childSearchResults || []).filter((c: any) => !currentChildIds.has(c.id) && c.id !== form.userId);
+                          if (available.length === 0) {
+                            return <p className="text-xs text-muted-foreground p-2 text-center">No matching junior accounts found</p>;
+                          }
+                          return available.map((child: any) => (
+                            <button
+                              key={child.id}
+                              type="button"
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between ${selectedChildId === child.id ? "bg-primary/10 text-primary" : ""}`}
+                              onClick={() => setSelectedChildId(child.id)}
+                              data-testid={`option-child-${child.id}`}
+                            >
+                              <div>
+                                <span className="font-medium">{child.fullName}</span>
+                                {child.parentUserId && (
+                                  <span className="text-xs text-amber-500 ml-2">(assigned to another parent)</span>
+                                )}
+                              </div>
+                              {selectedChildId === child.id && <Shield className="h-3 w-3 text-primary" />}
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                    {forceReassignChildId && (
+                      <div className="p-2 border border-amber-300 bg-amber-50 dark:bg-amber-950 rounded-md text-sm">
+                        <p className="text-amber-700 dark:text-amber-300 mb-2">This child is currently assigned to another parent. Reassign anyway?</p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1"
+                            disabled={assignChild.isPending}
+                            onClick={() => assignChild.mutate({ childId: forceReassignChildId, forceReassign: true })}
+                            data-testid="button-force-reassign-child"
+                          >
+                            {assignChild.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                            Yes, Reassign
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => setForceReassignChildId(null)} data-testid="button-cancel-reassign">
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {!forceReassignChildId && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        disabled={!selectedChildId || assignChild.isPending}
+                        onClick={() => { if (selectedChildId) assignChild.mutate({ childId: selectedChildId }); }}
+                        data-testid="button-confirm-assign-child"
+                      >
+                        {assignChild.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                        Assign to Member
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {childrenMode === "create-new" && (
+                  <div className="space-y-2 border rounded-md p-3 bg-muted/20">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">Create New Child</span>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setChildrenMode("list")} data-testid="button-cancel-create-child">
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <Label className="text-xs">Full Name *</Label>
+                        <Input
+                          value={newChildName}
+                          onChange={(e) => setNewChildName(e.target.value)}
+                          placeholder="Child's full name"
+                          data-testid="input-new-child-name"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Date of Birth</Label>
+                        <Input
+                          type="date"
+                          value={newChildDob}
+                          onChange={(e) => setNewChildDob(e.target.value)}
+                          data-testid="input-new-child-dob"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Gender</Label>
+                        <Select value={newChildGender} onValueChange={setNewChildGender}>
+                          <SelectTrigger data-testid="select-new-child-gender">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MALE">Male</SelectItem>
+                            <SelectItem value="FEMALE">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Emergency Contact</Label>
+                        <Input
+                          value={newChildEmergencyContact}
+                          onChange={(e) => setNewChildEmergencyContact(e.target.value)}
+                          placeholder="Emergency contact details"
+                          data-testid="input-new-child-emergency"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Medical Notes</Label>
+                        <Input
+                          value={newChildMedicalNotes}
+                          onChange={(e) => setNewChildMedicalNotes(e.target.value)}
+                          placeholder="Any medical notes"
+                          data-testid="input-new-child-medical"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={!newChildName.trim() || createChild.isPending}
+                      onClick={() => {
+                        createChild.mutate({
+                          fullName: newChildName.trim(),
+                          dateOfBirth: newChildDob || undefined,
+                          gender: newChildGender,
+                          emergencyContact: newChildEmergencyContact || undefined,
+                          medicalNotes: newChildMedicalNotes || undefined,
+                        });
+                      }}
+                      data-testid="button-confirm-create-child"
+                    >
+                      {createChild.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <UserPlus className="h-3 w-3 mr-1" />}
+                      Create & Assign
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
