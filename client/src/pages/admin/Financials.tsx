@@ -1030,8 +1030,10 @@ export default function Financials() {
       const res = await fetch(`/api/credits/balance?userId=${entry.playerUserId}&clubId=${entry.clubId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch balance");
       const data = await res.json();
-      setUseCreditDialog({ entry, balance: data.balance || 0 });
-      setUseCreditAmount(Math.min(data.balance || 0, entry.fee).toString());
+      const bal = data.balance || 0;
+      setUseCreditDialog({ entry, balance: bal });
+      const maxApply = entry.fee > 0 ? Math.min(bal, entry.fee) : bal;
+      setUseCreditAmount((maxApply / 100).toFixed(2));
     } catch {
       toast({ title: "Error", description: "Failed to fetch credit balance.", variant: "destructive" });
     }
@@ -1040,9 +1042,18 @@ export default function Financials() {
   const handleUseCreditSubmit = () => {
     if (!useCreditDialog) return;
     const { entry, balance } = useCreditDialog;
-    const amount = parseInt(useCreditAmount);
-    if (isNaN(amount) || amount <= 0 || amount > balance || amount > entry.fee) {
+    const poundsVal = parseFloat(useCreditAmount);
+    if (isNaN(poundsVal) || poundsVal <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid credit amount.", variant: "destructive" });
+      return;
+    }
+    const amount = Math.round(poundsVal * 100);
+    if (amount > balance) {
+      toast({ title: "Invalid Amount", description: "Amount exceeds available credit.", variant: "destructive" });
+      return;
+    }
+    if (entry.fee > 0 && amount > entry.fee) {
+      toast({ title: "Invalid Amount", description: "Amount exceeds the session fee.", variant: "destructive" });
       return;
     }
 
@@ -3210,25 +3221,31 @@ export default function Financials() {
               ) : (
                 <>
                   <div>
-                    <Label htmlFor="use-credit-amount" className="text-sm font-medium">Credit to Apply (p)</Label>
+                    <Label htmlFor="use-credit-amount" className="text-sm font-medium">Credit to Apply ({"\u00A3"})</Label>
                     <Input
                       id="use-credit-amount"
                       type="number"
-                      min="1"
-                      max={Math.min(useCreditDialog.balance, useCreditDialog.entry.fee)}
+                      step="0.01"
+                      min="0.01"
+                      max={(useCreditDialog.entry.fee > 0 ? Math.min(useCreditDialog.balance, useCreditDialog.entry.fee) : useCreditDialog.balance) / 100}
                       value={useCreditAmount}
                       onChange={(e) => setUseCreditAmount(e.target.value)}
                       data-testid="input-use-credit-amount"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Remaining payable: £{formatPounds(Math.max(0, useCreditDialog.entry.fee - (parseInt(useCreditAmount) || 0)))}
+                      Remaining payable: £{formatPounds(Math.max(0, useCreditDialog.entry.fee - Math.round((parseFloat(useCreditAmount) || 0) * 100)))}
                     </p>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setUseCreditAmount(String(Math.min(useCreditDialog.balance, useCreditDialog.entry.fee)))}
+                      onClick={() => {
+                        const maxApply = useCreditDialog.entry.fee > 0
+                          ? Math.min(useCreditDialog.balance, useCreditDialog.entry.fee)
+                          : useCreditDialog.balance;
+                        setUseCreditAmount((maxApply / 100).toFixed(2));
+                      }}
                       data-testid="button-use-full-credit"
                     >
                       Use Full Credit
@@ -3237,8 +3254,9 @@ export default function Financials() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        handleTogglePayment(useCreditDialog.entry);
+                        const entryRef = useCreditDialog.entry;
                         setUseCreditDialog(null);
+                        handleTogglePayment(entryRef);
                       }}
                       data-testid="button-mark-paid-no-credit"
                     >
