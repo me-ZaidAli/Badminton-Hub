@@ -1,4 +1,4 @@
-import juniorHeroBg from "@assets/image_1772215163769.png";
+import juniorHeroBg from "@assets/image_1772215411174.png";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
