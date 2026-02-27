@@ -1374,10 +1374,7 @@ function RankingsPanel({ clubId }: { clubId: number }) {
 }
 
 function JuniorRankingDetailDialog({ rank, open, onOpenChange }: { rank: any; open: boolean; onOpenChange: (o: boolean) => void }) {
-  if (!rank) return null;
-  const achievements: any[] = rank.achievements || [];
-  const matchStats = rank.matchStats;
-  const userId = rank.userId;
+  const userId = rank?.userId;
   const { data: sessionHistory } = useQuery<any[]>({
     queryKey: ["/api/junior-session-history", String(userId)],
     enabled: open && !!userId,
@@ -1388,6 +1385,9 @@ function JuniorRankingDetailDialog({ rank, open, onOpenChange }: { rank: any; op
       .filter((s: any) => s.status === "COMPLETED" && s.matches && s.matches.length > 0)
       .flatMap((s: any) => s.matches.map((m: any) => ({ ...m, sessionTitle: s.title, sessionDate: s.date })));
   }, [sessionHistory]);
+  if (!rank) return null;
+  const achievements: any[] = rank.achievements || [];
+  const matchStats = rank.matchStats;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-0 overflow-hidden max-h-[85vh] overflow-y-auto" data-testid="dialog-junior-ranking-detail" aria-describedby={undefined}>
@@ -2610,69 +2610,83 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
 
       {activeTab === "videos" && (
         <div className="space-y-4">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {CATEGORY_CHIPS.map((cat) => (
-              <button
-                key={cat.key}
-                onClick={() => setCategoryFilter(cat.key)}
-                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                  categoryFilter === cat.key
-                    ? "bg-orange-500 text-white"
-                    : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
-                }`}
-                data-testid={`video-cat-${cat.key}`}
-              >
-                <cat.icon className="h-3 w-3" />{cat.label}
-              </button>
-            ))}
-          </div>
-
           {isAdmin && (
             <Button size="sm" className="gap-1 bg-orange-500 hover:bg-orange-600" onClick={() => setAddVideoOpen(true)} data-testid="btn-add-video">
               <Plus className="h-3.5 w-3.5" /> Add Video
             </Button>
           )}
 
-          <div className="space-y-4">
-            {filteredVideos.map((video: any) => {
-              const ytId = getYoutubeId(video.youtubeUrl);
+          {(() => {
+            const allVids = exerciseVideos || [];
+            const categories = [...new Set(allVids.map((v: any) => v.category).filter(Boolean))].sort();
+            if (allVids.length === 0) {
               return (
-                <div key={video.id} className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 overflow-hidden" data-testid={`video-card-${video.id}`}>
-                  {ytId && (
-                    <div className="aspect-video">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${ytId}`}
-                        className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        title={video.title}
-                      />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-bold mb-1">{video.title}</h4>
-                        {video.category && <Badge variant="outline" className="text-[9px] mb-1">{video.category}</Badge>}
-                        {video.description && <p className="text-xs text-muted-foreground">{video.description}</p>}
-                      </div>
-                      {isAdmin && (
-                        <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0 text-red-400 hover:text-red-300" onClick={() => deleteVideoMutation.mutate(video.id)} data-testid={`btn-delete-video-${video.id}`}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                <div className="rounded-2xl bg-muted/20 p-8 text-center">
+                  <Play className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No videos found</p>
                 </div>
               );
-            })}
-            {filteredVideos.length === 0 && (
-              <div className="rounded-2xl bg-muted/20 p-8 text-center">
-                <Play className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">No videos found</p>
+            }
+            return (
+              <div className="space-y-6">
+                {categories.map((cat: string) => {
+                  const catVids = allVids.filter((v: any) => v.category === cat);
+                  const CatIcon = CATEGORY_CHIPS.find(c => c.key === cat)?.icon || Play;
+                  return (
+                    <div key={cat}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CatIcon className="h-4 w-4 text-orange-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-orange-400">{cat}</h3>
+                        <Badge variant="secondary" className="text-[9px]">{catVids.length}</Badge>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {catVids.map((video: any) => {
+                          const ytId = getYoutubeId(video.youtubeUrl);
+                          return (
+                            <div key={video.id} className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow" data-testid={`video-card-${video.id}`}>
+                              {ytId && (
+                                <div className="aspect-video bg-black">
+                                  <iframe
+                                    src={`https://www.youtube.com/embed/${ytId}`}
+                                    className="w-full h-full"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    title={video.title}
+                                  />
+                                </div>
+                              )}
+                              <div className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-xs font-bold truncate">{video.title}</h4>
+                                    {video.description && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{video.description}</p>}
+                                    <a
+                                      href={video.youtubeUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:underline"
+                                      data-testid={`link-video-${video.id}`}
+                                    >
+                                      <ExternalLink className="h-3 w-3" /> Watch on YouTube
+                                    </a>
+                                  </div>
+                                  {isAdmin && (
+                                    <Button size="sm" variant="ghost" className="shrink-0 h-6 w-6 p-0 text-red-400 hover:text-red-300" onClick={() => deleteVideoMutation.mutate(video.id)} data-testid={`btn-delete-video-${video.id}`}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2977,8 +2991,11 @@ export default function Juniors() {
     { key: "rankings", icon: Trophy, title: "Rankings", description: "Junior leaderboard & badges", iconBg: "bg-purple-500/10", iconColor: "text-purple-500" },
     { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
     { key: "training", icon: Dumbbell, title: "Training Challenges", description: "Weekly exercise programs & videos", iconBg: "bg-orange-500/10", iconColor: "text-orange-500" },
+  ];
+
+  const infoItems = [
     { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
-    { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
+    { key: "about", icon: Info, title: "About & Safeguarding", description: "What we do & player welfare", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
   ];
 
   const renderSectionContent = () => {
@@ -3239,6 +3256,34 @@ export default function Juniors() {
                     key={item.key}
                     onClick={() => setMainTab(item.key)}
                     className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 active:bg-muted/70 transition-colors text-left group"
+                    data-testid={`menu-item-${item.key}`}
+                  >
+                    <div className={`${item.iconBg} rounded-xl p-2.5 shrink-0`}>
+                      <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm">{item.title}</h3>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-500/20 bg-blue-500/5" data-testid="card-info-section">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen className="h-4 w-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Information</h3>
+              </div>
+              <div className="space-y-1">
+                {infoItems.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setMainTab(item.key)}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-blue-500/10 active:bg-blue-500/15 transition-colors text-left group"
                     data-testid={`menu-item-${item.key}`}
                   >
                     <div className={`${item.iconBg} rounded-xl p-2.5 shrink-0`}>
