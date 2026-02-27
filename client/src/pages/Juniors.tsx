@@ -33,6 +33,10 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   Cell,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
 } from "recharts";
 import {
   Baby,
@@ -501,6 +505,242 @@ function AnimatedGauge({ value, size = 120, strokeWidth = 10, label, sublabel, c
   );
 }
 
+function SemiCircularGauge({ value, size = 200 }: { value: number; size?: number }) {
+  const strokeWidth = 16;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  const levelLabel = value >= 80 ? "Excellent" : value >= 60 ? "Advanced" : value >= 40 ? "Intermediate" : value >= 20 ? "Developing" : "Beginner";
+  const segments = 30;
+  const segmentAngle = 180 / segments;
+  return (
+    <div className="relative flex flex-col items-center" style={{ width: size, height: size / 2 + 30 }}>
+      <svg width={size} height={size / 2 + 10} viewBox={`0 0 ${size} ${size / 2 + 10}`}>
+        <defs>
+          <linearGradient id="semi-gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#22c55e" />
+            <stop offset="40%" stopColor="#84cc16" />
+            <stop offset="70%" stopColor="#eab308" />
+            <stop offset="100%" stopColor="#a3e635" />
+          </linearGradient>
+        </defs>
+        {Array.from({ length: segments }).map((_, i) => {
+          const startAngle = 180 + i * segmentAngle;
+          const endAngle = 180 + (i + 0.7) * segmentAngle;
+          const filledSegments = Math.floor((value / 100) * segments);
+          const isFilled = i < filledSegments;
+          const x1 = size / 2 + (radius - 2) * Math.cos((startAngle * Math.PI) / 180);
+          const y1 = size / 2 + (radius - 2) * Math.sin((startAngle * Math.PI) / 180);
+          const x2 = size / 2 + (radius - 2) * Math.cos((endAngle * Math.PI) / 180);
+          const y2 = size / 2 + (radius - 2) * Math.sin((endAngle * Math.PI) / 180);
+          const x3 = size / 2 + (radius - strokeWidth + 2) * Math.cos((endAngle * Math.PI) / 180);
+          const y3 = size / 2 + (radius - strokeWidth + 2) * Math.sin((endAngle * Math.PI) / 180);
+          const x4 = size / 2 + (radius - strokeWidth + 2) * Math.cos((startAngle * Math.PI) / 180);
+          const y4 = size / 2 + (radius - strokeWidth + 2) * Math.sin((startAngle * Math.PI) / 180);
+          const hue = 120 + (i / segments) * 60;
+          return (
+            <path
+              key={i}
+              d={`M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} L ${x4} ${y4} Z`}
+              fill={isFilled ? `hsl(${hue}, 70%, 50%)` : 'hsl(var(--muted))'}
+              opacity={isFilled ? 1 : 0.15}
+              className="transition-all duration-500"
+              style={{ transitionDelay: `${i * 20}ms` }}
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute bottom-0 left-0 right-0 text-center">
+        <p className="text-xs text-muted-foreground font-medium">{levelLabel}</p>
+        <p className="text-3xl font-black tracking-tight">{value}%</p>
+      </div>
+    </div>
+  );
+}
+
+function StripedLevelBar({ value, label }: { value: number; label?: string }) {
+  const segments = 20;
+  const filledSegments = Math.round((value / 100) * segments);
+  const levelText = value >= 80 ? "Advanced" : value >= 60 ? "Intermediate+" : value >= 40 ? "Intermediate" : value >= 20 ? "Developing" : "Beginner";
+  return (
+    <div className="w-full">
+      {label && (
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-muted-foreground">{label}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{levelText}</span>
+            <span className="text-lg font-black">{value}%</span>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-[2px] h-6 rounded-lg overflow-hidden bg-muted/20 p-0.5">
+        {Array.from({ length: segments }).map((_, i) => {
+          const isFilled = i < filledSegments;
+          const hue = 100 + (i / segments) * 80;
+          return (
+            <div
+              key={i}
+              className="flex-1 rounded-sm transition-all duration-500"
+              style={{
+                backgroundColor: isFilled ? `hsl(${hue}, 70%, 50%)` : 'hsl(var(--muted))',
+                opacity: isFilled ? 1 : 0.15,
+                transitionDelay: `${i * 30}ms`,
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[9px] text-muted-foreground">Beginner</span>
+        <span className="text-[9px] text-muted-foreground">Developing</span>
+        <span className="text-[9px] text-muted-foreground">Intermediate</span>
+        <span className="text-[9px] text-muted-foreground">Advanced</span>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyProgressChart({ userId }: { userId: number }) {
+  const { data: history } = useQuery<any[]>({
+    queryKey: ["/api/junior-progress-history", String(userId)],
+    enabled: !!userId,
+  });
+
+  const monthlyData = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    const byMonth = new Map<string, { overall: number; count: number; updates: number }>();
+    for (const h of history) {
+      const date = new Date(h.createdAt);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const existing = byMonth.get(key) || { overall: 0, count: 0, updates: 0 };
+      existing.overall += h.overallPercentageAtTime;
+      existing.count++;
+      existing.updates++;
+      byMonth.set(key, existing);
+    }
+    const result = Array.from(byMonth.entries())
+      .map(([key, val]) => {
+        const [y, m] = key.split('-');
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return {
+          month: monthNames[parseInt(m) - 1],
+          overall: Math.round(val.overall / val.count),
+          updates: val.updates,
+          sortKey: key,
+        };
+      })
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    return result;
+  }, [history]);
+
+  const recentActivity = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    return history.slice(0, 8).map((h: any) => ({
+      skill: h.skillName || 'Unknown',
+      from: h.previousPercentage,
+      to: h.newPercentage,
+      date: format(new Date(h.createdAt), 'd MMM yyyy'),
+      time: format(new Date(h.createdAt), 'HH:mm'),
+      change: h.newPercentage - h.previousPercentage,
+    }));
+  }, [history]);
+
+  const weeklyUpdates = useMemo(() => {
+    if (!history) return 0;
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return history.filter((h: any) => new Date(h.createdAt) >= oneWeekAgo).length;
+  }, [history]);
+
+  const thisMonthUpdates = useMemo(() => {
+    if (!history) return 0;
+    const now = new Date();
+    return history.filter((h: any) => {
+      const d = new Date(h.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+  }, [history]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+          <p className="text-lg font-black text-blue-400">{history?.length || 0}</p>
+          <p className="text-[9px] text-muted-foreground uppercase">Total Updates</p>
+        </div>
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+          <p className="text-lg font-black text-emerald-400">{weeklyUpdates}</p>
+          <p className="text-[9px] text-muted-foreground uppercase">This Week</p>
+        </div>
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-center">
+          <p className="text-lg font-black text-amber-400">{thisMonthUpdates}</p>
+          <p className="text-[9px] text-muted-foreground uppercase">This Month</p>
+        </div>
+      </div>
+
+      {monthlyData.length > 0 && (
+        <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            <span className="text-sm font-bold text-white">Monthly Progress</span>
+          </div>
+          <div className="w-full" style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="progressGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" strokeOpacity={0.15} />
+                <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                <Area type="monotone" dataKey="overall" stroke="#22c55e" strokeWidth={2} fill="url(#progressGradient)" dot={{ r: 4, fill: '#22c55e' }} name="Overall %" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {recentActivity.length > 0 && (
+        <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-bold text-white">Recent Updates</span>
+          </div>
+          <div className="space-y-2">
+            {recentActivity.map((act: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${act.change > 0 ? 'bg-emerald-500/20 text-emerald-400' : act.change < 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                  {act.change > 0 ? `+${act.change}` : act.change}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{act.skill}</p>
+                  <p className="text-[10px] text-muted-foreground">{act.from}% → {act.to}%</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-muted-foreground">{act.date}</p>
+                  <p className="text-[9px] text-muted-foreground/70">{act.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(!history || history.length === 0) && (
+        <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-8 text-center">
+          <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">No progress history yet</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">Updates will be tracked as coaches assess skills</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatCard({ icon: Icon, label, value, subtitle, gradient, iconColor }: { icon: any; label: string; value: string | number; subtitle?: string; gradient: string; iconColor: string }) {
   return (
     <div className={`relative overflow-hidden rounded-2xl p-4 ${gradient}`} data-testid={`stat-card-${label.toLowerCase().replace(/\s/g, '-')}`}>
@@ -845,6 +1085,16 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
         <TabsContent value="overview" className="mt-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-bold text-white">Game Level</span>
+              </div>
+              <div className="flex items-center justify-center py-2">
+                <SemiCircularGauge value={overallSkill} size={220} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-amber-400" />
@@ -863,7 +1113,13 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
                 )}
               </div>
             </div>
+          </div>
 
+          <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5" data-testid="card-level-progress">
+            <StripedLevelBar value={overallSkill} label="Badminton Level Progress" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Activity className="h-4 w-4 text-emerald-400" />
@@ -877,6 +1133,14 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
                   <p className="text-xs">No data available</p>
                 </div>
               )}
+            </div>
+
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="h-4 w-4 text-blue-400" />
+                <span className="text-sm font-bold text-white">Progress Tracking</span>
+              </div>
+              <MonthlyProgressChart userId={userId} />
             </div>
           </div>
 

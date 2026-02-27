@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -17942,6 +17942,9 @@ export async function registerRoutes(
 
       const [existing] = await db.select().from(juniorSkillProgress).where(and(eq(juniorSkillProgress.childId, userId), eq(juniorSkillProgress.skillId, skillId)));
 
+      const prevPct = existing?.percentage || 0;
+      const prevLevel = existing?.level || 0;
+
       let result;
       if (existing) {
         const [updated] = await db.update(juniorSkillProgress).set({
@@ -17967,6 +17970,22 @@ export async function registerRoutes(
       }
 
       await recalculateJuniorOverall(userId);
+
+      const allSkills = await db.select().from(juniorSkills);
+      const allProgress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      const overallAtTime = allSkills.length > 0 ? Math.round(allProgress.reduce((s, p) => s + p.percentage, 0) / allSkills.length) : 0;
+
+      await db.insert(juniorProgressHistory).values({
+        childId: userId,
+        skillId,
+        previousPercentage: prevPct,
+        newPercentage: percentage ?? prevPct,
+        previousLevel: prevLevel,
+        newLevel: level ?? prevLevel,
+        overallPercentageAtTime: overallAtTime,
+        updatedBy: req.user!.id,
+      });
+
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -17990,6 +18009,9 @@ export async function registerRoutes(
         const { skillId, level, percentage, comment, priority } = update;
         const [existing] = await db.select().from(juniorSkillProgress).where(and(eq(juniorSkillProgress.childId, userId), eq(juniorSkillProgress.skillId, skillId)));
 
+        const prevPct = existing?.percentage || 0;
+        const prevLevel = existing?.level || 0;
+
         if (existing) {
           await db.update(juniorSkillProgress).set({
             ...(level !== undefined && { level }),
@@ -18010,10 +18032,60 @@ export async function registerRoutes(
             updatedBy: req.user!.id,
           });
         }
+
+        await db.insert(juniorProgressHistory).values({
+          childId: userId,
+          skillId,
+          previousPercentage: prevPct,
+          newPercentage: percentage ?? prevPct,
+          previousLevel: prevLevel,
+          newLevel: level ?? prevLevel,
+          overallPercentageAtTime: 0,
+          updatedBy: req.user!.id,
+        });
       }
 
       await recalculateJuniorOverall(userId);
+
+      const allSkillsBulk = await db.select().from(juniorSkills);
+      const allProgressBulk = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      const overallBulk = allSkillsBulk.length > 0 ? Math.round(allProgressBulk.reduce((s, p) => s + p.percentage, 0) / allSkillsBulk.length) : 0;
+      const lastHistory = await db.select().from(juniorProgressHistory).where(eq(juniorProgressHistory.childId, userId)).orderBy(desc(juniorProgressHistory.id)).limit(updates.length);
+      for (const h of lastHistory) {
+        await db.update(juniorProgressHistory).set({ overallPercentageAtTime: overallBulk }).where(eq(juniorProgressHistory.id, h.id));
+      }
+
       res.json({ success: true, count: updates.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/junior-progress-history/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+
+      const history = await db.select({
+        id: juniorProgressHistory.id,
+        childId: juniorProgressHistory.childId,
+        skillId: juniorProgressHistory.skillId,
+        previousPercentage: juniorProgressHistory.previousPercentage,
+        newPercentage: juniorProgressHistory.newPercentage,
+        previousLevel: juniorProgressHistory.previousLevel,
+        newLevel: juniorProgressHistory.newLevel,
+        overallPercentageAtTime: juniorProgressHistory.overallPercentageAtTime,
+        updatedBy: juniorProgressHistory.updatedBy,
+        createdAt: juniorProgressHistory.createdAt,
+        skillName: juniorSkills.name,
+        categoryId: juniorSkills.categoryId,
+      })
+        .from(juniorProgressHistory)
+        .leftJoin(juniorSkills, eq(juniorProgressHistory.skillId, juniorSkills.id))
+        .where(eq(juniorProgressHistory.childId, userId))
+        .orderBy(desc(juniorProgressHistory.createdAt));
+
+      res.json(history);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

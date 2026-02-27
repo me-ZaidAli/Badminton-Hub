@@ -1784,3 +1784,24 @@ export type InsertJuniorVideo = z.infer<typeof insertJuniorVideoSchema>;
 export const insertJuniorRankingSchema = createInsertSchema(juniorRankings).omit({ id: true, updatedAt: true });
 export type JuniorRanking = typeof juniorRankings.$inferSelect;
 export type InsertJuniorRanking = z.infer<typeof insertJuniorRankingSchema>;
+
+export const juniorProgressHistory = pgTable("junior_progress_history", {
+  id: serial("id").primaryKey(),
+  childId: integer("child_id").references(() => users.id).notNull(),
+  skillId: integer("skill_id").references(() => juniorSkills.id).notNull(),
+  previousPercentage: integer("previous_percentage").default(0).notNull(),
+  newPercentage: integer("new_percentage").default(0).notNull(),
+  previousLevel: integer("previous_level").default(0).notNull(),
+  newLevel: integer("new_level").default(0).notNull(),
+  overallPercentageAtTime: integer("overall_percentage_at_time").default(0).notNull(),
+  updatedBy: integer("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const juniorProgressHistoryRelations = relations(juniorProgressHistory, ({ one }) => ({
+  child: one(users, { fields: [juniorProgressHistory.childId], references: [users.id] }),
+  skill: one(juniorSkills, { fields: [juniorProgressHistory.skillId], references: [juniorSkills.id] }),
+  updater: one(users, { fields: [juniorProgressHistory.updatedBy], references: [users.id] }),
+}));
+
+export type JuniorProgressHistory = typeof juniorProgressHistory.$inferSelect;
