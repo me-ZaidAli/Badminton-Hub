@@ -1267,8 +1267,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
 }
 
 function RankingsPanel({ clubId }: { clubId: number }) {
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
-  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [selectedRank, setSelectedRank] = useState<any>(null);
 
   const { data: rankings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/junior-rankings", String(clubId)],
@@ -1276,10 +1275,7 @@ function RankingsPanel({ clubId }: { clubId: number }) {
   });
 
   const handlePlayerClick = (rank: any) => {
-    if (rank.playerProfileId) {
-      setSelectedProfileId(rank.playerProfileId);
-      setStatsDialogOpen(true);
-    }
+    setSelectedRank(rank);
   };
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -1373,12 +1369,109 @@ function RankingsPanel({ clubId }: { clubId: number }) {
         );
       })}
 
-      <PlayerStatsDialog
-        profileId={selectedProfileId}
-        open={statsDialogOpen}
-        onOpenChange={setStatsDialogOpen}
-      />
+      <JuniorRankingDetailDialog rank={selectedRank} open={!!selectedRank} onOpenChange={(o) => { if (!o) setSelectedRank(null); }} />
     </div>
+  );
+}
+
+function JuniorRankingDetailDialog({ rank, open, onOpenChange }: { rank: any; open: boolean; onOpenChange: (o: boolean) => void }) {
+  if (!rank) return null;
+  const achievements: any[] = rank.achievements || [];
+  const matchStats = rank.matchStats;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md p-0 overflow-hidden" data-testid="dialog-junior-ranking-detail" aria-describedby={undefined}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>Player Details</DialogTitle>
+        </DialogHeader>
+        <div className={`p-4 ${rank.rankPosition === 1 ? "bg-gradient-to-r from-amber-500/20 to-yellow-500/10" : rank.rankPosition === 2 ? "bg-gradient-to-r from-slate-400/20 to-slate-300/10" : rank.rankPosition === 3 ? "bg-gradient-to-r from-amber-700/20 to-amber-600/10" : "bg-muted/20"}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-xl shrink-0 ${rank.rankPosition === 1 ? "bg-amber-500 text-black" : rank.rankPosition === 2 ? "bg-slate-400 text-black" : rank.rankPosition === 3 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"}`}>
+              #{rank.rankPosition}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarImage src={rank.user?.profilePictureUrl} />
+                  <AvatarFallback className="bg-primary/20 text-primary font-bold">{rank.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="font-bold text-base truncate" data-testid="text-ranking-player-name">{rank.user?.fullName || "Unknown"}</p>
+                  <p className="text-xs text-muted-foreground">{rank.overallSkillPercent}% overall skill</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+              <Target className="h-5 w-5 text-blue-400 mx-auto mb-1" />
+              <p className="text-lg font-black" data-testid="text-ranking-skill">{rank.overallSkillPercent}%</p>
+              <p className="text-[9px] text-blue-400/80 uppercase tracking-wider">Skill Level</p>
+            </div>
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+              <Calendar className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
+              <p className="text-lg font-black" data-testid="text-ranking-attendance">{rank.attendancePercent || matchStats?.attendancePercent || 0}%</p>
+              <p className="text-[9px] text-emerald-400/80 uppercase tracking-wider">Attendance</p>
+            </div>
+          </div>
+
+          {matchStats && (
+            <div className="grid grid-cols-4 gap-2">
+              <div className="rounded-lg bg-muted/40 p-2.5 text-center">
+                <p className="text-base font-bold" data-testid="text-ranking-matches">{matchStats.matchesPlayed || 0}</p>
+                <p className="text-[9px] text-muted-foreground">Matches</p>
+              </div>
+              <div className="rounded-lg bg-muted/40 p-2.5 text-center">
+                <p className="text-base font-bold text-emerald-500" data-testid="text-ranking-wins">{matchStats.matchesWon || 0}</p>
+                <p className="text-[9px] text-muted-foreground">Wins</p>
+              </div>
+              <div className="rounded-lg bg-muted/40 p-2.5 text-center">
+                <p className="text-base font-bold text-red-400">{matchStats.matchesLost || 0}</p>
+                <p className="text-[9px] text-muted-foreground">Losses</p>
+              </div>
+              <div className="rounded-lg bg-muted/40 p-2.5 text-center">
+                <p className={`text-base font-bold ${(matchStats.winPercent || 0) >= 50 ? "text-emerald-500" : "text-muted-foreground"}`} data-testid="text-ranking-winrate">{matchStats.winPercent || 0}%</p>
+                <p className="text-[9px] text-muted-foreground">Win Rate</p>
+              </div>
+            </div>
+          )}
+
+          {rank.effortRating > 0 && (
+            <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+              <Star className="h-5 w-5 text-amber-400 shrink-0" />
+              <div className="flex-1">
+                <p className="text-[10px] text-amber-400/80 uppercase tracking-wider">Effort Rating</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star key={s} className={`h-4 w-4 ${s <= rank.effortRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {achievements.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Award className="h-3.5 w-3.5 text-amber-400" /> Achievements ({achievements.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {achievements.map((ach: any) => {
+                  const AchIcon = ICON_MAP[ach.iconName] || Award;
+                  return (
+                    <div key={ach.id} className="bg-amber-500/10 rounded-full px-2.5 py-1 flex items-center gap-1" title={ach.description} data-testid={`badge-achievement-${ach.id}`}>
+                      <AchIcon className="h-3 w-3 text-amber-400" />
+                      <span className="text-[10px] text-amber-400 font-medium">{ach.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1545,8 +1638,7 @@ function VideosPanel({ userId, videos, isAdmin }: { userId: number; videos: any[
 function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number; clubName: string }[] }) {
   const [selectedClub, setSelectedClub] = useState<string>(parentClubs.length > 0 ? String(parentClubs[0].clubId) : "");
   const clubId = Number(selectedClub) || (parentClubs.length > 0 ? parentClubs[0].clubId : 0);
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
-  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [selectedRank, setSelectedRank] = useState<any>(null);
 
   const { data: rankings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/junior-rankings", String(clubId)],
@@ -1554,10 +1646,7 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
   });
 
   const handlePlayerClick = (rank: any) => {
-    if (rank.playerProfileId) {
-      setSelectedProfileId(rank.playerProfileId);
-      setStatsDialogOpen(true);
-    }
+    setSelectedRank(rank);
   };
 
   return (
@@ -1673,11 +1762,7 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
         </div>
       )}
 
-      <PlayerStatsDialog
-        profileId={selectedProfileId}
-        open={statsDialogOpen}
-        onOpenChange={setStatsDialogOpen}
-      />
+      <JuniorRankingDetailDialog rank={selectedRank} open={!!selectedRank} onOpenChange={(o) => { if (!o) setSelectedRank(null); }} />
     </div>
   );
 }
@@ -2528,7 +2613,10 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
       </Dialog>
 
       <Dialog open={!!viewExercise} onOpenChange={(open) => { if (!open) setViewExercise(null); }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700/50" data-testid="dialog-exercise-detail">
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700/50" data-testid="dialog-exercise-detail" aria-describedby={undefined}>
+          <DialogHeader className="sr-only">
+            <DialogTitle>Exercise Details</DialogTitle>
+          </DialogHeader>
           {viewExercise && (() => {
             const ex = viewExercise;
             const ytId = ex.videoUrl ? (() => { const m = ex.videoUrl.match(/(?:v=|\/embed\/|youtu\.be\/)([^&?#]+)/); return m ? m[1] : null; })() : null;
