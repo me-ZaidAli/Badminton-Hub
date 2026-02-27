@@ -1766,9 +1766,17 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
   );
 }
 
-function JuniorSessionsPanel() {
+function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: { juniors: any[] | undefined; selectedChildId: number | null; setSelectedChildId: (id: number | null) => void }) {
   const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/sessions"] });
   const { data: user } = useUser();
+  const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past">("upcoming");
+
+  const activeChildId = selectedChildId || (juniors && juniors.length === 1 ? juniors[0].id : null);
+
+  const { data: sessionHistory, isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ["/api/junior-session-history", String(activeChildId)],
+    enabled: !!activeChildId && sessionsTab === "past",
+  });
 
   const juniorSessions = useMemo(() => {
     if (!sessions) return [];
@@ -1777,88 +1785,219 @@ function JuniorSessionsPanel() {
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [sessions]);
 
-  const ageGroupLabels: Record<string, string> = {
-    "7-10": "7-10 years", "10-12": "10-12 years", "13-15": "13-15 years", "16-18": "16-18 years",
-  };
+  const upcomingSessions = useMemo(() => juniorSessions.filter((s: any) => s.status !== "COMPLETED"), [juniorSessions]);
+
+  const pastSessions = useMemo(() => {
+    if (!sessionHistory) return [];
+    return sessionHistory.filter((s: any) => s.status === "COMPLETED");
+  }, [sessionHistory]);
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
         <Calendar className="h-5 w-5 text-teal-500" />
         <h3 className="font-bold">Junior Sessions</h3>
-        <Badge variant="secondary" className="ml-auto">{juniorSessions.length} session{juniorSessions.length !== 1 ? "s" : ""}</Badge>
       </div>
-      {isLoading ? (
-        <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : juniorSessions.length === 0 ? (
-        <Card className="border-dashed" data-testid="card-no-junior-sessions">
-          <CardContent className="p-8 text-center">
-            <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <h3 className="font-semibold mb-1">No Junior Sessions Available</h3>
-            <p className="text-sm text-muted-foreground">There are currently no junior sessions scheduled. Check back soon!</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {juniorSessions.map((session: any) => {
-            const sessionDate = new Date(session.date);
-            const isPast = session.status === "COMPLETED";
-            const isLive = session.status === "ACTIVE";
-            const spotsLeft = session.maxPlayers - (session.signupCount || 0);
-            return (
-              <Card key={session.id} className={`overflow-hidden ${isPast ? "opacity-60" : ""}`} data-testid={`card-session-${session.id}`}>
-                {isLive && <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-400" />}
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-semibold">{session.title}</h4>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+
+      <div className="flex gap-2 mb-4" data-testid="tabs-sessions">
+        {[
+          { key: "upcoming" as const, label: "Upcoming", icon: Calendar },
+          { key: "past" as const, label: "Past Sessions", icon: Clock },
+        ].map(tab => (
+          <Button
+            key={tab.key}
+            variant={sessionsTab === tab.key ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSessionsTab(tab.key)}
+            data-testid={`tab-sessions-${tab.key}`}
+          >
+            <tab.icon className="h-3.5 w-3.5 mr-1.5" />
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {sessionsTab === "upcoming" && (
+        <>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : upcomingSessions.length === 0 ? (
+            <Card className="border-dashed" data-testid="card-no-upcoming-sessions">
+              <CardContent className="p-8 text-center">
+                <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                <h3 className="font-semibold mb-1">No Upcoming Sessions</h3>
+                <p className="text-sm text-muted-foreground">There are currently no junior sessions scheduled. Check back soon!</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {upcomingSessions.map((session: any) => {
+                const sessionDate = new Date(session.date);
+                const isLive = session.status === "ACTIVE";
+                const spotsLeft = session.maxPlayers - (session.signupCount || 0);
+                return (
+                  <Card key={session.id} className="overflow-hidden" data-testid={`card-session-${session.id}`}>
+                    {isLive && <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-400" />}
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h4 className="font-semibold">{session.title}</h4>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+                          </div>
+                          {session.startTime && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>{session.startTime}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          {isLive && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Live</Badge>}
+                          {spotsLeft > 0 && !isLive && <Badge variant="secondary">{spotsLeft} spots</Badge>}
+                        </div>
                       </div>
-                      {session.startTime && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>{session.startTime}{session.endTime ? ` - ${session.endTime}` : ""}</span>
+                      {(session as any).venue && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ""}</span>
                         </div>
                       )}
-                    </div>
-                    <div>
-                      {isLive && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Live</Badge>}
-                      {isPast && <Badge variant="secondary">Done</Badge>}
-                      {!isPast && !isLive && spotsLeft > 0 && <Badge variant="secondary">{spotsLeft} spots</Badge>}
-                    </div>
-                  </div>
-                  {(session as any).venue && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ""}</span>
-                    </div>
-                  )}
-                  {session.juniorAgeGroups && session.juniorAgeGroups.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {session.juniorAgeGroups.map((ag: string) => (
-                        <Badge key={ag} variant="outline" className="text-xs">{ageGroupLabels[ag] || ag}</Badge>
-                      ))}
-                    </div>
-                  )}
-                  {session.sessionFee != null && (
-                    <div className="flex items-center gap-1 mt-2 text-sm">
-                      <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
-                      <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {!isPast && user && (
-                    <Link href={`/sessions/${session.id}`}>
-                      <Button size="sm" className="mt-3 w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
-                        View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                      </Button>
-                    </Link>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                      {session.sessionFee != null && (
+                        <div className="flex items-center gap-1 mt-2 text-sm">
+                          <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
+                          <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {user && (
+                        <Link href={`/sessions/${session.id}`}>
+                          <Button size="sm" className="mt-3 w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
+                            View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          </Button>
+                        </Link>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {sessionsTab === "past" && (
+        <div>
+          {juniors && juniors.length > 1 && (
+            <div className="mb-4">
+              <Select value={activeChildId ? String(activeChildId) : ""} onValueChange={v => setSelectedChildId(Number(v))}>
+                <SelectTrigger className="w-full max-w-xs" data-testid="select-child-sessions">
+                  <SelectValue placeholder="Select a child" />
+                </SelectTrigger>
+                <SelectContent>
+                  {juniors.map((j: any) => (
+                    <SelectItem key={j.id} value={String(j.id)}>{j.fullName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {!activeChildId ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center">
+                <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                <h3 className="font-semibold mb-1">Select a Child</h3>
+                <p className="text-sm text-muted-foreground">Choose a child to view their past session history and match results.</p>
+              </CardContent>
+            </Card>
+          ) : historyLoading ? (
+            <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : pastSessions.length === 0 ? (
+            <Card className="border-dashed" data-testid="card-no-past-sessions">
+              <CardContent className="p-8 text-center">
+                <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                <h3 className="font-semibold mb-1">No Past Sessions</h3>
+                <p className="text-sm text-muted-foreground">No completed sessions found for this player yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {pastSessions.map((session: any) => {
+                const sessionDate = new Date(session.date);
+                return (
+                  <Card key={session.sessionId} data-testid={`card-past-session-${session.sessionId}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h4 className="font-semibold">{session.title || "Session"}</h4>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+                          </div>
+                          {session.startTime && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>{session.startTime}</span>
+                            </div>
+                          )}
+                          {session.clubName && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span>{session.clubName}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={session.attendanceStatus === "ATTENDED" ? "default" : "secondary"} className={session.attendanceStatus === "ATTENDED" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" : ""}>
+                            {session.attendanceStatus === "ATTENDED" ? "Attended" : "Absent"}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {session.matchesPlayed > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="flex items-center gap-4 mb-2">
+                            <div className="flex items-center gap-1.5 text-sm font-medium">
+                              <Swords className="h-4 w-4 text-muted-foreground" />
+                              <span>{session.matchesPlayed} match{session.matchesPlayed !== 1 ? "es" : ""}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{session.wins}W</span>
+                              <span className="text-red-500 font-semibold">{session.losses}L</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {session.matches.map((match: any, idx: number) => (
+                              <div key={match.id || idx} className={`flex items-center gap-3 p-2 rounded-lg text-sm ${match.won ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-red-500/5 border border-red-500/20"}`} data-testid={`match-result-${match.id || idx}`}>
+                                <div className={`w-1.5 h-8 rounded-full ${match.won ? "bg-emerald-500" : "bg-red-500"}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`font-semibold ${match.won ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                                      {match.won ? "Won" : "Lost"}
+                                    </span>
+                                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      {match.isTeamA ? `${match.scoreA}-${match.scoreB}` : `${match.scoreB}-${match.scoreA}`}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                                    {match.partner && <span>Partner: {match.partner}</span>}
+                                    {match.opponents && match.opponents.length > 0 && (
+                                      <span>{match.partner ? " · " : ""}vs {match.opponents.join(" & ")}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2906,7 +3045,7 @@ export default function Juniors() {
       case "rankings":
         return <JuniorRankingsSection parentClubs={parentClubs} />;
       case "sessions":
-        return <JuniorSessionsPanel />;
+        return <JuniorSessionsPanel juniors={juniors} selectedChildId={selectedChildId} setSelectedChildId={setSelectedChildId} />;
       case "fees":
         return <FeesPanel />;
       case "about":
