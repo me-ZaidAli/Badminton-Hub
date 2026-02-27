@@ -1,3 +1,4 @@
+import juniorHeroBg from "@assets/image_1772215074407.png";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -182,12 +183,10 @@ function StarRating({ value, max = 5, size = "md" }: { value: number; max?: numb
 
 function JuniorHero() {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-6 md:p-10 text-white">
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-white/20 blur-2xl" />
-        <div className="absolute bottom-4 left-12 w-24 h-24 rounded-full bg-yellow-300/30 blur-xl" />
-      </div>
-      <div className="relative z-10 max-w-3xl">
+    <div className="relative overflow-hidden rounded-2xl min-h-[220px] md:min-h-[260px] text-white">
+      <img src={juniorHeroBg} alt="" className="absolute inset-0 w-full h-full object-cover object-top" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
+      <div className="relative z-10 p-6 md:p-10 max-w-3xl flex flex-col justify-end h-full">
         <div className="flex items-center gap-3 mb-3">
           <div className="bg-white/20 backdrop-blur-sm rounded-xl p-2.5">
             <Baby className="h-7 w-7" />
