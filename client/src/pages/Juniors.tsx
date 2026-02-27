@@ -63,6 +63,10 @@ import {
   Lock,
   ArrowLeft,
   Info,
+  Settings,
+  DatabaseZap,
+  Crown,
+  Search,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
@@ -1089,13 +1093,19 @@ export default function Juniors() {
 
   const { data: juniors, isLoading } = useQuery<any[]>({ queryKey: ["/api/juniors"], enabled: !!user });
   const { data: profiles } = useQuery<any[]>({ queryKey: ["/api/player-profiles"], enabled: !!user });
+  const { data: adminJuniors, isLoading: adminJuniorsLoading } = useQuery<any[]>({ queryKey: ["/api/admin/juniors"], enabled: !!user && isAdmin });
 
   const parentClubs = useMemo(() => {
     if (!profiles) return [];
     return profiles.filter((p: any) => p.membershipStatus === "APPROVED").map((p: any) => ({ clubId: p.clubId, clubName: p.club?.name || `Club ${p.clubId}` }));
   }, [profiles]);
 
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isClubAdmin = useMemo(() => {
+    if (!profiles) return false;
+    return profiles.some((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER");
+  }, [profiles]);
+  const isAdmin = isPlatformAdmin || isClubAdmin;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJunior, setEditingJunior] = useState<any>(null);
@@ -1137,6 +1147,20 @@ export default function Juniors() {
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const seedDemoMutation = useMutation({
+    mutationFn: async (clubId: number) => { const res = await apiRequest("POST", "/api/admin/juniors/seed-demo", { clubId }); if (!res.ok) { const err = await res.json(); throw new Error(err.message); } return res.json(); },
+    onSuccess: (data: any) => { toast({ title: "Demo Junior Created", description: `Junior ID: ${data.juniorId} with skill data, achievements & videos.` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/juniors"] }); queryClient.invalidateQueries({ queryKey: ["/api/juniors"] }); },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const [adminSearch, setAdminSearch] = useState("");
+  const filteredAdminJuniors = useMemo(() => {
+    if (!adminJuniors) return [];
+    if (!adminSearch) return adminJuniors;
+    const q = adminSearch.toLowerCase();
+    return adminJuniors.filter((j: any) => j.fullName?.toLowerCase().includes(q));
+  }, [adminJuniors, adminSearch]);
+
   const handleSave = () => {
     const payload = { fullName: form.fullName, dateOfBirth: form.dateOfBirth || undefined, gender: form.gender, emergencyContact: form.emergencyContact || undefined, medicalNotes: form.medicalNotes || undefined };
     if (editingJunior) editMutation.mutate({ id: editingJunior.id, data: payload });
@@ -1149,6 +1173,7 @@ export default function Juniors() {
     { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
     { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
     { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
+    ...(isAdmin ? [{ key: "admin", icon: Settings, title: "Admin Management", description: "Manage all juniors, seed demo data", iconBg: "bg-red-500/10", iconColor: "text-red-500" }] : []),
   ];
 
   const renderSectionContent = () => {
@@ -1253,6 +1278,136 @@ export default function Juniors() {
         return <FeesPanel />;
       case "about":
         return <AboutPanel />;
+      case "admin":
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Settings className="h-5 w-5 text-red-500" />
+                <h2 className="text-xl font-bold" data-testid="text-admin-management">Admin Management</h2>
+                {adminJuniors && <Badge variant="secondary">{adminJuniors.length} juniors</Badge>}
+              </div>
+              {user?.role === "OWNER" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const clubId = parentClubs.length > 0 ? parentClubs[0].clubId : 1;
+                    seedDemoMutation.mutate(clubId);
+                  }}
+                  disabled={seedDemoMutation.isPending}
+                  data-testid="button-seed-demo"
+                >
+                  {seedDemoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <DatabaseZap className="h-4 w-4 mr-2" />}
+                  Seed Demo Junior
+                </Button>
+              )}
+            </div>
+
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search juniors by name..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-admin-search-juniors"
+              />
+            </div>
+
+            {adminJuniorsLoading ? (
+              <div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : !filteredAdminJuniors || filteredAdminJuniors.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                  <h3 className="font-semibold mb-1">No Junior Accounts Found</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Use the "Seed Demo Junior" button to create a sample account with skill data, or add juniors via the My Children section.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredAdminJuniors.map((junior: any) => (
+                  <Card key={junior.id} className="hover:bg-muted/30 transition-colors" data-testid={`card-admin-junior-${junior.id}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={junior.profilePictureUrl} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                            {junior.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-sm">{junior.fullName}</h3>
+                            {junior.gender && <Badge variant="outline" className="text-xs">{junior.gender}</Badge>}
+                            {junior.profile?.juniorLevel && (
+                              <Badge className={`text-xs ${LEVEL_COLORS[junior.profile.juniorLevel] || ""}`}>
+                                {LEVEL_NAMES[junior.profile.juniorLevel] || junior.profile.juniorLevel}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                            {junior.dateOfBirth && <span>Born: {format(new Date(junior.dateOfBirth), "dd MMM yyyy")}</span>}
+                            <span>ID: {junior.id}</span>
+                            {junior.parentUserId && <span>Parent: #{junior.parentUserId}</span>}
+                          </div>
+                          {junior.profile && (
+                            <div className="flex items-center gap-3 mt-2">
+                              {junior.profile.overallSkillPercentage !== null && (
+                                <div className="flex items-center gap-1">
+                                  <MiniGauge value={junior.profile.overallSkillPercentage || 0} size={28} />
+                                  <span className="text-xs text-muted-foreground">Skill</span>
+                                </div>
+                              )}
+                              {junior.profile.attendancePercentage !== null && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  <CheckCircle className="h-3 w-3 text-green-500" />
+                                  <span>{junior.profile.attendancePercentage}% attendance</span>
+                                </div>
+                              )}
+                              {junior.profile.effortRating > 0 && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  {Array.from({ length: junior.profile.effortRating }).map((_, i) => (
+                                    <Star key={i} className="h-3 w-3 fill-amber-500 text-amber-500" />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedChildId(junior.id); setMainTab("performance"); }}
+                            data-testid={`button-view-junior-${junior.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" /> View
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(junior)}
+                            data-testid={`button-edit-junior-${junior.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {junior.emergencyContact && (
+                        <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+                          Emergency: {junior.emergencyContact}
+                          {junior.medicalNotes && <span className="ml-3">Medical: {junior.medicalNotes}</span>}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        );
       default:
         return null;
     }

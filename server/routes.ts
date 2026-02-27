@@ -18236,6 +18236,161 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/juniors", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const isPlatformAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      const adminClubs = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      if (!isPlatformAdmin && adminClubs.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+      const allJuniors = await db.select().from(users).where(eq(users.isJunior, true));
+      const juniorIds = allJuniors.map(j => j.id);
+      const allProfiles = juniorIds.length > 0 ? await db.select().from(juniorProfiles).where(inArray(juniorProfiles.userId, juniorIds)) : [];
+
+      let filteredJuniors = allJuniors;
+      if (!isPlatformAdmin) {
+        const clubIds = adminClubs.map(c => c.clubId);
+        const juniorIdsInClubs = new Set(allProfiles.filter(p => clubIds.includes(p.clubId)).map(p => p.userId));
+        filteredJuniors = allJuniors.filter(j => juniorIdsInClubs.has(j.id));
+      }
+
+      const result = filteredJuniors.map(j => {
+        const profile = allProfiles.find(p => p.userId === j.id);
+        return {
+          id: j.id,
+          fullName: j.fullName,
+          dateOfBirth: j.dateOfBirth,
+          gender: j.gender,
+          parentUserId: j.parentUserId,
+          profilePictureUrl: j.profilePictureUrl,
+          createdAt: j.createdAt,
+          emergencyContact: isPlatformAdmin ? j.emergencyContact : undefined,
+          medicalNotes: isPlatformAdmin ? j.medicalNotes : undefined,
+          profile: profile || null,
+        };
+      });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/juniors/seed-demo", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.status(403).json({ message: "Owner access required" });
+    try {
+      const parentId = req.user!.id;
+      const userClubs = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, parentId));
+      const validClubIds = userClubs.map(c => c.clubId);
+      let clubId = req.body.clubId ? Number(req.body.clubId) : (validClubIds[0] || 1);
+      if (validClubIds.length > 0 && !validClubIds.includes(clubId)) {
+        clubId = validClubIds[0];
+      }
+
+      const junior = await storage.createJuniorAccount(parentId, {
+        fullName: "Emma Thompson",
+        dateOfBirth: new Date("2015-06-15"),
+        gender: "FEMALE",
+        emergencyContact: "07700 900123",
+        medicalNotes: "Mild asthma - carries inhaler",
+      });
+
+      const [profile] = await db.insert(juniorProfiles).values({
+        userId: junior.id,
+        clubId,
+        juniorLevel: "IMPROVER",
+        overallSkillPercentage: 0,
+        attendancePercentage: 85,
+        effortRating: 4,
+        coachRating: 3,
+      }).returning();
+
+      const allSkills = await db.select().from(juniorSkills);
+      const skillData = [
+        { pct: 90, lvl: 5 }, { pct: 85, lvl: 4 },
+        { pct: 70, lvl: 4 }, { pct: 65, lvl: 3 }, { pct: 60, lvl: 3 },
+        { pct: 55, lvl: 3 }, { pct: 50, lvl: 3 }, { pct: 45, lvl: 2 },
+        { pct: 40, lvl: 2 }, { pct: 35, lvl: 2 }, { pct: 30, lvl: 2 },
+        { pct: 75, lvl: 4 }, { pct: 80, lvl: 4 }, { pct: 25, lvl: 1 },
+        { pct: 20, lvl: 1 }, { pct: 60, lvl: 3 }, { pct: 55, lvl: 3 },
+      ];
+
+      const comments = [
+        "Great technique, keep it up!",
+        "Needs more practice on backhand",
+        "Excellent footwork improvement",
+        null,
+        "Focus on positioning during rallies",
+        null,
+        "Good progress this term",
+        null,
+        "Work on consistency",
+        null,
+        null,
+        "Strong smash development",
+        "Defense improving well",
+        null,
+        null,
+        "Good court awareness",
+        null,
+      ];
+
+      for (let i = 0; i < Math.min(allSkills.length, skillData.length); i++) {
+        await db.insert(juniorSkillProgress).values({
+          childId: junior.id,
+          skillId: allSkills[i].id,
+          level: skillData[i].lvl,
+          percentage: skillData[i].pct,
+          comment: comments[i] || null,
+          priority: i === 7 || i === 13,
+          updatedBy: parentId,
+        });
+      }
+
+      await recalculateJuniorOverall(junior.id);
+
+      const achievementKeys = [
+        { key: "effort_star", title: "Effort Champion", desc: "Effort rating 4+" },
+        { key: "category_80_1", title: "Game Rules Master", desc: "80%+ in Game Rules" },
+      ];
+      for (const ach of achievementKeys) {
+        await db.insert(juniorAchievements).values({
+          userId: junior.id,
+          achievementKey: ach.key,
+          title: ach.title,
+          description: ach.desc,
+          iconName: "Star",
+          unlockedAt: new Date(),
+        });
+      }
+
+      await db.insert(juniorVideos).values({
+        userId: junior.id,
+        clubId,
+        title: "Smash Technique Practice",
+        youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        categoryTag: "Attack",
+        coachComment: "Good arm extension. Work on wrist snap timing.",
+        addedBy: parentId,
+      });
+
+      await db.insert(juniorRankings).values({
+        userId: junior.id,
+        clubId,
+        overallSkillPercent: profile.overallSkillPercentage || 55,
+        attendancePercent: 85,
+        effortRating: 4,
+        consistencyScore: 72,
+        rankPosition: 1,
+        previousPosition: 0,
+      });
+
+      res.json({ message: "Demo junior created with sample data", juniorId: junior.id });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
 
