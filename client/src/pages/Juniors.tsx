@@ -1395,7 +1395,6 @@ export default function Juniors() {
     { key: "sessions", icon: Calendar, title: "Sessions", description: "View junior session schedule", iconBg: "bg-teal-500/10", iconColor: "text-teal-500" },
     { key: "fees", icon: PoundSterling, title: "Fees", description: "Session pricing information", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-500" },
     { key: "about", icon: Info, title: "About", description: "What we do & safeguarding", iconBg: "bg-blue-500/10", iconColor: "text-blue-500" },
-    ...(isAdmin ? [{ key: "admin", icon: Settings, title: "Admin Management", description: "Manage all juniors, seed demo data", iconBg: "bg-red-500/10", iconColor: "text-red-500" }] : []),
   ];
 
   const renderSectionContent = () => {
@@ -1651,33 +1650,60 @@ export default function Juniors() {
       <JuniorHero />
 
       {mainTab === "menu" ? (
-        <Card className="border-border/50" data-testid="card-juniors-menu">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="h-5 w-5 text-emerald-500" />
-              <h2 className="text-lg font-bold">Junior Hub</h2>
-            </div>
-            <div className="space-y-1">
-              {menuItems.map((item) => (
+        <div className="space-y-4">
+          <Card className="border-border/50" data-testid="card-juniors-menu">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="h-5 w-5 text-emerald-500" />
+                <h2 className="text-lg font-bold">Junior Hub</h2>
+              </div>
+              <div className="space-y-1">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setMainTab(item.key)}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 active:bg-muted/70 transition-colors text-left group"
+                    data-testid={`menu-item-${item.key}`}
+                  >
+                    <div className={`${item.iconBg} rounded-xl p-2.5 shrink-0`}>
+                      <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm">{item.title}</h3>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {isAdmin && (
+            <Card className="border-red-500/20 bg-red-500/5" data-testid="card-admin-section">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Crown className="h-4 w-4 text-red-400" />
+                  <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider">Admin Only</h3>
+                </div>
                 <button
-                  key={item.key}
-                  onClick={() => setMainTab(item.key)}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 active:bg-muted/70 transition-colors text-left group"
-                  data-testid={`menu-item-${item.key}`}
+                  onClick={() => setMainTab("admin")}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-red-500/10 active:bg-red-500/15 transition-colors text-left group border border-red-500/20"
+                  data-testid="menu-item-admin"
                 >
-                  <div className={`${item.iconBg} rounded-xl p-2.5 shrink-0`}>
-                    <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+                  <div className="bg-red-500/10 rounded-xl p-2.5 shrink-0">
+                    <Settings className="h-5 w-5 text-red-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm">{item.title}</h3>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                    <h3 className="font-semibold text-sm">Admin Management</h3>
+                    <p className="text-xs text-muted-foreground">Manage all juniors, edit skills & seed demo data</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  <ChevronRight className="h-4 w-4 text-red-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       ) : (
         <div>
           <Button
