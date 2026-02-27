@@ -399,7 +399,7 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
       </Card>
 
       <Dialog open={!!editingSkill} onOpenChange={(open) => { if (!open) setEditingSkill(null); }}>
-        <DialogContent className="max-w-sm fixed bottom-0 left-0 right-0 top-auto rounded-t-2xl rounded-b-none sm:bottom-auto sm:left-auto sm:right-auto sm:top-auto sm:rounded-2xl" data-testid="dialog-edit-skill">
+        <DialogContent className="max-w-sm" data-testid="dialog-edit-skill">
           <DialogHeader>
             <DialogTitle className="text-base">{editingSkill?.name}</DialogTitle>
             <DialogDescription>Update skill assessment</DialogDescription>
@@ -431,12 +431,12 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
               <Textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} placeholder="Add coaching notes..." className="mt-1 min-h-[60px]" data-testid="input-coach-comment" />
             </div>
           </div>
-          <div className="sticky bottom-0 pt-3">
+          <DialogFooter>
             <Button className="w-full" disabled={updateMutation.isPending} onClick={() => { if (editingSkill) { updateMutation.mutate({ skillId: editingSkill.id, data: { level: editLevel, percentage: editPercentage, comment: editComment || null, priority: editPriority } }); } }} data-testid="button-save-skill">
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Save Assessment
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
