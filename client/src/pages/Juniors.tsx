@@ -93,6 +93,9 @@ import {
   CircleCheck,
   Repeat,
   Unlock,
+  Bell,
+  BellOff,
+  ExternalLink,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
@@ -1925,7 +1928,18 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
   const [videoUrl, setVideoUrl] = useState("");
   const [videoCategory, setVideoCategory] = useState("HOME");
   const [videoDescription, setVideoDescription] = useState("");
+  const [viewExercise, setViewExercise] = useState<any>(null);
+  const [alertsEnabled, setAlertsEnabled] = useState(() => {
+    try { return localStorage.getItem("junior-training-alerts") !== "off"; } catch { return true; }
+  });
   const { toast } = useToast();
+
+  const toggleAlerts = () => {
+    const next = !alertsEnabled;
+    setAlertsEnabled(next);
+    try { localStorage.setItem("junior-training-alerts", next ? "on" : "off"); } catch {}
+    toast({ title: next ? "Daily reminders turned on" : "Daily reminders turned off", description: next ? "You'll get reminders for incomplete exercises" : "You won't receive exercise reminders" });
+  };
 
   useEffect(() => {
     if (juniors && juniors.length > 0 && !selectedChild) {
@@ -2069,6 +2083,14 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
           <h2 className="text-xl font-bold" data-testid="text-training-title">Training Challenges</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAlerts}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all border ${alertsEnabled ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : "bg-muted/20 border-muted-foreground/20 text-muted-foreground"}`}
+            data-testid="btn-toggle-alerts"
+          >
+            {alertsEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+            {alertsEnabled ? "On" : "Off"}
+          </button>
           <div className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1">
             <Zap className="h-3.5 w-3.5 text-amber-400" />
             <span className="text-sm font-bold text-amber-400" data-testid="text-skill-points">{skillPoints?.totalPoints || 0}</span>
@@ -2221,7 +2243,7 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
                             >
                               {isCompleted && <Check className="h-4 w-4" />}
                             </button>
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setViewExercise({ ...exercise, targetReps: item.targetReps, targetSets: item.targetSets, targetDurationMinutes: item.targetDurationMinutes })}>
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className={`text-sm font-bold ${isCompleted ? "line-through text-muted-foreground" : ""}`}>{exercise.name}</h4>
                                 <Badge className={`text-[9px] px-1.5 py-0 border ${DIFFICULTY_COLORS[exercise.difficulty] || ""}`}>
@@ -2295,7 +2317,7 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
 
           <div className="space-y-3">
             {filteredExercises.map((ex: any) => (
-              <div key={ex.id} className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-4" data-testid={`exercise-lib-${ex.id}`}>
+              <div key={ex.id} className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-4 cursor-pointer hover:border-orange-500/40 transition-colors" onClick={() => setViewExercise(ex)} data-testid={`exercise-lib-${ex.id}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -2312,13 +2334,13 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
                     </div>
                   </div>
                   {isAdmin && (
-                    <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0" onClick={() => { setEditingExercise(ex); setEditExerciseOpen(true); }} data-testid={`btn-edit-exercise-${ex.id}`}>
+                    <Button size="sm" variant="ghost" className="shrink-0 h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditingExercise(ex); setEditExerciseOpen(true); }} data-testid={`btn-edit-exercise-${ex.id}`}>
                       <Pencil className="h-3 w-3" />
                     </Button>
                   )}
                 </div>
                 {ex.videoUrl && (
-                  <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1.5 text-[10px] text-orange-400 hover:text-orange-300">
+                  <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="mt-2 flex items-center gap-1.5 text-[10px] text-orange-400 hover:text-orange-300">
                     <Play className="h-3 w-3" /> Watch Tutorial
                   </a>
                 )}
@@ -2502,6 +2524,92 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewExercise} onOpenChange={(open) => { if (!open) setViewExercise(null); }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700/50" data-testid="dialog-exercise-detail">
+          {viewExercise && (() => {
+            const ex = viewExercise;
+            const ytId = ex.videoUrl ? (() => { const m = ex.videoUrl.match(/(?:v=|\/embed\/|youtu\.be\/)([^&?#]+)/); return m ? m[1] : null; })() : null;
+            const catChip = CATEGORY_CHIPS.find(c => c.key === ex.category);
+            const CatIcon = catChip?.icon || Dumbbell;
+            return (
+              <>
+                {ytId ? (
+                  <div className="aspect-video bg-black">
+                    <iframe src={`https://www.youtube.com/embed/${ytId}`} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={ex.name} />
+                  </div>
+                ) : (
+                  <div className="h-32 bg-gradient-to-br from-orange-600/30 via-amber-600/20 to-slate-900 flex items-center justify-center">
+                    <CatIcon className="h-16 w-16 text-orange-400/40" />
+                  </div>
+                )}
+                <div className="p-5 space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <h3 className="text-lg font-black text-white" data-testid="text-exercise-name">{ex.name}</h3>
+                      <Badge className={`text-[10px] px-2 py-0.5 border font-bold ${DIFFICULTY_COLORS[ex.difficulty] || ""}`} data-testid="badge-exercise-difficulty">{ex.difficulty}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant="outline" className="text-[10px] gap-1 border-orange-500/30 text-orange-400" data-testid="badge-exercise-category">
+                        <CatIcon className="h-3 w-3" />{ex.category}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] gap-1 border-slate-600 text-slate-400" data-testid="badge-exercise-location">
+                        <MapPin className="h-3 w-3" />{ex.location === "gym" ? "Gym" : "Home"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{ex.description}</p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    {(ex.targetDurationMinutes || ex.durationMinutes) && (
+                      <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+                        <Timer className="h-5 w-5 text-blue-400 mx-auto mb-1" />
+                        <p className="text-lg font-black text-white" data-testid="text-exercise-duration">{ex.targetDurationMinutes || ex.durationMinutes}</p>
+                        <p className="text-[9px] text-blue-400/80 uppercase tracking-wider">Minutes</p>
+                      </div>
+                    )}
+                    {(ex.targetReps || ex.reps) && (
+                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                        <Repeat className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
+                        <p className="text-lg font-black text-white" data-testid="text-exercise-reps">{ex.targetReps || ex.reps}</p>
+                        <p className="text-[9px] text-emerald-400/80 uppercase tracking-wider">Reps</p>
+                      </div>
+                    )}
+                    {(ex.targetSets || ex.sets) && (
+                      <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-3 text-center">
+                        <Dumbbell className="h-5 w-5 text-purple-400 mx-auto mb-1" />
+                        <p className="text-lg font-black text-white" data-testid="text-exercise-sets">{ex.targetSets || ex.sets}</p>
+                        <p className="text-[9px] text-purple-400/80 uppercase tracking-wider">Sets</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {ex.equipment && (
+                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 flex items-center gap-3">
+                      <Dumbbell className="h-5 w-5 text-amber-400 shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-amber-400/80 uppercase tracking-wider">Equipment Needed</p>
+                        <p className="text-sm font-semibold text-white">{ex.equipment}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {ex.videoUrl && !ytId && (
+                    <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl bg-orange-500/10 border border-orange-500/20 p-3 text-orange-400 hover:bg-orange-500/20 transition-colors" data-testid="link-exercise-video">
+                      <Play className="h-5 w-5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold">Watch Tutorial Video</p>
+                        <p className="text-[10px] text-orange-400/70 truncate">{ex.videoUrl}</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 shrink-0" />
+                    </a>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
