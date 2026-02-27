@@ -18104,38 +18104,67 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
-      const rankings = await db.select().from(juniorRankings)
-        .where(eq(juniorRankings.clubId, clubId))
-        .orderBy(juniorRankings.rankPosition);
 
-      const userIds = rankings.map(r => r.userId);
-      let userMap: Record<number, any> = {};
-      let achievementsMap: Record<number, any[]> = {};
-      let matchStatsMap: Record<number, any> = {};
-      if (userIds.length > 0) {
-        const usersData = await db.select({ id: users.id, fullName: users.fullName, profilePictureUrl: users.profilePictureUrl }).from(users).where(inArray(users.id, userIds));
-        userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
-        const allAchievements = await db.select().from(juniorAchievements).where(inArray(juniorAchievements.userId, userIds));
-        for (const ach of allAchievements) {
-          if (!achievementsMap[ach.userId]) achievementsMap[ach.userId] = [];
-          achievementsMap[ach.userId].push(ach);
-        }
-        const statsPromises = userIds.map(async (uid) => {
-          const stats = await computeJuniorMatchStats(uid);
-          return { userId: uid, stats };
-        });
-        const allStats = await Promise.all(statsPromises);
-        for (const { userId: uid, stats } of allStats) {
-          matchStatsMap[uid] = stats;
-        }
+      const allJuniorUsers = await db.select({ id: users.id, fullName: users.fullName, profilePictureUrl: users.profilePictureUrl }).from(users).where(eq(users.isJunior, true));
+      if (allJuniorUsers.length === 0) return res.json([]);
+      const juniorUserIds = allJuniorUsers.map(u => u.id);
+      const userMap = Object.fromEntries(allJuniorUsers.map(u => [u.id, u]));
+
+      const clubPlayerProfs = await db.select().from(playerProfiles).where(
+        and(eq(playerProfiles.clubId, clubId), inArray(playerProfiles.userId, juniorUserIds))
+      );
+      const juniorProfilesList = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+      const juniorProfileMap = Object.fromEntries(juniorProfilesList.map(p => [p.userId, p]));
+
+      const juniorIdsInClub = new Set<number>();
+      for (const pp of clubPlayerProfs) juniorIdsInClub.add(pp.userId);
+      for (const jp of juniorProfilesList) juniorIdsInClub.add(jp.userId);
+
+      const targetUserIds = Array.from(juniorIdsInClub);
+      if (targetUserIds.length === 0) return res.json([]);
+
+      const allAchievements = await db.select().from(juniorAchievements).where(inArray(juniorAchievements.userId, targetUserIds));
+      const achievementsMap: Record<number, any[]> = {};
+      for (const ach of allAchievements) {
+        if (!achievementsMap[ach.userId]) achievementsMap[ach.userId] = [];
+        achievementsMap[ach.userId].push(ach);
       }
 
-      res.json(rankings.map(r => ({
-        ...r,
-        user: userMap[r.userId] || null,
-        achievements: achievementsMap[r.userId] || [],
-        matchStats: matchStatsMap[r.userId] || null,
-      })));
+      const statsResults = await Promise.all(targetUserIds.map(async (uid) => ({ userId: uid, stats: await computeJuniorMatchStats(uid) })));
+      const matchStatsMap: Record<number, any> = {};
+      for (const { userId: uid, stats } of statsResults) matchStatsMap[uid] = stats;
+
+      const existingRankings = await db.select().from(juniorRankings).where(eq(juniorRankings.clubId, clubId));
+      const existingMap = Object.fromEntries(existingRankings.map(r => [r.userId, r]));
+
+      const scored = targetUserIds.map(uid => {
+        const jp = juniorProfileMap[uid];
+        const ms = matchStatsMap[uid] || { attendancePercent: 0, winPercent: 0, matchesPlayed: 0, totalSessions: 0 };
+        const skillPct = jp?.overallSkillPercentage || 0;
+        const attendPct = ms.totalSessions > 0 ? ms.attendancePercent : (jp?.attendancePercentage || 0);
+        const effort = jp?.effortRating || 0;
+        const coach = jp?.coachRating || 0;
+        const score = (skillPct * 0.5) + (attendPct * 0.2) + (effort * 4) + (coach * 2)
+          + (ms.matchesPlayed > 0 ? ms.winPercent * 0.15 : 0) + Math.min(ms.matchesPlayed * 0.5, 10);
+        return { userId: uid, skillPct, attendPct, effort, score };
+      }).sort((a, b) => b.score - a.score);
+
+      const result = scored.map((s, i) => ({
+        id: existingMap[s.userId]?.id || i + 1,
+        userId: s.userId,
+        clubId,
+        overallSkillPercent: s.skillPct,
+        attendancePercent: s.attendPct,
+        effortRating: s.effort,
+        consistencyScore: matchStatsMap[s.userId]?.matchesPlayed || 0,
+        rankPosition: i + 1,
+        previousPosition: existingMap[s.userId]?.rankPosition || 0,
+        user: userMap[s.userId] || null,
+        achievements: achievementsMap[s.userId] || [],
+        matchStats: matchStatsMap[s.userId] || null,
+      }));
+
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
