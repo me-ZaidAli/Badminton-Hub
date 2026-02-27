@@ -97,12 +97,42 @@ import {
   Bell,
   BellOff,
   ExternalLink,
+  HelpCircle,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
   BookOpen, Flame, Dumbbell, Footprints, Crosshair, Send, Swords, Shield, Target, Brain, Users,
   Trophy, Star, Calendar, Zap, Gamepad2,
 };
+
+function SectionInfoButton({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+        data-testid={`info-btn-${title.toLowerCase().replace(/\s+/g, '-')}`}
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto" data-testid={`info-dialog-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-blue-500" />
+              {title}
+            </DialogTitle>
+            <DialogDescription>How this section works</DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground space-y-3 leading-relaxed">
+            {children}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 const LEVEL_COLORS: Record<string, string> = {
   BEGINNER: "bg-blue-500/15 text-blue-400 border-blue-500/30",
@@ -1004,6 +1034,28 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex-1" />
+        <SectionInfoButton title="Skill Dashboard">
+          <p className="font-medium text-foreground">Welcome to your child's Skill Dashboard!</p>
+          <p>This is where you can see exactly how your child is progressing in their badminton journey. Everything shown here is based on real data from actual sessions, matches, and coach assessments.</p>
+          <p className="font-medium text-foreground mt-2">What the stats mean:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li><strong>Overall Skill</strong> — A percentage showing your child's progress across all 66 individual skills (like footwork, serves, and positioning), assessed by their coach.</li>
+            <li><strong>Attendance</strong> — How many sessions your child has attended out of the ones they signed up for. Calculated from real session sign-up records.</li>
+            <li><strong>Matches</strong> — Total matches played, wins, and losses from actual completed matches during sessions.</li>
+            <li><strong>Win Rate</strong> — The percentage of matches your child has won.</li>
+            <li><strong>Effort &amp; Coach Rating</strong> — Star ratings given by the coach based on your child's attitude and performance.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-2">The charts:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li><strong>Radar Chart</strong> — Shows your child's strengths and areas for improvement across all skill categories at a glance. The further out the shape reaches, the stronger that area.</li>
+            <li><strong>Progress Bars</strong> — Each skill category (like Footwork, Attack, Defense) has a progress bar showing how far your child has come. Skills marked with a star are priorities the coach wants to focus on.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-2">The goal:</p>
+          <p>We want every child to develop their skills progressively and have fun doing it. The dashboard helps you see their improvement over time, celebrate their strengths, and understand where they can grow. Speak to the coach if you have any questions about specific skill areas.</p>
+        </SectionInfoButton>
+      </div>
       <StripedLevelBar value={overallSkill} label="Badminton Level Progress" />
 
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50" data-testid="card-junior-profile-header">
@@ -1690,6 +1742,26 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
           <Trophy className="h-5 w-5 text-purple-500" />
           <h2 className="text-xl font-bold" data-testid="text-junior-rankings">Junior Rankings</h2>
           {rankings && <Badge variant="secondary">{rankings.length} players</Badge>}
+          <SectionInfoButton title="Junior Rankings">
+            <p className="font-medium text-foreground">How the rankings work</p>
+            <p>The junior rankings show how all the children in the club compare to each other. This isn't just about winning matches — we look at the whole picture of their development.</p>
+            <p className="font-medium text-foreground mt-2">How scores are calculated:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li><strong>Skill Progress (50%)</strong> — The biggest part of the score comes from how well your child is developing their badminton skills, as assessed by the coach across all categories.</li>
+              <li><strong>Attendance (20%)</strong> — Regular attendance matters! Children who come to sessions consistently score higher here.</li>
+              <li><strong>Effort Rating</strong> — The coach rates how hard your child tries during sessions. Great effort is always rewarded.</li>
+              <li><strong>Coach Rating</strong> — An overall assessment from the coach about your child's progress and attitude.</li>
+              <li><strong>Win Rate Bonus</strong> — Children who win more matches get a small bonus, but it's not the main factor.</li>
+              <li><strong>Match Volume</strong> — Playing more matches shows commitment and gives extra points.</li>
+            </ul>
+            <p className="font-medium text-foreground mt-2">What you'll see:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>A ranked list of all juniors with their overall score and level badge.</li>
+              <li>Tap on any player to see their achievements, match results, and detailed stats.</li>
+              <li>Badges like "Beginner", "Improver", and "Performance" show the player's current level.</li>
+            </ul>
+            <p className="mt-2">Remember, rankings are a guide to progress — every child develops at their own pace, and we celebrate all improvements equally!</p>
+          </SectionInfoButton>
         </div>
         {parentClubs.length > 1 && (
           <Select value={selectedClub} onValueChange={setSelectedClub}>
@@ -1832,6 +1904,25 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
       <div className="flex items-center gap-3 mb-4">
         <Calendar className="h-5 w-5 text-teal-500" />
         <h3 className="font-bold">Junior Sessions</h3>
+        <SectionInfoButton title="Junior Sessions">
+          <p className="font-medium text-foreground">Your child's session schedule and history</p>
+          <p>This section shows all the junior-only sessions your child can attend, and keeps a record of everything they've done.</p>
+          <p className="font-medium text-foreground mt-2">Upcoming Sessions:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>Shows all future junior sessions that are open for sign-up.</li>
+            <li>You can see the date, time, venue, and how many spots are available.</li>
+            <li>Click "Sign Up" to register your child for a session. If it's full, they'll be placed on a waiting list and automatically moved up when a spot opens.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-2">Past Sessions:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>Select your child from the dropdown to see their session history.</li>
+            <li>Each past session shows whether they attended and how many matches they played.</li>
+            <li>Match results show the score, who their partner was, and who they played against.</li>
+            <li>A green "Attended" badge means they were marked as present by the coach.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-2">Why it matters:</p>
+          <p>Regular attendance is key to improvement! The attendance data shown here feeds directly into your child's overall stats and rankings. The more sessions they attend, the more matches they play, and the faster their skills develop.</p>
+        </SectionInfoButton>
       </div>
 
       <div className="flex gap-2 mb-4" data-testid="tabs-sessions">
@@ -2339,6 +2430,27 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
         <div className="flex items-center gap-3">
           <Dumbbell className="h-5 w-5 text-orange-500" />
           <h2 className="text-xl font-bold" data-testid="text-training-title">Training Challenges</h2>
+          <SectionInfoButton title="Training Challenges">
+            <p className="font-medium text-foreground">Your child's exercise and training programme</p>
+            <p>Training Challenges give your child structured weekly exercise routines they can follow at home, in the gym, or on the court. It's designed to build their fitness and badminton skills between sessions.</p>
+            <p className="font-medium text-foreground mt-2">How it works:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li><strong>Weekly Challenges</strong> — Each week has a set of exercises spread across 5 days (Monday to Friday). New weeks are unlocked by the coach as your child progresses.</li>
+              <li><strong>Difficulty Levels</strong> — Weeks 1-4 are Beginner level, Weeks 5-8 are Intermediate, and Weeks 9-12 are Advanced. Each exercise is marked as Easy (green), Medium (amber), or Hard (red).</li>
+              <li><strong>Completing Exercises</strong> — Tap the circle next to an exercise to mark it as done. Your child earns skill points for each exercise they complete!</li>
+              <li><strong>Progress Bar</strong> — The orange bar at the top shows how much of the current week your child has completed.</li>
+              <li><strong>Skill Points</strong> — The golden points counter in the top right tracks total points earned. More exercises completed = more points!</li>
+            </ul>
+            <p className="font-medium text-foreground mt-2">The three tabs:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li><strong>Challenges</strong> — The weekly programme with day-by-day exercises to complete.</li>
+              <li><strong>Exercises</strong> — Browse the full exercise library with descriptions, difficulty levels, and tutorial videos.</li>
+              <li><strong>Videos</strong> — Watch tutorial videos grouped by category to learn the correct technique.</li>
+            </ul>
+            <p className="font-medium text-foreground mt-2">Daily Reminders:</p>
+            <p>Use the bell button to turn daily reminders on or off. When turned on, your child will get a gentle nudge about any exercises they haven't completed yet.</p>
+            <p className="mt-2">Encourage your child to complete as many exercises as they can each week — consistency is the key to improvement!</p>
+          </SectionInfoButton>
         </div>
         <div className="flex items-center gap-2">
           <button

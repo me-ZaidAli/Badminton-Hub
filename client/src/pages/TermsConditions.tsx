@@ -22,7 +22,7 @@ export default function TermsConditions() {
             Terms &amp; Conditions of Use
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground">Club Master Platform &mdash; Version 2.0 &mdash; Effective 20 February 2026</p>
+        <p className="text-sm text-muted-foreground">Club Master Platform &mdash; Version 2.1 &mdash; Effective 27 February 2026</p>
         <p className="text-sm text-muted-foreground">
           Operated by Dragon Badminton Club &ndash; BPG Ltd (Company No.{" "}
           <a href="https://find-and-update.company-information.service.gov.uk/company/16964545" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1">
@@ -166,6 +166,42 @@ export default function TermsConditions() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">6A. Junior Players, Skill Development &amp; Training</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+          <p className="font-medium text-foreground">6A.1 Junior Accounts &amp; Parental Responsibility</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Junior (under-18) accounts must be created by a parent or legal guardian, who assumes full responsibility for the child&apos;s use of the Platform and attendance at sessions.</li>
+            <li>Parents must provide accurate emergency contact details and disclose any relevant medical conditions. This information is stored securely and shared only with authorised coaching staff.</li>
+            <li>Junior accounts are linked to a parent account and cannot be accessed independently. Parents are responsible for keeping their child&apos;s profile information up to date.</li>
+            <li>By registering a junior, the parent consents to the collection and processing of the child&apos;s data as described in these Terms and the Junior Consent Policy.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-3">6A.2 Skill Development &amp; Assessments</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>The Platform tracks junior players&apos; skill development across multiple categories (e.g. Footwork, Attack, Defense, Psychology) based on coach assessments during sessions.</li>
+            <li>Skill assessments, ratings, and coach comments are provided for developmental and coaching purposes only. They do not constitute formal qualifications or certifications.</li>
+            <li>Effort ratings, coach ratings, and skill progress data are visible to the child&apos;s parent/guardian and to club administrators.</li>
+            <li>Skill rankings are calculated from a combination of coach assessments, attendance records, and match performance. Rankings are intended to encourage development, not to create competitive pressure.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-3">6A.3 Training Challenges &amp; Exercise Content</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>The Platform provides suggested exercise routines and training challenges for junior players to complete outside of sessions. These exercises are provided as guidance only.</li>
+            <li>Parents are responsible for ensuring any exercises are performed safely and are appropriate for their child&apos;s age, fitness level, and any medical conditions.</li>
+            <li>The Company is not liable for any injuries sustained while performing suggested exercises at home, in the gym, or at any location outside of official club sessions.</li>
+            <li>Exercise tutorial videos are embedded from YouTube and other third-party sources. The Company does not control or endorse all content on these external platforms.</li>
+            <li>Skill points earned through exercise completions are for motivational purposes only and have no monetary or redeemable value.</li>
+          </ul>
+          <p className="font-medium text-foreground mt-3">6A.4 Junior Sessions &amp; Attendance</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Junior-only sessions are supervised by DBS-checked coaches. Parents are responsible for ensuring their child arrives on time and is collected promptly after sessions.</li>
+            <li>Attendance is recorded by coaching staff and contributes to the child&apos;s development profile. Consistent attendance is encouraged for optimal skill development.</li>
+            <li>Match results and performance data from junior sessions are recorded and visible to parents via the Junior Hub.</li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">7. Data Protection &amp; UK GDPR Compliance</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
@@ -191,7 +227,7 @@ export default function TermsConditions() {
             <li>Communication data: messages sent within the Platform, support tickets, notification preferences.</li>
             <li>Technical data: IP address, browser type, device information, session cookies, login timestamps.</li>
             <li>Acquisition data: how you heard about the club, referral information.</li>
-            <li>Junior-specific data: parent/guardian name, contact details, and consent records.</li>
+            <li>Junior-specific data: parent/guardian name, contact details, consent records, skill assessments, exercise completion records, training challenge progress, and coach comments.</li>
           </ul>
 
           <p className="font-medium text-foreground mt-3">7.4 Data Sharing</p>
@@ -453,14 +489,15 @@ export default function TermsConditions() {
             <li>You consent to photography and video as described in Section 9, unless you withdraw consent in writing.</li>
             <li>You understand that sessions are attended at your own risk and that the Company&apos;s insurance does not cover personal injuries to players.</li>
             <li>You agree that non-payment, unsafe behaviour, or breach of these Terms may result in suspension, termination, safeguarding escalation, or legal action.</li>
-            <li>Parents or guardians accept these Terms on behalf of any minor they register.</li>
+            <li>Parents or guardians accept these Terms on behalf of any minor they register, including consent to skill tracking, exercise challenges, and development data collection as described in Section 6A.</li>
+            <li>You understand that training exercises and challenges provided on the Platform are suggestions only, and that the Company is not liable for injuries sustained while performing exercises outside of supervised club sessions.</li>
           </ul>
         </CardContent>
       </Card>
 
       <div className="text-center space-y-3 pb-8">
         <p className="text-xs text-muted-foreground">
-          These Terms &amp; Conditions were last updated on 20 February 2026.
+          These Terms &amp; Conditions were last updated on 27 February 2026.
         </p>
         <p className="text-xs text-muted-foreground">
           Dragon Badminton Club &ndash; BPG Ltd &mdash; Company No. 16964545

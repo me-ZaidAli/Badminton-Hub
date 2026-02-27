@@ -39,7 +39,9 @@ The frontend uses React 18, TypeScript, Wouter for routing, TanStack React Query
 - **Account Management**: Supports registration, claiming, password resets, and self-service deletion.
 - **Announcements System**: Allows admins/OWNERs to create and manage announcements.
 - **Notifications Panel**: Dedicated notification center with categorized tabs.
-- **Legal Policies System**: Manages in-app legal content, logs acceptance, and supports parental consent.
+- **Legal Policies System**: Manages in-app legal content, logs acceptance, and supports parental consent. Terms & Conditions v2.1 includes Section 6A covering Junior Players, Skill Development & Training (parental responsibility, skill assessments, exercise challenges, junior sessions).
+- **User Guide**: Comprehensive tabbed guide (Player/Admin/Owner) with Junior Hub section for parents and Junior Management section for admins. Includes FAQ items for junior skill dashboard, rankings, training challenges, and child profile management.
+- **Section Info Buttons**: Reusable `SectionInfoButton` component in Juniors.tsx providing parent-friendly explanations via dialog popups on Skill Dashboard, Rankings, Sessions, and Training Challenges sections.
 - **Player Profile Merging System**: Admin/OWNER-only wizard for merging duplicate player profiles.
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with full lifecycle management, RBAC, and audit logging.
 - **Automatic Player Grading System**: 9-tier skill grading system with automatic promotion/demotion based on performance.

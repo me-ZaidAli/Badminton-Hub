@@ -30,6 +30,8 @@ import {
   HelpCircle,
   Search,
   ChevronRight,
+  Baby,
+  Dumbbell,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -241,6 +243,26 @@ const playerSections: GuideSection[] = [
       "If you need to delete your account, you can do so from the profile page - but it's permanent!",
     ],
   },
+  {
+    icon: Baby,
+    title: "Junior Hub (For Parents)",
+    description: "Manage your children's profiles, skills, sessions, and training",
+    steps: [
+      "Go to 'Juniors' in the sidebar to access the Junior Hub - a dedicated area for managing your children's badminton development.",
+      "My Children: Add your child's profile with their name, date of birth, emergency contact, and any medical notes. You can link them to a club so they appear in the system.",
+      "Skill Dashboard: View your child's progress across all skill areas. The radar chart shows strengths at a glance, while detailed progress bars break down each skill category. All stats come from real session data and coach assessments.",
+      "Rankings: See how your child compares to others. Rankings are calculated using skill progress (50%), attendance (20%), effort, coach ratings, win rate, and match volume.",
+      "Sessions: Browse upcoming junior sessions and sign your child up. The 'Past Sessions' tab shows their attendance history with match results, scores, and partner/opponent details.",
+      "Training Challenges: Weekly exercise programmes your child can complete at home or in the gym. They earn skill points by marking exercises as done. Exercises are grouped by difficulty (Easy, Medium, Hard) across categories like Footwork, Core, Strength, and Flexibility.",
+    ],
+    tips: [
+      "Tap the blue info button (?) on any section for a detailed explanation of what everything means.",
+      "The skill points counter tracks how many training exercises your child has completed across all weeks.",
+      "Use the bell toggle on Training Challenges to enable or disable daily exercise reminders.",
+      "In the Skill Dashboard, look for starred skills - these are areas the coach wants your child to focus on.",
+      "Session attendance directly affects your child's rankings and overall stats, so regular attendance really matters.",
+    ],
+  },
 ];
 
 const adminSections: GuideSection[] = [
@@ -422,6 +444,27 @@ const adminSections: GuideSection[] = [
       "Record stock movements (purchases, usage, adjustments) to keep track of inventory levels.",
       "Log general club expenses for financial reporting.",
       "Inventory and expense data integrates with the Financial Dashboard.",
+    ],
+  },
+  {
+    icon: Baby,
+    title: "Junior Management",
+    description: "Manage junior players, skills, exercises, and training challenges",
+    steps: [
+      "Go to the Junior Hub and click 'Admin Management' to access the admin panel for all junior players.",
+      "View all registered junior players across your club(s) with their skill levels, attendance, and profile details.",
+      "Click 'View' on any junior to open their full Skill Dashboard and edit their skills, coach ratings, and effort scores.",
+      "Use the skill editor to update individual skill percentages for each of the 66 skills across 11 categories (e.g. Footwork, Attack, Defense, Psychology).",
+      "Mark priority skills by toggling the star — these will be highlighted for parents so they know what to work on.",
+      "Manage Training Challenges: reveal new weeks when you're ready for juniors to progress, and use the Exercise Library to add or edit exercises.",
+      "Add tutorial videos to the Videos section by pasting a YouTube URL, selecting a category, and adding a description.",
+      "Rankings are automatically recalculated from real session/match data whenever skill progress or attendance changes.",
+    ],
+    tips: [
+      "Use 'Seed Demo Data' (Owner only) to populate the system with sample juniors, skills, sessions, and matches for testing.",
+      "The overall skill percentage is auto-calculated from all 66 individual skill scores — no need to set it manually.",
+      "Revealing weeks gradually (one or two at a time) keeps children motivated and prevents them from rushing ahead.",
+      "Exercise completions and skill points are tracked per child, so parents can see their progress at home.",
     ],
   },
 ];
@@ -634,6 +677,36 @@ const faqItems: FAQItem[] = [
     question: "Can I delete my account?",
     answer: "Yes, you can request account deletion from your Profile page. Note that this is permanent and cannot be undone. Admin-scheduled deletions have a 3-day grace period during which the deletion can be cancelled.",
     roles: ["player"],
+  },
+  {
+    question: "How do I manage my child's profile?",
+    answer: "Go to 'Juniors' in the sidebar and click 'My Children'. From there you can add a new child with their name, date of birth, and emergency contact details. Once added, link them to a club so they can attend sessions and be tracked in the system.",
+    roles: ["player"],
+  },
+  {
+    question: "What does the Skill Dashboard show?",
+    answer: "The Skill Dashboard shows your child's progress across 11 skill categories (like Footwork, Attack, Defense, and Psychology) with 66 individual skills. The radar chart gives a quick overview of strengths and weaknesses. All data comes from real coach assessments and actual session performance — nothing is estimated.",
+    roles: ["player"],
+  },
+  {
+    question: "How do junior rankings work?",
+    answer: "Junior rankings use a balanced formula: 50% from skill progress (coach assessments), 20% from attendance, plus effort ratings, coach ratings, win rate bonuses, and match volume. This means it's not just about winning — turning up regularly and trying hard counts too!",
+    roles: ["player"],
+  },
+  {
+    question: "What are Training Challenges?",
+    answer: "Training Challenges are structured weekly exercise programmes designed for your child to complete between sessions. Each week has 5 days of exercises across categories like Footwork, Core, Strength, and Flexibility. Your child earns skill points by completing exercises, and new weeks are unlocked by the coach as they progress.",
+    roles: ["player"],
+  },
+  {
+    question: "How do I manage junior skills and assessments?",
+    answer: "Go to Juniors > Admin Management. Click 'View' on any junior to open their Skill Dashboard. From there, use the skill editor (pencil icon) to update individual skill percentages, set priority skills with the star toggle, and add coach comments. The overall skill percentage recalculates automatically.",
+    roles: ["admin"],
+  },
+  {
+    question: "How do I manage Training Challenges for juniors?",
+    answer: "In the Training Challenges section, use the 'Reveal Week' buttons to unlock new weeks for all juniors. You can also edit exercises from the Exercise Library tab, and add tutorial videos from the Videos tab. Revealing weeks gradually keeps children motivated.",
+    roles: ["admin"],
   },
   {
     question: "How do club anniversary rewards work?",
