@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos } from "@shared/schema";
-import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -18746,7 +18746,115 @@ export async function registerRoutes(
         previousPosition: 0,
       });
 
-      res.json({ message: "Demo junior created with sample data", juniorId: junior.id });
+      const [juniorPlayerProfile] = await db.insert(playerProfiles).values({
+        userId: junior.id,
+        clubId,
+        clubRole: "PLAYER",
+        membershipStatus: "APPROVED",
+        playerStatus: "ACTIVE",
+        gender: "FEMALE",
+        category: "D",
+        grade: "C3",
+      }).returning();
+
+      const parentProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.clubId, clubId), ne(playerProfiles.userId, junior.id))).limit(4);
+
+      const demoSessionDates = [
+        { title: "Junior Training - Beginners", daysAgo: 3, status: "COMPLETED" },
+        { title: "Junior Club Session", daysAgo: 10, status: "COMPLETED" },
+        { title: "Junior Fun Matches", daysAgo: 17, status: "COMPLETED" },
+        { title: "Junior Training - Next Week", daysAgo: -5, status: "UPCOMING" },
+      ];
+
+      for (const ds of demoSessionDates) {
+        const sessionDate = new Date();
+        sessionDate.setDate(sessionDate.getDate() - ds.daysAgo);
+        const [demoSession] = await db.insert(sessions).values({
+          clubId,
+          title: ds.title,
+          date: sessionDate,
+          startTime: "17:00",
+          durationMinutes: 90,
+          maxPlayers: 12,
+          courtsAvailable: 2,
+          allowedCategories: ["D"],
+          sessionType: "JUNIORS_ONLY",
+          status: ds.status,
+          createdBy: parentId,
+        }).returning();
+
+        const attendanceStatus = ds.status === "COMPLETED" ? "ATTENDED" : "NOT_ATTENDED";
+        await db.insert(sessionSignups).values({
+          sessionId: demoSession.id,
+          playerId: juniorPlayerProfile.id,
+          fee: 800,
+          paymentStatus: ds.status === "COMPLETED" ? "PAID" : "UNPAID",
+          signupStatus: "CONFIRMED",
+          attendanceStatus,
+        });
+
+        if (ds.status === "COMPLETED" && parentProfiles.length >= 3) {
+          for (const pp of parentProfiles.slice(0, 3)) {
+            await db.insert(sessionSignups).values({
+              sessionId: demoSession.id,
+              playerId: pp.id,
+              fee: 800,
+              paymentStatus: "PAID",
+              signupStatus: "CONFIRMED",
+              attendanceStatus: "ATTENDED",
+            });
+          }
+
+          const opp1 = parentProfiles[0];
+          const opp2 = parentProfiles[1];
+          const partner = parentProfiles[2];
+
+          const [match1] = await db.insert(matches).values({
+            sessionId: demoSession.id,
+            courtNumber: 1,
+            status: "COMPLETED",
+            teamAPlayer1Id: juniorPlayerProfile.id,
+            teamAPlayer2Id: partner.id,
+            teamBPlayer1Id: opp1.id,
+            teamBPlayer2Id: opp2.id,
+            scoreA: 21,
+            scoreB: 15,
+            isCompleted: true,
+            startedAt: sessionDate,
+            completedAt: sessionDate,
+          }).returning();
+
+          await db.insert(matches).values({
+            sessionId: demoSession.id,
+            courtNumber: 1,
+            status: "COMPLETED",
+            teamAPlayer1Id: opp1.id,
+            teamAPlayer2Id: juniorPlayerProfile.id,
+            teamBPlayer1Id: partner.id,
+            teamBPlayer2Id: opp2.id,
+            scoreA: 18,
+            scoreB: 21,
+            isCompleted: true,
+            startedAt: sessionDate,
+            completedAt: sessionDate,
+          });
+        }
+      }
+
+      const revealedChallenges = await db.select().from(juniorWeeklyChallenges).where(eq(juniorWeeklyChallenges.isRevealed, true)).limit(2);
+      for (const ch of revealedChallenges) {
+        const days = await db.select().from(juniorChallengeDays).where(eq(juniorChallengeDays.challengeId, ch.id)).limit(6);
+        for (let i = 0; i < Math.min(days.length, 4); i++) {
+          await db.insert(juniorChallengeCompletions).values({
+            userId: junior.id,
+            challengeDayId: days[i].id,
+            challengeId: ch.id,
+            skillPointsEarned: 10,
+          });
+        }
+      }
+
+      res.json({ message: "Demo junior created with full sample data (skills, sessions, matches, exercise completions)", juniorId: junior.id });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
