@@ -192,6 +192,10 @@ export default function Financials() {
     reason: string;
   } | null>(null);
 
+  const [removePlayerDialog, setRemovePlayerDialog] = useState<{
+    entry: FinancialEntry;
+  } | null>(null);
+
   const [adjustCreditDialog, setAdjustCreditDialog] = useState<{
     userId: number;
     clubId: number;
@@ -612,6 +616,16 @@ export default function Financials() {
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+    },
+  });
+
+  const removeFromSession = useMutation({
+    mutationFn: async ({ sessionId, signupId }: { sessionId: number; signupId: number }) => {
+      await apiRequest("DELETE", `/api/sessions/${sessionId}/signups/${signupId}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/sessions") });
     },
   });
 
@@ -1252,6 +1266,15 @@ export default function Financials() {
           >
             <CreditCard className="h-3 w-3 mr-1" />
             Use Credit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => setRemovePlayerDialog({ entry })}
+            data-testid={`button-remove-player-${entry.signupId}`}
+          >
+            <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       </TableCell>
@@ -3414,6 +3437,47 @@ export default function Financials() {
                 </Button>
               </DialogFooter>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!removePlayerDialog} onOpenChange={(open) => { if (!open) setRemovePlayerDialog(null); }}>
+        <DialogContent data-testid="dialog-remove-player">
+          <DialogHeader>
+            <DialogTitle>Remove Player from Session</DialogTitle>
+            <DialogDescription>
+              {removePlayerDialog ? `Are you sure you want to remove ${removePlayerDialog.entry.playerName} from "${removePlayerDialog.entry.sessionTitle}"? This will also remove them from the session signup list.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {removePlayerDialog && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRemovePlayerDialog(null)} data-testid="button-cancel-remove-player">
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const { sessionId, signupId, playerName, sessionTitle } = removePlayerDialog.entry;
+                  removeFromSession.mutate(
+                    { sessionId, signupId },
+                    {
+                      onSuccess: () => {
+                        toast({ title: "Player Removed", description: `${playerName} has been removed from "${sessionTitle}".` });
+                        setRemovePlayerDialog(null);
+                      },
+                      onError: () => {
+                        toast({ title: "Error", description: "Failed to remove player from session.", variant: "destructive" });
+                      },
+                    }
+                  );
+                }}
+                disabled={removeFromSession.isPending}
+                data-testid="button-confirm-remove-player"
+              >
+                {removeFromSession.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Remove
+              </Button>
+            </DialogFooter>
           )}
         </DialogContent>
       </Dialog>
