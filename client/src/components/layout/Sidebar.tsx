@@ -195,7 +195,7 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
         {step === "form" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              We continuously invest in improving analytics, development tools, and competition systems to give every player a better experience. Your contribution helps us build the future of badminton performance.
+              We are building the most structured badminton performance ecosystem in the region. We continuously invest in improving analytics, training tools, and competition systems to give every player a better experience.
             </p>
 
             <div className="space-y-2">
@@ -397,7 +397,7 @@ function DonationCard({ compact = false }: { compact?: boolean }) {
               Support Platform Development
             </p>
             <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-              Help us build better performance tracking, rankings, and training tools for every player.
+              We are building the most structured badminton performance ecosystem in the region.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <button
