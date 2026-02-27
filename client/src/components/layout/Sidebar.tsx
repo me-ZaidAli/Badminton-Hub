@@ -28,6 +28,8 @@ import {
   Swords,
   LayoutDashboard,
   Baby,
+  Heart,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,6 +127,53 @@ function useNavGroups(): NavGroup[] {
   }
 
   return groups;
+}
+
+function DonationCard({ compact = false }: { compact?: boolean }) {
+  const [dismissed, setDismissed] = useState(false);
+  
+  if (dismissed) return null;
+  
+  return (
+    <div className={cn(
+      "rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-rose-500/10 dark:from-pink-500/15 dark:to-rose-500/15",
+      compact ? "p-3 mx-2 mb-2" : "p-3 mx-3 mb-2"
+    )} data-testid="donation-cta-card">
+      <div className="flex items-start gap-2">
+        <div className="flex-shrink-0 mt-0.5">
+          <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-foreground leading-tight">
+            Help Us Improve Club Master
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+            We listen to your feedback and continuously improve the platform for a better experience. A donation of as little as {"\u00A3"}2 helps keep development going.
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <a
+              href="https://buy.stripe.com/4gw6oS2Xh0nraE84gh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-[11px] font-semibold transition-colors shadow-sm"
+              data-testid="button-donate"
+            >
+              <Heart className="h-3 w-3" />
+              Donate
+              <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+            </a>
+            <button
+              onClick={() => setDismissed(true)}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-dismiss-donation"
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BadgeCount({ count }: { count: number }) {
@@ -273,6 +322,8 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+
+      <DonationCard />
 
       <div className="p-4 border-t border-border/50 bg-muted/20">
         {user ? (
@@ -472,6 +523,7 @@ export function MobileTopNav() {
               </div>
             ))}
           </div>
+          <DonationCard compact />
           <div className="border-t border-border/40 p-2 space-y-1">
             <Link href="/profile">
               <Button
