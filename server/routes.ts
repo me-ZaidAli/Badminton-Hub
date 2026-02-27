@@ -18172,6 +18172,139 @@ export async function registerRoutes(
     }
   }
 
+  app.get("/api/junior-session-history/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = Number(req.params.userId);
+      const currentUser = req.user as any;
+      const targetUser = await db.select().from(users).where(eq(users.id, userId)).then(r => r[0]);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const isOwner = currentUser.role === "OWNER";
+      const isParent = targetUser.parentUserId === currentUser.id;
+      const isSelf = currentUser.id === userId;
+      const adminClubs = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(and(eq(playerProfiles.userId, currentUser.id), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      const adminClubIds = new Set(adminClubs.map(c => c.clubId));
+      if (!isOwner && !isParent && !isSelf && adminClubIds.size === 0) return res.status(403).json({ message: "Forbidden" });
+
+      const juniorProfs = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      const profileIds = juniorProfs.map(p => p.id);
+      if (profileIds.length === 0) return res.json([]);
+
+      const signupRows = await db.select({
+        signupId: sessionSignups.id,
+        sessionId: sessionSignups.sessionId,
+        signupStatus: sessionSignups.signupStatus,
+        attendanceStatus: sessionSignups.attendanceStatus,
+        playerId: sessionSignups.playerId,
+      }).from(sessionSignups).where(inArray(sessionSignups.playerId, profileIds));
+
+      const sessionIds = [...new Set(signupRows.map(s => s.sessionId))];
+      if (sessionIds.length === 0) return res.json([]);
+
+      const sessionRows = await db.select({
+        id: sessions.id, title: sessions.title, date: sessions.date, startTime: sessions.startTime,
+        durationMinutes: sessions.durationMinutes, status: sessions.status, clubId: sessions.clubId,
+        sessionType: sessions.sessionType, courtsAvailable: sessions.courtsAvailable,
+      }).from(sessions).where(inArray(sessions.id, sessionIds));
+
+      const clubIds = [...new Set(sessionRows.map(s => s.clubId))];
+      const clubRows = await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, clubIds));
+      const clubMap = Object.fromEntries(clubRows.map(c => [c.id, c.name]));
+
+      const allMatches = await db.select().from(matches).where(
+        and(
+          inArray(matches.sessionId, sessionIds),
+          eq(matches.isCompleted, true),
+          or(
+            inArray(matches.teamAPlayer1Id, profileIds),
+            inArray(matches.teamAPlayer2Id, profileIds),
+            inArray(matches.teamBPlayer1Id, profileIds),
+            inArray(matches.teamBPlayer2Id, profileIds),
+          )
+        )
+      );
+
+      const partnerIds = new Set<number>();
+      for (const m of allMatches) {
+        [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].forEach(pid => {
+          if (pid && !new Set(profileIds).has(pid)) partnerIds.add(pid);
+        });
+      }
+      let partnerProfileMap: Record<number, { fullName: string }> = {};
+      if (partnerIds.size > 0) {
+        const partnerProfiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, [...partnerIds]));
+        const partnerUserIds = partnerProfiles.map(p => p.userId);
+        if (partnerUserIds.length > 0) {
+          const partnerUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, partnerUserIds));
+          const userMap = Object.fromEntries(partnerUsers.map(u => [u.id, u.fullName]));
+          for (const pp of partnerProfiles) {
+            partnerProfileMap[pp.id] = { fullName: userMap[pp.userId] || "Unknown" };
+          }
+        }
+      }
+
+      const pidSet = new Set(profileIds);
+      const matchesBySession: Record<number, any[]> = {};
+      for (const m of allMatches) {
+        const isTeamA = pidSet.has(m.teamAPlayer1Id) || (m.teamAPlayer2Id !== null && pidSet.has(m.teamAPlayer2Id));
+        const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+        const teamAWon = hasMultiSets ? (m.setsWonA || 0) > (m.setsWonB || 0) : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+        const won = (isTeamA && teamAWon) || (!isTeamA && !teamAWon);
+        const partnerId = isTeamA
+          ? (pidSet.has(m.teamAPlayer1Id) ? m.teamAPlayer2Id : m.teamAPlayer1Id)
+          : (pidSet.has(m.teamBPlayer1Id) ? m.teamBPlayer2Id : m.teamBPlayer1Id);
+        const opp1 = isTeamA ? m.teamBPlayer1Id : m.teamAPlayer1Id;
+        const opp2 = isTeamA ? m.teamBPlayer2Id : m.teamAPlayer2Id;
+        if (!matchesBySession[m.sessionId]) matchesBySession[m.sessionId] = [];
+        matchesBySession[m.sessionId].push({
+          id: m.id,
+          won,
+          scoreA: m.scoreA, scoreB: m.scoreB,
+          setsWonA: m.setsWonA, setsWonB: m.setsWonB,
+          setScores: m.setScores,
+          isTeamA,
+          partner: partnerId ? partnerProfileMap[partnerId]?.fullName || null : null,
+          opponents: [opp1 ? partnerProfileMap[opp1]?.fullName || "Player" : null, opp2 ? partnerProfileMap[opp2]?.fullName || null : null].filter(Boolean),
+          completedAt: m.completedAt,
+        });
+      }
+
+      const signupBySession: Record<number, any> = {};
+      for (const s of signupRows) {
+        signupBySession[s.sessionId] = s;
+      }
+
+      const result = sessionRows
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .map(s => {
+          const signup = signupBySession[s.id];
+          const sessionMatches = matchesBySession[s.id] || [];
+          const wins = sessionMatches.filter((m: any) => m.won).length;
+          const losses = sessionMatches.length - wins;
+          return {
+            sessionId: s.id,
+            title: s.title,
+            date: s.date,
+            startTime: s.startTime,
+            durationMinutes: s.durationMinutes,
+            status: s.status,
+            clubName: clubMap[s.clubId] || "Unknown",
+            attendanceStatus: signup?.attendanceStatus || "NOT_ATTENDED",
+            signupStatus: signup?.signupStatus || "CONFIRMED",
+            matchesPlayed: sessionMatches.length,
+            wins,
+            losses,
+            matches: sessionMatches,
+          };
+        });
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/junior-rankings/:clubId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
