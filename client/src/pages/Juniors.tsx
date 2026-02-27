@@ -3190,9 +3190,9 @@ export default function Juniors() {
                   </div>
                 )}
                 {selectedChildId ? (
-                  <PerformancePanel userId={selectedChildId} isAdmin={false} />
+                  <PerformancePanel userId={selectedChildId} isAdmin={isAdmin} />
                 ) : juniors && juniors.length === 1 ? (
-                  <PerformancePanel userId={juniors[0].id} isAdmin={false} />
+                  <PerformancePanel userId={juniors[0].id} isAdmin={isAdmin} />
                 ) : (
                   <Card className="border-dashed">
                     <CardContent className="p-8 text-center">
