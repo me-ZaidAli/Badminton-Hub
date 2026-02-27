@@ -64,13 +64,14 @@ function JuniorHero() {
           Junior Badminton
         </h1>
         <p className="text-lg md:text-xl text-white/90 mb-4 leading-relaxed">
-          Developing skills, confidence, and teamwork through fun, structured coaching led by experienced coaches.
+          Welcome to our junior programme! Whether your child is picking up a racket for the very first 
+          time or already dreaming of competitive play, they'll find a place here.
         </p>
         <p className="text-white/80 leading-relaxed max-w-2xl">
-          We welcome juniors of all abilities — from beginners picking up a racket for the first time 
-          to aspiring competitive players looking to sharpen their game. Our sessions help young players 
-          enjoy badminton, build confidence, and develop strong technical foundations in a safe, structured, 
-          and supportive environment.
+          Our friendly, experienced coaches create sessions where every young player feels welcome, 
+          supported, and excited to play. We focus on having fun, making friends, and building real 
+          badminton skills — all at a pace that suits each child. Come along, give it a try, and 
+          watch their confidence grow on and off the court!
         </p>
       </div>
     </div>
@@ -808,10 +809,10 @@ export default function Juniors() {
   return (
     <div className="space-y-8 pb-8">
       <JuniorHero />
+      <JuniorSessionsSection />
       <WhatWeDoSection />
       <PricingSection />
       <SafeguardingSection />
-      <JuniorSessionsSection />
       <MyChildrenSection />
     </div>
   );
