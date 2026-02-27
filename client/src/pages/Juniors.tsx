@@ -71,6 +71,7 @@ import {
 
 const ICON_MAP: Record<string, any> = {
   BookOpen, Flame, Dumbbell, Footprints, Crosshair, Send, Swords, Shield, Target, Brain, Users,
+  Trophy, Star, Calendar, Zap, Gamepad2,
 };
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -93,6 +94,12 @@ const ACHIEVEMENT_DEFS = [
   { key: "attendance_streak", title: "Attendance Star", icon: Calendar, desc: "90%+ attendance" },
   { key: "smash_90", title: "Smash King", icon: Zap, desc: "90%+ smash proficiency" },
   { key: "footwork_85", title: "Fleet Feet", icon: Footprints, desc: "85%+ footwork" },
+  { key: "first_match", title: "First Match", icon: Gamepad2, desc: "Played first match" },
+  { key: "first_win", title: "First Victory", icon: Trophy, desc: "Won first match" },
+  { key: "match_10", title: "Match Veteran", icon: Swords, desc: "Played 10+ matches" },
+  { key: "wins_5", title: "Rising Star", icon: Star, desc: "Won 5+ matches" },
+  { key: "win_streak_70", title: "Dominant Player", icon: Flame, desc: "70%+ win rate (5+ games)" },
+  { key: "sessions_10", title: "Regular Player", icon: Calendar, desc: "Attended 10+ sessions" },
 ];
 
 function MiniGauge({ value, size = 48 }: { value: number; size?: number }) {
@@ -199,12 +206,15 @@ function ChildProfileCard({
   const videos = profileData?.videos || [];
   const progress = profileData?.progress || [];
 
+  const matchStats = profileData?.matchStats;
   const skillPercent = profile?.overallSkillPercentage || 0;
-  const attendance = profile?.attendancePercentage || 0;
+  const attendance = matchStats?.totalSessions > 0 ? matchStats.attendancePercent : (profile?.attendancePercentage || 0);
   const effortRating = profile?.effortRating || 0;
   const coachRating = profile?.coachRating || 0;
   const level = profile?.juniorLevel || "BEGINNER";
   const skillsAssessed = progress.filter((p: any) => p.percentage > 0).length;
+  const matchesPlayed = matchStats?.matchesPlayed || 0;
+  const matchesWon = matchStats?.matchesWon || 0;
 
   return (
     <Card
@@ -268,18 +278,22 @@ function ChildProfileCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5 mb-3">
-          <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-assessed-${junior.id}`}>
-            <BarChart3 className="h-3 w-3 text-blue-500 shrink-0" />
-            <span><strong>{skillsAssessed}</strong> skills</span>
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
+          <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-matches-${junior.id}`}>
+            <Gamepad2 className="h-3 w-3 text-indigo-500 shrink-0" />
+            <span><strong>{matchesPlayed}</strong> games</span>
+          </div>
+          <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-wins-${junior.id}`}>
+            <Trophy className="h-3 w-3 text-emerald-500 shrink-0" />
+            <span><strong>{matchesWon}</strong> wins</span>
           </div>
           <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-awards-${junior.id}`}>
             <Award className="h-3 w-3 text-amber-500 shrink-0" />
             <span><strong>{achievements.length}</strong> awards</span>
           </div>
-          <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-videos-${junior.id}`}>
-            <Video className="h-3 w-3 text-purple-500 shrink-0" />
-            <span><strong>{videos.length}</strong> videos</span>
+          <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-muted/30 text-xs" data-testid={`info-assessed-${junior.id}`}>
+            <BarChart3 className="h-3 w-3 text-blue-500 shrink-0" />
+            <span><strong>{skillsAssessed}</strong> skills</span>
           </div>
         </div>
 
@@ -532,15 +546,34 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
             <CircularGauge value={profile?.overallSkillPercentage || 0} size={72} strokeWidth={5} />
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="text-center p-2 rounded-xl bg-white/5">
-              <p className="text-base font-bold text-white">{profile?.attendancePercentage || 0}%</p>
+            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-attendance">
+              <p className="text-base font-bold text-white">{profileData.matchStats?.attendancePercent ?? profile?.attendancePercentage ?? 0}%</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Attendance</p>
+              {profileData.matchStats?.totalSessions > 0 && (
+                <p className="text-[9px] text-muted-foreground">{profileData.matchStats.sessionsAttended}/{profileData.matchStats.totalSessions} sessions</p>
+              )}
             </div>
-            <div className="text-center p-2 rounded-xl bg-white/5">
+            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-matches">
+              <p className="text-base font-bold text-white">{profileData.matchStats?.matchesPlayed || 0}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Matches</p>
+              {profileData.matchStats?.matchesPlayed > 0 && (
+                <p className="text-[9px] text-emerald-400">{profileData.matchStats.matchesWon}W / {profileData.matchStats.matchesLost}L</p>
+              )}
+            </div>
+            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-winrate">
+              <p className={`text-base font-bold ${(profileData.matchStats?.winPercent || 0) >= 50 ? "text-emerald-400" : "text-white"}`}>{profileData.matchStats?.winPercent || 0}%</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate</p>
+              {profileData.matchStats?.setsWon > 0 && (
+                <p className="text-[9px] text-muted-foreground">{profileData.matchStats.setsWon} sets won</p>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-effort">
               <StarRating value={profile?.effortRating || 0} size="sm" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Effort</p>
             </div>
-            <div className="text-center p-2 rounded-xl bg-white/5">
+            <div className="text-center p-2 rounded-xl bg-white/5" data-testid="stat-coach">
               <StarRating value={profile?.coachRating || 0} size="sm" />
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Coach</p>
             </div>
@@ -676,20 +709,63 @@ function RankingsPanel({ clubId }: { clubId: number }) {
       </div>
       {rankings.slice(0, 10).map((rank: any, i: number) => {
         const movement = rank.previousPosition > 0 ? rank.previousPosition - rank.rankPosition : 0;
+        const achievements: any[] = rank.achievements || [];
+        const matchStats = rank.matchStats;
         return (
           <Card key={rank.id} className={`${i < 3 ? "border-amber-500/20" : ""}`} data-testid={`card-ranking-${rank.userId}`}>
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-slate-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"}`}>
-                {rank.rankPosition}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{rank.user?.fullName || "Unknown"}</p>
-                <p className="text-[10px] text-muted-foreground">{rank.overallSkillPercent}% skill</p>
-              </div>
-              <div className="flex items-center gap-1">
-                {movement > 0 && <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />}
-                {movement < 0 && <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
-                {movement !== 0 && <span className={`text-xs font-medium ${movement > 0 ? "text-emerald-400" : "text-red-400"}`}>{Math.abs(movement)}</span>}
+            <CardContent className="p-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-slate-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"}`}>
+                  {rank.rankPosition}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarImage src={rank.user?.profilePictureUrl} />
+                      <AvatarFallback className="text-[10px] bg-amber-500/20 text-amber-400">{rank.user?.fullName?.charAt(0) || "?"}</AvatarFallback>
+                    </Avatar>
+                    <p className="text-sm font-medium truncate">{rank.user?.fullName || "Unknown"}</p>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[10px] text-muted-foreground">{rank.overallSkillPercent}% skill</span>
+                    {matchStats && matchStats.matchesPlayed > 0 && (
+                      <>
+                        <span className="text-[10px] text-muted-foreground">{matchStats.matchesPlayed} games</span>
+                        <span className={`text-[10px] font-medium ${matchStats.winPercent >= 50 ? "text-emerald-400" : "text-red-400"}`}>{matchStats.winPercent}% win</span>
+                      </>
+                    )}
+                    {matchStats && matchStats.totalSessions > 0 && (
+                      <span className="text-[10px] text-muted-foreground">{matchStats.attendancePercent}% att</span>
+                    )}
+                  </div>
+                  {achievements.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      {achievements.slice(0, 5).map((ach: any) => {
+                        const AchIcon = ICON_MAP[ach.iconName] || Award;
+                        return (
+                          <div key={ach.id} className="bg-amber-500/10 rounded-full px-1.5 py-0.5 flex items-center gap-0.5" title={ach.title}>
+                            <AchIcon className="h-2.5 w-2.5 text-amber-400" />
+                            <span className="text-[8px] text-amber-400 font-medium">{ach.title}</span>
+                          </div>
+                        );
+                      })}
+                      {achievements.length > 5 && (
+                        <span className="text-[8px] text-muted-foreground">+{achievements.length - 5} more</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  {movement > 0 && <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />}
+                  {movement < 0 && <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
+                  {movement !== 0 && <span className={`text-xs font-medium ${movement > 0 ? "text-emerald-400" : "text-red-400"}`}>{Math.abs(movement)}</span>}
+                  {achievements.length > 0 && (
+                    <div className="flex items-center gap-0.5">
+                      <Award className="h-3 w-3 text-amber-400" />
+                      <span className="text-[10px] text-amber-400 font-medium">{achievements.length}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

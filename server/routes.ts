@@ -17852,12 +17852,15 @@ export async function registerRoutes(
       const achievements = await db.select().from(juniorAchievements).where(eq(juniorAchievements.userId, userId));
       const videos = await db.select().from(juniorVideos).where(eq(juniorVideos.userId, userId));
 
+      const matchStats = await computeJuniorMatchStats(userId);
+
       res.json({
         user: { id: targetUser.id, fullName: targetUser.fullName, profilePictureUrl: targetUser.profilePictureUrl, isJunior: targetUser.isJunior, dateOfBirth: targetUser.dateOfBirth },
         profiles,
         progress,
         achievements,
         videos,
+        matchStats,
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -18016,6 +18019,70 @@ export async function registerRoutes(
     }
   });
 
+  async function computeJuniorMatchStats(userId: number) {
+    const juniorProfs = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+    const profileIds = juniorProfs.map(p => p.id);
+    if (profileIds.length === 0) return { sessionsAttended: 0, totalSessions: 0, attendancePercent: 0, matchesPlayed: 0, matchesWon: 0, matchesLost: 0, winPercent: 0, setsWon: 0, pointsWon: 0 };
+
+    const signups = await db.select({
+      id: sessionSignups.id,
+      attendanceStatus: sessionSignups.attendanceStatus,
+      signupStatus: sessionSignups.signupStatus,
+    }).from(sessionSignups).where(inArray(sessionSignups.playerId, profileIds));
+
+    const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+    const attended = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED").length;
+    const totalSessions = confirmedSignups.length;
+    const attendancePercent = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
+
+    const allMatches = profileIds.length > 0
+      ? await db.select().from(matches).where(
+          and(
+            eq(matches.isCompleted, true),
+            or(
+              inArray(matches.teamAPlayer1Id, profileIds),
+              inArray(matches.teamAPlayer2Id, profileIds),
+              inArray(matches.teamBPlayer1Id, profileIds),
+              inArray(matches.teamBPlayer2Id, profileIds),
+            )
+          )
+        )
+      : [];
+
+    let matchesPlayed = 0, matchesWon = 0, setsWon = 0, pointsWon = 0;
+    const pidSet = new Set(profileIds);
+    for (const match of allMatches) {
+      if (match.status !== "COMPLETED") continue;
+      const hasMultiSets = (match.numberOfSets || 1) > 1 && (match.setsWonA || 0) + (match.setsWonB || 0) > 0;
+      const teamAWon = hasMultiSets ? (match.setsWonA || 0) > (match.setsWonB || 0) : (match.scoreA ?? 0) > (match.scoreB ?? 0);
+      const isTeamA = pidSet.has(match.teamAPlayer1Id) || (match.teamAPlayer2Id !== null && pidSet.has(match.teamAPlayer2Id));
+      matchesPlayed++;
+      if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) matchesWon++;
+      const setScoresArr = (match.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+      if (setScoresArr.length > 0) {
+        for (const ss of setScoresArr) {
+          if (isTeamA) { pointsWon += ss.scoreA; if (ss.scoreA > ss.scoreB) setsWon++; }
+          else { pointsWon += ss.scoreB; if (ss.scoreB > ss.scoreA) setsWon++; }
+        }
+      } else {
+        pointsWon += isTeamA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
+        if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) setsWon++;
+      }
+    }
+
+    return {
+      sessionsAttended: attended,
+      totalSessions,
+      attendancePercent,
+      matchesPlayed,
+      matchesWon,
+      matchesLost: matchesPlayed - matchesWon,
+      winPercent: matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0,
+      setsWon,
+      pointsWon,
+    };
+  }
+
   async function recalculateJuniorOverall(userId: number) {
     const allSkills = await db.select().from(juniorSkills);
     const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
@@ -18043,12 +18110,32 @@ export async function registerRoutes(
 
       const userIds = rankings.map(r => r.userId);
       let userMap: Record<number, any> = {};
+      let achievementsMap: Record<number, any[]> = {};
+      let matchStatsMap: Record<number, any> = {};
       if (userIds.length > 0) {
         const usersData = await db.select({ id: users.id, fullName: users.fullName, profilePictureUrl: users.profilePictureUrl }).from(users).where(inArray(users.id, userIds));
         userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
+        const allAchievements = await db.select().from(juniorAchievements).where(inArray(juniorAchievements.userId, userIds));
+        for (const ach of allAchievements) {
+          if (!achievementsMap[ach.userId]) achievementsMap[ach.userId] = [];
+          achievementsMap[ach.userId].push(ach);
+        }
+        const statsPromises = userIds.map(async (uid) => {
+          const stats = await computeJuniorMatchStats(uid);
+          return { userId: uid, stats };
+        });
+        const allStats = await Promise.all(statsPromises);
+        for (const { userId: uid, stats } of allStats) {
+          matchStatsMap[uid] = stats;
+        }
       }
 
-      res.json(rankings.map(r => ({ ...r, user: userMap[r.userId] || null })));
+      res.json(rankings.map(r => ({
+        ...r,
+        user: userMap[r.userId] || null,
+        achievements: achievementsMap[r.userId] || [],
+        matchStats: matchStatsMap[r.userId] || null,
+      })));
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -18063,21 +18150,31 @@ export async function registerRoutes(
       const clubId = Number(req.params.clubId);
       const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
 
-      const scored = profiles.map(p => ({
-        userId: p.userId,
-        score: (p.overallSkillPercentage * 0.5) + (p.attendancePercentage * 0.2) + (p.effortRating * 4) + (p.coachRating * 2),
-      })).sort((a, b) => b.score - a.score);
+      const scoredPromises = profiles.map(async (p) => {
+        const realStats = await computeJuniorMatchStats(p.userId);
+        const attendPct = realStats.totalSessions > 0 ? realStats.attendancePercent : p.attendancePercentage;
+        const winBonus = realStats.matchesPlayed > 0 ? realStats.winPercent * 0.15 : 0;
+        const matchVolume = Math.min(realStats.matchesPlayed * 0.5, 10);
+
+        return {
+          userId: p.userId,
+          score: (p.overallSkillPercentage * 0.5) + (attendPct * 0.2) + (p.effortRating * 4) + (p.coachRating * 2) + winBonus + matchVolume,
+          realStats,
+          attendPct,
+        };
+      });
+      const scored = (await Promise.all(scoredPromises)).sort((a, b) => b.score - a.score);
 
       for (let i = 0; i < scored.length; i++) {
-        const { userId } = scored[i];
+        const { userId, realStats, attendPct } = scored[i];
         const profile = profiles.find(p => p.userId === userId)!;
         const [existing] = await db.select().from(juniorRankings).where(and(eq(juniorRankings.userId, userId), eq(juniorRankings.clubId, clubId)));
 
         const rankData = {
           overallSkillPercent: profile.overallSkillPercentage,
-          attendancePercent: profile.attendancePercentage,
+          attendancePercent: attendPct,
           effortRating: profile.effortRating,
-          consistencyScore: 0,
+          consistencyScore: realStats.matchesPlayed,
           rankPosition: i + 1,
           previousPosition: existing?.rankPosition || 0,
           updatedAt: new Date(),
@@ -18224,9 +18321,37 @@ export async function registerRoutes(
         }
       }
 
+      const matchStats = await computeJuniorMatchStats(userId);
+      if (matchStats.matchesPlayed >= 1 && !existingKeys.has("first_match")) {
+        newAchievements.push({ userId, achievementKey: "first_match", title: "First Match", description: "Played your first match", iconName: "Gamepad2" });
+      }
+      if (matchStats.matchesWon >= 1 && !existingKeys.has("first_win")) {
+        newAchievements.push({ userId, achievementKey: "first_win", title: "First Victory", description: "Won your first match", iconName: "Trophy" });
+      }
+      if (matchStats.matchesPlayed >= 10 && !existingKeys.has("match_10")) {
+        newAchievements.push({ userId, achievementKey: "match_10", title: "Match Veteran", description: "Played 10+ matches", iconName: "Swords" });
+      }
+      if (matchStats.matchesWon >= 5 && !existingKeys.has("wins_5")) {
+        newAchievements.push({ userId, achievementKey: "wins_5", title: "Rising Star", description: "Won 5+ matches", iconName: "Star" });
+      }
+      if (matchStats.winPercent >= 70 && matchStats.matchesPlayed >= 5 && !existingKeys.has("win_streak_70")) {
+        newAchievements.push({ userId, achievementKey: "win_streak_70", title: "Dominant Player", description: "70%+ win rate with 5+ matches", iconName: "Flame" });
+      }
+      if (matchStats.sessionsAttended >= 10 && !existingKeys.has("sessions_10")) {
+        newAchievements.push({ userId, achievementKey: "sessions_10", title: "Regular Player", description: "Attended 10+ sessions", iconName: "Calendar" });
+      }
+      if (matchStats.attendancePercent >= 90 && matchStats.totalSessions >= 5 && !existingKeys.has("attendance_streak")) {
+        if (!existingKeys.has("attendance_streak")) {
+          newAchievements.push({ userId, achievementKey: "attendance_streak", title: "Attendance Star", description: "90%+ attendance rate", iconName: "Calendar" });
+        }
+      }
+
       if (newAchievements.length > 0) {
         for (const ach of newAchievements) {
-          await db.insert(juniorAchievements).values(ach);
+          if (!existingKeys.has(ach.achievementKey)) {
+            await db.insert(juniorAchievements).values(ach);
+            existingKeys.add(ach.achievementKey);
+          }
         }
       }
 
