@@ -17,7 +17,7 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Crown, Gem, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake
+  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake, CheckCircle
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -29,12 +29,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
-  light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, sepia: Palette, migraine: Eye,
+  light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, "green-glow": Zap, sepia: Palette, migraine: Eye,
   "high-contrast": Contrast, grayscale: CircleOff,
 };
 
@@ -668,6 +668,7 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
 }) {
   const { toast } = useToast();
   const [creditRequestOpen, setCreditRequestOpen] = useState(false);
+  const [creditSuccessInfo, setCreditSuccessInfo] = useState<{ paymentRef: string; amount: string; session: string } | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [customSession, setCustomSession] = useState("");
@@ -684,9 +685,17 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Credit Request Submitted", description: `${data.message}\nPayment Reference: ${data.paymentReference}` });
+      const sessionLabel = selectedSessionId && selectedSessionId !== "custom"
+        ? filteredSignups.find((s: any) => String(s.sessionId) === selectedSessionId)?.sessionTitle || "your session"
+        : customSession || "your session";
+      setCreditSuccessInfo({
+        paymentRef: data.paymentReference,
+        amount: creditAmount,
+        session: sessionLabel,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-credits/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-outstanding-payments"] });
       setCreditRequestOpen(false);
       setSelectedClubId(null);
       setSelectedSessionId("");
@@ -845,6 +854,47 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
             <Button onClick={handleSubmitCreditRequest} disabled={creditRequestMutation.isPending || !selectedClubId} data-testid="button-submit-credit">
               {creditRequestMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
               Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!creditSuccessInfo} onOpenChange={(o) => !o && setCreditSuccessInfo(null)}>
+        <DialogContent className="sm:max-w-[420px]" data-testid="modal-credit-success">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              Credit Request Submitted
+            </DialogTitle>
+            <DialogDescription>
+              Your credit has been applied and admins have been notified.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Amount:</span>
+                <span className="font-semibold">{"\u00A3"}{creditSuccessInfo?.amount}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Session:</span>
+                <span className="font-medium">{creditSuccessInfo?.session}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Payment Reference:</span>
+                <span className="font-mono font-bold text-primary">{creditSuccessInfo?.paymentRef}</span>
+              </div>
+            </div>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">Important</p>
+              <p className="text-sm text-muted-foreground">
+                Please use the payment reference above when making your next payment. The admin will deduct this credit from your session fee. A support ticket has been created and admins have been notified.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCreditSuccessInfo(null)} data-testid="button-close-credit-success">
+              Got it
             </Button>
           </DialogFooter>
         </DialogContent>
