@@ -1940,3 +1940,24 @@ export const donationsRelations = relations(donations, ({ one }) => ({
 export const insertDonationSchema = createInsertSchema(donations).omit({ id: true, createdAt: true, confirmedAt: true, confirmedByAdminId: true });
 export type Donation = typeof donations.$inferSelect;
 export type InsertDonation = z.infer<typeof insertDonationSchema>;
+
+// === COACH ANALYTICS REPORTS ===
+export const generatedReports = pgTable("generated_reports", {
+  id: serial("id").primaryKey(),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  dateRangeStart: timestamp("date_range_start"),
+  dateRangeEnd: timestamp("date_range_end"),
+  squadFilter: text("squad_filter"),
+  aiSummary: text("ai_summary").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const generatedReportsRelations = relations(generatedReports, ({ one }) => ({
+  creator: one(users, { fields: [generatedReports.createdBy], references: [users.id] }),
+  club: one(clubs, { fields: [generatedReports.clubId], references: [clubs.id] }),
+}));
+
+export const insertGeneratedReportSchema = createInsertSchema(generatedReports).omit({ id: true, createdAt: true });
+export type GeneratedReport = typeof generatedReports.$inferSelect;
+export type InsertGeneratedReport = z.infer<typeof insertGeneratedReportSchema>;

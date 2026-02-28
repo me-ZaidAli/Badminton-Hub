@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -20121,6 +20121,446 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch donation summary" });
+    }
+  });
+
+  // === COACH JUNIOR SKILLS ANALYTICS ===
+
+  async function getCoachClubAccess(req: any): Promise<number[]> {
+    const user = req.user!;
+    if (user.role === "OWNER") {
+      const allClubs = await db.select({ id: clubs.id }).from(clubs);
+      return allClubs.map(c => c.id);
+    }
+    const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+      .where(and(eq(playerProfiles.userId, user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+    return adminProfiles.map(p => p.clubId);
+  }
+
+  app.get("/api/coach/juniors/skills/overview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const squadLevel = req.query.squadLevel as string | undefined;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized for this club" });
+
+      let juniorUserIds: number[] = [];
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") {
+        profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      }
+      const profiles = await db.select({ userId: juniorProfiles.userId, juniorLevel: juniorProfiles.juniorLevel, overallSkillPercentage: juniorProfiles.overallSkillPercentage })
+        .from(juniorProfiles).where(and(...profileConditions));
+      juniorUserIds = profiles.map(p => p.userId);
+
+      if (juniorUserIds.length === 0) {
+        const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+        return res.json({ categories: categories.map(c => ({ categoryId: c.id, categoryName: c.name, avgScore: 0, skillCount: 0, belowBenchmarkPercent: 0 })), totalJuniors: 0, overallAvg: 0 });
+      }
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const allProgress = await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds));
+
+      const categoryStats = categories.map(cat => {
+        const catSkillIds = skills.filter(s => s.categoryId === cat.id).map(s => s.id);
+        const catProgress = allProgress.filter(p => catSkillIds.includes(p.skillId));
+        const avgScore = catProgress.length > 0 ? Math.round(catProgress.reduce((s, p) => s + p.percentage, 0) / catProgress.length) : 0;
+        const belowBenchmark = catProgress.filter(p => p.percentage < 50).length;
+        const belowBenchmarkPercent = catProgress.length > 0 ? Math.round((belowBenchmark / catProgress.length) * 100) : 0;
+        return { categoryId: cat.id, categoryName: cat.name, avgScore, skillCount: catSkillIds.length, belowBenchmarkPercent };
+      });
+
+      const overallAvg = profiles.length > 0 ? Math.round(profiles.reduce((s, p) => s + (p.overallSkillPercentage || 0), 0) / profiles.length) : 0;
+
+      res.json({ categories: categoryStats, totalJuniors: juniorUserIds.length, overallAvg });
+    } catch (err: any) {
+      console.error("Error fetching coach skills overview:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/trends", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const squadLevel = req.query.squadLevel as string | undefined;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      const profiles = await db.select({ userId: juniorProfiles.userId }).from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      if (juniorUserIds.length === 0) return res.json([]);
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const history = await db.select().from(juniorProgressHistory)
+        .where(inArray(juniorProgressHistory.childId, juniorUserIds))
+        .orderBy(juniorProgressHistory.createdAt);
+
+      const trends = categories.map(cat => {
+        const catSkillIds = skills.filter(s => s.categoryId === cat.id).map(s => s.id);
+        const catHistory = history.filter(h => catSkillIds.includes(h.skillId));
+
+        const weekMap = new Map<string, { total: number; count: number; players: Set<number> }>();
+        for (const h of catHistory) {
+          const d = new Date(h.createdAt);
+          const weekStart = new Date(d);
+          weekStart.setDate(d.getDate() - d.getDay());
+          const weekKey = weekStart.toISOString().split("T")[0];
+          if (!weekMap.has(weekKey)) weekMap.set(weekKey, { total: 0, count: 0, players: new Set() });
+          const w = weekMap.get(weekKey)!;
+          w.total += h.newPercentage;
+          w.count++;
+          w.players.add(h.childId);
+        }
+
+        const weeks = Array.from(weekMap.entries()).map(([week, data]) => ({
+          week, avgScore: Math.round(data.total / data.count), playerCount: data.players.size,
+        })).sort((a, b) => a.week.localeCompare(b.week));
+
+        return { categoryId: cat.id, categoryName: cat.name, weeks };
+      });
+
+      res.json(trends);
+    } catch (err: any) {
+      console.error("Error fetching coach skills trends:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/weak-strong", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const squadLevel = req.query.squadLevel as string | undefined;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      const profiles = await db.select({ userId: juniorProfiles.userId }).from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      if (juniorUserIds.length === 0) return res.json({ weakest: [], strongest: [] });
+
+      const skills = await db.select().from(juniorSkills);
+      const categories = await db.select().from(juniorSkillCategories);
+      const allProgress = await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds));
+
+      const catMap = new Map(categories.map(c => [c.id, c.name]));
+
+      const skillAggregates = skills.map(skill => {
+        const prog = allProgress.filter(p => p.skillId === skill.id);
+        const avgScore = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+        const below = prog.filter(p => p.percentage < 50).length;
+        const belowPercent = prog.length > 0 ? Math.round((below / prog.length) * 100) : 0;
+        return {
+          skillId: skill.id, skillName: skill.name, categoryName: catMap.get(skill.categoryId) || "Unknown",
+          avgScore, belowBenchmarkPercent: belowPercent, playerCount: prog.length,
+          priorityScore: 100 - avgScore,
+        };
+      }).filter(s => s.playerCount > 0);
+
+      const weakest = [...skillAggregates].sort((a, b) => a.avgScore - b.avgScore).slice(0, 5);
+      const strongest = [...skillAggregates].sort((a, b) => b.avgScore - a.avgScore).slice(0, 5);
+
+      res.json({ weakest, strongest });
+    } catch (err: any) {
+      console.error("Error fetching weak/strong skills:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/players/below-threshold", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const threshold = Number(req.query.threshold) || 50;
+      const squadLevel = req.query.squadLevel as string | undefined;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      const profiles = await db.select().from(juniorProfiles).where(and(...profileConditions));
+      const belowProfiles = profiles.filter(p => (p.overallSkillPercentage || 0) < threshold);
+
+      const results = [];
+      for (const prof of belowProfiles) {
+        const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email, dateOfBirth: users.dateOfBirth }).from(users).where(eq(users.id, prof.userId));
+        if (!user) continue;
+
+        const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, prof.userId));
+        const weakestSkill = progress.length > 0
+          ? progress.reduce((min, p) => p.percentage < min.percentage ? p : min, progress[0])
+          : null;
+
+        let weakestSkillName = "N/A";
+        if (weakestSkill) {
+          const [skill] = await db.select().from(juniorSkills).where(eq(juniorSkills.id, weakestSkill.skillId));
+          weakestSkillName = skill?.name || "N/A";
+        }
+
+        results.push({
+          userId: user.id, fullName: user.fullName, email: user.email,
+          dateOfBirth: user.dateOfBirth, juniorLevel: prof.juniorLevel,
+          overallPercent: prof.overallSkillPercentage || 0,
+          effortRating: prof.effortRating, coachRating: prof.coachRating,
+          weakestSkill: weakestSkillName,
+          weakestScore: weakestSkill?.percentage || 0,
+        });
+      }
+
+      results.sort((a, b) => a.overallPercent - b.overallPercent);
+      res.json(results);
+    } catch (err: any) {
+      console.error("Error fetching below threshold players:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/heatmap", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const juniorUserIds = profiles.map(p => p.userId);
+      const allProgress = juniorUserIds.length > 0 ? await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds)) : [];
+
+      const squadLevels = ["BEGINNER", "IMPROVER", "PERFORMANCE", "SQUAD", "COMPETITION_READY"];
+      const matrix: { categoryId: number; categoryName: string; squads: { squad: string; avgScore: number; playerCount: number }[] }[] = [];
+
+      for (const cat of categories) {
+        const catSkillIds = skills.filter(s => s.categoryId === cat.id).map(s => s.id);
+        const squads = squadLevels.map(squad => {
+          const squadUserIds = profiles.filter(p => p.juniorLevel === squad).map(p => p.userId);
+          const prog = allProgress.filter(p => catSkillIds.includes(p.skillId) && squadUserIds.includes(p.childId));
+          const avgScore = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+          return { squad, avgScore, playerCount: squadUserIds.length };
+        });
+        matrix.push({ categoryId: cat.id, categoryName: cat.name, squads });
+      }
+
+      res.json(matrix);
+    } catch (err: any) {
+      console.error("Error fetching heatmap:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/category/:categoryId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const categoryId = Number(req.params.categoryId);
+      const clubId = Number(req.query.clubId);
+      const squadLevel = req.query.squadLevel as string | undefined;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const [category] = await db.select().from(juniorSkillCategories).where(eq(juniorSkillCategories.id, categoryId));
+      if (!category) return res.status(404).json({ message: "Category not found" });
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      const profiles = await db.select({ userId: juniorProfiles.userId }).from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      const catSkills = await db.select().from(juniorSkills).where(eq(juniorSkills.categoryId, categoryId)).orderBy(juniorSkills.displayOrder);
+      const allProgress = juniorUserIds.length > 0 ? await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds)) : [];
+
+      const skillData = catSkills.map(skill => {
+        const prog = allProgress.filter(p => p.skillId === skill.id);
+        const avgScore = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+        const belowBenchmark = prog.filter(p => p.percentage < 50).length;
+        return { skillId: skill.id, skillName: skill.name, avgScore, playerCount: prog.length, belowBenchmarkPercent: prog.length > 0 ? Math.round((belowBenchmark / prog.length) * 100) : 0 };
+      });
+
+      const categoryAvg = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.avgScore, 0) / skillData.length) : 0;
+      res.json({ category, categoryAvg, skills: skillData, totalJuniors: juniorUserIds.length });
+    } catch (err: any) {
+      console.error("Error fetching category detail:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/detail/:skillId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const skillId = Number(req.params.skillId);
+      const clubId = Number(req.query.clubId);
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+      const juniorUserIds = profiles.map(p => p.userId);
+      if (juniorUserIds.length === 0) return res.json({ skill: null, players: [] });
+
+      const [skill] = await db.select().from(juniorSkills).where(eq(juniorSkills.id, skillId));
+      const [category] = skill ? await db.select().from(juniorSkillCategories).where(eq(juniorSkillCategories.id, skill.categoryId)) : [null];
+
+      const progress = await db.select().from(juniorSkillProgress).where(and(eq(juniorSkillProgress.skillId, skillId), inArray(juniorSkillProgress.childId, juniorUserIds)));
+      const players = [];
+      for (const p of progress) {
+        const [user] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, p.childId));
+        const prof = profiles.find(pr => pr.userId === p.childId);
+        players.push({
+          userId: p.childId, fullName: user?.fullName || "Unknown",
+          score: p.percentage, level: p.level, comment: p.comment, priority: p.priority,
+          juniorLevel: prof?.juniorLevel || "BEGINNER",
+        });
+      }
+
+      players.sort((a, b) => a.score - b.score);
+      const avgScore = players.length > 0 ? Math.round(players.reduce((s, p) => s + p.score, 0) / players.length) : 0;
+
+      res.json({ skill: skill ? { ...skill, categoryName: category?.name || "Unknown" } : null, avgScore, players });
+    } catch (err: any) {
+      console.error("Error fetching skill detail:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/player/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = Number(req.params.userId);
+      const clubId = Number(req.query.clubId);
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const [profile] = await db.select().from(juniorProfiles).where(and(eq(juniorProfiles.userId, userId), eq(juniorProfiles.clubId, clubId)));
+      if (!user || !profile) return res.status(404).json({ message: "Player not found" });
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, userId));
+      const history = await db.select().from(juniorProgressHistory).where(eq(juniorProgressHistory.childId, userId)).orderBy(desc(juniorProgressHistory.createdAt)).limit(50);
+
+      const categoryData = categories.map(cat => {
+        const catSkills = skills.filter(s => s.categoryId === cat.id);
+        const skillData = catSkills.map(sk => {
+          const prog = progress.find(p => p.skillId === sk.id);
+          return { skillId: sk.id, skillName: sk.name, percentage: prog?.percentage || 0, level: prog?.level || 0, comment: prog?.comment || null, priority: prog?.priority || false };
+        });
+        const avgScore = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.percentage, 0) / skillData.length) : 0;
+        return { categoryId: cat.id, categoryName: cat.name, avgScore, skills: skillData };
+      });
+
+      res.json({
+        user: { id: user.id, fullName: user.fullName, email: user.email, dateOfBirth: user.dateOfBirth },
+        profile: { juniorLevel: profile.juniorLevel, overallSkillPercentage: profile.overallSkillPercentage, effortRating: profile.effortRating, coachRating: profile.coachRating, attendancePercentage: profile.attendancePercentage },
+        categories: categoryData,
+        history: history.map(h => ({ skillId: h.skillId, previousPercentage: h.previousPercentage, newPercentage: h.newPercentage, createdAt: h.createdAt })),
+      });
+    } catch (err: any) {
+      console.error("Error fetching player skills:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/coach/juniors/reports/generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const bodySchema = z.object({ clubId: z.number(), squadLevel: z.string().optional() });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
+      const { clubId, squadLevel } = parsed.data;
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (squadLevel && squadLevel !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${squadLevel}`);
+      const profiles = await db.select().from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const allProgress = juniorUserIds.length > 0 ? await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds)) : [];
+
+      const skillAggregates = skills.map(skill => {
+        const prog = allProgress.filter(p => p.skillId === skill.id);
+        const avgScore = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+        const cat = categories.find(c => c.id === skill.categoryId);
+        return { skillName: skill.name, categoryName: cat?.name || "Unknown", avgScore, playerCount: prog.length };
+      }).filter(s => s.playerCount > 0);
+
+      const weakest3 = [...skillAggregates].sort((a, b) => a.avgScore - b.avgScore).slice(0, 3);
+      const strongest3 = [...skillAggregates].sort((a, b) => b.avgScore - a.avgScore).slice(0, 3);
+      const overallAvg = profiles.length > 0 ? Math.round(profiles.reduce((s, p) => s + (p.overallSkillPercentage || 0), 0) / profiles.length) : 0;
+      const belowThreshold = profiles.filter(p => (p.overallSkillPercentage || 0) < 50).length;
+
+      let aiSummary = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+        const prompt = `You are a badminton coach analytics assistant. Analyze this junior player data and provide actionable coaching insights in 3-4 paragraphs.
+
+Data summary:
+- Total juniors: ${juniorUserIds.length}
+- Overall average skill: ${overallAvg}%
+- Players below 50% threshold: ${belowThreshold}
+- Squad filter: ${squadLevel || "ALL"}
+- Weakest 3 skills: ${weakest3.map(s => `${s.skillName} (${s.categoryName}): ${s.avgScore}%`).join(", ")}
+- Strongest 3 skills: ${strongest3.map(s => `${s.skillName} (${s.categoryName}): ${s.avgScore}%`).join(", ")}
+- Category averages: ${categories.map(c => { const catSkills = skills.filter(s => s.categoryId === c.id).map(s => s.id); const catProg = allProgress.filter(p => catSkills.includes(p.skillId)); const avg = catProg.length > 0 ? Math.round(catProg.reduce((s, p) => s + p.percentage, 0) / catProg.length) : 0; return `${c.name}: ${avg}%`; }).join(", ")}
+
+Provide:
+1. Key findings and areas of concern
+2. Recommended training focus allocation (% time per category)
+3. Specific drills or focus areas for the weakest skills
+4. Positive observations about strengths`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 800,
+        });
+        aiSummary = completion.choices[0]?.message?.content || "Unable to generate AI summary.";
+      } catch (aiErr: any) {
+        console.error("AI generation error:", aiErr);
+        aiSummary = `Analysis Report - ${juniorUserIds.length} juniors assessed. Overall average: ${overallAvg}%. ${belowThreshold} players below 50% threshold. Weakest areas: ${weakest3.map(s => `${s.skillName} (${s.avgScore}%)`).join(", ")}. Focus training on these areas. Strongest areas: ${strongest3.map(s => `${s.skillName} (${s.avgScore}%)`).join(", ")}. Maintain current training in these skills.`;
+      }
+
+      const [report] = await db.insert(generatedReports).values({
+        createdBy: req.user!.id,
+        clubId,
+        dateRangeStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        dateRangeEnd: new Date(),
+        squadFilter: squadLevel || "ALL",
+        aiSummary,
+      }).returning();
+
+      res.json({
+        report,
+        data: { totalJuniors: juniorUserIds.length, overallAvg, belowThreshold, weakest: weakest3, strongest: strongest3 },
+      });
+    } catch (err: any) {
+      console.error("Error generating report:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/reports", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!clubId || !accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+      const reports = await db.select().from(generatedReports).where(eq(generatedReports.clubId, clubId)).orderBy(desc(generatedReports.createdAt)).limit(20);
+      res.json(reports);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 
