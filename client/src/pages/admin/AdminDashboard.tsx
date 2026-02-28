@@ -4,13 +4,16 @@ import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -60,6 +63,226 @@ function AdminTileCard({ tile }: { tile: AdminTile }) {
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function AIReportsSection({ clubs }: { clubs: any[] }) {
+  const { toast } = useToast();
+  const [reportClubId, setReportClubId] = useState<string>(clubs[0]?.id ? String(clubs[0].id) : "");
+  const [activeReport, setActiveReport] = useState<{ type: string; data: any } | null>(null);
+
+  const financeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/ai-report/finances", { clubId: Number(reportClubId) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => { setActiveReport({ type: "finances", data }); toast({ title: "Finance Report Ready" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const matchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/ai-report/matches", { clubId: Number(reportClubId) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => { setActiveReport({ type: "matches", data }); toast({ title: "Match Report Ready" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const attendanceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/ai-report/attendance", { clubId: Number(reportClubId) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => { setActiveReport({ type: "attendance", data }); toast({ title: "Attendance Report Ready" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (clubs.length === 0) return null;
+
+  return (
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-border/50" />
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">AI Reports</p>
+          <div className="h-px flex-1 bg-border/50" />
+        </div>
+        <div className="flex items-center gap-3 mb-2">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm text-muted-foreground">Generate AI-powered insights for</span>
+          <Select value={reportClubId} onValueChange={setReportClubId}>
+            <SelectTrigger data-testid="select-ai-report-club" className="w-[180px] h-8 text-sm">
+              <SelectValue placeholder="Select Club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubs.map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="border-border/40 hover:border-green-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-green-500/10 rounded-xl p-2.5 shrink-0">
+                <DollarSign className="w-5 h-5 text-green-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Financial Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Revenue, payments, and collection analysis</p>
+                <Button
+                  data-testid="button-ai-finance-report"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => financeMutation.mutate()}
+                  disabled={financeMutation.isPending || !reportClubId}
+                >
+                  {financeMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/40 hover:border-blue-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-blue-500/10 rounded-xl p-2.5 shrink-0">
+                <Swords className="w-5 h-5 text-blue-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Match Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Match activity, player engagement, and stats</p>
+                <Button
+                  data-testid="button-ai-match-report"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => matchMutation.mutate()}
+                  disabled={matchMutation.isPending || !reportClubId}
+                >
+                  {matchMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/40 hover:border-emerald-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-emerald-500/10 rounded-xl p-2.5 shrink-0">
+                <TrendingUp className="w-5 h-5 text-emerald-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Attendance Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Attendance rates, no-shows, and engagement</p>
+                <Button
+                  data-testid="button-ai-attendance-report"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => attendanceMutation.mutate()}
+                  disabled={attendanceMutation.isPending || !reportClubId}
+                >
+                  {attendanceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Dialog open={!!activeReport} onOpenChange={() => setActiveReport(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              {activeReport?.type === "finances" ? "Financial AI Report" : activeReport?.type === "matches" ? "Match AI Report" : "Attendance AI Report"}
+            </DialogTitle>
+            <DialogDescription>
+              AI-generated analysis for the last 30 days — {activeReport?.data?.report?.createdAt ? new Date(activeReport.data.report.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "today"}
+            </DialogDescription>
+          </DialogHeader>
+          {activeReport && (
+            <div className="space-y-5">
+              {activeReport.type === "finances" && activeReport.data.stats && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-green-500">£{((activeReport.data.stats.totalIncome || 0) / 100).toFixed(0)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Total Income</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-blue-500">£{((activeReport.data.stats.paidAmount || 0) / 100).toFixed(0)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Collected</p>
+                  </div>
+                  <div className="rounded-xl bg-orange-500/10 border border-orange-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-orange-500">£{((activeReport.data.stats.pendingAmount || 0) / 100).toFixed(0)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Outstanding</p>
+                  </div>
+                  <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-purple-500">{activeReport.data.stats.collectionRate}%</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Collection Rate</p>
+                  </div>
+                </div>
+              )}
+
+              {activeReport.type === "matches" && activeReport.data.stats && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-blue-500">{activeReport.data.stats.completedMatches}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Completed</p>
+                  </div>
+                  <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-purple-500">{activeReport.data.stats.uniquePlayers}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Players</p>
+                  </div>
+                  <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-green-500">{activeReport.data.stats.doublesMatches}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Doubles</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-amber-500">{activeReport.data.stats.avgMatchesPerSession}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Avg/Session</p>
+                  </div>
+                </div>
+              )}
+
+              {activeReport.type === "attendance" && activeReport.data.stats && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-emerald-500">{activeReport.data.stats.attendanceRate}%</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Attendance</p>
+                  </div>
+                  <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-red-500">{activeReport.data.stats.noShowRate}%</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">No-Show Rate</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-blue-500">{activeReport.data.stats.activeMembers}/{activeReport.data.stats.totalMembers}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Active Members</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-center">
+                    <p className="text-lg font-bold text-amber-500">{activeReport.data.stats.fillRate}%</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Fill Rate</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+                </p>
+                <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  {activeReport.data.report?.aiSummary}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -362,6 +585,8 @@ export default function AdminDashboard() {
           )
         )}
       </KpiDetailDialog>
+
+      {!isOrganiserOnly && <AIReportsSection clubs={myAdminClubs || []} />}
 
       {isOwner && (
         <div className="space-y-4">

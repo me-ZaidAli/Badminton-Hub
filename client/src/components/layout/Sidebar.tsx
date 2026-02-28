@@ -48,6 +48,10 @@ interface BadgeCounts {
   messages: number;
   announcements: number;
   pendingRewards: number;
+  upcomingSessions: number;
+  pendingMemberships: number;
+  outstandingPayments: number;
+  myOutstandingPayments: number;
 }
 
 interface NavItem {
@@ -86,15 +90,15 @@ function useNavGroups(): NavGroup[] {
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
 
-    { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity" },
-    { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity" },
+    { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
+    { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
     { href: "/juniors", label: "Juniors", icon: Baby, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity" },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
 
-    { href: "/clubs", label: "Clubs", icon: Building2, group: "club" },
+    { href: "/clubs", label: "Clubs", icon: Building2, group: "club", badgeKey: "pendingMemberships" },
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club" },
-    { href: "/rewards", label: "My Rewards", icon: Award, group: "club" },
+    { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
@@ -106,11 +110,11 @@ function useNavGroups(): NavGroup[] {
   ];
 
   if (user?.role === "OWNER") {
-    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
+    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
   }
 
   const groupOrder = ["main", "activity", "club", "comms", "info", "admin", "godmode"];

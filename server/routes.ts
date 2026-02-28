@@ -12084,13 +12084,53 @@ export async function registerRoutes(
         .where(eq(announcementArchives.userId, userId));
       const announcementsCount = Math.max(0, (totalAnnouncements[0]?.count || 0) - (archivedAnnouncements[0]?.count || 0));
 
-      // Pending reward requests count for admins/owners
-      let pendingRewards = 0;
+      let upcomingSessions = 0;
+      const now = new Date();
+      const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const userClubIdsForSessions = (await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")))).map(p => p.clubId);
+      if (userClubIdsForSessions.length > 0) {
+        const upcomingResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(sessions)
+          .where(and(
+            inArray(sessions.clubId, userClubIdsForSessions),
+            gte(sessions.date, now),
+            lte(sessions.date, sevenDaysOut),
+            sql`${sessions.status} = 'PUBLISHED'`
+          ));
+        upcomingSessions = upcomingResult[0]?.count || 0;
+      }
+
+      let pendingMemberships = 0;
+      let outstandingPayments = 0;
       const currentUser = req.user as any;
       const isOwner = currentUser.role === "OWNER";
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
         .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
       const adminClubIds = adminProfiles.map(p => p.clubId);
+
+      if (isOwner || adminClubIds.length > 0) {
+        const memberFilter = isOwner
+          ? eq(membershipRequests.status, "PENDING")
+          : and(eq(membershipRequests.status, "PENDING"), inArray(membershipRequests.clubId, adminClubIds));
+        const pendingMemberResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(membershipRequests).where(memberFilter!);
+        pendingMemberships = pendingMemberResult[0]?.count || 0;
+
+        const paymentFilter = isOwner
+          ? and(sql`${sessionSignups.paymentStatus} != 'PAID'`, eq(sessionSignups.signupStatus, "CONFIRMED"))
+          : and(sql`${sessionSignups.paymentStatus} != 'PAID'`, eq(sessionSignups.signupStatus, "CONFIRMED"));
+        const outstandingClubFilter = isOwner
+          ? undefined
+          : inArray(sessions.clubId, adminClubIds);
+        const outstandingResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(paymentFilter, outstandingClubFilter, lte(sessions.date, now)));
+        outstandingPayments = outstandingResult[0]?.count || 0;
+      }
+
+      let pendingRewards = 0;
       if (isOwner || adminClubIds.length > 0) {
         const pendingFilter = isOwner
           ? eq(playerRewardLedger.status, "REQUESTED")
@@ -12101,16 +12141,32 @@ export async function registerRoutes(
         pendingRewards = pendingResult[0]?.count || 0;
       }
 
+      let myOutstandingPayments = 0;
+      const myOutstandingResult = await db.select({ count: sql<number>`count(*)::int` })
+        .from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(
+          eq(sessionSignups.playerId, userId),
+          sql`${sessionSignups.paymentStatus} != 'PAID'`,
+          eq(sessionSignups.signupStatus, "CONFIRMED"),
+          lte(sessions.date, now)
+        ));
+      myOutstandingPayments = myOutstandingResult[0]?.count || 0;
+
       res.json({
         notifications: notificationsCount,
         tickets: ticketsCount,
         messages: messagesCount,
         announcements: announcementsCount,
         pendingRewards,
+        upcomingSessions,
+        pendingMemberships,
+        outstandingPayments,
+        myOutstandingPayments,
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0 });
     }
   });
 
@@ -20560,6 +20616,275 @@ Provide:
       const reports = await db.select().from(generatedReports).where(eq(generatedReports.clubId, clubId)).orderBy(desc(generatedReports.createdAt)).limit(20);
       res.json(reports);
     } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === AI REPORT ENDPOINTS: FINANCES, MATCHES, ATTENDANCE ===
+
+  app.post("/api/admin/ai-report/finances", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const { clubId } = req.body;
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(Number(clubId))) return res.status(403).json({ message: "Not authorized" });
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const allSessions = await db.select({ id: sessions.id, date: sessions.date, title: sessions.title })
+        .from(sessions).where(and(eq(sessions.clubId, Number(clubId)), gte(sessions.date, thirtyDaysAgo), lte(sessions.date, now)));
+      const sessionIds = allSessions.map(s => s.id);
+
+      const signups = sessionIds.length > 0
+        ? await db.select({ fee: sessionSignups.fee, paymentStatus: sessionSignups.paymentStatus }).from(sessionSignups).where(and(inArray(sessionSignups.sessionId, sessionIds), eq(sessionSignups.signupStatus, "CONFIRMED")))
+        : [];
+
+      const totalIncome = signups.reduce((s, r) => s + (r.fee || 0), 0);
+      const paidAmount = signups.filter(r => r.paymentStatus === "PAID").reduce((s, r) => s + (r.fee || 0), 0);
+      const pendingAmount = signups.filter(r => r.paymentStatus !== "PAID").reduce((s, r) => s + (r.fee || 0), 0);
+      const collectionRate = totalIncome > 0 ? ((paidAmount / totalIncome) * 100).toFixed(1) : "0";
+
+      const expensesAll = await db.select({ amount: expenses.amount }).from(expenses)
+        .where(and(eq(expenses.clubId, Number(clubId)), gte(expenses.createdAt, thirtyDaysAgo)));
+      const totalExpenses = expensesAll.reduce((s, e) => s + (e.amount || 0), 0);
+
+      const creditEntries = await db.select({ amount: creditLedger.amount, type: creditLedger.type }).from(creditLedger)
+        .where(and(eq(creditLedger.clubId, Number(clubId)), gte(creditLedger.createdAt, thirtyDaysAgo)));
+      const creditsIssued = creditEntries.filter(c => c.type === "CREDIT").reduce((s, c) => s + c.amount, 0);
+      const creditsUsed = creditEntries.filter(c => c.type === "DEBIT").reduce((s, c) => s + Math.abs(c.amount), 0);
+
+      const donationsAll = await db.select({ amount: donations.amount, status: donations.status }).from(donations);
+      const donationsReceived = donationsAll.filter(d => d.status === "RECEIVED").reduce((s, d) => s + d.amount, 0);
+
+      let aiSummary = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+        const prompt = `You are a financial analyst for a badminton club. Analyze these financial metrics from the last 30 days and provide actionable insights.
+
+Financial Data:
+- Total Session Income: £${(totalIncome / 100).toFixed(2)}
+- Collected (Paid): £${(paidAmount / 100).toFixed(2)}
+- Outstanding (Unpaid): £${(pendingAmount / 100).toFixed(2)}
+- Collection Rate: ${collectionRate}%
+- Total Sessions: ${allSessions.length}
+- Total Signups: ${signups.length}
+- Average Fee per Player: £${signups.length > 0 ? ((totalIncome / signups.length) / 100).toFixed(2) : "0.00"}
+- General Expenses: £${(totalExpenses / 100).toFixed(2)}
+- Net Revenue: £${((totalIncome - totalExpenses) / 100).toFixed(2)}
+- Credits Issued: £${(creditsIssued / 100).toFixed(2)}
+- Credits Used: £${(creditsUsed / 100).toFixed(2)}
+- Donations Received: £${(donationsReceived / 100).toFixed(2)}
+
+Provide a concise report (200-250 words) covering:
+1. **Financial Health Summary** — overall position
+2. **Collection Performance** — how well payments are being collected, concerns
+3. **Revenue Trends** — observations on session income vs expenses
+4. **Recommendations** — 2-3 actionable steps to improve finances`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+        });
+        aiSummary = completion.choices[0]?.message?.content || "Unable to generate financial report.";
+      } catch (aiErr: any) {
+        console.error("AI finance report error:", aiErr);
+        aiSummary = `Financial Summary (Last 30 Days)\n\nTotal Income: £${(totalIncome / 100).toFixed(2)}\nCollected: £${(paidAmount / 100).toFixed(2)} (${collectionRate}%)\nOutstanding: £${(pendingAmount / 100).toFixed(2)}\nExpenses: £${(totalExpenses / 100).toFixed(2)}\nNet Revenue: £${((totalIncome - totalExpenses) / 100).toFixed(2)}\n\n${Number(collectionRate) < 80 ? "Warning: Collection rate is below 80%. Consider sending payment reminders." : "Collection rate is healthy."}`;
+      }
+
+      const [report] = await db.insert(generatedReports).values({
+        createdBy: user.id, clubId: Number(clubId),
+        dateRangeStart: thirtyDaysAgo, dateRangeEnd: now,
+        squadFilter: "finances", aiSummary,
+      }).returning();
+
+      res.json({ report, stats: { totalIncome, paidAmount, pendingAmount, collectionRate, totalExpenses, netRevenue: totalIncome - totalExpenses, creditsIssued, creditsUsed, donationsReceived, sessionCount: allSessions.length, signupCount: signups.length } });
+    } catch (err: any) {
+      console.error("Error generating finance report:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/ai-report/matches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const { clubId } = req.body;
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(Number(clubId))) return res.status(403).json({ message: "Not authorized" });
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const recentSessions = await db.select({ id: sessions.id, title: sessions.title, date: sessions.date })
+        .from(sessions).where(and(eq(sessions.clubId, Number(clubId)), gte(sessions.date, thirtyDaysAgo), lte(sessions.date, now)));
+      const sessionIds = recentSessions.map(s => s.id);
+
+      const allMatches = sessionIds.length > 0
+        ? await db.select().from(matches).where(inArray(matches.sessionId, sessionIds))
+        : [];
+
+      const completedMatches = allMatches.filter(m => m.status === "COMPLETED");
+      const liveMatches = allMatches.filter(m => m.status === "LIVE");
+      const queuedMatches = allMatches.filter(m => m.status === "QUEUED");
+
+      const playerMatchCounts = new Map<number, number>();
+      for (const m of completedMatches) {
+        const playerIds = [m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id].filter(Boolean) as number[];
+        for (const pid of playerIds) {
+          playerMatchCounts.set(pid, (playerMatchCounts.get(pid) || 0) + 1);
+        }
+      }
+      const uniquePlayers = playerMatchCounts.size;
+      const topPlayersEntries = [...playerMatchCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const topPlayerIds = topPlayersEntries.map(e => e[0]);
+      const topPlayerUsers = topPlayerIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, topPlayerIds)) : [];
+      const topPlayers = topPlayersEntries.map(([id, count]) => ({
+        name: topPlayerUsers.find(u => u.id === id)?.fullName || "Unknown",
+        matchCount: count,
+      }));
+
+      const doublesMatches = completedMatches.filter(m => m.team1Player2Id || m.team2Player2Id).length;
+      const singlesMatches = completedMatches.length - doublesMatches;
+      const avgMatchesPerSession = recentSessions.length > 0 ? (completedMatches.length / recentSessions.length).toFixed(1) : "0";
+
+      let aiSummary = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+        const prompt = `You are a sports analytics coach for a badminton club. Analyze these match statistics from the last 30 days and provide coaching insights.
+
+Match Data:
+- Total Matches Played: ${completedMatches.length}
+- Currently Live: ${liveMatches.length}
+- In Queue: ${queuedMatches.length}
+- Sessions with Matches: ${recentSessions.length}
+- Average Matches per Session: ${avgMatchesPerSession}
+- Doubles Matches: ${doublesMatches}
+- Singles Matches: ${singlesMatches}
+- Unique Players: ${uniquePlayers}
+- Most Active Players: ${topPlayers.map(p => `${p.name} (${p.matchCount} matches)`).join(", ")}
+
+Provide a concise report (200-250 words) covering:
+1. **Match Activity Summary** — volume and player engagement
+2. **Player Participation** — how well-distributed match play is
+3. **Match Format Analysis** — doubles vs singles balance
+4. **Recommendations** — suggestions for improving match organisation and player experience`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+        });
+        aiSummary = completion.choices[0]?.message?.content || "Unable to generate match report.";
+      } catch (aiErr: any) {
+        console.error("AI match report error:", aiErr);
+        aiSummary = `Match Summary (Last 30 Days)\n\nTotal Completed: ${completedMatches.length}\nSessions: ${recentSessions.length}\nAvg per Session: ${avgMatchesPerSession}\nDoubles: ${doublesMatches} | Singles: ${singlesMatches}\nUnique Players: ${uniquePlayers}\n\nMost Active: ${topPlayers.map(p => `${p.name} (${p.matchCount})`).join(", ")}`;
+      }
+
+      const [report] = await db.insert(generatedReports).values({
+        createdBy: user.id, clubId: Number(clubId),
+        dateRangeStart: thirtyDaysAgo, dateRangeEnd: now,
+        squadFilter: "matches", aiSummary,
+      }).returning();
+
+      res.json({ report, stats: { totalMatches: allMatches.length, completedMatches: completedMatches.length, liveMatches: liveMatches.length, queuedMatches: queuedMatches.length, doublesMatches, singlesMatches, uniquePlayers, avgMatchesPerSession, topPlayers, sessionCount: recentSessions.length } });
+    } catch (err: any) {
+      console.error("Error generating match report:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/ai-report/attendance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const { clubId } = req.body;
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(Number(clubId))) return res.status(403).json({ message: "Not authorized" });
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const recentSessions = await db.select({ id: sessions.id, title: sessions.title, date: sessions.date, maxPlayers: sessions.maxPlayers })
+        .from(sessions).where(and(eq(sessions.clubId, Number(clubId)), gte(sessions.date, thirtyDaysAgo), lte(sessions.date, now), sql`${sessions.status} != 'CANCELLED'`));
+      const sessionIds = recentSessions.map(s => s.id);
+
+      const allSignups = sessionIds.length > 0
+        ? await db.select().from(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds))
+        : [];
+
+      const confirmedSignups = allSignups.filter(s => s.signupStatus === "CONFIRMED");
+      const attended = allSignups.filter(s => ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(s.attendanceStatus || ""));
+      const noShows = allSignups.filter(s => s.attendanceStatus === "NO_SHOW");
+      const attendanceRate = confirmedSignups.length > 0 ? ((attended.length / confirmedSignups.length) * 100).toFixed(1) : "0";
+      const noShowRate = confirmedSignups.length > 0 ? ((noShows.length / confirmedSignups.length) * 100).toFixed(1) : "0";
+
+      const uniqueAttendees = new Set(attended.map(s => s.playerId)).size;
+      const avgPerSession = recentSessions.length > 0 ? (confirmedSignups.length / recentSessions.length).toFixed(1) : "0";
+
+      const totalCapacity = recentSessions.reduce((s, sess) => s + (sess.maxPlayers || 0), 0);
+      const fillRate = totalCapacity > 0 ? ((confirmedSignups.length / totalCapacity) * 100).toFixed(1) : "0";
+
+      const memberProfiles = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.clubId, Number(clubId)), eq(playerProfiles.membershipStatus, "APPROVED")));
+      const totalMembers = memberProfiles.length;
+      const activeMembers = new Set(confirmedSignups.map(s => s.playerId)).size;
+      const inactivePercent = totalMembers > 0 ? (((totalMembers - activeMembers) / totalMembers) * 100).toFixed(1) : "0";
+
+      let aiSummary = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+        const prompt = `You are a club management analyst for a badminton club. Analyze these attendance metrics from the last 30 days and provide insights.
+
+Attendance Data:
+- Total Sessions: ${recentSessions.length}
+- Total Confirmed Signups: ${confirmedSignups.length}
+- Attended: ${attended.length} (${attendanceRate}%)
+- No-Shows: ${noShows.length} (${noShowRate}%)
+- Unique Attendees: ${uniqueAttendees}
+- Average Players per Session: ${avgPerSession}
+- Session Fill Rate: ${fillRate}%
+- Total Club Members: ${totalMembers}
+- Active Members (attended ≥1 session): ${activeMembers}
+- Inactive Members: ${totalMembers - activeMembers} (${inactivePercent}%)
+
+Provide a concise report (200-250 words) covering:
+1. **Attendance Health** — overall engagement levels
+2. **No-Show Analysis** — impact and potential causes
+3. **Member Activity** — active vs inactive ratio, re-engagement ideas
+4. **Recommendations** — 2-3 actionable steps to improve attendance`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+        });
+        aiSummary = completion.choices[0]?.message?.content || "Unable to generate attendance report.";
+      } catch (aiErr: any) {
+        console.error("AI attendance report error:", aiErr);
+        aiSummary = `Attendance Summary (Last 30 Days)\n\nSessions: ${recentSessions.length}\nConfirmed: ${confirmedSignups.length}\nAttended: ${attended.length} (${attendanceRate}%)\nNo-Shows: ${noShows.length} (${noShowRate}%)\nFill Rate: ${fillRate}%\nActive Members: ${activeMembers}/${totalMembers}\nInactive: ${inactivePercent}%\n\n${Number(noShowRate) > 15 ? "Warning: No-show rate is above 15%. Consider implementing a no-show policy." : "No-show rate is acceptable."}`;
+      }
+
+      const [report] = await db.insert(generatedReports).values({
+        createdBy: user.id, clubId: Number(clubId),
+        dateRangeStart: thirtyDaysAgo, dateRangeEnd: now,
+        squadFilter: "attendance", aiSummary,
+      }).returning();
+
+      res.json({ report, stats: { sessionCount: recentSessions.length, confirmedSignups: confirmedSignups.length, attended: attended.length, attendanceRate, noShows: noShows.length, noShowRate, uniqueAttendees, avgPerSession, fillRate, totalMembers, activeMembers, inactivePercent } });
+    } catch (err: any) {
+      console.error("Error generating attendance report:", err);
       res.status(500).json({ message: err.message });
     }
   });
