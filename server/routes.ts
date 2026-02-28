@@ -18948,12 +18948,35 @@ export async function registerRoutes(
 
     const signups = await db.select({
       id: sessionSignups.id,
+      sessionId: sessionSignups.sessionId,
+      playerId: sessionSignups.playerId,
       attendanceStatus: sessionSignups.attendanceStatus,
       signupStatus: sessionSignups.signupStatus,
     }).from(sessionSignups).where(inArray(sessionSignups.playerId, profileIds));
 
     const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
-    const attended = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED").length;
+
+    const sessionMatchCounts = new Map<number, boolean>();
+    for (const su of confirmedSignups) {
+      if (sessionMatchCounts.has(su.sessionId)) continue;
+      const [mc] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(
+        and(
+          eq(matches.sessionId, su.sessionId),
+          or(
+            eq(matches.teamAPlayer1Id, su.playerId),
+            eq(matches.teamAPlayer2Id, su.playerId),
+            eq(matches.teamBPlayer1Id, su.playerId),
+            eq(matches.teamBPlayer2Id, su.playerId),
+          )
+        )
+      );
+      sessionMatchCounts.set(su.sessionId, (mc.count || 0) > 0);
+    }
+
+    const attended = confirmedSignups.filter(s =>
+      ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"].includes(s.attendanceStatus) ||
+      sessionMatchCounts.get(s.sessionId) === true
+    ).length;
     const totalSessions = confirmedSignups.length;
     const attendancePercent = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
 
