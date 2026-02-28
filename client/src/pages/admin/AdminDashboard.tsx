@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -140,6 +140,11 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/attendance-analytics", label: "Attendance Analytics", description: "Session attendance and engagement metrics", icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
   ];
 
+  const juniorsSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/juniors", label: "Juniors Hub", description: "Manage junior players, families, and sessions", icon: Baby, color: "text-pink-500", bg: "bg-pink-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/coach/juniors/skills", label: "Coach Skills Analytics", description: "Aggregate skill insights, trends, and AI reports", icon: Target, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
+  ];
+
   const commsSections: AdminTile[] = [
     ...((myAdminClubs?.length ?? 0) > 0 ? [{ href: "/admin/announcements", label: "Announcements", description: "Post updates to club members", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/notifications", label: "Notification Settings", description: "Reminders, schedules, and delivery logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
@@ -148,6 +153,7 @@ export default function AdminDashboard() {
   const allSections = [
     { label: "People & Sessions", tiles: peopleSections },
     { label: "Finance & Memberships", tiles: financeSections },
+    { label: "Juniors & Coaching", tiles: juniorsSections },
     { label: "Rewards & Referrals", tiles: rewardsSections },
     { label: "Analytics & Insights", tiles: analyticsSections },
     { label: "Communication", tiles: commsSections },
