@@ -690,7 +690,7 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
         : customSession || "your session";
       setCreditSuccessInfo({
         paymentRef: data.paymentReference,
-        amount: creditAmount,
+        amount: parseFloat(creditAmount).toFixed(2),
         session: sessionLabel,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
