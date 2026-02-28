@@ -52,6 +52,7 @@ interface BadgeCounts {
   pendingMemberships: number;
   outstandingPayments: number;
   myOutstandingPayments: number;
+  pendingReferrals: number;
 }
 
 interface NavItem {
@@ -97,7 +98,7 @@ function useNavGroups(): NavGroup[] {
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club", badgeKey: "pendingMemberships" },
-    { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club" },
+    { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals" },
     { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },

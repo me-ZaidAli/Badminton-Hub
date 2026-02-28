@@ -12103,6 +12103,7 @@ export async function registerRoutes(
 
       let pendingMemberships = 0;
       let outstandingPayments = 0;
+      let pendingReferrals = 0;
       const currentUser = req.user as any;
       const isOwner = currentUser.role === "OWNER";
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
@@ -12110,12 +12111,21 @@ export async function registerRoutes(
       const adminClubIds = adminProfiles.map(p => p.clubId);
 
       if (isOwner || adminClubIds.length > 0) {
-        const memberFilter = isOwner
+        const memberReqFilter = isOwner
           ? eq(membershipRequests.status, "PENDING")
           : and(eq(membershipRequests.status, "PENDING"), inArray(membershipRequests.clubId, adminClubIds));
-        const pendingMemberResult = await db.select({ count: sql<number>`count(*)::int` })
-          .from(membershipRequests).where(memberFilter!);
-        pendingMemberships = pendingMemberResult[0]?.count || 0;
+        const pendingMemberReqResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(membershipRequests).where(memberReqFilter!);
+        const pendingMemberReqs = pendingMemberReqResult[0]?.count || 0;
+
+        const joinReqFilter = isOwner
+          ? eq(playerProfiles.membershipStatus, "PENDING")
+          : and(eq(playerProfiles.membershipStatus, "PENDING"), inArray(playerProfiles.clubId, adminClubIds));
+        const pendingJoinResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(playerProfiles).where(joinReqFilter!);
+        const pendingJoinReqs = pendingJoinResult[0]?.count || 0;
+
+        pendingMemberships = pendingMemberReqs + pendingJoinReqs;
 
         const paymentFilter = isOwner
           ? and(sql`${sessionSignups.paymentStatus} != 'PAID'`, eq(sessionSignups.signupStatus, "CONFIRMED"))
@@ -12128,6 +12138,13 @@ export async function registerRoutes(
           .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
           .where(and(paymentFilter, outstandingClubFilter, lte(sessions.date, now)));
         outstandingPayments = outstandingResult[0]?.count || 0;
+
+        const refFilter = isOwner
+          ? eq(referrals.status, "PENDING")
+          : and(eq(referrals.status, "PENDING"), inArray(referrals.clubId, adminClubIds));
+        const pendingRefResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(referrals).where(refFilter!);
+        pendingReferrals = pendingRefResult[0]?.count || 0;
       }
 
       let pendingRewards = 0;
@@ -12163,10 +12180,11 @@ export async function registerRoutes(
         pendingMemberships,
         outstandingPayments,
         myOutstandingPayments,
+        pendingReferrals,
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
     }
   });
 
