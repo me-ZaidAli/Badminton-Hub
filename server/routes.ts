@@ -8086,7 +8086,7 @@ export async function registerRoutes(
         paymentNotes: `Player confirmed payment on ${paymentDate} via ${paymentMethod}. Awaiting admin verification.`,
       }).where(eq(sessionSignups.id, signupId));
 
-      const ticketNumber = require("crypto").randomBytes(4).toString("hex").toUpperCase();
+      const ticketNumber = randomBytes(4).toString("hex").toUpperCase();
       const ticketSubject = `Payment Confirmation - ${sessionTitle} - ${sessionDate}`;
       const ticketDesc = `${user.fullName} confirmed payment of £${amount} for ${sessionTitle} on ${sessionDate}.\n\nPayment Date: ${paymentDate}\nPayment Method: ${paymentMethod}\n\nPlease verify this payment has been received.`;
 
@@ -8200,9 +8200,9 @@ export async function registerRoutes(
         createdById: user.id,
       });
 
-      const ticketNumber = require("crypto").randomBytes(4).toString("hex").toUpperCase();
+      const ticketNumber2 = randomBytes(4).toString("hex").toUpperCase();
       await db.insert(tickets).values({
-        ticketNumber: `TK-${ticketNumber}`,
+        ticketNumber: `TK-${ticketNumber2}`,
         clubId: clubId,
         createdByUserId: user.id,
         subject: `Credit Request - £${amountDisplay} - ${sessionTitle || "Next Session"}`,
