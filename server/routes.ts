@@ -8040,6 +8040,270 @@ export async function registerRoutes(
     }
   });
 
+  // Player confirms they've made payment for an outstanding session
+  app.post("/api/my-payment-confirmation", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const { signupId, paymentDate, paymentMethod } = req.body;
+
+    if (!signupId || !paymentDate || !paymentMethod) {
+      return res.status(400).json({ message: "signupId, paymentDate, and paymentMethod are required" });
+    }
+
+    try {
+      const [signup] = await db.select({
+        id: sessionSignups.id,
+        playerId: sessionSignups.playerId,
+        fee: sessionSignups.fee,
+        paymentStatus: sessionSignups.paymentStatus,
+        sessionId: sessionSignups.sessionId,
+      }).from(sessionSignups).where(eq(sessionSignups.id, signupId));
+
+      if (!signup) return res.status(404).json({ message: "Signup not found" });
+
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, signup.playerId));
+      if (!profile || profile.userId !== user.id) {
+        return res.status(403).json({ message: "This signup does not belong to you" });
+      }
+
+      if (signup.paymentStatus === "PAID") {
+        return res.status(400).json({ message: "This session has already been marked as paid" });
+      }
+
+      if (signup.paymentStatus === "PENDING") {
+        return res.status(400).json({ message: "Payment confirmation already submitted and awaiting admin verification" });
+      }
+
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, signup.sessionId));
+      const [club] = session ? await db.select().from(clubs).where(eq(clubs.id, session.clubId)) : [null];
+      const sessionTitle = session?.title || `Session #${signup.sessionId}`;
+      const sessionDate = session ? new Date(session.date).toLocaleDateString("en-GB") : "Unknown";
+      const amount = (signup.fee / 100).toFixed(2);
+
+      await db.update(sessionSignups).set({
+        paymentStatus: "PENDING",
+        paymentMethod: paymentMethod,
+        paymentNotes: `Player confirmed payment on ${paymentDate} via ${paymentMethod}. Awaiting admin verification.`,
+      }).where(eq(sessionSignups.id, signupId));
+
+      const ticketNumber = require("crypto").randomBytes(4).toString("hex").toUpperCase();
+      const ticketSubject = `Payment Confirmation - ${sessionTitle} - ${sessionDate}`;
+      const ticketDesc = `${user.fullName} confirmed payment of £${amount} for ${sessionTitle} on ${sessionDate}.\n\nPayment Date: ${paymentDate}\nPayment Method: ${paymentMethod}\n\nPlease verify this payment has been received.`;
+
+      await db.insert(tickets).values({
+        ticketNumber: `TK-${ticketNumber}`,
+        clubId: session?.clubId || profile.clubId,
+        createdByUserId: user.id,
+        subject: ticketSubject,
+        description: ticketDesc,
+        category: "SUPPORT",
+        priority: "MEDIUM",
+        status: "SUBMITTED",
+        autoCloseAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      const clubAdmins = await db.select().from(playerProfiles).where(and(
+        eq(playerProfiles.clubId, session?.clubId || profile.clubId),
+        eq(playerProfiles.membershipStatus, "APPROVED"),
+        or(eq(playerProfiles.clubRole, "OWNER"), eq(playerProfiles.clubRole, "ADMIN"))
+      ));
+      const superAdmins = await storage.getUsersByRole("OWNER");
+      const notifyIds = new Set([...clubAdmins.map(a => a.userId), ...superAdmins.map(s => s.id)]);
+
+      for (const adminId of notifyIds) {
+        await db.insert(notifications).values({
+          userId: adminId,
+          type: "PAYMENT_CONFIRMATION",
+          title: "Payment Confirmation Received",
+          message: `${user.fullName} confirmed payment of £${amount} for ${sessionTitle} (${sessionDate}) via ${paymentMethod}.`,
+          linkUrl: `/admin/financials`,
+        });
+
+        await db.insert(internalMessages).values({
+          senderId: user.id,
+          recipientId: adminId,
+          subject: `Payment Confirmation - ${sessionTitle}`,
+          body: `Hi, I've confirmed my payment of £${amount} for ${sessionTitle} on ${sessionDate}.\n\nPayment Date: ${paymentDate}\nPayment Method: ${paymentMethod}\n\nPlease verify and mark as received. Thank you.`,
+          clubId: session?.clubId || profile.clubId,
+          messageCategory: "PAYMENT",
+        });
+      }
+
+      res.json({ message: "Payment confirmation submitted. An admin will verify your payment." });
+    } catch (err: any) {
+      console.error("Error confirming payment:", err);
+      res.status(500).json({ message: err.message || "Failed to confirm payment" });
+    }
+  });
+
+  // Player requests credit to be applied to their next session
+  app.post("/api/my-credit-request", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const { clubId, sessionId, sessionDescription, amount } = req.body;
+
+    if (!clubId || !amount || amount <= 0) {
+      return res.status(400).json({ message: "clubId and a positive amount are required" });
+    }
+    if (!sessionId && !sessionDescription) {
+      return res.status(400).json({ message: "Either select a session or provide a session description" });
+    }
+
+    try {
+      const [profile] = await db.select().from(playerProfiles).where(and(
+        eq(playerProfiles.userId, user.id),
+        eq(playerProfiles.clubId, clubId),
+        eq(playerProfiles.membershipStatus, "APPROVED")
+      ));
+      if (!profile) {
+        return res.status(403).json({ message: "You are not an approved member of this club" });
+      }
+
+      let sessionTitle = sessionDescription || "";
+      let sessionDateStr = "";
+      if (sessionId) {
+        const [sess] = await db.select().from(sessions).where(and(
+          eq(sessions.id, sessionId),
+          eq(sessions.clubId, clubId)
+        ));
+        if (!sess) {
+          return res.status(400).json({ message: "Session not found in this club" });
+        }
+        sessionTitle = sess.title || `Session #${sessionId}`;
+        sessionDateStr = new Date(sess.date).toLocaleDateString("en-GB");
+      }
+
+      const [balanceResult] = await db.select({
+        total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)::int`
+      }).from(creditLedger).where(and(
+        eq(creditLedger.userId, user.id),
+        eq(creditLedger.clubId, clubId)
+      ));
+
+      const currentBalance = balanceResult.total || 0;
+      if (amount > currentBalance) {
+        return res.status(400).json({ message: `Insufficient credit balance. Available: £${(currentBalance / 100).toFixed(2)}` });
+      }
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+      const clubName = club?.name || "Unknown Club";
+      const amountDisplay = (amount / 100).toFixed(2);
+      const firstName = user.fullName?.split(" ")[0] || user.fullName;
+      const paymentRef = `${user.fullName}, ${sessionDateStr || "Next Session"}, CR`;
+
+      await db.insert(creditLedger).values({
+        userId: user.id,
+        clubId: clubId,
+        amount: -amount,
+        reason: `Credit request for ${sessionTitle || "next session"} - Ref: ${paymentRef}`,
+        linkedSessionId: sessionId || null,
+        createdById: user.id,
+      });
+
+      const ticketNumber = require("crypto").randomBytes(4).toString("hex").toUpperCase();
+      await db.insert(tickets).values({
+        ticketNumber: `TK-${ticketNumber}`,
+        clubId: clubId,
+        createdByUserId: user.id,
+        subject: `Credit Request - £${amountDisplay} - ${sessionTitle || "Next Session"}`,
+        description: `${user.fullName} has requested £${amountDisplay} credit to be applied to ${sessionTitle || "their next session"}.\n\nClub: ${clubName}\nSession: ${sessionTitle || sessionDescription}\nDate: ${sessionDateStr || "TBC"}\nPayment Reference: ${paymentRef}\n\nPlease deduct this credit from their session fee payment.`,
+        category: "SUPPORT",
+        priority: "MEDIUM",
+        status: "SUBMITTED",
+        autoCloseAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      const clubAdmins = await db.select().from(playerProfiles).where(and(
+        eq(playerProfiles.clubId, clubId),
+        eq(playerProfiles.membershipStatus, "APPROVED"),
+        or(eq(playerProfiles.clubRole, "OWNER"), eq(playerProfiles.clubRole, "ADMIN"))
+      ));
+      const superAdmins = await storage.getUsersByRole("OWNER");
+      const notifyIds = new Set([...clubAdmins.map(a => a.userId), ...superAdmins.map(s => s.id)]);
+
+      for (const adminId of notifyIds) {
+        await db.insert(notifications).values({
+          userId: adminId,
+          type: "CREDIT_REQUEST",
+          title: "Credit Request Received",
+          message: `${user.fullName} requested £${amountDisplay} credit for ${sessionTitle || "next session"} at ${clubName}. Ref: ${paymentRef}`,
+          linkUrl: `/admin/financials`,
+        });
+
+        await db.insert(internalMessages).values({
+          senderId: user.id,
+          recipientId: adminId,
+          subject: `Credit Request - £${amountDisplay}`,
+          body: `Hi, I'd like to use £${amountDisplay} of my credit balance for ${sessionTitle || "my next session"}.\n\nPayment Reference: ${paymentRef}\n\nPlease deduct this from my session fee. Thank you.`,
+          clubId: clubId,
+          messageCategory: "PAYMENT",
+        });
+      }
+
+      await db.insert(notifications).values({
+        userId: user.id,
+        type: "CREDIT_REQUEST",
+        title: "Credit Request Submitted",
+        message: `Your credit request of £${amountDisplay} for ${sessionTitle || "next session"} has been submitted. Payment Reference: ${paymentRef}. Please deduct this from your session fee payment.`,
+        linkUrl: `/profile`,
+      });
+
+      const [newBalance] = await db.select({
+        total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)::int`
+      }).from(creditLedger).where(and(
+        eq(creditLedger.userId, user.id),
+        eq(creditLedger.clubId, clubId)
+      ));
+
+      res.json({
+        message: `Credit request of £${amountDisplay} submitted successfully.`,
+        paymentReference: paymentRef,
+        newBalance: newBalance.total || 0,
+      });
+    } catch (err: any) {
+      console.error("Error requesting credit:", err);
+      res.status(500).json({ message: err.message || "Failed to submit credit request" });
+    }
+  });
+
+  // Get sessions user is signed up for (for credit request dropdown)
+  app.get("/api/my-upcoming-signups", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    try {
+      const profiles = await db.select({ id: playerProfiles.id, clubId: playerProfiles.clubId })
+        .from(playerProfiles).where(eq(playerProfiles.userId, user.id));
+
+      if (profiles.length === 0) return res.json([]);
+
+      const profileIds = profiles.map(p => p.id);
+      const now = new Date();
+      const signups = await db.select({
+        signupId: sessionSignups.id,
+        sessionId: sessions.id,
+        sessionTitle: sessions.title,
+        sessionDate: sessions.date,
+        sessionFee: sessionSignups.fee,
+        clubId: sessions.clubId,
+        clubName: clubs.name,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .innerJoin(clubs, eq(sessions.clubId, clubs.id))
+        .where(and(
+          inArray(sessionSignups.playerId, profileIds),
+          inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING"]),
+          gte(sessions.date, now),
+        ))
+        .orderBy(sessions.date);
+
+      res.json(signups);
+    } catch (err: any) {
+      console.error("Error fetching upcoming signups:", err);
+      res.status(500).json({ message: "Failed to fetch upcoming signups" });
+    }
+  });
+
   // Admin: Request payment from a player (sends notification)
   app.post("/api/admin/request-payment", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -11469,6 +11733,7 @@ export async function registerRoutes(
         archivedBySender: internalMessages.archivedBySender,
         archivedByRecipient: internalMessages.archivedByRecipient,
         createdAt: internalMessages.createdAt,
+        messageCategory: internalMessages.messageCategory,
       }).from(internalMessages)
         .where(or(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, userId)))
         .orderBy(desc(internalMessages.createdAt));
@@ -11479,6 +11744,7 @@ export async function registerRoutes(
         lastMessageAt: string;
         unreadCount: number;
         isArchived: boolean;
+        hasPaymentMessages: boolean;
       }> = {};
 
       allMessages.forEach(msg => {
@@ -11493,6 +11759,7 @@ export async function registerRoutes(
             lastMessageAt: msg.createdAt.toISOString(),
             unreadCount: 0,
             isArchived: true,
+            hasPaymentMessages: false,
           };
         }
 
@@ -11502,6 +11769,10 @@ export async function registerRoutes(
 
         if (!isSender && !msg.readAt) {
           conversations[contactId].unreadCount++;
+        }
+
+        if (msg.messageCategory === "PAYMENT") {
+          conversations[contactId].hasPaymentMessages = true;
         }
       });
 
@@ -11544,6 +11815,7 @@ export async function registerRoutes(
         body: internalMessages.body,
         readAt: internalMessages.readAt,
         createdAt: internalMessages.createdAt,
+        messageCategory: internalMessages.messageCategory,
       }).from(internalMessages)
         .where(
           or(

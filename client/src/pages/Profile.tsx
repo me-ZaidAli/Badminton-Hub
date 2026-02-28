@@ -660,11 +660,44 @@ function DisplayAccessibilitySection() {
   );
 }
 
-function CreditsModal({ open, onClose, creditBalances, memberships }: {
+function CreditsModal({ open, onClose, creditBalances, memberships, userName }: {
   open: boolean; onClose: () => void;
   creditBalances: { clubId: number; clubName: string; balance: number }[] | undefined;
   memberships: { clubId: number; clubName: string; membershipStatus: string }[] | undefined;
+  userName?: string;
 }) {
+  const { toast } = useToast();
+  const [creditRequestOpen, setCreditRequestOpen] = useState(false);
+  const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [customSession, setCustomSession] = useState("");
+  const [creditAmount, setCreditAmount] = useState("");
+
+  const { data: upcomingSignups } = useQuery<any[]>({
+    queryKey: ["/api/my-upcoming-signups"],
+    enabled: creditRequestOpen,
+  });
+
+  const creditRequestMutation = useMutation({
+    mutationFn: async (data: { clubId: number; sessionId?: number; sessionDescription?: string; amount: number }) => {
+      const res = await apiRequest("POST", "/api/my-credit-request", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Credit Request Submitted", description: `${data.message}\nPayment Reference: ${data.paymentReference}` });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-credits/history"] });
+      setCreditRequestOpen(false);
+      setSelectedClubId(null);
+      setSelectedSessionId("");
+      setCustomSession("");
+      setCreditAmount("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Request Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const balanceMap = new Map((creditBalances || []).map(cb => [cb.clubId, cb]));
   const allClubs = new Map<number, { clubId: number; clubName: string; balance: number }>();
   (memberships || []).forEach(m => {
@@ -675,32 +708,148 @@ function CreditsModal({ open, onClose, creditBalances, memberships }: {
   });
   (creditBalances || []).forEach(cb => { if (!allClubs.has(cb.clubId)) allClubs.set(cb.clubId, cb); });
   const clubs = Array.from(allClubs.values());
+  const clubsWithCredit = clubs.filter(c => Number(c.balance) > 0);
+
+  const selectedClubBalance = selectedClubId ? (balanceMap.get(selectedClubId)?.balance || 0) : 0;
+  const filteredSignups = selectedClubId ? (upcomingSignups || []).filter((s: any) => s.clubId === selectedClubId) : [];
+
+  const handleSubmitCreditRequest = () => {
+    if (!selectedClubId) return;
+    const amt = Math.round(parseFloat(creditAmount) * 100);
+    if (isNaN(amt) || amt <= 0) {
+      toast({ title: "Invalid amount", variant: "destructive" });
+      return;
+    }
+    const data: any = { clubId: selectedClubId, amount: amt };
+    if (selectedSessionId && selectedSessionId !== "custom") {
+      data.sessionId = Number(selectedSessionId);
+    } else if (customSession.trim()) {
+      data.sessionDescription = customSession.trim();
+    } else {
+      toast({ title: "Please select or type a session", variant: "destructive" });
+      return;
+    }
+    creditRequestMutation.mutate(data);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-[450px]" data-testid="modal-credits">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Credit Balances
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {clubs.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No credit data available</p>
-          ) : clubs.map((cb) => {
-            const bal = Math.max(0, Number(cb.balance));
-            return (
-              <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
-                <span className="font-medium">{cb.clubName}</span>
-                <span className={`text-lg font-bold ${bal > 0 ? "text-green-600" : "text-muted-foreground"}`}>
-                  £{(bal / 100).toFixed(2)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="modal-credits">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Credit Balances
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {clubs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No credit data available</p>
+            ) : clubs.map((cb) => {
+              const bal = Math.max(0, Number(cb.balance));
+              return (
+                <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
+                  <span className="font-medium">{cb.clubName}</span>
+                  <span className={`text-lg font-bold ${bal > 0 ? "text-green-600" : "text-muted-foreground"}`}>
+                    £{(bal / 100).toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {clubsWithCredit.length > 0 && (
+            <DialogFooter>
+              <Button onClick={() => setCreditRequestOpen(true)} data-testid="button-request-credit">
+                <PoundSterling className="h-4 w-4 mr-1.5" />
+                Request Credit
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creditRequestOpen} onOpenChange={(o) => !o && setCreditRequestOpen(false)}>
+        <DialogContent className="sm:max-w-[450px]" data-testid="modal-credit-request">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PoundSterling className="h-5 w-5" />
+              Request Credit
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Club</Label>
+              <Select value={selectedClubId?.toString() || ""} onValueChange={(v) => { setSelectedClubId(Number(v)); setSelectedSessionId(""); }}>
+                <SelectTrigger data-testid="select-credit-club"><SelectValue placeholder="Select club" /></SelectTrigger>
+                <SelectContent>
+                  {clubsWithCredit.map(c => (
+                    <SelectItem key={c.clubId} value={c.clubId.toString()}>
+                      {c.clubName} (£{(Math.max(0, Number(c.balance)) / 100).toFixed(2)} available)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedClubId && (
+              <>
+                <div className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  Available balance: <span className="font-bold text-green-600">£{(Math.max(0, selectedClubBalance) / 100).toFixed(2)}</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Session</Label>
+                  <Select value={selectedSessionId} onValueChange={(v) => { setSelectedSessionId(v); if (v !== "custom") setCustomSession(""); }}>
+                    <SelectTrigger data-testid="select-credit-session"><SelectValue placeholder="Select a session" /></SelectTrigger>
+                    <SelectContent>
+                      {filteredSignups.map((s: any) => (
+                        <SelectItem key={s.sessionId} value={s.sessionId.toString()}>
+                          {s.sessionTitle} - {format(new Date(s.sessionDate), "MMM d, yyyy")} (£{((s.sessionFee || 0) / 100).toFixed(2)})
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Type a custom session...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedSessionId === "custom" && (
+                  <div className="space-y-1.5">
+                    <Label>Session Description</Label>
+                    <Input
+                      value={customSession}
+                      onChange={(e) => setCustomSession(e.target.value)}
+                      placeholder="e.g. Friday Night Social - March 15"
+                      data-testid="input-custom-session"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Amount (£)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={(Math.max(0, selectedClubBalance) / 100).toFixed(2)}
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(e.target.value)}
+                    placeholder={`Max: £${(Math.max(0, selectedClubBalance) / 100).toFixed(2)}`}
+                    data-testid="input-credit-amount"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreditRequestOpen(false)} data-testid="button-cancel-credit">Cancel</Button>
+            <Button onClick={handleSubmitCreditRequest} disabled={creditRequestMutation.isPending || !selectedClubId} data-testid="button-submit-credit">
+              {creditRequestMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -708,6 +857,28 @@ function OutstandingModal({ open, onClose, payments }: {
   open: boolean; onClose: () => void;
   payments: any[] | undefined;
 }) {
+  const { toast } = useToast();
+  const [confirmingSignupId, setConfirmingSignupId] = useState<number | null>(null);
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [paymentMethod, setPaymentMethod] = useState("");
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: async (data: { signupId: number; paymentDate: string; paymentMethod: string }) => {
+      const res = await apiRequest("POST", "/api/my-payment-confirmation", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Payment Confirmed", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-outstanding-payments"] });
+      setConfirmingSignupId(null);
+      setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+      setPaymentMethod("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Confirmation Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const grouped = useMemo(() => {
     return (payments || []).reduce((acc: Record<string, any[]>, p: any) => {
       if (!acc[p.clubName]) acc[p.clubName] = [];
@@ -716,41 +887,108 @@ function OutstandingModal({ open, onClose, payments }: {
     }, {});
   }, [payments]);
 
+  const handleConfirmPayment = () => {
+    if (!confirmingSignupId || !paymentMethod) {
+      toast({ title: "Please select a payment method", variant: "destructive" });
+      return;
+    }
+    confirmPaymentMutation.mutate({
+      signupId: confirmingSignupId,
+      paymentDate,
+      paymentMethod,
+    });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-outstanding">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-amber-500" />
-            Outstanding Payments
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {Object.entries(grouped).length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No outstanding payments</p>
-          ) : Object.entries(grouped).map(([clubName, clubPayments]) => {
-            const total = (clubPayments as any[]).reduce((sum: number, p: any) => sum + p.fee, 0);
-            return (
-              <div key={clubName} className="space-y-2" data-testid={`outstanding-club-${clubName}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{clubName}</span>
-                  <Badge variant="secondary">Total: £{(total / 100).toFixed(2)}</Badge>
-                </div>
-                {(clubPayments as any[]).map((p: any) => (
-                  <div key={p.signupId} className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{p.sessionTitle}</span>
-                      <span className="text-xs text-muted-foreground">{format(new Date(p.sessionDate), "MMM d, yyyy")}</span>
-                    </div>
-                    <span className="text-sm font-bold text-amber-600">£{(p.fee / 100).toFixed(2)}</span>
+    <>
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-outstanding">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              Outstanding Payments
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {Object.entries(grouped).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No outstanding payments</p>
+            ) : Object.entries(grouped).map(([clubName, clubPayments]) => {
+              const total = (clubPayments as any[]).reduce((sum: number, p: any) => sum + p.fee, 0);
+              return (
+                <div key={clubName} className="space-y-2" data-testid={`outstanding-club-${clubName}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{clubName}</span>
+                    <Badge variant="secondary">Total: £{(total / 100).toFixed(2)}</Badge>
                   </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </DialogContent>
-    </Dialog>
+                  {(clubPayments as any[]).map((p: any) => (
+                    <div key={p.signupId} className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/50 gap-2">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium">{p.sessionTitle}</span>
+                        <span className="text-xs text-muted-foreground">{format(new Date(p.sessionDate), "MMM d, yyyy")}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-bold text-amber-600">£{(p.fee / 100).toFixed(2)}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                          onClick={() => setConfirmingSignupId(p.signupId)}
+                          data-testid={`button-confirm-paid-${p.signupId}`}
+                        >
+                          I've Paid
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmingSignupId} onOpenChange={(o) => { if (!o) { setConfirmingSignupId(null); setPaymentMethod(""); } }}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="modal-confirm-payment">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PoundSterling className="h-5 w-5 text-green-500" />
+              Confirm Payment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>When did you pay?</Label>
+              <Input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                data-testid="input-payment-date"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>How did you pay?</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger data-testid="select-payment-method"><SelectValue placeholder="Select payment method" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="CARD">Card</SelectItem>
+                  <SelectItem value="ONLINE">Online</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">An admin will verify your payment has been received.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setConfirmingSignupId(null); setPaymentMethod(""); }} data-testid="button-cancel-confirm">Cancel</Button>
+            <Button onClick={handleConfirmPayment} disabled={confirmPaymentMutation.isPending || !paymentMethod} data-testid="button-submit-confirm">
+              {confirmPaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Confirm Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -2063,7 +2301,7 @@ export default function Profile() {
       </CollapsibleSection>
 
       {/* Modals */}
-      <CreditsModal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} creditBalances={creditBalances} memberships={memberships} />
+      <CreditsModal open={creditsModalOpen} onClose={() => setCreditsModalOpen(false)} creditBalances={creditBalances} memberships={memberships} userName={user?.fullName} />
       <OutstandingModal open={outstandingModalOpen} onClose={() => setOutstandingModalOpen(false)} payments={outstandingPayments} />
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <DiscountCodesModal open={discountCodesModalOpen} onClose={() => setDiscountCodesModalOpen(false)} />

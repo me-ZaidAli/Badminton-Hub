@@ -627,6 +627,7 @@ export const internalMessages = pgTable("internal_messages", {
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   clubId: integer("club_id").references(() => clubs.id),
+  messageCategory: text("message_category").default("GENERAL").notNull(),
   readAt: timestamp("read_at"),
   archivedBySender: boolean("archived_by_sender").default(false).notNull(),
   archivedByRecipient: boolean("archived_by_recipient").default(false).notNull(),

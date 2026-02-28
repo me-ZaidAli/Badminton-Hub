@@ -58,6 +58,7 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  PoundSterling,
   Shield,
   ChevronDown,
   User,
@@ -79,6 +80,7 @@ interface Conversation {
   lastMessageAt: string;
   unreadCount: number;
   isArchived: boolean;
+  hasPaymentMessages?: boolean;
 }
 
 interface ThreadMessage {
@@ -88,6 +90,7 @@ interface ThreadMessage {
   body: string;
   readAt: string | null;
   createdAt: string;
+  messageCategory?: string;
 }
 
 interface Contact {
@@ -138,6 +141,7 @@ export default function InboxPage() {
   const [conversationLimitPrompt, setConversationLimitPrompt] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
   const [initialRecipientHandled, setInitialRecipientHandled] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
@@ -290,10 +294,16 @@ export default function InboxPage() {
   };
 
   const filteredConversations = useMemo(() => {
-    if (!searchQuery) return conversations;
-    const q = searchQuery.toLowerCase();
-    return conversations.filter(c => c.contactName.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
-  }, [conversations, searchQuery]);
+    let result = conversations;
+    if (categoryFilter === "PAYMENT") {
+      result = result.filter(c => c.hasPaymentMessages);
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(c => c.contactName.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
+    }
+    return result;
+  }, [conversations, searchQuery, categoryFilter]);
 
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: ThreadMessage[] }[] = [];
@@ -379,6 +389,26 @@ export default function InboxPage() {
                 data-testid="input-search-conversations"
               />
             </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { value: "ALL", label: "All" },
+                { value: "PAYMENT", label: "Payments" },
+              ].map(cat => (
+                <Button
+                  key={cat.value}
+                  size="sm"
+                  variant={categoryFilter === cat.value ? "default" : "outline"}
+                  className="h-6 text-xs px-2.5 rounded-full"
+                  onClick={() => setCategoryFilter(cat.value)}
+                  data-testid={`filter-category-${cat.value.toLowerCase()}`}
+                >
+                  {cat.label}
+                  {cat.value === "PAYMENT" && conversations.some(c => c.hasPaymentMessages) && (
+                    <PoundSterling className="h-3 w-3 ml-1" />
+                  )}
+                </Button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -431,7 +461,12 @@ export default function InboxPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
+                        {convo.hasPaymentMessages && (
+                          <PoundSterling className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                        )}
+                      </div>
                       {convo.unreadCount > 0 && (
                         <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center rounded-full no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid={`badge-unread-${convo.contactId}`}>
                           {convo.unreadCount}
@@ -532,8 +567,14 @@ export default function InboxPage() {
                                 isMine
                                   ? "bg-primary text-primary-foreground rounded-2xl rounded-br-sm chat-bubble-right"
                                   : "bg-card border rounded-2xl rounded-bl-sm chat-bubble-left"
-                              }`}
+                              } ${msg.messageCategory === "PAYMENT" ? (isMine ? "ring-1 ring-amber-400/50" : "border-amber-300 dark:border-amber-700") : ""}`}
                             >
+                              {msg.messageCategory === "PAYMENT" && (
+                                <div className={`flex items-center gap-1 mb-1 text-[10px] font-medium ${isMine ? "text-primary-foreground/70" : "text-amber-600 dark:text-amber-400"}`}>
+                                  <PoundSterling className="h-3 w-3" />
+                                  Payment
+                                </div>
+                              )}
                               <p className="whitespace-pre-wrap break-words" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
                               <div className={`flex items-center gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
                                 <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>

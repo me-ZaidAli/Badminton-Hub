@@ -211,27 +211,24 @@ export async function processSessionPaymentReminders() {
         let message = "";
         let title = "";
 
+        const profileConfirmText = " You can confirm your payment on your Profile page once payment is made.";
+
         if (diffDays === daysBefore) {
           templateName = "PAYMENT_REMINDER_BEFORE";
           scheduleKey = `payment_${daysBefore}d_before`;
           title = "Payment Reminder";
-          message = `\ud83c\udff8 Hi ${firstName}, our records show your payment for the ${session.title} session on ${sessionDateStr} has not been received. Please pay ${amount} to ${bankDetails} to secure your spot.`;
+          message = `\ud83c\udff8 Hi ${firstName}, our records show your payment for the ${session.title} session on ${sessionDateStr} has not been received. Please pay ${amount} to ${bankDetails} to secure your spot.${profileConfirmText}`;
         } else if (diffDays === 0) {
           templateName = "PAYMENT_REMINDER_DAY_OF";
           scheduleKey = "payment_day_of";
           title = "Payment Due Today";
-          message = `\u23f0 Hi ${firstName}, today is ${session.title} session. Please ensure your payment of ${amount} to ${bankDetails} is completed before arrival.`;
-        } else if (diffDays === -1) {
-          templateName = "PAYMENT_REMINDER_NEXT_DAY";
-          scheduleKey = "payment_next_day";
-          title = "Payment Outstanding";
-          message = `\ud83d\udccc Hi ${firstName}, we noticed your payment for ${session.title} on ${sessionDateStr} is still outstanding. Please pay ${amount} to ${bankDetails} to keep your booking active.`;
+          message = `\u23f0 Hi ${firstName}, today is ${session.title} session. Please ensure your payment of ${amount} to ${bankDetails} is completed before arrival.${profileConfirmText}`;
         } else if (diffDays < -1 && settings.paymentReminderDailyAfter) {
           const daysSince = Math.abs(diffDays);
           templateName = "PAYMENT_REMINDER_DAILY";
           scheduleKey = `payment_daily_d${daysSince}`;
           title = "Urgent Payment Reminder";
-          message = `\u26a0\ufe0f Hi ${firstName}, your payment for ${session.title} on ${sessionDateStr} is still unpaid. Please transfer ${amount} to ${bankDetails} immediately.`;
+          message = `\u26a0\ufe0f Hi ${firstName}, your payment for ${session.title} on ${sessionDateStr} is still unpaid. Please transfer ${amount} to ${bankDetails} immediately.${profileConfirmText}`;
         }
 
         if (templateName && scheduleKey) {

@@ -54,6 +54,9 @@ The UI incorporates a privacy-enhanced public view, a modern player profile dash
 - **League Management System**: Full league fixture and results management, supporting multiple named leagues per club with opponent and venue management.
 - **Exercise Challenge & Training System**: Weekly progressive exercise challenges for junior players across various categories, with completion tracking and video embeds.
 - **Junior Skill Development & Tracking System**: Full skill tracking system with 11 categories and 66 individual skills. Features an interactive dashboard with radar charts, skill progress, rankings, awards, and videos. Rankings are recalculated based on performance data.
+- **Payment Confirmation System**: Players can confirm payments from their profile Outstanding Payments modal. Shows "I've Paid" button per session, asks for payment date and method, sets status to PENDING for admin verification, auto-creates support tickets, sends notifications and payment-category messages to admins.
+- **Credit Request System**: Players can request credits applied to upcoming sessions from their Credit Balance modal. Validates club membership and credit balance, deducts from credit ledger, auto-creates tickets, sends payment reference in format "[Name], [Date], CR" to admins.
+- **Message Categories**: Internal messages now have a `messageCategory` field (GENERAL, PAYMENT, SYSTEM). Payment-related messages from payment confirmations and credit requests are tagged as PAYMENT. Inbox shows category filter pills and payment badges on conversations and message bubbles. Payment reminders include profile confirmation prompt and are delayed until 24 hours after session.
 
 ## External Dependencies
 
