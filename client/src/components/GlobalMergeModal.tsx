@@ -344,15 +344,31 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-1 mb-4 flex-wrap">
-          {stepOrder.map((s, i) => (
-            <div key={s} className="flex items-center gap-1">
-              <Badge variant={i <= currentIndex ? "default" : "outline"} className="text-xs">
-                {i + 1}. {stepLabels[s]}
-              </Badge>
-              {i < stepOrder.length - 1 && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
-            </div>
-          ))}
+        <div className="mb-4">
+          <div className="flex items-center justify-between gap-1">
+            {stepOrder.map((s, i) => (
+              <div key={s} className="flex items-center gap-1 flex-1 min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
+                  <div
+                    className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      i <= currentIndex
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-muted-foreground/30 text-muted-foreground"
+                    }`}
+                  >
+                    {i + 1}
+                  </div>
+                  <span className="hidden sm:inline text-xs text-muted-foreground truncate">{stepLabels[s]}</span>
+                </div>
+                {i < stepOrder.length - 1 && (
+                  <div className={`flex-1 h-0.5 mx-1 rounded ${i < currentIndex ? "bg-primary" : "bg-muted-foreground/20"}`} />
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="sm:hidden text-xs text-muted-foreground mt-1.5 text-center font-medium">
+            Step {currentIndex + 1}: {stepLabels[step]}
+          </p>
         </div>
 
         {step === "search" && (
