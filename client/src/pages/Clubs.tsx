@@ -2162,12 +2162,7 @@ export default function Clubs() {
                 {user && (() => {
                   const isOwner = selectedClub.ownerId === user.id;
                   if (isOwner) {
-                    return (
-                      <Button className="w-full sm:w-auto" data-testid="button-owner-dashboard" onClick={() => { setSelectedClub(null); navigate("/dashboard"); }}>
-                        <Building2 className="w-4 h-4 mr-2" />
-                        Manage Club
-                      </Button>
-                    );
+                    return null;
                   }
                   const state = getJoinButtonState(selectedClub.id);
                   if (state === "member") {
