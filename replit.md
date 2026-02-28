@@ -36,7 +36,7 @@ The UI incorporates a privacy-enhanced public view, a modern player profile dash
 - **Legal Policies System**: Manages in-app legal content, acceptance logging, and parental consent.
 - **User Guide**: Comprehensive tabbed guide for Player, Admin, and Owner roles, including a Junior Hub section.
 - **Player Profile Merging System**: Admin/OWNER-only tool for merging duplicate profiles within a club.
-- **Global Account Merge System**: OWNER-only tool for merging two user accounts across all clubs. Features a 5-step wizard (Search → Compare → Choose → Preview → Confirm) with cross-club profile merging, credit consolidation, match/session reassignment, OWNER account protection, and row-level locking for data integrity. Located in `GlobalMergeModal.tsx` with backend endpoints at `/api/admin/global-merge/*` and `/api/admin/global-users/search`.
+- **Global Account Merge System**: OWNER-only tool for merging two user accounts across all clubs. Features a 5-step wizard (Search → Compare → Choose Details → Preview → Confirm) with cross-club profile merging, credit consolidation, match/session reassignment, OWNER account protection, and row-level locking for data integrity. The "Choose Details" step allows field-by-field comparison and selection of which email, password, phone, nickname, city, and country to keep from either account. Located in `GlobalMergeModal.tsx` with backend endpoints at `/api/admin/global-merge/*` and `/api/admin/global-users/search`.
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC.
 - **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.
 - **Club-Scoped Referral System**: Independent referral programs per club.

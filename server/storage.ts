@@ -862,8 +862,8 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM membership_requests WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM merchandise_orders WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
-    await db.execute(sql`DELETE FROM notification_logs WHERE user_id = ${userId}`);
-    await db.execute(sql`DELETE FROM player_reward_ledger WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM notification_logs WHERE recipient_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_reward_ledger WHERE player_id IN (SELECT id FROM player_profiles WHERE user_id = ${userId})`);
     await db.execute(sql`DELETE FROM announcement_archives WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM discount_code_assignments WHERE user_id = ${userId}`);
 
@@ -905,7 +905,7 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`UPDATE profile_merge_logs SET kept_user_id = NULL WHERE kept_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM profile_merge_logs WHERE merged_by_user_id = ${userId}`);
 
-    await db.execute(sql`DELETE FROM inventory_movements WHERE created_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM inventory_movements WHERE created_by_id = ${userId}`);
 
     await db.execute(sql`UPDATE session_signups SET signed_up_by_user_id = NULL WHERE signed_up_by_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM expenses WHERE created_by_id = ${userId}`);
@@ -923,6 +923,7 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM session_attendance_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM points_milestone_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM badge_achievement_rewards WHERE created_by_id = ${userId}`);
+    await db.execute(sql`DELETE FROM donations WHERE user_id = ${userId}`);
 
     await db.delete(users).where(eq(users.id, userId));
   }

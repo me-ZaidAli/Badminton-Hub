@@ -5317,6 +5317,8 @@ export async function registerRoutes(
         email: users.email,
         phone: users.phone,
         city: users.city,
+        country: users.country,
+        nickname: users.nickname,
         dateOfBirth: users.dateOfBirth,
         role: users.role,
         accountStatus: users.accountStatus,
@@ -5453,7 +5455,8 @@ export async function registerRoutes(
       res.json({
         keepUser: {
           id: keepUser.id, fullName: keepUser.fullName, email: keepUser.email,
-          phone: keepUser.phone, city: keepUser.city, dateOfBirth: keepUser.dateOfBirth,
+          phone: keepUser.phone, city: keepUser.city, country: keepUser.country,
+          nickname: keepUser.nickname, dateOfBirth: keepUser.dateOfBirth,
           role: keepUser.role, accountStatus: keepUser.accountStatus,
           profilePictureUrl: keepUser.profilePictureUrl, createdAt: keepUser.createdAt,
           profiles: keepProfileData,
@@ -5462,7 +5465,8 @@ export async function registerRoutes(
         },
         removeUser: {
           id: removeUser.id, fullName: removeUser.fullName, email: removeUser.email,
-          phone: removeUser.phone, city: removeUser.city, dateOfBirth: removeUser.dateOfBirth,
+          phone: removeUser.phone, city: removeUser.city, country: removeUser.country,
+          nickname: removeUser.nickname, dateOfBirth: removeUser.dateOfBirth,
           role: removeUser.role, accountStatus: removeUser.accountStatus,
           profilePictureUrl: removeUser.profilePictureUrl, createdAt: removeUser.createdAt,
           profiles: removeProfileData,
@@ -5496,7 +5500,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (req.user!.role !== "OWNER") return res.sendStatus(403);
 
-    const { keepUserId, removeUserId } = req.body;
+    const { keepUserId, removeUserId, keepEmail, keepPasswordFromUserId, keepPhone, keepNickname, keepCity, keepCountry } = req.body;
     if (!keepUserId || !removeUserId) return res.status(400).json({ message: "Both user IDs required" });
     if (keepUserId === removeUserId) return res.status(400).json({ message: "Cannot merge a user with themselves" });
 
@@ -5637,17 +5641,42 @@ export async function registerRoutes(
 
         await db.execute(sql`UPDATE users SET parent_user_id = ${keepUserId} WHERE parent_user_id = ${removeUserId}`);
 
+        const mergeUpdates: Record<string, any> = {};
+        if (keepEmail && keepEmail !== keepUser.email) {
+          const sourceUser = keepEmail === removeUser.email ? removeUser : keepUser;
+          mergeUpdates.email = sourceUser.email;
+        }
+        if (keepPasswordFromUserId && keepPasswordFromUserId === removeUserId) {
+          mergeUpdates.password = removeUser.password;
+        }
+        if (keepPhone !== undefined) {
+          mergeUpdates.phone = keepPhone === "remove" ? removeUser.phone : keepUser.phone;
+        }
+        if (keepNickname !== undefined) {
+          mergeUpdates.nickname = keepNickname === "remove" ? removeUser.nickname : keepUser.nickname;
+        }
+        if (keepCity !== undefined) {
+          mergeUpdates.city = keepCity === "remove" ? removeUser.city : keepUser.city;
+        }
+        if (keepCountry !== undefined) {
+          mergeUpdates.country = keepCountry === "remove" ? removeUser.country : keepUser.country;
+        }
+        if (Object.keys(mergeUpdates).length > 0) {
+          await db.update(users).set(mergeUpdates).where(eq(users.id, keepUserId));
+        }
+
         await db.update(users).set({
           closedAt: new Date(),
           closedReason: "MERGED",
           accountStatus: "SUSPENDED",
         }).where(eq(users.id, removeUserId));
 
+        const finalEmail = mergeUpdates.email || keepUser.email;
         await db.insert(profileMergeLogs).values({
           primaryProfileId: keepProfiles[0]?.id || 0,
           secondaryProfileId: removeProfiles[0]?.id || 0,
           mergedByUserId: req.user!.id,
-          keptEmail: keepUser.email,
+          keptEmail: finalEmail,
           keptUserId: keepUserId,
           mergeDetails: {
             type: "GLOBAL_ACCOUNT_MERGE",

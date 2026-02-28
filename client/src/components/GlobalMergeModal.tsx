@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Search, ArrowRight, ArrowLeft, Check, AlertTriangle, Merge, User, Mail, Trophy, Star, Shield, Building2, CreditCard, Calendar, Globe } from "lucide-react";
+import { Loader2, Search, ArrowRight, ArrowLeft, Check, AlertTriangle, Merge, User, Mail, Trophy, Star, Shield, Building2, CreditCard, Calendar, Globe, Phone, MapPin, KeyRound } from "lucide-react";
 
 interface GlobalMergeModalProps {
   open: boolean;
@@ -22,6 +22,8 @@ interface UserResult {
   email: string;
   phone: string | null;
   city: string | null;
+  country: string | null;
+  nickname: string | null;
   dateOfBirth: string | null;
   role: string;
   accountStatus: string;
@@ -69,6 +71,15 @@ interface PreviewData {
   uniqueToRemove: { clubId: number; profileId: number }[];
 }
 
+interface FieldSelection {
+  email: "keep" | "remove";
+  password: "keep" | "remove";
+  phone: "keep" | "remove";
+  nickname: "keep" | "remove";
+  city: "keep" | "remove";
+  country: "keep" | "remove";
+}
+
 type Step = "search" | "compare" | "choose" | "preview" | "confirm";
 
 function formatPounds(pence: number): string {
@@ -84,6 +95,14 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
   const [removeUserId, setRemoveUserId] = useState<number | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [confirmedKeepId, setConfirmedKeepId] = useState<number | null>(null);
+  const [fieldSelections, setFieldSelections] = useState<FieldSelection>({
+    email: "keep",
+    password: "keep",
+    phone: "keep",
+    nickname: "keep",
+    city: "keep",
+    country: "keep",
+  });
 
   useEffect(() => {
     if (open) {
@@ -94,6 +113,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
       setSearchKeep("");
       setSearchRemove("");
       setConfirmedKeepId(null);
+      setFieldSelections({ email: "keep", password: "keep", phone: "keep", nickname: "keep", city: "keep", country: "keep" });
     }
   }, [open]);
 
@@ -125,6 +145,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
     onSuccess: (data: PreviewData) => {
       setPreview(data);
       setConfirmedKeepId(data.recommendation === "keep" ? data.keepUser.id : data.removeUser.id);
+      setFieldSelections({ email: "keep", password: "keep", phone: "keep", nickname: "keep", city: "keep", country: "keep" });
       setStep("compare");
     },
     onError: (err: any) => {
@@ -133,7 +154,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
   });
 
   const executeMutation = useMutation({
-    mutationFn: async (data: { keepUserId: number; removeUserId: number }) => {
+    mutationFn: async (data: { keepUserId: number; removeUserId: number; keepEmail?: string; keepPasswordFromUserId?: number; keepPhone?: string; keepNickname?: string; keepCity?: string; keepCountry?: string }) => {
       const res = await apiRequest("POST", "/api/admin/global-merge/execute", data);
       return res.json();
     },
@@ -153,6 +174,9 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
 
   const filteredKeep = (keepResults || []).filter((u) => u.id !== removeUserId);
   const filteredRemove = (removeResults || []).filter((u) => u.id !== keepUserId);
+
+  const getFinalKeep = () => preview && confirmedKeepId === preview.keepUser.id ? preview.keepUser : preview?.removeUser;
+  const getFinalRemove = () => preview && confirmedKeepId === preview.keepUser.id ? preview.removeUser : preview?.keepUser;
 
   const handleNext = () => {
     if (step === "search") {
@@ -175,7 +199,29 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
       if (!confirmedKeepId || !preview) return;
       const finalKeep = confirmedKeepId;
       const finalRemove = confirmedKeepId === preview.keepUser.id ? preview.removeUser.id : preview.keepUser.id;
-      executeMutation.mutate({ keepUserId: finalKeep, removeUserId: finalRemove });
+      const keepU = getFinalKeep();
+      const removeU = getFinalRemove();
+
+      const payload: any = { keepUserId: finalKeep, removeUserId: finalRemove };
+      if (fieldSelections.email === "remove" && removeU) {
+        payload.keepEmail = removeU.email;
+      }
+      if (fieldSelections.password === "remove") {
+        payload.keepPasswordFromUserId = finalRemove;
+      }
+      if (fieldSelections.phone === "remove") {
+        payload.keepPhone = "remove";
+      }
+      if (fieldSelections.nickname === "remove") {
+        payload.keepNickname = "remove";
+      }
+      if (fieldSelections.city === "remove") {
+        payload.keepCity = "remove";
+      }
+      if (fieldSelections.country === "remove") {
+        payload.keepCountry = "remove";
+      }
+      executeMutation.mutate(payload);
     }
   };
 
@@ -189,7 +235,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
   const stepLabels: Record<Step, string> = {
     search: "Select Accounts",
     compare: "Compare",
-    choose: "Choose Account to Keep",
+    choose: "Choose Details to Keep",
     preview: "Preview Changes",
     confirm: "Confirm Merge",
   };
@@ -264,8 +310,10 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
               <Shield className="w-3 h-3 text-muted-foreground" />
               <span>{user.role}</span>
             </div>
-            {user.phone && <div>Phone: {user.phone}</div>}
-            {user.city && <div>City: {user.city}</div>}
+            {user.phone && <div className="flex items-center gap-1"><Phone className="w-3 h-3 text-muted-foreground" />{user.phone}</div>}
+            {user.nickname && <div>Nickname: {user.nickname}</div>}
+            {user.city && <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-muted-foreground" />{user.city}</div>}
+            {user.country && <div>Country: {user.country}</div>}
             {user.dateOfBirth && <div>DOB: {new Date(user.dateOfBirth).toLocaleDateString()}</div>}
             <div>Status: {user.accountStatus}</div>
             <div className="flex items-center gap-1">
@@ -328,8 +376,50 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
     </Card>
   );
 
-  const getFinalKeep = () => preview && confirmedKeepId === preview.keepUser.id ? preview.keepUser : preview?.removeUser;
-  const getFinalRemove = () => preview && confirmedKeepId === preview.keepUser.id ? preview.removeUser : preview?.keepUser;
+  const renderFieldSelector = (
+    fieldKey: keyof FieldSelection,
+    label: string,
+    icon: any,
+    keepValue: string | null,
+    removeValue: string | null
+  ) => {
+    const Icon = icon;
+    const keepDisplay = keepValue || "N/A";
+    const removeDisplay = removeValue || "N/A";
+    const bothSame = keepValue === removeValue;
+    const keepUser = getFinalKeep();
+    const removeUser = getFinalRemove();
+
+    return (
+      <div className="border rounded-md p-3 space-y-2" data-testid={`field-selector-${fieldKey}`}>
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{label}</span>
+          {bothSame && <Badge variant="outline" className="text-[10px]">Same</Badge>}
+        </div>
+        <RadioGroup
+          value={fieldSelections[fieldKey]}
+          onValueChange={(v) => setFieldSelections(prev => ({ ...prev, [fieldKey]: v as "keep" | "remove" }))}
+          className="space-y-1"
+        >
+          <div className={`flex items-center gap-2 p-2 rounded-md text-sm ${fieldSelections[fieldKey] === "keep" ? "bg-primary/10 border border-primary/30" : "bg-muted/30"}`}>
+            <RadioGroupItem value="keep" id={`field-${fieldKey}-keep`} data-testid={`radio-field-${fieldKey}-keep`} />
+            <Label htmlFor={`field-${fieldKey}-keep`} className="cursor-pointer flex-1 flex items-center justify-between gap-2">
+              <span className="truncate font-medium">{keepDisplay}</span>
+              <Badge variant="outline" className="text-[10px] shrink-0">{keepUser?.fullName}</Badge>
+            </Label>
+          </div>
+          <div className={`flex items-center gap-2 p-2 rounded-md text-sm ${fieldSelections[fieldKey] === "remove" ? "bg-primary/10 border border-primary/30" : "bg-muted/30"}`}>
+            <RadioGroupItem value="remove" id={`field-${fieldKey}-remove`} data-testid={`radio-field-${fieldKey}-remove`} />
+            <Label htmlFor={`field-${fieldKey}-remove`} className="cursor-pointer flex-1 flex items-center justify-between gap-2">
+              <span className="truncate font-medium">{removeDisplay}</span>
+              <Badge variant="outline" className="text-[10px] shrink-0">{removeUser?.fullName}</Badge>
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -458,55 +548,87 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
           </div>
         )}
 
-        {step === "choose" && preview && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Choose which account to keep. The other account will be absorbed and deactivated.
-            </p>
-            <RadioGroup
-              value={confirmedKeepId?.toString() || ""}
-              onValueChange={(v) => setConfirmedKeepId(parseInt(v))}
-              className="space-y-3"
-            >
-              {[preview.keepUser, preview.removeUser].map((user, idx) => {
-                const isRecommended = (idx === 0 && preview.recommendation === "keep") || (idx === 1 && preview.recommendation === "remove");
-                return (
-                  <div key={user.id} className={`flex items-start gap-3 border rounded-md p-4 hover-elevate ${confirmedKeepId === user.id ? "border-primary bg-primary/5" : ""}`}>
-                    <RadioGroupItem value={user.id.toString()} id={`keep-global-${user.id}`} data-testid={`radio-global-merge-keep-${user.id}`} />
-                    <Label htmlFor={`keep-global-${user.id}`} className="cursor-pointer space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{user.fullName}</span>
-                        {isRecommended && <Badge className="bg-green-600 text-white text-[10px]">Recommended</Badge>}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{user.email}</div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{user.profiles.length} club(s)</span>
-                        <span>{user.totalMatches} matches</span>
-                        <span>£{formatPounds(user.totalCredits)} credits</span>
-                        <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </Label>
-                  </div>
-                );
-              })}
-            </RadioGroup>
+        {step === "choose" && preview && (() => {
+          const keepUser = getFinalKeep();
+          const removeUser = getFinalRemove();
+          if (!keepUser || !removeUser) return null;
+          return (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose which account to keep, then select which details (email, password, etc.) to use for the final merged account.
+              </p>
 
-            {confirmedKeepId && (() => {
-              const removeCandidate = confirmedKeepId === preview.keepUser.id ? preview.removeUser : preview.keepUser;
-              if (removeCandidate.role === "OWNER") {
-                return (
-                  <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-md p-3">
-                    <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                    <p className="text-xs text-destructive">
-                      Warning: {removeCandidate.fullName} has the OWNER (super admin) role. You cannot remove an OWNER account. Please select this account to keep, or change their role first.
-                    </p>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Which account to keep?</Label>
+                <RadioGroup
+                  value={confirmedKeepId?.toString() || ""}
+                  onValueChange={(v) => {
+                    setConfirmedKeepId(parseInt(v));
+                    setFieldSelections({ email: "keep", password: "keep", phone: "keep", nickname: "keep", city: "keep", country: "keep" });
+                  }}
+                  className="space-y-2"
+                >
+                  {[preview.keepUser, preview.removeUser].map((user, idx) => {
+                    const isRecommended = (idx === 0 && preview.recommendation === "keep") || (idx === 1 && preview.recommendation === "remove");
+                    return (
+                      <div key={user.id} className={`flex items-center gap-3 border rounded-md p-3 hover-elevate ${confirmedKeepId === user.id ? "border-primary bg-primary/5" : ""}`}>
+                        <RadioGroupItem value={user.id.toString()} id={`keep-global-${user.id}`} data-testid={`radio-global-merge-keep-${user.id}`} />
+                        <Label htmlFor={`keep-global-${user.id}`} className="cursor-pointer flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{user.fullName}</span>
+                            <span className="text-xs text-muted-foreground">({user.email})</span>
+                            {isRecommended && <Badge className="bg-green-600 text-white text-[10px]">Recommended</Badge>}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                            <span>{user.profiles.length} club(s)</span>
+                            <span>{user.totalMatches} matches</span>
+                            <span>£{formatPounds(user.totalCredits)}</span>
+                          </div>
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+
+                {confirmedKeepId && (() => {
+                  const removeCandidate = confirmedKeepId === preview.keepUser.id ? preview.removeUser : preview.keepUser;
+                  if (removeCandidate.role === "OWNER") {
+                    return (
+                      <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-md p-3">
+                        <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                        <p className="text-xs text-destructive">
+                          Warning: {removeCandidate.fullName} has the OWNER (super admin) role. You cannot remove an OWNER account. Please select this account to keep, or change their role first.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              {confirmedKeepId && (
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-medium">Choose which details to keep</Label>
                   </div>
-                );
-              }
-              return null;
-            })()}
-          </div>
-        )}
+                  <p className="text-xs text-muted-foreground">
+                    For each field below, select which account's value to use for the merged account.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {renderFieldSelector("email", "Email Address", Mail, keepUser?.email || null, removeUser?.email || null)}
+                    {renderFieldSelector("password", "Password", KeyRound, keepUser ? "(from " + keepUser.fullName + ")" : null, removeUser ? "(from " + removeUser.fullName + ")" : null)}
+                    {renderFieldSelector("phone", "Phone", Phone, keepUser?.phone || null, removeUser?.phone || null)}
+                    {renderFieldSelector("nickname", "Nickname", User, keepUser?.nickname || null, removeUser?.nickname || null)}
+                    {renderFieldSelector("city", "City", MapPin, keepUser?.city || null, removeUser?.city || null)}
+                    {renderFieldSelector("country", "Country", Globe, keepUser?.country || null, removeUser?.country || null)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {step === "preview" && preview && (
           <div className="space-y-4">
@@ -518,6 +640,44 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
               <AlertTriangle className="w-4 h-4 text-destructive" />
               <span className="text-sm font-medium">Removing: {getFinalRemove()?.fullName} ({getFinalRemove()?.email})</span>
             </div>
+
+            {(fieldSelections.email === "remove" || fieldSelections.password === "remove" || fieldSelections.phone === "remove" || fieldSelections.nickname === "remove" || fieldSelections.city === "remove" || fieldSelections.country === "remove") && (
+              <div className="border rounded-md p-3 space-y-2">
+                <p className="text-xs font-medium text-primary">Details overrides from removed account:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+                  {fieldSelections.email === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <Mail className="w-3 h-3" /> Email: {getFinalRemove()?.email}
+                    </div>
+                  )}
+                  {fieldSelections.password === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <KeyRound className="w-3 h-3" /> Password from: {getFinalRemove()?.fullName}
+                    </div>
+                  )}
+                  {fieldSelections.phone === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <Phone className="w-3 h-3" /> Phone: {getFinalRemove()?.phone || "N/A"}
+                    </div>
+                  )}
+                  {fieldSelections.nickname === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <User className="w-3 h-3" /> Nickname: {getFinalRemove()?.nickname || "N/A"}
+                    </div>
+                  )}
+                  {fieldSelections.city === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <MapPin className="w-3 h-3" /> City: {getFinalRemove()?.city || "N/A"}
+                    </div>
+                  )}
+                  {fieldSelections.country === "remove" && (
+                    <div className="flex items-center gap-1 bg-primary/5 rounded p-1.5">
+                      <Globe className="w-3 h-3" /> Country: {getFinalRemove()?.country || "N/A"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <p className="text-sm font-medium">Data to be transferred:</p>
             <div className="space-y-2 text-sm">
@@ -579,6 +739,17 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                   All match history, session signups, credits, memberships, messages, donations, and tickets will be transferred.
                   The removed account will be deactivated. A full audit log will be created.
                 </p>
+                {(fieldSelections.email === "remove" || fieldSelections.password === "remove") && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                    <p className="font-medium mb-1">Custom field overrides:</p>
+                    {fieldSelections.email === "remove" && <p>Email will be changed to: {getFinalRemove()?.email}</p>}
+                    {fieldSelections.password === "remove" && <p>Password will be taken from: {getFinalRemove()?.fullName}</p>}
+                    {fieldSelections.phone === "remove" && <p>Phone will be: {getFinalRemove()?.phone || "N/A"}</p>}
+                    {fieldSelections.nickname === "remove" && <p>Nickname will be: {getFinalRemove()?.nickname || "N/A"}</p>}
+                    {fieldSelections.city === "remove" && <p>City will be: {getFinalRemove()?.city || "N/A"}</p>}
+                    {fieldSelections.country === "remove" && <p>Country will be: {getFinalRemove()?.country || "N/A"}</p>}
+                  </div>
+                )}
               </div>
             </div>
           </div>
