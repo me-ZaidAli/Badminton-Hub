@@ -20974,9 +20974,34 @@ Provide a concise report (200-250 words) covering:
       const [child] = await db.select().from(users).where(eq(users.id, childId));
       if (!child) return res.status(404).json({ message: "Child not found" });
 
-      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
-      const profile = profiles[0];
-      if (!profile) return res.status(404).json({ message: "No junior profile found" });
+      let profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
+      let profile = profiles[0];
+
+      if (!profile) {
+        let autoClubId: number | null = null;
+        if (child.parentUserId) {
+          const parentClubs = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, child.parentUserId), eq(playerProfiles.membershipStatus, "APPROVED")));
+          if (parentClubs.length > 0) autoClubId = parentClubs[0].clubId;
+        }
+        if (!autoClubId) {
+          const userClubs = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED")));
+          if (userClubs.length > 0) autoClubId = userClubs[0].clubId;
+        }
+        if (!autoClubId) return res.status(404).json({ message: "No club found to create junior profile" });
+
+        const [newProfile] = await db.insert(juniorProfiles).values({
+          userId: childId,
+          clubId: autoClubId,
+          juniorLevel: "BEGINNER",
+          overallSkillPercentage: 0,
+          attendancePercentage: 0,
+          effortRating: 0,
+          coachRating: 0,
+        }).returning();
+        profile = newProfile;
+      }
 
       if (child.parentUserId !== user.id && user.role !== "OWNER") {
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
@@ -21085,9 +21110,34 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const [child] = await db.select().from(users).where(eq(users.id, childId));
       if (!child) return res.status(404).json({ message: "Child not found" });
 
-      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
-      const profile = profiles[0];
-      if (!profile) return res.status(404).json({ message: "No junior profile found" });
+      let pdfProfiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
+      let profile = pdfProfiles[0];
+
+      if (!profile) {
+        let autoClubId: number | null = null;
+        if (child.parentUserId) {
+          const parentClubs = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, child.parentUserId), eq(playerProfiles.membershipStatus, "APPROVED")));
+          if (parentClubs.length > 0) autoClubId = parentClubs[0].clubId;
+        }
+        if (!autoClubId) {
+          const userClubs = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED")));
+          if (userClubs.length > 0) autoClubId = userClubs[0].clubId;
+        }
+        if (!autoClubId) return res.status(404).json({ message: "No club found for junior profile" });
+
+        const [newProfile] = await db.insert(juniorProfiles).values({
+          userId: childId,
+          clubId: autoClubId,
+          juniorLevel: "BEGINNER",
+          overallSkillPercentage: 0,
+          attendancePercentage: 0,
+          effortRating: 0,
+          coachRating: 0,
+        }).returning();
+        profile = newProfile;
+      }
 
       if (child.parentUserId !== user.id && user.role !== "OWNER") {
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
@@ -21098,7 +21148,6 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const [report] = await db.select().from(generatedReports).where(eq(generatedReports.id, reportId));
       if (!report) return res.status(404).json({ message: "Report not found" });
       if (report.squadFilter !== `child:${childId}`) return res.status(403).json({ message: "Report does not belong to this child" });
-      if (report.clubId !== profile.clubId) return res.status(403).json({ message: "Report does not belong to this club" });
 
       const [club] = await db.select().from(clubs).where(eq(clubs.id, profile.clubId));
 
