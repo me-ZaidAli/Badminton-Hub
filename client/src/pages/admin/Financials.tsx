@@ -45,6 +45,9 @@ import {
   Square,
   UserPlus,
   Heart,
+  Bell,
+  Send,
+  Mail,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -577,6 +580,8 @@ export default function Financials() {
     entry: FinancialEntry;
   } | null>(null);
 
+  const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set());
+
   const [adjustCreditDialog, setAdjustCreditDialog] = useState<{
     userId: number;
     clubId: number;
@@ -979,6 +984,58 @@ export default function Financials() {
     },
   });
 
+  const sendPaymentConfirmation = useMutation({
+    mutationFn: async ({ signupId, sessionId, playerId, immediate }: { signupId: number; sessionId: number; playerId: number; immediate: boolean }) => {
+      await apiRequest("POST", "/api/admin/send-payment-confirmation", { signupId, sessionId, playerId, immediate });
+    },
+    onSuccess: (_, vars) => {
+      toast({ title: "Confirmation Sent", description: vars.immediate ? "Payment confirmation sent immediately." : "Payment confirmation will be sent in 15 minutes." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send confirmation.", variant: "destructive" });
+    },
+  });
+
+  const sendPaymentReminder = useMutation({
+    mutationFn: async ({ signupId, sessionId, playerId }: { signupId: number; sessionId: number; playerId: number }) => {
+      await apiRequest("POST", "/api/admin/request-payment", { signupId, sessionId, playerId });
+    },
+    onSuccess: () => {
+      toast({ title: "Reminder Sent", description: "Payment reminder sent to player." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send reminder.", variant: "destructive" });
+    },
+  });
+
+  const bulkPaymentConfirmation = useMutation({
+    mutationFn: async ({ entries, immediate }: { entries: { signupId: number; sessionId: number; playerId: number }[]; immediate: boolean }) => {
+      const res = await apiRequest("POST", "/api/admin/bulk-payment-confirmation", { entries, immediate });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Bulk Confirmation", description: `Payment confirmations sent to ${data.sent} player(s).` });
+      setSelectedEntries(new Set());
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send bulk confirmations.", variant: "destructive" });
+    },
+  });
+
+  const bulkPaymentReminder = useMutation({
+    mutationFn: async ({ entries }: { entries: { signupId: number; sessionId: number; playerId: number }[] }) => {
+      const res = await apiRequest("POST", "/api/admin/bulk-payment-reminder", { entries });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Bulk Reminder", description: `Payment reminders sent to ${data.sent} player(s).` });
+      setSelectedEntries(new Set());
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send bulk reminders.", variant: "destructive" });
+    },
+  });
+
   const createCredit = useMutation({
     mutationFn: async (data: {
       userId: number;
@@ -1141,12 +1198,51 @@ export default function Financials() {
             title: newStatus === "PAID" ? "Marked as Paid" : "Marked as Unpaid",
             description: `Payment status updated for ${entry.playerName}.`,
           });
+          if (newStatus === "PAID") {
+            sendPaymentConfirmation.mutate({
+              signupId: entry.signupId,
+              sessionId: entry.sessionId,
+              playerId: entry.playerId,
+              immediate: false,
+            });
+          }
         },
         onError: () => {
           toast({ title: "Error", description: "Failed to update payment status.", variant: "destructive" });
         },
       }
     );
+  };
+
+  const toggleEntrySelection = (signupId: number) => {
+    setSelectedEntries(prev => {
+      const next = new Set(prev);
+      if (next.has(signupId)) next.delete(signupId);
+      else next.add(signupId);
+      return next;
+    });
+  };
+
+  const handleBulkConfirmation = (immediate: boolean) => {
+    const entries = filteredData
+      .filter(e => selectedEntries.has(e.signupId) && e.paymentStatus === "PAID")
+      .map(e => ({ signupId: e.signupId, sessionId: e.sessionId, playerId: e.playerId }));
+    if (entries.length === 0) {
+      toast({ title: "No paid entries selected", description: "Select entries that are marked as PAID to send confirmations.", variant: "destructive" });
+      return;
+    }
+    bulkPaymentConfirmation.mutate({ entries, immediate });
+  };
+
+  const handleBulkReminder = () => {
+    const entries = filteredData
+      .filter(e => selectedEntries.has(e.signupId) && (e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING"))
+      .map(e => ({ signupId: e.signupId, sessionId: e.sessionId, playerId: e.playerId }));
+    if (entries.length === 0) {
+      toast({ title: "No unpaid entries selected", description: "Select entries that are UNPAID or PENDING to send reminders.", variant: "destructive" });
+      return;
+    }
+    bulkPaymentReminder.mutate({ entries });
   };
 
   const handleStartEditFee = (entry: FinancialEntry) => {
@@ -1537,6 +1633,15 @@ export default function Financials() {
 
   const renderPlayerRow = (entry: FinancialEntry) => (
     <TableRow key={entry.signupId} data-testid={`row-signup-${entry.signupId}`}>
+      <TableCell className="w-8 px-2">
+        <input
+          type="checkbox"
+          checked={selectedEntries.has(entry.signupId)}
+          onChange={() => toggleEntrySelection(entry.signupId)}
+          className="h-4 w-4 rounded border-muted-foreground/30 cursor-pointer accent-primary"
+          data-testid={`checkbox-entry-${entry.signupId}`}
+        />
+      </TableCell>
       <TableCell className="font-medium" data-testid={`text-player-name-${entry.signupId}`}>
         {entry.playerName}
       </TableCell>
@@ -1681,6 +1786,46 @@ export default function Financials() {
             ))}
           </SelectContent>
         </Select>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1 flex-wrap">
+          {entry.paymentStatus === "PAID" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-green-600 hover:bg-green-50 dark:hover:bg-green-950 text-xs"
+              onClick={() => sendPaymentConfirmation.mutate({
+                signupId: entry.signupId,
+                sessionId: entry.sessionId,
+                playerId: entry.playerId,
+                immediate: true,
+              })}
+              disabled={sendPaymentConfirmation.isPending}
+              data-testid={`button-send-confirmation-${entry.signupId}`}
+              title="Send payment confirmation to player"
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Confirm
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 text-xs"
+              onClick={() => sendPaymentReminder.mutate({
+                signupId: entry.signupId,
+                sessionId: entry.sessionId,
+                playerId: entry.playerId,
+              })}
+              disabled={sendPaymentReminder.isPending}
+              data-testid={`button-send-reminder-${entry.signupId}`}
+              title="Send payment reminder to player"
+            >
+              <Bell className="h-3 w-3 mr-1" />
+              Remind
+            </Button>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-1 flex-wrap">
@@ -2221,6 +2366,51 @@ export default function Financials() {
             </div>
           </div>
 
+          {selectedEntries.size > 0 && (
+            <Card className="mb-4 border-primary/30 bg-primary/5">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-sm font-medium" data-testid="text-selected-count">
+                    {selectedEntries.size} entry{selectedEntries.size !== 1 ? "ies" : ""} selected
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                      onClick={() => handleBulkConfirmation(true)}
+                      disabled={bulkPaymentConfirmation.isPending}
+                      data-testid="button-bulk-send-confirmation"
+                    >
+                      {bulkPaymentConfirmation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                      Send Confirmations
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                      onClick={() => handleBulkReminder()}
+                      disabled={bulkPaymentReminder.isPending}
+                      data-testid="button-bulk-send-reminder"
+                    >
+                      {bulkPaymentReminder.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Bell className="h-3 w-3 mr-1" />}
+                      Send Reminders
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedEntries(new Set())}
+                      data-testid="button-clear-selection"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {activeSessionGroupsList.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
@@ -2452,6 +2642,22 @@ export default function Financials() {
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead className="w-8 px-2">
+                                <input
+                                  type="checkbox"
+                                  checked={entries.every(e => selectedEntries.has(e.signupId))}
+                                  onChange={() => {
+                                    const allSelected = entries.every(e => selectedEntries.has(e.signupId));
+                                    setSelectedEntries(prev => {
+                                      const next = new Set(prev);
+                                      entries.forEach(e => allSelected ? next.delete(e.signupId) : next.add(e.signupId));
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded cursor-pointer accent-primary"
+                                  data-testid={`checkbox-select-all-${sessionId}`}
+                                />
+                              </TableHead>
                               <TableHead>
                                 <button
                                   className="flex items-center gap-1 cursor-pointer"
@@ -2470,6 +2676,7 @@ export default function Financials() {
                               <TableHead>Status</TableHead>
                               <TableHead>Action</TableHead>
                               <TableHead>Attendance</TableHead>
+                              <TableHead>Notify</TableHead>
                               <TableHead>Credit</TableHead>
                             </TableRow>
                           </TableHeader>

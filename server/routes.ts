@@ -8335,6 +8335,181 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
+  // Admin: Send payment confirmation notification to player (when marking as paid)
+  app.post("/api/admin/send-payment-confirmation", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { signupId, sessionId, playerId, immediate } = req.body;
+
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const [signup] = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId));
+    if (!signup) return res.status(404).json({ message: "Signup not found" });
+
+    const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId));
+    if (!profile) return res.status(404).json({ message: "Player not found" });
+
+    const club = await storage.getClub(session.clubId);
+    const feeDisplay = `£${(signup.fee / 100).toFixed(2)}`;
+    const sessionDate = session.date ? new Date(session.date).toLocaleDateString("en-GB") : "";
+    const adminName = req.user!.fullName || "An admin";
+
+    const notifTitle = "Payment Received";
+    const notifMessage = `Your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} at ${club?.name || "your club"} has been confirmed as received. Thank you!`;
+
+    const sendNotification = async () => {
+      await storage.createNotification({
+        userId: profile.userId,
+        type: "PAYMENT_CONFIRMED",
+        title: notifTitle,
+        message: notifMessage,
+        linkUrl: "/profile",
+      });
+
+      await db.insert(internalMessages).values({
+        senderId: req.user!.id,
+        recipientId: profile.userId,
+        subject: `Payment Confirmed - ${session.title}`,
+        body: `Hi, your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} has been marked as received by ${adminName}. Thank you for your payment!`,
+        clubId: session.clubId,
+        messageCategory: "PAYMENT",
+      });
+    };
+
+    if (immediate) {
+      await sendNotification();
+    } else {
+      setTimeout(async () => {
+        try {
+          const [currentSignup] = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId));
+          if (currentSignup && currentSignup.paymentStatus === "PAID") {
+            await sendNotification();
+          }
+        } catch (err) {
+          console.error("[DELAYED PAYMENT CONFIRMATION] Error sending delayed notification:", err);
+        }
+      }, 15 * 60 * 1000);
+    }
+
+    res.json({ success: true, delayed: !immediate });
+  });
+
+  // Admin: Bulk send payment confirmations
+  app.post("/api/admin/bulk-payment-confirmation", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { entries, immediate } = req.body;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ message: "No entries provided" });
+    }
+
+    try {
+      let sent = 0;
+      for (const entry of entries) {
+        const { signupId, sessionId, playerId } = entry;
+        const session = await storage.getSession(sessionId);
+        if (!session) continue;
+
+        const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+        if (!canAccess) continue;
+
+        const [signup] = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId));
+        if (!signup || signup.paymentStatus !== "PAID") continue;
+
+        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId));
+        if (!profile) continue;
+
+        const club = await storage.getClub(session.clubId);
+        const feeDisplay = `£${(signup.fee / 100).toFixed(2)}`;
+        const sessionDate = session.date ? new Date(session.date).toLocaleDateString("en-GB") : "";
+        const adminName = req.user!.fullName || "An admin";
+
+        await storage.createNotification({
+          userId: profile.userId,
+          type: "PAYMENT_CONFIRMED",
+          title: "Payment Received",
+          message: `Your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} at ${club?.name || "your club"} has been confirmed as received. Thank you!`,
+          linkUrl: "/profile",
+        });
+
+        await db.insert(internalMessages).values({
+          senderId: req.user!.id,
+          recipientId: profile.userId,
+          subject: `Payment Confirmed - ${session.title}`,
+          body: `Hi, your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} has been marked as received by ${adminName}. Thank you for your payment!`,
+          clubId: session.clubId,
+          messageCategory: "PAYMENT",
+        });
+        sent++;
+      }
+
+      res.json({ success: true, sent });
+    } catch (err: any) {
+      console.error("Error bulk sending payment confirmations:", err);
+      res.status(500).json({ message: err.message || "Failed to send confirmations" });
+    }
+  });
+
+  // Admin: Bulk send payment reminders
+  app.post("/api/admin/bulk-payment-reminder", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { entries } = req.body;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ message: "No entries provided" });
+    }
+
+    try {
+      let sent = 0;
+      for (const entry of entries) {
+        const { signupId, sessionId, playerId } = entry;
+        const session = await storage.getSession(sessionId);
+        if (!session) continue;
+
+        const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+        if (!canAccess) continue;
+
+        const [signup] = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId));
+        if (!signup || signup.paymentStatus === "PAID") continue;
+
+        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId));
+        if (!profile) continue;
+
+        const club = await storage.getClub(session.clubId);
+        const feeDisplay = `£${(signup.fee / 100).toFixed(2)}`;
+        const sessionDate = session.date ? new Date(session.date).toLocaleDateString("en-GB") : "";
+
+        const bankInfo = club?.bankAccountName ? `${club.bankAccountName} | Sort: ${club.bankSortCode} | Acc: ${club.bankAccountNumber}` : "your club's bank account";
+
+        await storage.createNotification({
+          userId: profile.userId,
+          type: "PAYMENT_REMINDER",
+          title: "Payment Reminder",
+          message: `Your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} at ${club?.name || "your club"} is outstanding. Please pay to ${bankInfo}. You can confirm your payment on your Profile page.`,
+          linkUrl: "/profile",
+        });
+
+        await db.insert(internalMessages).values({
+          senderId: req.user!.id,
+          recipientId: profile.userId,
+          subject: `Payment Reminder - ${session.title}`,
+          body: `Hi, this is a reminder that your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} is still outstanding. Please pay to ${bankInfo}. Once paid, you can confirm your payment on your Profile page. Thank you.`,
+          clubId: session.clubId,
+          messageCategory: "PAYMENT",
+        });
+        sent++;
+      }
+
+      res.json({ success: true, sent });
+    } catch (err: any) {
+      console.error("Error bulk sending payment reminders:", err);
+      res.status(500).json({ message: err.message || "Failed to send reminders" });
+    }
+  });
+
   // Admin: Get outstanding payments for a specific player in a club
   app.get("/api/admin/clubs/:clubId/player/:playerId/outstanding", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
