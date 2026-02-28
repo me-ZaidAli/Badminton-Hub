@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -368,6 +368,10 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/coach/juniors/skills", label: "Coach Skills Analytics", description: "Aggregate skill insights, trends, and AI reports", icon: Target, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
   ];
 
+  const exclusiveSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/black-card", label: "Black Card Management", description: "Grant Ultra Exclusive access to members", icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
+  ];
+
   const commsSections: AdminTile[] = [
     ...((myAdminClubs?.length ?? 0) > 0 ? [{ href: "/admin/announcements", label: "Announcements", description: "Post updates to club members", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/notifications", label: "Notification Settings", description: "Reminders, schedules, and delivery logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
@@ -380,6 +384,7 @@ export default function AdminDashboard() {
     { label: "Rewards & Referrals", tiles: rewardsSections },
     { label: "Analytics & Insights", tiles: analyticsSections },
     { label: "Communication", tiles: commsSections },
+    { label: "Exclusive Access", tiles: exclusiveSections },
   ].filter(s => s.tiles.length > 0);
 
   return (

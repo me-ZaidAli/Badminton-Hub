@@ -31,6 +31,7 @@ const controlSections = [
       { href: "/admin/clubs-management", label: "Clubs Management", desc: "Oversee all registered clubs", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
       { href: "/admin/import-members", label: "Import Members", desc: "Bulk upload via CSV", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
       { href: "/admin/inactive-members", label: "Inactive Members", desc: "Re-engage or remove inactive players", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
+      { href: "/admin/black-card", label: "Black Card Management", desc: "Grant Ultra Exclusive member access", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
     ],
   },
   {

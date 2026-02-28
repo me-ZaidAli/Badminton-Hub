@@ -1839,7 +1839,12 @@ export default function Profile() {
                 onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-user-name">{user.fullName || "New User"}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-user-name">{user.fullName || "New User"}</h1>
+                {(user as any).blackCardAccess && (
+                  <Crown className="h-5 w-5 text-amber-500 shrink-0" data-testid="icon-black-card-holder" />
+                )}
+              </div>
               <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
                 <Badge variant="secondary" data-testid="badge-role">
                   <Shield className="h-3 w-3 mr-1" />
@@ -1884,6 +1889,47 @@ export default function Profile() {
 
       {primaryProfile?.joinedAt && (
         <ProfileMembershipDuration joinedAt={primaryProfile.joinedAt} />
+      )}
+
+      {(user as any).blackCardAccess && (
+        <div className="relative overflow-hidden rounded-xl border border-amber-900/30" data-testid="card-black-card-visual">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.15),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.08),transparent_50%)]" />
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
+          <div className="relative p-5 sm:p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-8 rounded-md bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <CreditCard className="h-4 w-4 text-gray-950" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-500/70 font-medium">Ultra Exclusive</p>
+                  <h3 className="text-sm font-bold text-white tracking-wide">BLACK CARD</h3>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500/60" />
+                <span className="text-[10px] text-amber-500/60 uppercase tracking-wider">Member</span>
+              </div>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Cardholder</p>
+                <p className="text-sm font-semibold text-white tracking-wide">{user.fullName?.toUpperCase()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 mb-0.5">Exclusive Themes</p>
+                <p className="text-xs text-amber-500 font-medium">Midnight Neon · Cosmic Elite · Phantom Luxe</p>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-amber-900/20 flex items-center gap-2">
+              <Crown className="h-3 w-3 text-amber-500/50" />
+              <p className="text-[10px] text-gray-500">Titanium card privileges · Invite-only access</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Financial Summary */}
