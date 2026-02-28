@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Award, Users, Target,
-  FileText, ChevronDown, ChevronUp, Loader2, Sparkles, Eye, X, Activity
+  FileText, ChevronDown, ChevronUp, Loader2, Sparkles, Eye, X, Activity, Download
 } from "lucide-react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
@@ -146,6 +146,9 @@ export default function CoachJuniorSkillsDashboard() {
     enabled: !!clubId,
   });
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
+
   const reportMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/coach/juniors/reports/generate", { clubId, squadLevel }),
     onSuccess: async (res) => {
@@ -156,6 +159,53 @@ export default function CoachJuniorSkillsDashboard() {
     },
     onError: () => toast({ title: "Error", description: "Failed to generate report", variant: "destructive" }),
   });
+
+  async function handleDownloadPdf() {
+    if (!pastReports.length) return;
+    setDownloadingPdf(true);
+    try {
+      const r = await fetch(`/api/coach/juniors/reports/${pastReports[0].id}/pdf`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to download PDF");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Coach_Skills_Report.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Error", description: "Failed to download PDF", variant: "destructive" });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  async function handleExportCsv() {
+    if (!clubId) return;
+    setDownloadingCsv(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("clubId", String(clubId));
+      if (squadLevel !== "ALL") params.set("squadLevel", squadLevel);
+      const r = await fetch(`/api/coach/juniors/skills/export-csv?${params}`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to export CSV");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Junior_Skills_Export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Error", description: "Failed to export CSV", variant: "destructive" });
+    } finally {
+      setDownloadingCsv(false);
+    }
+  }
 
   const radarData = useMemo(() => {
     if (!overview?.categories) return [];
@@ -231,6 +281,28 @@ export default function CoachJuniorSkillsDashboard() {
             >
               {reportMutation.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : <Sparkles size={16} className="mr-2" />}
               Generate AI Report
+            </Button>
+            {pastReports.length > 0 && (
+              <Button
+                data-testid="button-download-pdf"
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                variant="outline"
+                className="border-white/20 text-white hover:bg-white/10"
+              >
+                {downloadingPdf ? <Loader2 className="animate-spin mr-2" size={16} /> : <Download size={16} className="mr-2" />}
+                PDF
+              </Button>
+            )}
+            <Button
+              data-testid="button-export-csv"
+              onClick={handleExportCsv}
+              disabled={downloadingCsv || !clubId}
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              {downloadingCsv ? <Loader2 className="animate-spin mr-2" size={16} /> : <FileText size={16} className="mr-2" />}
+              Export CSV
             </Button>
           </div>
         </div>

@@ -21185,6 +21185,224 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
+  app.get("/api/coach/juniors/reports/:reportId/pdf", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const reportId = Number(req.params.reportId);
+      const [report] = await db.select().from(generatedReports).where(eq(generatedReports.id, reportId));
+      if (!report) return res.status(404).json({ message: "Report not found" });
+
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(report.clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, report.clubId));
+      const squadLabel = report.squadFilter === "ALL" ? "All Squads" : (report.squadFilter || "ALL").replace(/_/g, " ");
+
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, report.clubId)];
+      if (report.squadFilter && report.squadFilter !== "ALL" && !report.squadFilter.startsWith("child:") && !["finances","matches","attendance"].includes(report.squadFilter)) {
+        profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${report.squadFilter}`);
+      }
+      const profiles = await db.select().from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const allSkills = await db.select().from(juniorSkills);
+      const allProgress = juniorUserIds.length > 0 ? await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds)) : [];
+
+      const overallAvg = profiles.length > 0 ? Math.round(profiles.reduce((s, p) => s + (p.overallSkillPercentage || 0), 0) / profiles.length) : 0;
+      const belowCount = profiles.filter(p => (p.overallSkillPercentage || 0) < 50).length;
+
+      const categoryData = categories.map(cat => {
+        const catSkills = allSkills.filter(s => s.categoryId === cat.id);
+        const skillData = catSkills.map(sk => {
+          const prog = allProgress.filter(p => p.skillId === sk.id);
+          const avg = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+          return { name: sk.name, avgScore: avg, playerCount: prog.length };
+        });
+        const catAvg = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.avgScore, 0) / skillData.length) : 0;
+        return { category: cat.name, avgScore: catAvg, skills: skillData };
+      });
+
+      const PDFDocument = (await import("pdfkit")).default;
+      const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+
+      const clubSlug = (club?.name || "Club").replace(/[^a-zA-Z0-9]/g, "_");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="Coach_Skills_Report_${clubSlug}.pdf"`);
+      doc.pipe(res);
+
+      const gold = "#B8941E";
+      const darkGray = "#333333";
+      const midGray = "#666666";
+      const lightGray = "#F5F5F0";
+      const pageWidth = 495;
+
+      doc.rect(0, 0, doc.page.width, 120).fill("#1A1A1A");
+      doc.rect(0, 120, doc.page.width, 4).fill(gold);
+      doc.fontSize(28).font("Helvetica-Bold").fillColor("#FFFFFF").text("Junior Skills Analytics Report", 50, 35);
+      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Badminton Club", 50, 70);
+      doc.fontSize(10).fillColor("#999999").text(`Generated: ${new Date(report.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}  |  Squad: ${squadLabel}`, 50, 90);
+
+      let y = 140;
+
+      const statBoxW = (pageWidth - 30) / 4;
+      const stats = [
+        { label: "TOTAL JUNIORS", value: `${juniorUserIds.length}`, color: "#D4AF37" },
+        { label: "OVERALL AVG", value: `${overallAvg}%`, color: "#22c55e" },
+        { label: "BELOW 50%", value: `${belowCount}`, color: "#ef4444" },
+        { label: "CATEGORIES", value: `${categories.length}`, color: "#3b82f6" },
+      ];
+      stats.forEach((stat, i) => {
+        const x = 50 + i * (statBoxW + 10);
+        doc.roundedRect(x, y, statBoxW, 55, 4).fillAndStroke("#FFFFFF", "#E5E5E5");
+        doc.fontSize(16).font("Helvetica-Bold").fillColor(stat.color).text(stat.value, x + 5, y + 8, { width: statBoxW - 10, align: "center" });
+        doc.fontSize(7).font("Helvetica").fillColor(midGray).text(stat.label, x + 5, y + 32, { width: statBoxW - 10, align: "center" });
+      });
+      y += 75;
+
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("Category Performance", 50, y);
+      doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
+      y += 28;
+
+      for (const cat of categoryData) {
+        if (y > 700) { doc.addPage(); y = 50; }
+        doc.fontSize(10).font("Helvetica-Bold").fillColor(darkGray).text(cat.category, 50, y, { width: 160 });
+        doc.fontSize(10).font("Helvetica-Bold").fillColor(gold).text(`${cat.avgScore}%`, 480, y, { width: 50, align: "right" });
+
+        const barX = 220; const barW = 250;
+        doc.roundedRect(barX, y + 1, barW, 12, 3).fill("#E5E5E5");
+        if (cat.avgScore > 0) {
+          const fillW = Math.max(6, (cat.avgScore / 100) * barW);
+          const barColor = cat.avgScore >= 70 ? "#22c55e" : cat.avgScore >= 40 ? gold : "#ef4444";
+          doc.roundedRect(barX, y + 1, fillW, 12, 3).fill(barColor);
+        }
+        y += 22;
+
+        for (const sk of cat.skills) {
+          if (y > 720) { doc.addPage(); y = 50; }
+          doc.fontSize(8).font("Helvetica").fillColor(midGray).text(`  ${sk.name}`, 70, y, { width: 145 });
+          doc.roundedRect(220, y + 1, 250, 8, 2).fill("#EEEEEE");
+          if (sk.avgScore > 0) {
+            const skFillW = Math.max(4, (sk.avgScore / 100) * 250);
+            const skColor = sk.avgScore >= 70 ? "#22c55e" : sk.avgScore >= 40 ? "#D4AF37" : "#ef4444";
+            doc.roundedRect(220, y + 1, skFillW, 8, 2).fill(skColor);
+          }
+          doc.fontSize(8).font("Helvetica").fillColor(darkGray).text(`${sk.avgScore}%  (${sk.playerCount})`, 480, y, { width: 60, align: "right" });
+          y += 14;
+        }
+        y += 8;
+      }
+
+      if (y > 500) { doc.addPage(); y = 50; }
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("AI Coach Analysis", 50, y);
+      doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
+      y += 28;
+
+      const reportLines = report.aiSummary.split("\n");
+      for (const line of reportLines) {
+        if (y > 720) { doc.addPage(); y = 50; }
+        const trimmed = line.trim();
+        if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+          doc.fontSize(11).font("Helvetica-Bold").fillColor(darkGray).text(trimmed.replace(/\*\*/g, ""), 50, y, { width: pageWidth });
+        } else if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          doc.fontSize(9).font("Helvetica").fillColor(midGray).text(`  •  ${trimmed.slice(2)}`, 60, y, { width: pageWidth - 10 });
+        } else if (trimmed.length > 0) {
+          doc.fontSize(9).font("Helvetica").fillColor(midGray).text(trimmed.replace(/\*\*/g, ""), 50, y, { width: pageWidth });
+        }
+        const lineFontSize = (trimmed.startsWith("**") && trimmed.endsWith("**")) ? 11 : 9;
+        y += trimmed.length > 0 ? doc.heightOfString(trimmed.replace(/\*\*/g, ""), { width: pageWidth, fontSize: lineFontSize }) + 4 : 8;
+      }
+
+      const totalPages = doc.bufferedPageRange().count;
+      for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(7).font("Helvetica").fillColor("#AAAAAA")
+          .text(`Page ${i + 1} of ${totalPages}  |  ${club?.name || "Club"}  |  ${squadLabel}  |  Confidential`, 50, doc.page.height - 30, { width: pageWidth, align: "center" });
+      }
+
+      doc.end();
+    } catch (err: any) {
+      console.error("Error generating coach report PDF:", err);
+      if (!res.headersSent) res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/juniors/skills/export-csv", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+      const accessibleClubs = await getCoachClubAccess(req);
+      if (!accessibleClubs.includes(clubId)) return res.status(403).json({ message: "Not authorized" });
+
+      const sqFilter = req.query.squadLevel as string | undefined;
+      const profileConditions: any[] = [eq(juniorProfiles.clubId, clubId)];
+      if (sqFilter && sqFilter !== "ALL") profileConditions.push(sql`${juniorProfiles.juniorLevel} = ${sqFilter}`);
+      const profiles = await db.select().from(juniorProfiles).where(and(...profileConditions));
+      const juniorUserIds = profiles.map(p => p.userId);
+
+      const juniorUsers = juniorUserIds.length > 0 ? await db.select().from(users).where(inArray(users.id, juniorUserIds)) : [];
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const allSkills = await db.select().from(juniorSkills).orderBy(juniorSkills.categoryId, juniorSkills.displayOrder);
+      const allProgress = juniorUserIds.length > 0 ? await db.select().from(juniorSkillProgress).where(inArray(juniorSkillProgress.childId, juniorUserIds)) : [];
+
+      const headers = ["Player Name", "Squad Level", "Overall %", "Attendance %", "Effort Rating", "Coach Rating"];
+      for (const cat of categories) {
+        headers.push(`${cat.name} (Avg %)`);
+        const catSkills = allSkills.filter(s => s.categoryId === cat.id);
+        for (const sk of catSkills) {
+          headers.push(sk.name);
+        }
+      }
+
+      const escCsv = (v: string) => {
+        if (v.includes(",") || v.includes('"') || v.includes("\n")) return `"${v.replace(/"/g, '""')}"`;
+        return v;
+      };
+
+      const rows: string[] = [headers.map(escCsv).join(",")];
+
+      for (const profile of profiles) {
+        const u = juniorUsers.find(usr => usr.id === profile.userId);
+        const playerProgress = allProgress.filter(p => p.childId === profile.userId);
+
+        const row: string[] = [
+          escCsv(u?.fullName || "Unknown"),
+          escCsv((profile.juniorLevel || "BEGINNER").replace(/_/g, " ")),
+          String(profile.overallSkillPercentage || 0),
+          String(profile.attendancePercentage || 0),
+          String(profile.effortRating || 0),
+          String(profile.coachRating || 0),
+        ];
+
+        for (const cat of categories) {
+          const catSkills = allSkills.filter(s => s.categoryId === cat.id);
+          const catScores = catSkills.map(sk => {
+            const prog = playerProgress.find(p => p.skillId === sk.id);
+            return prog?.percentage || 0;
+          });
+          const catAvg = catScores.length > 0 ? Math.round(catScores.reduce((s, v) => s + v, 0) / catScores.length) : 0;
+          row.push(String(catAvg));
+
+          for (const sk of catSkills) {
+            const prog = playerProgress.find(p => p.skillId === sk.id);
+            row.push(String(prog?.percentage || 0));
+          }
+        }
+
+        rows.push(row.join(","));
+      }
+
+      const csvContent = rows.join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="Junior_Skills_Export.csv"`);
+      res.send(csvContent);
+    } catch (err: any) {
+      console.error("Error exporting CSV:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
 
