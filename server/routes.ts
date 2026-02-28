@@ -21018,7 +21018,7 @@ Provide a concise report (200-250 words) covering:
         const catSkills = skills.filter(s => s.categoryId === cat.id);
         const skillData = catSkills.map(sk => {
           const prog = progress.find(p => p.skillId === sk.id);
-          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false };
+          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false, comment: prog?.comment || null };
         });
         const avgScore = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.percentage, 0) / skillData.length) : 0;
         return { category: cat.name, avgScore, skills: skillData };
@@ -21029,6 +21029,8 @@ Provide a concise report (200-250 words) covering:
       const strongest3 = categoryData.flatMap(c => c.skills.map(s => ({ ...s, category: c.category })))
         .filter(s => s.percentage > 0).sort((a, b) => b.percentage - a.percentage).slice(0, 3);
       const prioritySkills = categoryData.flatMap(c => c.skills.filter(s => s.priority).map(s => ({ ...s, category: c.category })));
+
+      const coachNotes = categoryData.flatMap(c => c.skills.filter(s => s.comment).map(s => ({ skill: s.name, category: c.category, note: s.comment })));
 
       const recentImprovement = history.length >= 2
         ? history[0].newPercentage - history[history.length - 1].newPercentage
@@ -21055,12 +21057,13 @@ Strongest Skills: ${strongest3.map(s => `${s.name} (${s.category}): ${s.percenta
 Weakest Skills: ${weakest3.map(s => `${s.name} (${s.category}): ${s.percentage}%`).join(", ")}
 Priority Focus Areas: ${prioritySkills.length > 0 ? prioritySkills.map(s => `${s.name} (${s.category})`).join(", ") : "None set"}
 Recent Progress Trend: ${recentImprovement > 0 ? `Improving (+${recentImprovement}%)` : recentImprovement < 0 ? `Needs attention (${recentImprovement}%)` : "Steady"}
+${coachNotes.length > 0 ? `\nCoach Notes on Skills:\n${coachNotes.map(n => `  ${n.skill} (${n.category}): "${n.note}"`).join("\n")}` : ""}
 
 Write a comprehensive report with these sections:
 1. **Overall Summary** (2-3 sentences about where the player is in their journey)
 2. **Strengths** (what they're doing well, be specific and encouraging)
 3. **Areas for Development** (constructive, positive framing of weaknesses)
-4. **Coach Recommendations** (2-3 specific things the player should focus on at home or in practice)
+4. **Coach Recommendations** (2-3 specific things the player should focus on at home or in practice, incorporating any coach notes provided above)
 5. **Next Steps** (what level they're working towards and what it takes to get there)
 
 Keep it to about 300 words. Be encouraging but honest.`;
@@ -21159,7 +21162,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         const catSkills = skills.filter(s => s.categoryId === cat.id);
         const skillData = catSkills.map(sk => {
           const prog = progress.find(p => p.skillId === sk.id);
-          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false };
+          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false, comment: prog?.comment || null };
         });
         const avgScore = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.percentage, 0) / skillData.length) : 0;
         return { category: cat.name, avgScore, skills: skillData };
@@ -21237,7 +21240,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         y += 22;
 
         for (const sk of cat.skills) {
-          if (y > 720) { doc.addPage(); y = 50; }
+          const skNeeded = sk.comment ? 28 : 14;
+          if (y + skNeeded > 720) { doc.addPage(); y = 50; }
           doc.fontSize(8).font("Helvetica").fillColor(midGray).text(
             `${sk.priority ? "★ " : "  "}${sk.name}`, 70, y, { width: 145 }
           );
@@ -21251,13 +21255,18 @@ Keep it to about 300 words. Be encouraging but honest.`;
           }
           doc.fontSize(8).font("Helvetica").fillColor(darkGray).text(`${sk.percentage}%`, 480, y, { width: 50, align: "right" });
           y += 14;
+          if (sk.comment) {
+            doc.fontSize(7).font("Helvetica-Oblique").fillColor("#888888").text(`Note: ${sk.comment}`, 80, y, { width: 430 });
+            y += doc.heightOfString(`Note: ${sk.comment}`, { width: 430, fontSize: 7 }) + 4;
+          }
         }
         y += 8;
       }
 
-      if (y > 500) { doc.addPage(); y = 50; }
+      const analysisHeight = doc.heightOfString(report.aiSummary.replace(/\*\*/g, ""), { width: pageWidth, fontSize: 9 }) + 50;
+      if (y + Math.min(analysisHeight, 150) > 720) { doc.addPage(); y = 50; }
 
-      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("AI Coach Analysis", 50, y);
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("Coach Analysis", 50, y);
       doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
       y += 28;
 
@@ -21322,7 +21331,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         const skillData = catSkills.map(sk => {
           const prog = allProgress.filter(p => p.skillId === sk.id);
           const avg = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
-          return { name: sk.name, avgScore: avg, playerCount: prog.length };
+          const notes = prog.filter(p => p.comment).map(p => p.comment!);
+          return { name: sk.name, avgScore: avg, playerCount: prog.length, notes };
         });
         const catAvg = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.avgScore, 0) / skillData.length) : 0;
         return { category: cat.name, avgScore: catAvg, skills: skillData };
@@ -21384,7 +21394,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         y += 22;
 
         for (const sk of cat.skills) {
-          if (y > 720) { doc.addPage(); y = 50; }
+          const skNeeded = sk.notes?.length > 0 ? 28 : 14;
+          if (y + skNeeded > 720) { doc.addPage(); y = 50; }
           doc.fontSize(8).font("Helvetica").fillColor(midGray).text(`  ${sk.name}`, 70, y, { width: 145 });
           doc.roundedRect(220, y + 1, 250, 8, 2).fill("#EEEEEE");
           if (sk.avgScore > 0) {
@@ -21394,12 +21405,18 @@ Keep it to about 300 words. Be encouraging but honest.`;
           }
           doc.fontSize(8).font("Helvetica").fillColor(darkGray).text(`${sk.avgScore}%  (${sk.playerCount})`, 480, y, { width: 60, align: "right" });
           y += 14;
+          if (sk.notes && sk.notes.length > 0) {
+            const uniqueNotes = [...new Set(sk.notes)].slice(0, 3).join("; ");
+            doc.fontSize(7).font("Helvetica-Oblique").fillColor("#888888").text(`Notes: ${uniqueNotes}`, 80, y, { width: 430 });
+            y += doc.heightOfString(`Notes: ${uniqueNotes}`, { width: 430, fontSize: 7 }) + 4;
+          }
         }
         y += 8;
       }
 
-      if (y > 500) { doc.addPage(); y = 50; }
-      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("AI Coach Analysis", 50, y);
+      const coachAnalysisHeight = doc.heightOfString(report.aiSummary.replace(/\*\*/g, ""), { width: pageWidth, fontSize: 9 }) + 50;
+      if (y + Math.min(coachAnalysisHeight, 150) > 720) { doc.addPage(); y = 50; }
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("Coach Analysis", 50, y);
       doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
       y += 28;
 

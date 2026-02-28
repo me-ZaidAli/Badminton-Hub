@@ -948,7 +948,7 @@ function ChildReportSection({ childId, childName }: { childId: number; childName
     onSuccess: (data) => {
       setReportData(data);
       setShowReport(true);
-      toast({ title: "Report Generated", description: "Your child's AI progress report is ready." });
+      toast({ title: "Report Generated", description: "Your child's coach progress report is ready." });
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -985,7 +985,7 @@ function ChildReportSection({ childId, childName }: { childId: number; childName
               <Sparkles className="h-5 w-5 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white">AI Progress Report</p>
+              <p className="text-sm font-bold text-white">Coach Progress Report</p>
               <p className="text-xs text-muted-foreground">Get a personalised coaching analysis with downloadable PDF</p>
             </div>
           </div>
@@ -1102,7 +1102,7 @@ function ChildReportSection({ childId, childName }: { childId: number; childName
 
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
                 <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" /> AI Coach Analysis
+                  <Sparkles className="h-3.5 w-3.5" /> Coach Analysis
                 </p>
                 <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
                   {reportData.report?.aiSummary}
