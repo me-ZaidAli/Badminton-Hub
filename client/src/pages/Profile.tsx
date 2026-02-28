@@ -888,7 +888,7 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
               <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-1">Important</p>
               <p className="text-sm text-muted-foreground">
-                Please use the payment reference above when making your next payment. The admin will deduct this credit from your session fee. A support ticket has been created and admins have been notified.
+                When making your bank transfer, use the payment reference above: your name, followed by the session date, and <span className="font-semibold text-foreground">CR</span> at the end. The admin will deduct this credit from your session fee. A support ticket has been created and admins have been notified.
               </p>
             </div>
           </div>
