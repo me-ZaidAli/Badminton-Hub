@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
 import { useUser } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1619,6 +1619,7 @@ export default function Clubs() {
   const { data: user } = useUser();
   const { data: clubs, isLoading } = useClubs();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
   const [selectedClub, setSelectedClub] = useState<any | null>(null);
@@ -2162,22 +2163,18 @@ export default function Clubs() {
                   const isOwner = selectedClub.ownerId === user.id;
                   if (isOwner) {
                     return (
-                      <Link href="/dashboard">
-                        <Button className="w-full sm:w-auto" data-testid="button-owner-dashboard">
-                          <Building2 className="w-4 h-4 mr-2" />
-                          Manage Club
-                        </Button>
-                      </Link>
+                      <Button className="w-full sm:w-auto" data-testid="button-owner-dashboard" onClick={() => { setSelectedClub(null); navigate("/dashboard"); }}>
+                        <Building2 className="w-4 h-4 mr-2" />
+                        Manage Club
+                      </Button>
                     );
                   }
                   const state = getJoinButtonState(selectedClub.id);
                   if (state === "member") {
                     return (
-                      <Link href="/dashboard">
-                        <Button className="w-full sm:w-auto" data-testid="button-go-dashboard">
-                          Go to Dashboard
-                        </Button>
-                      </Link>
+                      <Button className="w-full sm:w-auto" data-testid="button-go-dashboard" onClick={() => { setSelectedClub(null); navigate("/dashboard"); }}>
+                        Go to Dashboard
+                      </Button>
                     );
                   }
                   if (state === "pending") {
