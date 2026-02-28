@@ -2073,8 +2073,42 @@ export async function registerRoutes(
   // === JUNIOR ACCOUNTS ===
   app.get("/api/juniors", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const juniors = await storage.getJuniorAccounts(req.user!.id);
-    res.json(juniors);
+    try {
+      const userId = req.user!.id;
+      const ownChildren = await storage.getJuniorAccounts(userId);
+
+      const currentUser = req.user as any;
+      const isOwner = currentUser.role === "OWNER";
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(
+          eq(playerProfiles.userId, userId),
+          eq(playerProfiles.membershipStatus, "APPROVED"),
+          inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])
+        ));
+      const adminClubIds = adminProfiles.map(p => p.clubId);
+
+      let clubJuniors: any[] = [];
+      if (isOwner || adminClubIds.length > 0) {
+        const clubFilter = isOwner ? undefined : inArray(juniorProfiles.clubId, adminClubIds);
+        const juniorProfileRows = clubFilter
+          ? await db.select({ userId: juniorProfiles.userId }).from(juniorProfiles).where(clubFilter)
+          : await db.select({ userId: juniorProfiles.userId }).from(juniorProfiles);
+        const juniorUserIds = juniorProfileRows.map(p => p.userId);
+        if (juniorUserIds.length > 0) {
+          clubJuniors = await db.select().from(users)
+            .where(and(inArray(users.id, juniorUserIds), eq(users.isJunior, true)));
+        }
+      }
+
+      const ownIds = new Set(ownChildren.map(c => c.id));
+      const merged = [...ownChildren, ...clubJuniors.filter(j => !ownIds.has(j.id))];
+      merged.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+
+      res.json(merged);
+    } catch (err: any) {
+      console.error("Error fetching juniors:", err);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   app.post("/api/juniors", async (req, res) => {
@@ -2102,10 +2136,21 @@ export async function registerRoutes(
     try {
       const juniorId = Number(req.params.id);
       const junior = await storage.getUser(juniorId);
-      if (!junior || junior.parentUserId !== req.user!.id) {
-        if (req.user!.role !== "OWNER") {
-          return res.status(403).json({ message: "Not authorized to edit this junior account" });
+      if (!junior) return res.status(404).json({ message: "Junior not found" });
+      const isParent = junior.parentUserId === req.user!.id;
+      const isOwnerRole = (req.user as any).role === "OWNER";
+      let isClubAdmin = false;
+      if (!isParent && !isOwnerRole) {
+        const juniorClubs = await db.select({ clubId: juniorProfiles.clubId }).from(juniorProfiles).where(eq(juniorProfiles.userId, juniorId));
+        const juniorClubIds = juniorClubs.map(c => c.clubId);
+        if (juniorClubIds.length > 0) {
+          const adminCheck = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubId, juniorClubIds), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+          isClubAdmin = adminCheck.length > 0;
         }
+      }
+      if (!isParent && !isOwnerRole && !isClubAdmin) {
+        return res.status(403).json({ message: "Not authorized to edit this junior account" });
       }
       const { fullName, dateOfBirth, emergencyContact, medicalNotes } = req.body;
       const updates: any = {};
@@ -2125,10 +2170,21 @@ export async function registerRoutes(
     try {
       const juniorId = Number(req.params.id);
       const junior = await storage.getUser(juniorId);
-      if (!junior || junior.parentUserId !== req.user!.id) {
-        if (req.user!.role !== "OWNER") {
-          return res.status(403).json({ message: "Not authorized to delete this junior account" });
+      if (!junior) return res.status(404).json({ message: "Junior not found" });
+      const isParent = junior.parentUserId === req.user!.id;
+      const isOwnerRole = (req.user as any).role === "OWNER";
+      let isClubAdmin = false;
+      if (!isParent && !isOwnerRole) {
+        const juniorClubs = await db.select({ clubId: juniorProfiles.clubId }).from(juniorProfiles).where(eq(juniorProfiles.userId, juniorId));
+        const juniorClubIds = juniorClubs.map(c => c.clubId);
+        if (juniorClubIds.length > 0) {
+          const adminCheck = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, req.user!.id), inArray(playerProfiles.clubId, juniorClubIds), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+          isClubAdmin = adminCheck.length > 0;
         }
+      }
+      if (!isParent && !isOwnerRole && !isClubAdmin) {
+        return res.status(403).json({ message: "Not authorized to delete this junior account" });
       }
       await storage.deleteUserCompletely(juniorId);
       res.sendStatus(200);
