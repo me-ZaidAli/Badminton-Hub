@@ -1032,6 +1032,874 @@
   border-color: hsl(145 40% 25% / 0.2) !important;
 }
 
+/* ===== 1. Obsidian Gold Theme ===== */
+.obsidian-gold {
+  --background: 240 7% 6%;
+  --foreground: 43 18% 85%;
+  --primary: 43 55% 52%;
+  --primary-foreground: 240 7% 5%;
+  --secondary: 43 25% 15%;
+  --secondary-foreground: 43 20% 78%;
+  --muted: 240 5% 12%;
+  --muted-foreground: 43 12% 50%;
+  --accent: 43 55% 52%;
+  --accent-foreground: 240 7% 5%;
+  --destructive: 0 60% 40%;
+  --destructive-foreground: 43 18% 90%;
+  --card: 240 5% 9%;
+  --card-foreground: 43 18% 85%;
+  --card-border: 43 20% 14%;
+  --popover: 240 5% 10%;
+  --popover-foreground: 43 18% 85%;
+  --popover-border: 43 20% 14%;
+  --sidebar-background: 240 7% 5%;
+  --border: 43 18% 14%;
+  --input: 43 18% 14%;
+  --ring: 43 55% 52%;
+  --chart-1: 43 55% 52%;
+  --chart-2: 43 40% 40%;
+  --chart-3: 38 30% 30%;
+  --chart-4: 48 50% 46%;
+  --chart-5: 35 25% 24%;
+  --theme-accent: 43 55% 52%;
+  --theme-accent-glow: 43 55% 52%;
+  --theme-card-surface: 240 5% 9%;
+  --theme-gradient-start: 43 60% 58%;
+  --theme-gradient-end: 43 40% 38%;
+}
+
+.obsidian-gold body,
+.obsidian-gold {
+  background-color: hsl(240 7% 6%);
+  background-image:
+    radial-gradient(ellipse at 20% 15%, hsl(43 55% 52% / 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, hsl(43 40% 40% / 0.015) 0%, transparent 50%);
+}
+
+.obsidian-gold h1,
+.obsidian-gold h2,
+.obsidian-gold h3,
+.obsidian-gold h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(45 65% 68%) 0%, hsl(43 70% 52%) 50%, hsl(40 55% 42%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: obsidian-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes obsidian-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes obsidian-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(43 55% 52% / 0.1); }
+  50% { box-shadow: 0 0 16px hsl(43 55% 52% / 0.2); }
+}
+
+.obsidian-gold .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.obsidian-gold .hover-card-effect:hover {
+  box-shadow: 0 0 18px hsl(43 55% 52% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.obsidian-gold * {
+  scrollbar-color: hsl(43 25% 18%) hsl(240 7% 6%);
+}
+
+/* ===== 2. Platinum Ice Theme ===== */
+.platinum-ice {
+  --background: 210 15% 12%;
+  --foreground: 210 20% 88%;
+  --primary: 210 25% 65%;
+  --primary-foreground: 210 15% 10%;
+  --secondary: 210 15% 18%;
+  --secondary-foreground: 210 18% 78%;
+  --muted: 210 12% 16%;
+  --muted-foreground: 210 14% 55%;
+  --accent: 210 25% 65%;
+  --accent-foreground: 210 15% 10%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 210 20% 92%;
+  --card: 210 12% 15%;
+  --card-foreground: 210 20% 88%;
+  --card-border: 210 18% 22%;
+  --popover: 210 12% 16%;
+  --popover-foreground: 210 20% 88%;
+  --popover-border: 210 18% 22%;
+  --sidebar-background: 210 15% 11%;
+  --border: 210 16% 20%;
+  --input: 210 16% 20%;
+  --ring: 210 25% 65%;
+  --chart-1: 210 30% 65%;
+  --chart-2: 200 25% 55%;
+  --chart-3: 220 20% 45%;
+  --chart-4: 205 28% 60%;
+  --chart-5: 215 18% 38%;
+  --theme-accent: 210 25% 65%;
+  --theme-accent-glow: 210 30% 72%;
+  --theme-card-surface: 210 12% 15%;
+  --theme-gradient-start: 210 30% 72%;
+  --theme-gradient-end: 210 20% 50%;
+}
+
+.platinum-ice body,
+.platinum-ice {
+  background-color: hsl(210 15% 12%);
+  background-image:
+    radial-gradient(ellipse at 25% 20%, hsl(210 25% 65% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 80%, hsl(210 20% 50% / 0.02) 0%, transparent 50%);
+}
+
+.platinum-ice h1,
+.platinum-ice h2,
+.platinum-ice h3,
+.platinum-ice h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(210 30% 80%) 0%, hsl(210 28% 65%) 50%, hsl(210 22% 55%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: platinum-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes platinum-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes platinum-glow {
+  0%, 100% { box-shadow: 0 0 6px hsl(210 25% 65% / 0.08); }
+  50% { box-shadow: 0 0 14px hsl(210 25% 65% / 0.15); }
+}
+
+.platinum-ice [data-slot="card"] {
+  background: hsl(210 12% 15% / 0.85);
+  backdrop-filter: blur(16px);
+}
+
+.platinum-ice .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.platinum-ice .hover-card-effect:hover {
+  box-shadow: 0 0 16px hsl(210 25% 65% / 0.08), 0 4px 12px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.platinum-ice * {
+  scrollbar-color: hsl(210 15% 22%) hsl(210 15% 12%);
+}
+
+/* ===== 3. Emerald Performance Theme ===== */
+.emerald-performance {
+  --background: 155 40% 8%;
+  --foreground: 145 20% 88%;
+  --primary: 145 70% 42%;
+  --primary-foreground: 155 40% 5%;
+  --secondary: 155 30% 14%;
+  --secondary-foreground: 145 18% 78%;
+  --muted: 155 20% 12%;
+  --muted-foreground: 145 14% 50%;
+  --accent: 145 70% 42%;
+  --accent-foreground: 155 40% 5%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 145 20% 92%;
+  --card: 155 28% 10%;
+  --card-foreground: 145 20% 88%;
+  --card-border: 145 25% 16%;
+  --popover: 155 28% 11%;
+  --popover-foreground: 145 20% 88%;
+  --popover-border: 145 25% 16%;
+  --sidebar-background: 155 40% 7%;
+  --border: 145 20% 14%;
+  --input: 145 20% 14%;
+  --ring: 145 70% 42%;
+  --chart-1: 145 70% 42%;
+  --chart-2: 155 60% 36%;
+  --chart-3: 135 50% 30%;
+  --chart-4: 150 65% 38%;
+  --chart-5: 140 40% 25%;
+  --theme-accent: 145 70% 42%;
+  --theme-accent-glow: 145 80% 50%;
+  --theme-card-surface: 155 28% 10%;
+  --theme-gradient-start: 145 75% 50%;
+  --theme-gradient-end: 155 60% 30%;
+}
+
+.emerald-performance body,
+.emerald-performance {
+  background-color: hsl(155 40% 8%);
+  background-image:
+    radial-gradient(ellipse at 15% 15%, hsl(145 70% 42% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, hsl(155 60% 35% / 0.03) 0%, transparent 50%);
+}
+
+.emerald-performance h1,
+.emerald-performance h2,
+.emerald-performance h3,
+.emerald-performance h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(140 65% 68%) 0%, hsl(145 80% 48%) 50%, hsl(155 70% 38%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: emerald-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes emerald-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes emerald-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(145 70% 42% / 0.15); }
+  50% { box-shadow: 0 0 20px hsl(145 70% 42% / 0.3); }
+}
+
+.emerald-performance .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.emerald-performance .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(145 70% 42% / 0.15), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.emerald-performance * {
+  scrollbar-color: hsl(155 30% 18%) hsl(155 40% 8%);
+}
+
+/* ===== 4. Sapphire Velocity Theme ===== */
+.sapphire-velocity {
+  --background: 215 60% 10%;
+  --foreground: 215 25% 88%;
+  --primary: 218 100% 56%;
+  --primary-foreground: 215 60% 5%;
+  --secondary: 218 40% 16%;
+  --secondary-foreground: 218 22% 78%;
+  --muted: 215 35% 14%;
+  --muted-foreground: 215 18% 52%;
+  --accent: 218 100% 56%;
+  --accent-foreground: 215 60% 5%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 215 25% 92%;
+  --card: 215 45% 12%;
+  --card-foreground: 215 25% 88%;
+  --card-border: 218 35% 20%;
+  --popover: 215 45% 13%;
+  --popover-foreground: 215 25% 88%;
+  --popover-border: 218 35% 20%;
+  --sidebar-background: 215 60% 9%;
+  --border: 218 30% 18%;
+  --input: 218 30% 18%;
+  --ring: 218 100% 56%;
+  --chart-1: 218 100% 56%;
+  --chart-2: 210 80% 48%;
+  --chart-3: 225 65% 40%;
+  --chart-4: 215 90% 52%;
+  --chart-5: 220 55% 35%;
+  --theme-accent: 218 100% 56%;
+  --theme-accent-glow: 218 100% 65%;
+  --theme-card-surface: 215 45% 12%;
+  --theme-gradient-start: 218 100% 62%;
+  --theme-gradient-end: 225 80% 42%;
+}
+
+.sapphire-velocity body,
+.sapphire-velocity {
+  background-color: hsl(215 60% 10%);
+  background-image:
+    radial-gradient(ellipse at 20% 10%, hsl(218 100% 56% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, hsl(225 80% 42% / 0.03) 0%, transparent 50%);
+}
+
+.sapphire-velocity h1,
+.sapphire-velocity h2,
+.sapphire-velocity h3,
+.sapphire-velocity h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(215 80% 75%) 0%, hsl(218 100% 60%) 50%, hsl(225 70% 48%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: sapphire-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes sapphire-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes sapphire-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(218 100% 56% / 0.12); }
+  50% { box-shadow: 0 0 20px hsl(218 100% 56% / 0.25); }
+}
+
+.sapphire-velocity .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.sapphire-velocity .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(218 100% 56% / 0.12), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.sapphire-velocity * {
+  scrollbar-color: hsl(218 40% 22%) hsl(215 60% 10%);
+}
+
+/* ===== 5. Crimson Prestige Theme ===== */
+.crimson-prestige {
+  --background: 350 50% 8%;
+  --foreground: 20 20% 88%;
+  --primary: 350 60% 45%;
+  --primary-foreground: 20 20% 95%;
+  --secondary: 350 30% 14%;
+  --secondary-foreground: 20 18% 78%;
+  --muted: 350 20% 12%;
+  --muted-foreground: 20 12% 50%;
+  --accent: 20 55% 55%;
+  --accent-foreground: 350 50% 6%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 20 20% 92%;
+  --card: 350 35% 10%;
+  --card-foreground: 20 20% 88%;
+  --card-border: 350 25% 18%;
+  --popover: 350 35% 11%;
+  --popover-foreground: 20 20% 88%;
+  --popover-border: 350 25% 18%;
+  --sidebar-background: 350 50% 7%;
+  --border: 350 22% 16%;
+  --input: 350 22% 16%;
+  --ring: 350 60% 45%;
+  --chart-1: 350 60% 48%;
+  --chart-2: 20 55% 50%;
+  --chart-3: 340 45% 38%;
+  --chart-4: 10 50% 45%;
+  --chart-5: 355 35% 32%;
+  --theme-accent: 20 55% 55%;
+  --theme-accent-glow: 20 60% 62%;
+  --theme-card-surface: 350 35% 10%;
+  --theme-gradient-start: 350 65% 52%;
+  --theme-gradient-end: 20 60% 50%;
+}
+
+.crimson-prestige body,
+.crimson-prestige {
+  background-color: hsl(350 50% 8%);
+  background-image:
+    radial-gradient(ellipse at 15% 20%, hsl(350 60% 45% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, hsl(20 55% 55% / 0.03) 0%, transparent 50%);
+}
+
+.crimson-prestige h1,
+.crimson-prestige h2,
+.crimson-prestige h3,
+.crimson-prestige h4 {
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, hsl(20 60% 72%) 0%, hsl(350 65% 52%) 50%, hsl(340 50% 42%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: crimson-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes crimson-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes crimson-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(350 60% 45% / 0.1); }
+  50% { box-shadow: 0 0 18px hsl(350 60% 45% / 0.22); }
+}
+
+.crimson-prestige .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.crimson-prestige .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(350 60% 45% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.crimson-prestige * {
+  scrollbar-color: hsl(350 30% 18%) hsl(350 50% 8%);
+}
+
+/* ===== 6. Royal Amethyst Theme ===== */
+.royal-amethyst {
+  --background: 270 50% 8%;
+  --foreground: 270 18% 88%;
+  --primary: 265 100% 62%;
+  --primary-foreground: 270 50% 5%;
+  --secondary: 270 30% 14%;
+  --secondary-foreground: 270 18% 78%;
+  --muted: 270 22% 12%;
+  --muted-foreground: 270 14% 50%;
+  --accent: 265 100% 62%;
+  --accent-foreground: 270 50% 5%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 270 18% 92%;
+  --card: 270 35% 10%;
+  --card-foreground: 270 18% 88%;
+  --card-border: 265 28% 18%;
+  --popover: 270 35% 11%;
+  --popover-foreground: 270 18% 88%;
+  --popover-border: 265 28% 18%;
+  --sidebar-background: 270 50% 7%;
+  --border: 265 22% 16%;
+  --input: 265 22% 16%;
+  --ring: 265 100% 62%;
+  --chart-1: 265 100% 62%;
+  --chart-2: 280 70% 52%;
+  --chart-3: 255 55% 42%;
+  --chart-4: 275 80% 55%;
+  --chart-5: 260 45% 35%;
+  --theme-accent: 265 100% 62%;
+  --theme-accent-glow: 265 100% 72%;
+  --theme-card-surface: 270 35% 10%;
+  --theme-gradient-start: 265 100% 68%;
+  --theme-gradient-end: 280 70% 45%;
+}
+
+.royal-amethyst body,
+.royal-amethyst {
+  background-color: hsl(270 50% 8%);
+  background-image:
+    radial-gradient(ellipse at 20% 15%, hsl(265 100% 62% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, hsl(280 70% 45% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(265 80% 50% / 0.015) 0%, transparent 70%);
+}
+
+.royal-amethyst h1,
+.royal-amethyst h2,
+.royal-amethyst h3,
+.royal-amethyst h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(270 70% 78%) 0%, hsl(265 100% 65%) 50%, hsl(280 60% 50%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: amethyst-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes amethyst-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes amethyst-glow {
+  0%, 100% { box-shadow: 0 0 10px hsl(265 100% 62% / 0.12); }
+  50% { box-shadow: 0 0 22px hsl(265 100% 62% / 0.25); }
+}
+
+.royal-amethyst .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.royal-amethyst .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(265 100% 62% / 0.12), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.royal-amethyst * {
+  scrollbar-color: hsl(270 30% 18%) hsl(270 50% 8%);
+}
+
+/* ===== 7. Carbon Titanium Theme ===== */
+.carbon-titanium {
+  --background: 215 10% 10%;
+  --foreground: 215 12% 85%;
+  --primary: 215 15% 55%;
+  --primary-foreground: 215 10% 8%;
+  --secondary: 215 8% 16%;
+  --secondary-foreground: 215 10% 75%;
+  --muted: 215 7% 14%;
+  --muted-foreground: 215 10% 50%;
+  --accent: 215 15% 55%;
+  --accent-foreground: 215 10% 8%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 215 12% 92%;
+  --card: 215 8% 13%;
+  --card-foreground: 215 12% 85%;
+  --card-border: 215 10% 20%;
+  --popover: 215 8% 14%;
+  --popover-foreground: 215 12% 85%;
+  --popover-border: 215 10% 20%;
+  --sidebar-background: 215 10% 9%;
+  --border: 215 8% 18%;
+  --input: 215 8% 18%;
+  --ring: 215 15% 55%;
+  --chart-1: 215 18% 55%;
+  --chart-2: 210 14% 48%;
+  --chart-3: 220 12% 40%;
+  --chart-4: 212 16% 52%;
+  --chart-5: 218 10% 35%;
+  --theme-accent: 215 15% 55%;
+  --theme-accent-glow: 215 18% 62%;
+  --theme-card-surface: 215 8% 13%;
+  --theme-gradient-start: 215 18% 60%;
+  --theme-gradient-end: 215 12% 42%;
+}
+
+.carbon-titanium body,
+.carbon-titanium {
+  background-color: hsl(215 10% 10%);
+  background-image:
+    radial-gradient(ellipse at 30% 20%, hsl(215 15% 55% / 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsl(215 12% 42% / 0.015) 0%, transparent 50%);
+}
+
+.carbon-titanium h1,
+.carbon-titanium h2,
+.carbon-titanium h3,
+.carbon-titanium h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(215 16% 72%) 0%, hsl(215 18% 58%) 50%, hsl(215 14% 48%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: carbon-shimmer 9s ease-in-out infinite;
+}
+
+@keyframes carbon-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.carbon-titanium .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.carbon-titanium .hover-card-effect:hover {
+  box-shadow: 0 0 12px hsl(215 15% 55% / 0.06), 0 4px 10px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.carbon-titanium * {
+  scrollbar-color: hsl(215 8% 20%) hsl(215 10% 10%);
+}
+
+/* ===== 8. Arctic Blue Theme ===== */
+.arctic-blue {
+  --background: 205 50% 12%;
+  --foreground: 195 22% 88%;
+  --primary: 195 100% 56%;
+  --primary-foreground: 205 50% 6%;
+  --secondary: 205 35% 16%;
+  --secondary-foreground: 195 20% 78%;
+  --muted: 205 25% 15%;
+  --muted-foreground: 195 16% 52%;
+  --accent: 195 100% 56%;
+  --accent-foreground: 205 50% 6%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 195 22% 92%;
+  --card: 205 38% 14%;
+  --card-foreground: 195 22% 88%;
+  --card-border: 195 28% 22%;
+  --popover: 205 38% 15%;
+  --popover-foreground: 195 22% 88%;
+  --popover-border: 195 28% 22%;
+  --sidebar-background: 205 50% 11%;
+  --border: 195 22% 19%;
+  --input: 195 22% 19%;
+  --ring: 195 100% 56%;
+  --chart-1: 195 100% 56%;
+  --chart-2: 190 80% 48%;
+  --chart-3: 200 65% 40%;
+  --chart-4: 193 90% 52%;
+  --chart-5: 205 55% 35%;
+  --theme-accent: 195 100% 56%;
+  --theme-accent-glow: 195 100% 65%;
+  --theme-card-surface: 205 38% 14%;
+  --theme-gradient-start: 195 100% 62%;
+  --theme-gradient-end: 205 70% 40%;
+}
+
+.arctic-blue body,
+.arctic-blue {
+  background-color: hsl(205 50% 12%);
+  background-image:
+    radial-gradient(ellipse at 20% 10%, hsl(195 100% 56% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, hsl(205 70% 40% / 0.03) 0%, transparent 50%);
+}
+
+.arctic-blue h1,
+.arctic-blue h2,
+.arctic-blue h3,
+.arctic-blue h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(195 80% 75%) 0%, hsl(195 100% 58%) 50%, hsl(205 70% 45%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: arctic-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes arctic-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes arctic-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(195 100% 56% / 0.1); }
+  50% { box-shadow: 0 0 18px hsl(195 100% 56% / 0.22); }
+}
+
+.arctic-blue .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.arctic-blue .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(195 100% 56% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.arctic-blue * {
+  scrollbar-color: hsl(205 35% 22%) hsl(205 50% 12%);
+}
+
+/* ===== 9. Sunset Copper Theme ===== */
+.sunset-copper {
+  --background: 25 25% 7%;
+  --foreground: 30 22% 85%;
+  --primary: 25 60% 48%;
+  --primary-foreground: 25 25% 5%;
+  --secondary: 25 22% 14%;
+  --secondary-foreground: 30 18% 75%;
+  --muted: 25 15% 12%;
+  --muted-foreground: 30 12% 48%;
+  --accent: 25 60% 48%;
+  --accent-foreground: 25 25% 5%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 30 22% 92%;
+  --card: 25 18% 10%;
+  --card-foreground: 30 22% 85%;
+  --card-border: 25 20% 17%;
+  --popover: 25 18% 11%;
+  --popover-foreground: 30 22% 85%;
+  --popover-border: 25 20% 17%;
+  --sidebar-background: 25 25% 6%;
+  --border: 25 18% 15%;
+  --input: 25 18% 15%;
+  --ring: 25 60% 48%;
+  --chart-1: 25 60% 48%;
+  --chart-2: 30 50% 42%;
+  --chart-3: 20 42% 35%;
+  --chart-4: 28 55% 45%;
+  --chart-5: 22 35% 28%;
+  --theme-accent: 25 60% 48%;
+  --theme-accent-glow: 25 65% 55%;
+  --theme-card-surface: 25 18% 10%;
+  --theme-gradient-start: 25 65% 55%;
+  --theme-gradient-end: 15 50% 38%;
+}
+
+.sunset-copper body,
+.sunset-copper {
+  background-color: hsl(25 25% 7%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(25 60% 48% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(15 50% 38% / 0.02) 0%, transparent 50%);
+}
+
+.sunset-copper h1,
+.sunset-copper h2,
+.sunset-copper h3,
+.sunset-copper h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(30 55% 70%) 0%, hsl(25 65% 52%) 50%, hsl(15 50% 42%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: copper-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes copper-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes copper-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(25 60% 48% / 0.1); }
+  50% { box-shadow: 0 0 16px hsl(25 60% 48% / 0.2); }
+}
+
+.sunset-copper .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.sunset-copper .hover-card-effect:hover {
+  box-shadow: 0 0 18px hsl(25 60% 48% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.sunset-copper * {
+  scrollbar-color: hsl(25 22% 18%) hsl(25 25% 7%);
+}
+
+/* ===== 10. Midnight Neon Theme ===== */
+.midnight-neon {
+  --background: 230 30% 3%;
+  --foreground: 180 20% 88%;
+  --primary: 185 100% 50%;
+  --primary-foreground: 230 30% 3%;
+  --secondary: 230 18% 10%;
+  --secondary-foreground: 180 16% 75%;
+  --muted: 230 15% 8%;
+  --muted-foreground: 180 12% 48%;
+  --accent: 325 100% 58%;
+  --accent-foreground: 230 30% 3%;
+  --destructive: 0 65% 45%;
+  --destructive-foreground: 180 20% 92%;
+  --card: 230 22% 5%;
+  --card-foreground: 180 20% 88%;
+  --card-border: 230 18% 12%;
+  --popover: 230 22% 6%;
+  --popover-foreground: 180 20% 88%;
+  --popover-border: 230 18% 12%;
+  --sidebar-background: 230 30% 3%;
+  --border: 230 15% 10%;
+  --input: 230 15% 10%;
+  --ring: 185 100% 50%;
+  --chart-1: 185 100% 50%;
+  --chart-2: 325 100% 58%;
+  --chart-3: 260 80% 55%;
+  --chart-4: 140 80% 48%;
+  --chart-5: 45 90% 52%;
+  --theme-accent: 185 100% 50%;
+  --theme-accent-glow: 185 100% 60%;
+  --theme-card-surface: 230 22% 5%;
+  --theme-gradient-start: 185 100% 50%;
+  --theme-gradient-end: 325 100% 58%;
+}
+
+.midnight-neon body,
+.midnight-neon {
+  background-color: hsl(230 30% 3%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(185 100% 50% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(325 100% 58% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(260 80% 55% / 0.01) 0%, transparent 70%);
+}
+
+.midnight-neon h1,
+.midnight-neon h2,
+.midnight-neon h3,
+.midnight-neon h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(185 90% 65%) 0%, hsl(185 100% 52%) 30%, hsl(325 100% 60%) 70%, hsl(260 80% 62%) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: neon-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes neon-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes neon-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(185 100% 50% / 0.15), 0 0 4px hsl(325 100% 58% / 0.08); }
+  50% { box-shadow: 0 0 22px hsl(185 100% 50% / 0.3), 0 0 12px hsl(325 100% 58% / 0.18); }
+}
+
+.midnight-neon .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.midnight-neon .hover-card-effect:hover {
+  box-shadow: 0 0 24px hsl(185 100% 50% / 0.1), 0 0 12px hsl(325 100% 58% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.midnight-neon * {
+  scrollbar-color: hsl(230 18% 12%) hsl(230 30% 3%);
+}
+
+/* ===== 11. AMOLED Black Theme ===== */
+.amoled-black {
+  --background: 0 0% 0%;
+  --foreground: 43 15% 82%;
+  --primary: 43 65% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 6%;
+  --secondary-foreground: 43 12% 72%;
+  --muted: 0 0% 5%;
+  --muted-foreground: 43 8% 45%;
+  --accent: 43 65% 50%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 55% 38%;
+  --destructive-foreground: 43 15% 90%;
+  --card: 0 0% 3%;
+  --card-foreground: 43 15% 82%;
+  --card-border: 43 15% 10%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 43 15% 82%;
+  --popover-border: 43 15% 10%;
+  --sidebar-background: 0 0% 0%;
+  --border: 43 12% 8%;
+  --input: 43 12% 8%;
+  --ring: 43 65% 50%;
+  --chart-1: 43 60% 48%;
+  --chart-2: 38 45% 38%;
+  --chart-3: 48 35% 30%;
+  --chart-4: 40 52% 42%;
+  --chart-5: 35 28% 25%;
+  --theme-accent: 43 65% 50%;
+  --theme-accent-glow: 43 65% 50%;
+  --theme-card-surface: 0 0% 3%;
+  --theme-gradient-start: 43 65% 55%;
+  --theme-gradient-end: 43 45% 38%;
+}
+
+.amoled-black body,
+.amoled-black {
+  background-color: hsl(0 0% 0%);
+}
+
+.amoled-black h1,
+.amoled-black h2,
+.amoled-black h3,
+.amoled-black h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(45 55% 65%) 0%, hsl(43 65% 52%) 50%, hsl(40 50% 42%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.amoled-black .hover-card-effect {
+  transition: all 0.2s ease;
+}
+.amoled-black .hover-card-effect:hover {
+  box-shadow: 0 0 10px hsl(43 65% 50% / 0.06), 0 2px 8px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.amoled-black [data-slot="card"] {
+  border-color: hsl(43 15% 8%);
+}
+
+.amoled-black * {
+  scrollbar-color: hsl(43 12% 10%) hsl(0 0% 0%);
+}
+
+.amoled-black *,
+.amoled-black *::before,
+.amoled-black *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+
 .reduced-motion *,
 .reduced-motion *::before,
 .reduced-motion *::after,

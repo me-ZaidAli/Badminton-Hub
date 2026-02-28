@@ -2,21 +2,48 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-export const DISPLAY_MODES = [
-  { value: "light", label: "Light Mode", description: "Standard bright theme" },
-  { value: "dark", label: "Dark Mode", description: "Dark background, lighter text" },
-  { value: "premium-gold", label: "Premium Black & Gold", description: "Luxurious dark theme with metallic gold accents" },
-  { value: "ultra-premium", label: "Ultra-Premium Charcoal & Gold", description: "Elite charcoal black with brushed metallic gold accents" },
-  { value: "green-glow", label: "Green Glowing", description: "Futuristic neon green with transparent glowing textures" },
-  { value: "sepia", label: "Sepia / Warm Mode", description: "Reduced blue light, cream tones" },
-  { value: "migraine", label: "Migraine-Friendly", description: "Low stimulation, no harsh contrast or animations" },
-  { value: "high-contrast", label: "High Contrast", description: "Maximum readability with strong contrast" },
-  { value: "grayscale", label: "Grayscale", description: "No color, fully desaturated" },
+export interface ThemeModeInfo {
+  value: string;
+  label: string;
+  description: string;
+  grade?: "Standard" | "Accessibility" | "Premium" | "Elite" | "Signature" | "Ultra Exclusive";
+  colorFamily?: string;
+  isAmoled?: boolean;
+  isRankLocked?: boolean;
+  requiredRank?: "all" | "top10" | "champion";
+  isBlackCard?: boolean;
+  accentHex?: string;
+  gradientStart?: string;
+  gradientEnd?: string;
+  chartColors?: string[];
+}
+
+export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
+  { value: "light", label: "Light Mode", description: "Standard bright theme", grade: "Standard" },
+  { value: "dark", label: "Dark Mode", description: "Dark background, lighter text", grade: "Standard" },
+  { value: "premium-gold", label: "Premium Black & Gold", description: "Luxurious dark theme with metallic gold accents", grade: "Standard", colorFamily: "Gold", accentHex: "#D4AF37", gradientStart: "#1a1a2e", gradientEnd: "#D4AF37", chartColors: ["#D4AF37", "#B8941F", "#8B7320", "#E6C555", "#6B5B1F"] },
+  { value: "ultra-premium", label: "Ultra-Premium Charcoal & Gold", description: "Elite charcoal black with brushed metallic gold accents", grade: "Standard", colorFamily: "Gold", accentHex: "#C6A75E", gradientStart: "#050505", gradientEnd: "#C6A75E", chartColors: ["#C6A75E", "#9E843A", "#7A6428", "#DCC07A", "#584C1E"] },
+  { value: "green-glow", label: "Green Glowing", description: "Futuristic neon green with transparent glowing textures", grade: "Standard", colorFamily: "Emerald", accentHex: "#00FF88", gradientStart: "#0a0f0a", gradientEnd: "#00FF88", chartColors: ["#00FF88", "#00CC6A", "#009950", "#33FFaa", "#006633"] },
+  { value: "sepia", label: "Sepia / Warm Mode", description: "Reduced blue light, cream tones", grade: "Accessibility" },
+  { value: "migraine", label: "Migraine-Friendly", description: "Low stimulation, no harsh contrast or animations", grade: "Accessibility" },
+  { value: "high-contrast", label: "High Contrast", description: "Maximum readability with strong contrast", grade: "Accessibility" },
+  { value: "grayscale", label: "Grayscale", description: "No color, fully desaturated", grade: "Accessibility" },
+  { value: "obsidian-gold", label: "Obsidian Gold", description: "Deep charcoal with brushed gold and matte black cards", grade: "Premium", colorFamily: "Gold", requiredRank: "all", accentHex: "#C6A75E", gradientStart: "#0F0F10", gradientEnd: "#C6A75E", chartColors: ["#C6A75E", "#A8894A", "#8A6C36", "#D4B96E", "#6B5028"] },
+  { value: "platinum-ice", label: "Platinum Ice", description: "Icy silver and steel grey with glassmorphism cards", grade: "Premium", colorFamily: "Platinum", requiredRank: "all", accentHex: "#D9E1E8", gradientStart: "#2F3A45", gradientEnd: "#D9E1E8", chartColors: ["#B0BEC5", "#90A4AE", "#78909C", "#CFD8DC", "#607D8B"] },
+  { value: "emerald-performance", label: "Emerald Performance", description: "Deep emerald with bright green glow effects", grade: "Premium", colorFamily: "Emerald", requiredRank: "all", accentHex: "#1DB954", gradientStart: "#0E3B2E", gradientEnd: "#1DB954", chartColors: ["#1DB954", "#17A34A", "#0F8C3E", "#4ADE80", "#0A7030"] },
+  { value: "sapphire-velocity", label: "Sapphire Velocity", description: "Midnight navy with sapphire neon data visualisation", grade: "Elite", colorFamily: "Sapphire", isRankLocked: true, requiredRank: "top10", accentHex: "#1F6FFF", gradientStart: "#0A1F3C", gradientEnd: "#1F6FFF", chartColors: ["#1F6FFF", "#4D8FFF", "#82B1FF", "#0040CC", "#003399"] },
+  { value: "crimson-prestige", label: "Crimson Prestige", description: "Wine red with rose-gold accents and bold styling", grade: "Elite", colorFamily: "Crimson", isRankLocked: true, requiredRank: "top10", accentHex: "#E8A87C", gradientStart: "#5B0F1A", gradientEnd: "#E8A87C", chartColors: ["#E8A87C", "#C0392B", "#E74C3C", "#D4956B", "#922B21"] },
+  { value: "royal-amethyst", label: "Royal Amethyst", description: "Dark violet with cosmic gradients and royal purple", grade: "Signature", colorFamily: "Amethyst", isRankLocked: true, requiredRank: "champion", accentHex: "#7A3FFF", gradientStart: "#2B0F3A", gradientEnd: "#7A3FFF", chartColors: ["#7A3FFF", "#9B6BFF", "#5C2BD9", "#B794FF", "#4A1FB3"] },
+  { value: "carbon-titanium", label: "Carbon Titanium", description: "Industrial grey with titanium fintech flat design", grade: "Premium", colorFamily: "Silver", requiredRank: "all", accentHex: "#8E9AA6", gradientStart: "#1C1F24", gradientEnd: "#8E9AA6", chartColors: ["#8E9AA6", "#6B7A89", "#4A5568", "#ADB9C6", "#3D4A59"] },
+  { value: "arctic-blue", label: "Arctic Blue", description: "Cool blue with icy cyan bright data visualisation", grade: "Elite", colorFamily: "Blue", isRankLocked: true, requiredRank: "top10", accentHex: "#2EC4FF", gradientStart: "#102A43", gradientEnd: "#2EC4FF", chartColors: ["#2EC4FF", "#00B4D8", "#0096C7", "#72EFFF", "#0077B6"] },
+  { value: "sunset-copper", label: "Sunset Copper", description: "Espresso brown with warm copper gradients", grade: "Signature", colorFamily: "Copper", isRankLocked: true, requiredRank: "champion", accentHex: "#B87333", gradientStart: "#1A1410", gradientEnd: "#B87333", chartColors: ["#B87333", "#D4944A", "#8B5E28", "#E6A85C", "#6B4520"] },
+  { value: "midnight-neon", label: "Midnight Neon", description: "Ultra-dark with cyan and magenta neon glow effects", grade: "Ultra Exclusive", colorFamily: "Neon", isBlackCard: true, accentHex: "#00F5FF", gradientStart: "#08090D", gradientEnd: "#FF2DA6", chartColors: ["#00F5FF", "#FF2DA6", "#7B61FF", "#FFE156", "#00FF88"] },
+  { value: "amoled-black", label: "AMOLED Black", description: "True black for OLED screens, energy-efficient gold accents", grade: "Premium", colorFamily: "Onyx", isAmoled: true, requiredRank: "all", accentHex: "#D4AF37", gradientStart: "#000000", gradientEnd: "#D4AF37", chartColors: ["#D4AF37", "#C0392B", "#2ECC71", "#3498DB", "#9B59B6"] },
 ] as const;
 
-export type DisplayMode = typeof DISPLAY_MODES[number]["value"];
+export type DisplayMode = string;
 
-const THEME_CLASSES: Record<DisplayMode, string[]> = {
+const THEME_CLASSES: Record<string, string[]> = {
   light: [],
   dark: ["dark"],
   "premium-gold": ["dark", "premium-gold"],
@@ -26,9 +53,33 @@ const THEME_CLASSES: Record<DisplayMode, string[]> = {
   migraine: ["migraine"],
   "high-contrast": ["high-contrast"],
   grayscale: ["grayscale"],
+  "obsidian-gold": ["dark", "obsidian-gold"],
+  "platinum-ice": ["dark", "platinum-ice"],
+  "emerald-performance": ["dark", "emerald-performance"],
+  "sapphire-velocity": ["dark", "sapphire-velocity"],
+  "crimson-prestige": ["dark", "crimson-prestige"],
+  "royal-amethyst": ["dark", "royal-amethyst"],
+  "carbon-titanium": ["dark", "carbon-titanium"],
+  "arctic-blue": ["dark", "arctic-blue"],
+  "sunset-copper": ["dark", "sunset-copper"],
+  "midnight-neon": ["dark", "midnight-neon"],
+  "amoled-black": ["dark", "amoled-black"],
 };
 
-const ALL_THEME_CLASSES = ["dark", "premium-gold", "ultra-premium", "green-glow", "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion"];
+const ALL_THEME_CLASSES = [
+  "dark", "premium-gold", "ultra-premium", "green-glow",
+  "sepia", "migraine", "high-contrast", "grayscale", "reduced-motion",
+  "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
+  "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
+  "sunset-copper", "midnight-neon", "amoled-black",
+];
+
+const DARK_THEMES = new Set([
+  "dark", "premium-gold", "ultra-premium", "green-glow",
+  "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
+  "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
+  "sunset-copper", "midnight-neon", "amoled-black",
+]);
 
 function getInitialMode(): DisplayMode {
   if (typeof window !== "undefined") {
@@ -62,12 +113,12 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 function applyThemeClasses(mode: DisplayMode, reducedMotion: boolean) {
   const root = document.documentElement;
   ALL_THEME_CLASSES.forEach(cls => root.classList.remove(cls));
-  const themeClasses = THEME_CLASSES[mode];
+  const themeClasses = THEME_CLASSES[mode] || [];
   themeClasses.forEach(cls => root.classList.add(cls));
   if (reducedMotion || mode === "migraine") root.classList.add("reduced-motion");
 }
 
-export { ThemeContext };
+export { ThemeContext, THEME_CLASSES, ALL_THEME_CLASSES, DARK_THEMES };
 
 export function useThemeProvider() {
   const [displayMode, setDisplayModeState] = useState<DisplayMode>(getInitialMode);
@@ -129,7 +180,7 @@ export function useTheme() {
     const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialMode);
     const [reducedMotion, setReducedMotion] = useState<boolean>(getInitialReducedMotion);
     return {
-      theme: (displayMode === "dark" || displayMode === "premium-gold" || displayMode === "ultra-premium" || displayMode === "green-glow") ? "dark" as const : "light" as const,
+      theme: DARK_THEMES.has(displayMode) ? "dark" as const : "light" as const,
       displayMode,
       reducedMotion,
       setDisplayMode: (mode: DisplayMode) => {
@@ -157,7 +208,7 @@ export function useTheme() {
     };
   }
   return {
-    theme: (ctx.displayMode === "dark" || ctx.displayMode === "premium-gold" || ctx.displayMode === "ultra-premium" || ctx.displayMode === "green-glow") ? "dark" as const : "light" as const,
+    theme: DARK_THEMES.has(ctx.displayMode) ? "dark" as const : "light" as const,
     displayMode: ctx.displayMode,
     reducedMotion: ctx.reducedMotion,
     setDisplayMode: ctx.setDisplayMode,

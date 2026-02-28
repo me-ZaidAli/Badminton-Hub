@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
+const MODE_ICONS: Record<string, typeof Sun> = {
   light: Sun,
   dark: Moon,
   "premium-gold": Crown,
@@ -20,11 +20,29 @@ const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
   migraine: Eye,
   "high-contrast": Contrast,
   grayscale: CircleOff,
+  "obsidian-gold": Diamond,
+  "platinum-ice": Snowflake,
+  "emerald-performance": Leaf,
+  "sapphire-velocity": Rocket,
+  "crimson-prestige": Flame,
+  "royal-amethyst": Sparkles,
+  "carbon-titanium": Cpu,
+  "arctic-blue": Waves,
+  "sunset-copper": Sunset,
+  "midnight-neon": Shield,
+  "amoled-black": Monitor,
 };
+
+const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Accessibility"] as const;
 
 export function ThemeToggle() {
   const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();
   const CurrentIcon = MODE_ICONS[displayMode] || Sun;
+
+  const grouped = GRADE_ORDER.map(grade => ({
+    grade,
+    modes: DISPLAY_MODES.filter(m => m.grade === grade),
+  })).filter(g => g.modes.length > 0);
 
   return (
     <DropdownMenu>
@@ -37,26 +55,36 @@ export function ThemeToggle() {
           <CurrentIcon className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>Display Mode</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {DISPLAY_MODES.map((mode) => {
-          const Icon = MODE_ICONS[mode.value];
-          return (
-            <DropdownMenuItem
-              key={mode.value}
-              onClick={() => setDisplayMode(mode.value)}
-              className={displayMode === mode.value ? "bg-muted" : ""}
-              data-testid={`menu-display-mode-${mode.value}`}
-            >
-              <Icon className="h-4 w-4 mr-2 shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">{mode.label}</span>
-                <span className="text-xs text-muted-foreground">{mode.description}</span>
-              </div>
-            </DropdownMenuItem>
-          );
-        })}
+      <DropdownMenuContent align="end" className="w-64 max-h-[70vh] overflow-y-auto">
+        {grouped.map((group, gi) => (
+          <div key={group.grade}>
+            {gi > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+              {group.grade}
+            </DropdownMenuLabel>
+            {group.modes.map((mode) => {
+              const Icon = MODE_ICONS[mode.value] || Sun;
+              const isActive = displayMode === mode.value;
+              return (
+                <DropdownMenuItem
+                  key={mode.value}
+                  onClick={() => setDisplayMode(mode.value)}
+                  className={isActive ? "bg-muted" : ""}
+                  data-testid={`menu-display-mode-${mode.value}`}
+                >
+                  <Icon className="h-4 w-4 mr-2 shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">{mode.label}</span>
+                    <span className="text-xs text-muted-foreground truncate">{mode.description}</span>
+                  </div>
+                  {isActive && (
+                    <span className="ml-auto text-xs text-primary font-medium shrink-0">Active</span>
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
+          </div>
+        ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => setReducedMotion(!reducedMotion)}

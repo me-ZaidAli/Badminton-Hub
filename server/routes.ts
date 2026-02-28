@@ -699,10 +699,49 @@ export async function registerRoutes(
   app.patch("/api/user/display-preferences", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const validModes = ["light", "dark", "premium-gold", "ultra-premium", "green-glow", "sepia", "migraine", "high-contrast", "grayscale"];
+      const validModes = [
+        "light", "dark", "premium-gold", "ultra-premium", "green-glow",
+        "sepia", "migraine", "high-contrast", "grayscale",
+        "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
+        "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
+        "sunset-copper", "midnight-neon", "amoled-black",
+      ];
+      const lockedThemes: Record<string, string> = {
+        "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",
+        "royal-amethyst": "champion", "sunset-copper": "champion",
+        "midnight-neon": "blackcard",
+      };
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
-        updates.displayMode = req.body.displayMode;
+        const requestedMode = req.body.displayMode;
+        const lockRequirement = lockedThemes[requestedMode];
+        if (lockRequirement) {
+          const user = await storage.getUser(req.user!.id);
+          if (lockRequirement === "blackcard" && !user?.blackCardAccess) {
+            return res.status(403).json({ message: "Black Card access required for this theme" });
+          }
+          if (lockRequirement === "top10" || lockRequirement === "champion") {
+            let bestRank = "all";
+            try {
+              const allClubs = await storage.getClubs();
+              for (const club of allClubs) {
+                const leaderboard = await storage.getClubLeaderboard(club.id);
+                const idx = leaderboard.findIndex(p => p.userId === req.user!.id);
+                if (idx >= 0) {
+                  if (idx === 0 && leaderboard.length > 0) bestRank = "champion";
+                  else if (idx < 10 && bestRank !== "champion") bestRank = "top10";
+                }
+              }
+            } catch (e) { /* ignore */ }
+            if (lockRequirement === "champion" && bestRank !== "champion") {
+              return res.status(403).json({ message: "Champion rank required for this theme" });
+            }
+            if (lockRequirement === "top10" && bestRank !== "top10" && bestRank !== "champion") {
+              return res.status(403).json({ message: "Top 10 rank required for this theme" });
+            }
+          }
+        }
+        updates.displayMode = requestedMode;
       }
       if (req.body.reducedMotion !== undefined) {
         updates.reducedMotion = !!req.body.reducedMotion;
@@ -714,6 +753,80 @@ export async function registerRoutes(
       res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to update display preferences" });
+    }
+  });
+
+  app.get("/api/user/available-themes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const user = await storage.getUser(userId);
+      if (!user) return res.sendStatus(404);
+
+      const standardThemes = [
+        "light", "dark", "premium-gold", "ultra-premium", "green-glow",
+        "sepia", "migraine", "high-contrast", "grayscale",
+      ];
+      const premiumThemes = [
+        "obsidian-gold", "platinum-ice", "emerald-performance",
+        "carbon-titanium", "amoled-black",
+      ];
+      const eliteThemes = ["sapphire-velocity", "crimson-prestige", "arctic-blue"];
+      const signatureThemes = ["royal-amethyst", "sunset-copper"];
+      const blackCardThemes = ["midnight-neon"];
+
+      const unlockedThemes = [...standardThemes, ...premiumThemes];
+
+      let userRank = "all";
+      try {
+        const allClubs = await storage.getClubs();
+        for (const club of allClubs) {
+          const leaderboard = await storage.getClubLeaderboard(club.id);
+          const userIndex = leaderboard.findIndex(p => p.userId === userId);
+          if (userIndex >= 0) {
+            if (userIndex === 0 && leaderboard.length > 0) {
+              userRank = "champion";
+            } else if (userIndex < 10 && userRank !== "champion") {
+              userRank = "top10";
+            }
+          }
+        }
+      } catch (e) {
+        // ranking check failed, keep default
+      }
+
+      if (userRank === "top10" || userRank === "champion") {
+        unlockedThemes.push(...eliteThemes);
+      }
+      if (userRank === "champion") {
+        unlockedThemes.push(...signatureThemes);
+      }
+
+      const hasBlackCard = user.blackCardAccess === true;
+      if (hasBlackCard) {
+        unlockedThemes.push(...blackCardThemes);
+      }
+
+      res.json({ unlockedThemes, userRank, hasBlackCard });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to get available themes" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/black-card", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const targetUserId = parseInt(req.params.id);
+      if (isNaN(targetUserId)) return res.status(400).json({ message: "Invalid user ID" });
+      const { blackCardAccess } = req.body;
+      if (typeof blackCardAccess !== "boolean") {
+        return res.status(400).json({ message: "blackCardAccess must be a boolean" });
+      }
+      const updated = await storage.updateUser(targetUserId, { blackCardAccess });
+      res.json({ id: updated.id, blackCardAccess: updated.blackCardAccess });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update Black Card access" });
     }
   });
 

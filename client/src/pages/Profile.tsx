@@ -17,7 +17,8 @@ import {
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Crown, Gem, Trophy, Target, BarChart3, Activity, CalendarDays,
-  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake, CheckCircle
+  PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake, CheckCircle,
+  Diamond, Snowflake, Leaf, Rocket, Flame, Sparkles, Cpu, Waves, Sunset, Monitor
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -33,9 +34,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const MODE_ICONS: Record<DisplayMode, typeof Sun> = {
-  light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, "green-glow": Zap, sepia: Palette, migraine: Eye,
+const MODE_ICONS: Record<string, typeof Sun> = {
+  light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, "green-glow": Leaf, sepia: Palette, migraine: Eye,
   "high-contrast": Contrast, grayscale: CircleOff,
+  "obsidian-gold": Diamond, "platinum-ice": Snowflake, "emerald-performance": Leaf,
+  "sapphire-velocity": Rocket, "crimson-prestige": Flame, "royal-amethyst": Sparkles,
+  "carbon-titanium": Cpu, "arctic-blue": Waves, "sunset-copper": Sunset,
+  "midnight-neon": Zap, "amoled-black": Monitor,
 };
 
 function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {
@@ -628,7 +633,7 @@ function DisplayAccessibilitySection() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {DISPLAY_MODES.map((mode) => {
-            const Icon = MODE_ICONS[mode.value];
+            const Icon = MODE_ICONS[mode.value] || Sun;
             const isActive = displayMode === mode.value;
             return (
               <button key={mode.value} onClick={() => setDisplayMode(mode.value)}
