@@ -9486,17 +9486,21 @@ export async function registerRoutes(
         prorationFactor: proration.factor,
       }).returning();
 
-      const admins = await db.select().from(playerProfiles).where(and(
+      const clubAdmins = await db.select().from(playerProfiles).where(and(
         eq(playerProfiles.clubId, body.clubId),
         eq(playerProfiles.membershipStatus, "APPROVED"),
         or(eq(playerProfiles.clubRole, "OWNER"), eq(playerProfiles.clubRole, "ADMIN"))
       ));
-      for (const admin of admins) {
+      const superAdmins = await storage.getUsersByRole("OWNER");
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, body.clubId));
+      const clubName = club?.name || "a club";
+      const notifyIds = new Set([...clubAdmins.map(a => a.userId), ...superAdmins.map(s => s.id)]);
+      for (const notifyId of notifyIds) {
         await db.insert(notifications).values({
-          userId: admin.userId,
+          userId: notifyId,
           type: "MEMBERSHIP_REQUEST",
           title: "New Membership Request",
-          message: `${req.user!.fullName} has requested membership.`,
+          message: `${req.user!.fullName} has requested membership in ${clubName}.`,
           linkUrl: `/admin/memberships`,
         });
       }
