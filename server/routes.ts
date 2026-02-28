@@ -5331,6 +5331,392 @@ export async function registerRoutes(
     }
   });
 
+  // === Global Account Merge (Super Admin / OWNER only) ===
+  // Search all users across all clubs
+  app.get("/api/admin/global-users/search", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const q = (req.query.q as string || "").trim().toLowerCase();
+    if (q.length < 2) return res.json([]);
+
+    try {
+      const allUsers = await db.select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        city: users.city,
+        dateOfBirth: users.dateOfBirth,
+        role: users.role,
+        accountStatus: users.accountStatus,
+        profilePictureUrl: users.profilePictureUrl,
+        createdAt: users.createdAt,
+      }).from(users).where(
+        or(
+          sql`LOWER(${users.fullName}) LIKE ${'%' + q + '%'}`,
+          sql`LOWER(${users.email}) LIKE ${'%' + q + '%'}`
+        )
+      ).limit(30);
+
+      const results = [];
+      for (const u of allUsers) {
+        const profiles = await db.select({
+          profileId: playerProfiles.id,
+          clubId: playerProfiles.clubId,
+          grade: playerProfiles.grade,
+          gender: playerProfiles.gender,
+          category: playerProfiles.category,
+          clubRole: playerProfiles.clubRole,
+          membershipStatus: playerProfiles.membershipStatus,
+          playerStatus: playerProfiles.playerStatus,
+          matchesPlayed: playerProfiles.matchesPlayed,
+          matchesWon: playerProfiles.matchesWon,
+          rankingPoints: playerProfiles.rankingPoints,
+          deletedAt: playerProfiles.deletedAt,
+        }).from(playerProfiles).where(
+          and(eq(playerProfiles.userId, u.id), sql`${playerProfiles.deletedAt} IS NULL`)
+        );
+
+        const profilesWithClub = [];
+        let totalCredits = 0;
+        for (const p of profiles) {
+          const club = await storage.getClub(p.clubId);
+          const [creditSum] = await db.select({
+            total: sql<number>`COALESCE(SUM(amount), 0)::int`
+          }).from(creditLedger).where(
+            and(eq(creditLedger.userId, u.id), eq(creditLedger.clubId, p.clubId))
+          );
+          totalCredits += creditSum.total || 0;
+          profilesWithClub.push({
+            ...p,
+            clubName: club?.name || "Unknown",
+            credits: creditSum.total || 0,
+          });
+        }
+
+        const totalMatches = profiles.reduce((s, p) => s + (p.matchesPlayed || 0), 0);
+        const totalWins = profiles.reduce((s, p) => s + (p.matchesWon || 0), 0);
+
+        results.push({
+          ...u,
+          profiles: profilesWithClub,
+          totalMatches,
+          totalWins,
+          totalCredits,
+          clubCount: profiles.length,
+        });
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      console.error("Error searching global users:", err);
+      res.status(500).json({ message: err.message || "Search failed" });
+    }
+  });
+
+  // Global merge preview
+  app.post("/api/admin/global-merge/preview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const { keepUserId, removeUserId } = req.body;
+    if (!keepUserId || !removeUserId) return res.status(400).json({ message: "Both user IDs required" });
+    if (keepUserId === removeUserId) return res.status(400).json({ message: "Cannot merge a user with themselves" });
+
+    try {
+      const [keepUser] = await db.select().from(users).where(eq(users.id, keepUserId));
+      const [removeUser] = await db.select().from(users).where(eq(users.id, removeUserId));
+      if (!keepUser) return res.status(404).json({ message: "Keep user not found" });
+      if (!removeUser) return res.status(404).json({ message: "Remove user not found" });
+
+      const keepProfiles = await db.select().from(playerProfiles).where(
+        and(eq(playerProfiles.userId, keepUserId), sql`${playerProfiles.deletedAt} IS NULL`)
+      );
+      const removeProfiles = await db.select().from(playerProfiles).where(
+        and(eq(playerProfiles.userId, removeUserId), sql`${playerProfiles.deletedAt} IS NULL`)
+      );
+
+      const keepProfileData = [];
+      for (const p of keepProfiles) {
+        const club = await storage.getClub(p.clubId);
+        const [creditSum] = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)::int` }).from(creditLedger).where(and(eq(creditLedger.userId, keepUserId), eq(creditLedger.clubId, p.clubId)));
+        const [sessCount] = await db.select({ count: sql<number>`count(*)::int` }).from(sessionSignups).where(eq(sessionSignups.playerId, p.id));
+        const [matchCount] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(or(eq(matches.teamAPlayer1Id, p.id), eq(matches.teamAPlayer2Id, p.id), eq(matches.teamBPlayer1Id, p.id), eq(matches.teamBPlayer2Id, p.id)));
+        keepProfileData.push({
+          profileId: p.id, clubId: p.clubId, clubName: club?.name || "Unknown",
+          grade: p.grade, gender: p.gender, category: p.category,
+          clubRole: p.clubRole, membershipStatus: p.membershipStatus, playerStatus: p.playerStatus,
+          matchesPlayed: p.matchesPlayed, matchesWon: p.matchesWon, rankingPoints: p.rankingPoints,
+          credits: creditSum.total || 0, sessions: sessCount.count, matches: matchCount.count,
+        });
+      }
+
+      const removeProfileData = [];
+      for (const p of removeProfiles) {
+        const club = await storage.getClub(p.clubId);
+        const [creditSum] = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)::int` }).from(creditLedger).where(and(eq(creditLedger.userId, removeUserId), eq(creditLedger.clubId, p.clubId)));
+        const [sessCount] = await db.select({ count: sql<number>`count(*)::int` }).from(sessionSignups).where(eq(sessionSignups.playerId, p.id));
+        const [matchCount] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(or(eq(matches.teamAPlayer1Id, p.id), eq(matches.teamAPlayer2Id, p.id), eq(matches.teamBPlayer1Id, p.id), eq(matches.teamBPlayer2Id, p.id)));
+        removeProfileData.push({
+          profileId: p.id, clubId: p.clubId, clubName: club?.name || "Unknown",
+          grade: p.grade, gender: p.gender, category: p.category,
+          clubRole: p.clubRole, membershipStatus: p.membershipStatus, playerStatus: p.playerStatus,
+          matchesPlayed: p.matchesPlayed, matchesWon: p.matchesWon, rankingPoints: p.rankingPoints,
+          credits: creditSum.total || 0, sessions: sessCount.count, matches: matchCount.count,
+        });
+      }
+
+      const [keepCreditTotal] = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)::int` }).from(creditLedger).where(eq(creditLedger.userId, keepUserId));
+      const [removeCreditTotal] = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)::int` }).from(creditLedger).where(eq(creditLedger.userId, removeUserId));
+      const [removeSessionsTotal] = await db.select({ count: sql<number>`count(*)::int` }).from(sessionSignups).where(sql`player_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId} AND deleted_at IS NULL)`);
+      const [removeMatchesTotal] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(sql`team_a_player_1_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId} AND deleted_at IS NULL) OR team_a_player_2_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId} AND deleted_at IS NULL) OR team_b_player_1_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId} AND deleted_at IS NULL) OR team_b_player_2_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId} AND deleted_at IS NULL)`);
+      const [removeMembershipsCount] = await db.select({ count: sql<number>`count(*)::int` }).from(clubMemberships).where(eq(clubMemberships.userId, removeUserId));
+      const [removeMessagesCount] = await db.select({ count: sql<number>`count(*)::int` }).from(internalMessages).where(or(eq(internalMessages.senderId, removeUserId), eq(internalMessages.recipientId, removeUserId)));
+      const [removeDonationsCount] = await db.select({ count: sql<number>`count(*)::int` }).from(donations).where(eq(donations.userId, removeUserId));
+      const [removeTicketsCount] = await db.select({ count: sql<number>`count(*)::int` }).from(tickets).where(eq(tickets.createdByUserId, removeUserId));
+
+      const keepTotalMatches = keepProfileData.reduce((s, p) => s + (p.matchesPlayed || 0), 0);
+      const removeTotalMatches = removeProfileData.reduce((s, p) => s + (p.matchesPlayed || 0), 0);
+      const recommendation = (keepTotalMatches + (keepCreditTotal.total || 0)) >= (removeTotalMatches + (removeCreditTotal.total || 0)) ? "keep" : "remove";
+
+      res.json({
+        keepUser: {
+          id: keepUser.id, fullName: keepUser.fullName, email: keepUser.email,
+          phone: keepUser.phone, city: keepUser.city, dateOfBirth: keepUser.dateOfBirth,
+          role: keepUser.role, accountStatus: keepUser.accountStatus,
+          profilePictureUrl: keepUser.profilePictureUrl, createdAt: keepUser.createdAt,
+          profiles: keepProfileData,
+          totalCredits: keepCreditTotal.total || 0,
+          totalMatches: keepTotalMatches,
+        },
+        removeUser: {
+          id: removeUser.id, fullName: removeUser.fullName, email: removeUser.email,
+          phone: removeUser.phone, city: removeUser.city, dateOfBirth: removeUser.dateOfBirth,
+          role: removeUser.role, accountStatus: removeUser.accountStatus,
+          profilePictureUrl: removeUser.profilePictureUrl, createdAt: removeUser.createdAt,
+          profiles: removeProfileData,
+          totalCredits: removeCreditTotal.total || 0,
+          totalMatches: removeTotalMatches,
+        },
+        transferCounts: {
+          sessions: removeSessionsTotal.count,
+          matches: removeMatchesTotal.count,
+          creditEntries: removeCreditTotal.total || 0,
+          memberships: removeMembershipsCount.count,
+          messages: removeMessagesCount.count,
+          donations: removeDonationsCount.count,
+          tickets: removeTicketsCount.count,
+        },
+        recommendation,
+        overlappingClubs: keepProfiles.filter(kp => removeProfiles.some(rp => rp.clubId === kp.clubId)).map(kp => {
+          const rp = removeProfiles.find(r => r.clubId === kp.clubId)!;
+          return { clubId: kp.clubId, keepProfileId: kp.id, removeProfileId: rp.id };
+        }),
+        uniqueToRemove: removeProfiles.filter(rp => !keepProfiles.some(kp => kp.clubId === rp.clubId)).map(rp => ({ clubId: rp.clubId, profileId: rp.id })),
+      });
+    } catch (err: any) {
+      console.error("Error previewing global merge:", err);
+      res.status(500).json({ message: err.message || "Failed to preview merge" });
+    }
+  });
+
+  // Global merge execute
+  app.post("/api/admin/global-merge/execute", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const { keepUserId, removeUserId } = req.body;
+    if (!keepUserId || !removeUserId) return res.status(400).json({ message: "Both user IDs required" });
+    if (keepUserId === removeUserId) return res.status(400).json({ message: "Cannot merge a user with themselves" });
+
+    try {
+      const [keepUser] = await db.select().from(users).where(eq(users.id, keepUserId));
+      const [removeUser] = await db.select().from(users).where(eq(users.id, removeUserId));
+      if (!keepUser) return res.status(404).json({ message: "Keep user not found" });
+      if (!removeUser) return res.status(404).json({ message: "Remove user not found" });
+
+      if (removeUser.role === "OWNER") {
+        return res.status(400).json({ message: "Cannot remove an OWNER-role account. Change their role first or choose them as the account to keep." });
+      }
+
+      await db.execute(sql`BEGIN`);
+      try {
+        await db.execute(sql`SELECT id FROM users WHERE id IN (${keepUserId}, ${removeUserId}) FOR UPDATE`);
+
+        const keepProfiles = await db.select().from(playerProfiles).where(
+          and(eq(playerProfiles.userId, keepUserId), sql`${playerProfiles.deletedAt} IS NULL`)
+        );
+        const removeProfiles = await db.select().from(playerProfiles).where(
+          and(eq(playerProfiles.userId, removeUserId), sql`${playerProfiles.deletedAt} IS NULL`)
+        );
+        const keepClubIds = new Set(keepProfiles.map(p => p.clubId));
+
+        let totalSessionsReassigned = 0;
+        let totalMatchesReassigned = 0;
+        let totalCreditsMerged = 0;
+        let profilesMerged = 0;
+        let profilesTransferred = 0;
+
+        for (const rp of removeProfiles) {
+          if (keepClubIds.has(rp.clubId)) {
+            const keepProfile = keepProfiles.find(p => p.clubId === rp.clubId)!;
+            const priId = keepProfile.id;
+            const secId = rp.id;
+
+            const primarySignupSessionIds = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, priId));
+            const primarySessionSet = new Set(primarySignupSessionIds.map(s => s.sessionId));
+            const secondarySignupsList = await db.select().from(sessionSignups).where(eq(sessionSignups.playerId, secId));
+
+            for (const signup of secondarySignupsList) {
+              if (primarySessionSet.has(signup.sessionId)) {
+                await db.delete(sessionSignups).where(eq(sessionSignups.id, signup.id));
+              } else {
+                await db.update(sessionSignups).set({ playerId: priId }).where(eq(sessionSignups.id, signup.id));
+                totalSessionsReassigned++;
+              }
+            }
+
+            const matchCols = [
+              { col: "team_a_player_1_id", ref: matches.teamAPlayer1Id },
+              { col: "team_a_player_2_id", ref: matches.teamAPlayer2Id },
+              { col: "team_b_player_1_id", ref: matches.teamBPlayer1Id },
+              { col: "team_b_player_2_id", ref: matches.teamBPlayer2Id },
+            ];
+            for (const mc of matchCols) {
+              const result = await db.execute(sql`UPDATE matches SET ${sql.raw(mc.col)} = ${priId} WHERE ${sql.raw(mc.col)} = ${secId}`);
+              totalMatchesReassigned += (result as any).rowCount || 0;
+            }
+
+            await db.execute(sql`UPDATE tournament_teams SET player1_id = ${priId} WHERE player1_id = ${secId}`);
+            await db.execute(sql`UPDATE tournament_teams SET player2_id = ${priId} WHERE player2_id = ${secId}`);
+
+            const betterRole = rp.clubRole === "ADMIN" || rp.clubRole === "OWNER"
+              ? (keepProfile.clubRole === "OWNER" ? keepProfile.clubRole : rp.clubRole)
+              : keepProfile.clubRole;
+            const betterStatus = rp.membershipStatus === "APPROVED" ? "APPROVED" : keepProfile.membershipStatus;
+            const betterGrade = keepProfile.grade || rp.grade;
+            const betterGender = keepProfile.gender || rp.gender;
+            const totalRankingPoints = (keepProfile.rankingPoints || 0) + (rp.rankingPoints || 0);
+
+            const [matchStats] = await db.select({
+              played: sql<number>`count(DISTINCT id)::int`,
+              won: sql<number>`count(DISTINCT CASE
+                WHEN (team_a_player_1_id = ${priId} OR team_a_player_2_id = ${priId}) AND score_a > score_b THEN id
+                WHEN (team_b_player_1_id = ${priId} OR team_b_player_2_id = ${priId}) AND score_b > score_a THEN id
+              END)::int`,
+            }).from(matches).where(
+              and(
+                eq(matches.isCompleted, true),
+                or(eq(matches.teamAPlayer1Id, priId), eq(matches.teamAPlayer2Id, priId), eq(matches.teamBPlayer1Id, priId), eq(matches.teamBPlayer2Id, priId))
+              )
+            );
+
+            await db.update(playerProfiles).set({
+              clubRole: betterRole,
+              membershipStatus: betterStatus,
+              grade: betterGrade,
+              gender: betterGender,
+              rankingPoints: totalRankingPoints,
+              matchesPlayed: matchStats.played || 0,
+              matchesWon: matchStats.won || 0,
+            }).where(eq(playerProfiles.id, priId));
+
+            await db.update(playerProfiles).set({
+              deletedAt: new Date(),
+              playerStatus: "ARCHIVED",
+            }).where(eq(playerProfiles.id, secId));
+
+            profilesMerged++;
+          } else {
+            await db.update(playerProfiles).set({ userId: keepUserId }).where(eq(playerProfiles.id, rp.id));
+            profilesTransferred++;
+          }
+        }
+
+        await db.execute(sql`UPDATE credit_ledger SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE credit_ledger SET created_by_id = ${keepUserId} WHERE created_by_id = ${removeUserId}`);
+        const [creditResult] = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)::int` }).from(creditLedger).where(eq(creditLedger.userId, keepUserId));
+        totalCreditsMerged = creditResult.total || 0;
+
+        await db.execute(sql`UPDATE club_memberships SET user_id = ${keepUserId} WHERE user_id = ${removeUserId} AND club_id NOT IN (SELECT club_id FROM club_memberships WHERE user_id = ${keepUserId})`);
+        await db.execute(sql`DELETE FROM club_memberships WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE membership_requests SET user_id = ${keepUserId} WHERE user_id = ${removeUserId} AND club_id NOT IN (SELECT club_id FROM membership_requests WHERE user_id = ${keepUserId})`);
+        await db.execute(sql`DELETE FROM membership_requests WHERE user_id = ${removeUserId}`);
+
+        await db.execute(sql`UPDATE internal_messages SET sender_id = ${keepUserId} WHERE sender_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE internal_messages SET recipient_id = ${keepUserId} WHERE recipient_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE donations SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE tickets SET created_by_user_id = ${keepUserId} WHERE created_by_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE tickets SET assigned_to_user_id = ${keepUserId} WHERE assigned_to_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE ticket_replies SET author_user_id = ${keepUserId} WHERE author_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE ticket_internal_notes SET author_user_id = ${keepUserId} WHERE author_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE ticket_audit_logs SET actor_user_id = ${keepUserId} WHERE actor_user_id = ${removeUserId}`);
+        await db.delete(notifications).where(eq(notifications.userId, removeUserId));
+        await db.execute(sql`UPDATE sessions SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE clubs SET owner_id = ${keepUserId} WHERE owner_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE tournaments SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE matches SET score_entered_by_user_id = ${keepUserId} WHERE score_entered_by_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE matches SET score_updated_by_user_id = ${keepUserId} WHERE score_updated_by_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE announcements SET author_id = ${keepUserId} WHERE author_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE contact_messages SET sender_user_id = NULL WHERE sender_user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM policy_acceptances WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM reviews WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM coaches WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM coach_seeker_memberships WHERE user_id = ${removeUserId}`);
+
+        await db.execute(sql`UPDATE users SET parent_user_id = ${keepUserId} WHERE parent_user_id = ${removeUserId}`);
+
+        await db.update(users).set({
+          closedAt: new Date(),
+          closedReason: "MERGED",
+          accountStatus: "SUSPENDED",
+        }).where(eq(users.id, removeUserId));
+
+        await db.insert(profileMergeLogs).values({
+          primaryProfileId: keepProfiles[0]?.id || 0,
+          secondaryProfileId: removeProfiles[0]?.id || 0,
+          mergedByUserId: req.user!.id,
+          keptEmail: keepUser.email,
+          keptUserId: keepUserId,
+          mergeDetails: {
+            type: "GLOBAL_ACCOUNT_MERGE",
+            keepUserName: keepUser.fullName,
+            removeUserName: removeUser.fullName,
+            keepUserId,
+            removeUserId,
+            profilesMerged,
+            profilesTransferred,
+            totalSessionsReassigned,
+            totalMatchesReassigned,
+            totalCreditsMerged,
+          },
+        });
+
+        await db.execute(sql`COMMIT`);
+
+        console.log(`[ADMIN] Global account merge: kept ${keepUser.fullName} (${keepUserId}), removed ${removeUser.fullName} (${removeUserId}). By user ${req.user!.id}`);
+
+        res.json({
+          message: `Successfully merged "${removeUser.fullName}" into "${keepUser.fullName}"`,
+          details: {
+            profilesMerged,
+            profilesTransferred,
+            totalSessionsReassigned,
+            totalMatchesReassigned,
+            totalCreditsMerged,
+          },
+        });
+      } catch (txErr) {
+        await db.execute(sql`ROLLBACK`);
+        throw txErr;
+      }
+    } catch (err: any) {
+      console.error("Error executing global merge:", err);
+      res.status(500).json({ message: err.message || "Failed to execute global merge" });
+    }
+  });
+
   app.get("/api/admin/merge-logs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (req.user!.role !== "OWNER") {

@@ -20,6 +20,7 @@ import {
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift, Activity, UserX, Trophy, Award, Share2
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
+import { GlobalMergeModal } from "@/components/GlobalMergeModal";
 import { UnifiedMemberEditDialog, type MemberEditData } from "@/components/UnifiedMemberEditDialog";
 
 const controlSections = [
@@ -1126,6 +1127,7 @@ export default function GodMode() {
   const [editVenue, setEditVenue] = useState<VenueRecord | null>(null);
   const [venueModalOpen, setVenueModalOpen] = useState(false);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [globalMergeOpen, setGlobalMergeOpen] = useState(false);
 
   const { data: clubs, isLoading: clubsLoading } = useQuery<ClubRecord[]>({
     queryKey: ["/api/admin/clubs"],
@@ -1283,6 +1285,15 @@ export default function GodMode() {
             >
               <Merge className="w-4 h-4 mr-2" />
               Merge Player Profiles
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setGlobalMergeOpen(true)}
+              data-testid="button-global-merge"
+              className="ml-2 bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              <Merge className="w-4 h-4 mr-2" />
+              Global Account Merge
             </Button>
           </div>
         </CardContent>
@@ -1517,6 +1528,11 @@ export default function GodMode() {
       <MergeProfilesModal
         open={mergeModalOpen}
         onClose={() => setMergeModalOpen(false)}
+      />
+
+      <GlobalMergeModal
+        open={globalMergeOpen}
+        onClose={() => setGlobalMergeOpen(false)}
       />
 
       {!clubId && (
