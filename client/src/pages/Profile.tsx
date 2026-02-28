@@ -1892,41 +1892,60 @@ export default function Profile() {
       )}
 
       {(user as any).blackCardAccess && (
-        <div className="relative overflow-hidden rounded-xl border border-amber-900/30" data-testid="card-black-card-visual">
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.15),transparent_60%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.08),transparent_50%)]" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-          <div className="relative p-5 sm:p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-8 rounded-md bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                  <CreditCard className="h-4 w-4 text-gray-950" />
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-500/70 font-medium">Ultra Exclusive</p>
-                  <h3 className="text-sm font-bold text-white tracking-wide">BLACK CARD</h3>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500/60" />
-                <span className="text-[10px] text-amber-500/60 uppercase tracking-wider">Member</span>
-              </div>
-            </div>
-            <div className="flex items-end justify-between">
+        <div className="relative overflow-hidden rounded-2xl" data-testid="card-black-card-visual"
+          style={{
+            background: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
+            boxShadow: "0 0 0 2px #b8860b, 0 0 0 3px rgba(184,134,11,0.3), 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)",
+            aspectRatio: "1.586",
+            maxWidth: "420px",
+          }}>
+          <div className="absolute inset-0 rounded-2xl" style={{
+            background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
+          }} />
+          <div className="absolute inset-0 rounded-2xl" style={{
+            background: "radial-gradient(ellipse at 30% 20%, rgba(184,134,11,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(184,134,11,0.05) 0%, transparent 40%)",
+          }} />
+          <div className="absolute inset-[2px] rounded-2xl border border-amber-700/20" />
+          <div className="relative h-full flex flex-col justify-between p-5 sm:p-6">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-gray-400 mb-0.5">Cardholder</p>
-                <p className="text-sm font-semibold text-white tracking-wide">{user.fullName?.toUpperCase()}</p>
+                <p className="text-lg sm:text-xl font-bold tracking-[0.08em]" style={{ color: "#c5a044" }}>
+                  {user.fullName?.toUpperCase()}
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.25em] mt-0.5 font-medium" style={{ color: "#9a7d2e" }}>
+                  Titanium Gold Member
+                </p>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-500 mb-0.5">Exclusive Themes</p>
-                <p className="text-xs text-amber-500 font-medium">Midnight Neon · Cosmic Elite · Phantom Luxe</p>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
+                background: "linear-gradient(135deg, #c5a044, #8b6914)",
+                boxShadow: "0 2px 8px rgba(184,134,11,0.3)",
+              }}>
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="#1a1a1a" strokeWidth="1.5">
+                  <path d="M12 2L6 8H2L5 14L3 22H21L19 14L22 8H18L12 2Z" fill="#1a1a1a" stroke="#1a1a1a" />
+                  <path d="M7 8L12 3L17 8" stroke="#2a2a2a" strokeWidth="1" />
+                  <rect x="8" y="12" width="8" height="4" rx="0.5" fill="#2a2a2a" />
+                </svg>
               </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-amber-900/20 flex items-center gap-2">
-              <Crown className="h-3 w-3 text-amber-500/50" />
-              <p className="text-[10px] text-gray-500">Titanium card privileges · Invite-only access</p>
+            <div>
+              <div className="mb-4">
+                <svg viewBox="0 0 60 36" className="w-14 h-auto" fill="none">
+                  <path d="M10 30L20 15L30 25L40 10L50 20" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <path d="M22 8L30 2L38 8" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  <path d="M26 8L30 4L34 8" stroke="#9a7d2e" strokeWidth="1" strokeLinecap="round" fill="none" />
+                  <circle cx="30" cy="2" r="1.5" fill="#c5a044" />
+                </svg>
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-medium" style={{ color: "#7a6420" }}>
+                    Member Since {new Date((user as any).createdAt || Date.now()).getFullYear()}
+                  </p>
+                </div>
+                <p className="text-[11px] font-mono tracking-wider" style={{ color: "#9a7d2e" }}>
+                  NO. {String(user.id).padStart(4, "0")}
+                </p>
+              </div>
             </div>
           </div>
         </div>

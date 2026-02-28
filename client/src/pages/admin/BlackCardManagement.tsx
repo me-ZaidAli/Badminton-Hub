@@ -122,37 +122,85 @@ export default function BlackCardManagement() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-border/40" data-testid="card-black-card-holders">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Black Card Holders</span>
-              <Crown className="h-4 w-4 text-amber-500" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="relative overflow-hidden rounded-2xl mx-auto w-full" data-testid="card-black-card-showcase"
+          style={{
+            background: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
+            boxShadow: "0 0 0 2px #b8860b, 0 0 0 3px rgba(184,134,11,0.3), 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)",
+            aspectRatio: "1.586",
+            maxWidth: "420px",
+          }}>
+          <div className="absolute inset-0 rounded-2xl" style={{
+            background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
+          }} />
+          <div className="absolute inset-0 rounded-2xl" style={{
+            background: "radial-gradient(ellipse at 30% 20%, rgba(184,134,11,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(184,134,11,0.05) 0%, transparent 40%)",
+          }} />
+          <div className="absolute inset-[2px] rounded-2xl border border-amber-700/20" />
+          <div className="relative h-full flex flex-col justify-between p-5 sm:p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-lg sm:text-xl font-bold tracking-[0.08em]" style={{ color: "#c5a044" }}>
+                  BLACK CARD
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.25em] mt-0.5 font-medium" style={{ color: "#9a7d2e" }}>
+                  Titanium Gold Member
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
+                background: "linear-gradient(135deg, #c5a044, #8b6914)",
+                boxShadow: "0 2px 8px rgba(184,134,11,0.3)",
+              }}>
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="#1a1a1a" strokeWidth="1.5">
+                  <path d="M12 2L6 8H2L5 14L3 22H21L19 14L22 8H18L12 2Z" fill="#1a1a1a" stroke="#1a1a1a" />
+                  <path d="M7 8L12 3L17 8" stroke="#2a2a2a" strokeWidth="1" />
+                  <rect x="8" y="12" width="8" height="4" rx="0.5" fill="#2a2a2a" />
+                </svg>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-amber-500" data-testid="value-holders-count">{totalHolders}</div>
-            <p className="text-xs text-muted-foreground mt-1">Ultra Exclusive access</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/40" data-testid="card-total-members">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Total Members</span>
-              <Users className="h-4 w-4 text-muted-foreground/60" />
+            <div>
+              <div className="mb-4">
+                <svg viewBox="0 0 60 36" className="w-14 h-auto" fill="none">
+                  <path d="M10 30L20 15L30 25L40 10L50 20" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <path d="M22 8L30 2L38 8" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  <path d="M26 8L30 4L34 8" stroke="#9a7d2e" strokeWidth="1" strokeLinecap="round" fill="none" />
+                  <circle cx="30" cy="2" r="1.5" fill="#c5a044" />
+                </svg>
+              </div>
+              <div className="flex items-end justify-between">
+                <p className="text-[10px] uppercase tracking-[0.2em] font-medium" style={{ color: "#7a6420" }}>
+                  Ultra Exclusive Access
+                </p>
+                <p className="text-[11px] font-mono tracking-wider" style={{ color: "#9a7d2e" }}>
+                  {totalHolders} HOLDER{totalHolders !== 1 ? "S" : ""}
+                </p>
+              </div>
             </div>
-            <div className="text-2xl font-bold" data-testid="value-total-members">{totalMembers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Registered users</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/40" data-testid="card-exclusive-themes">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Exclusive Themes</span>
-              <Sparkles className="h-4 w-4 text-purple-500" />
-            </div>
-            <div className="text-2xl font-bold text-purple-500">3</div>
-            <p className="text-xs text-muted-foreground mt-1">Midnight Neon, Cosmic Elite, Phantom Luxe</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 content-center">
+          <Card className="border-border/40" data-testid="card-black-card-holders">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Black Card Holders</span>
+                <Crown className="h-4 w-4 text-amber-500" />
+              </div>
+              <div className="text-2xl font-bold text-amber-500" data-testid="value-holders-count">{totalHolders}</div>
+              <p className="text-xs text-muted-foreground mt-1">Out of {totalMembers} total members</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/40" data-testid="card-exclusive-themes">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Exclusive Themes</span>
+                <Sparkles className="h-4 w-4 text-purple-500" />
+              </div>
+              <div className="text-sm font-medium text-purple-400">Midnight Neon · Cosmic Elite · Phantom Luxe</div>
+              <p className="text-xs text-muted-foreground mt-1">Invite-only Ultra Exclusive tier</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card data-testid="card-black-card-filters">
