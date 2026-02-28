@@ -115,7 +115,7 @@ const ABANDONED_REASONS = ["Venue issue", "Coach issue", "Safety issue", "Weathe
 
 
 function formatPounds(pence: number): string {
-  return (pence / 100).toFixed(2);
+  return (pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 interface DonationRecord {
