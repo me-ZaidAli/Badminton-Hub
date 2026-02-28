@@ -160,6 +160,59 @@ function deduplicateGeneratedMatches(matches: MatchResult[], alreadyBusy: Set<nu
   return safe;
 }
 
+function getMatchPlayerIds(m: { teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null }): number[] {
+  return [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+}
+
+function isPlayerBusy(playerId: number, activeMatches: { id: number; teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null; status: string }[], excludeMatchId?: number): { busy: boolean; matchId?: number } {
+  for (const m of activeMatches) {
+    if (m.status !== "LIVE" && m.status !== "QUEUED") continue;
+    if (excludeMatchId && m.id === excludeMatchId) continue;
+    const ids = getMatchPlayerIds(m);
+    if (ids.includes(playerId)) {
+      return { busy: true, matchId: m.id };
+    }
+  }
+  return { busy: false };
+}
+
+async function validateMatchIntegrity(sessionId: number, context: string): Promise<string[]> {
+  const allMatches = await storage.getSessionMatches(sessionId);
+  const activeMatches = allMatches.filter(m => m.status === "LIVE" || m.status === "QUEUED");
+  const errors: string[] = [];
+  const activeAssignments = new Map<number, { matchId: number; status: string }>();
+
+  for (const match of activeMatches) {
+    const playerIds = getMatchPlayerIds(match);
+    for (const pid of playerIds) {
+      if (activeAssignments.has(pid)) {
+        const existing = activeAssignments.get(pid)!;
+        errors.push(`[INTEGRITY ${context}] Player ${pid} duplicated: match ${existing.matchId} (${existing.status}) AND match ${match.id} (${match.status})`);
+        const newerMatch = match.id > existing.matchId ? match : allMatches.find(m => m.id === existing.matchId);
+        if (newerMatch && newerMatch.status === "QUEUED") {
+          const positions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const;
+          for (const pos of positions) {
+            if ((newerMatch as any)[pos] === pid) {
+              await storage.updateMatch(newerMatch.id, { [pos]: null });
+              errors.push(`[INTEGRITY ${context}] Auto-corrected: removed player ${pid} from match ${newerMatch.id} position ${pos}`);
+              break;
+            }
+          }
+        }
+      } else {
+        activeAssignments.set(pid, { matchId: match.id, status: match.status });
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    for (const err of errors) {
+      console.warn(err);
+    }
+  }
+  return errors;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3475,7 +3528,28 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid position" });
       }
 
+      const allMatches = await storage.getSessionMatches(match.sessionId);
+      const busyCheck = isPlayerBusy(newPlayerId, allMatches, matchId);
+      if (busyCheck.busy) {
+        console.warn(`[SWAP] Player ${newPlayerId} already in match ${busyCheck.matchId}. Removing from old match first.`);
+        const oldMatch = allMatches.find(m => m.id === busyCheck.matchId);
+        if (oldMatch && oldMatch.status === "QUEUED") {
+          const positions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const;
+          for (const pos of positions) {
+            if ((oldMatch as any)[pos] === newPlayerId) {
+              await storage.updateMatch(oldMatch.id, { [pos]: null });
+              break;
+            }
+          }
+        } else if (oldMatch && oldMatch.status === "LIVE") {
+          return res.status(400).json({ message: "Cannot swap: player is currently in a LIVE match" });
+        }
+      }
+
+      const oldPlayerId = (match as any)[position] as number | null;
       const updated = await storage.updateMatch(matchId, { [position]: newPlayerId });
+
+      await validateMatchIntegrity(match.sessionId, "SWAP");
       res.json(updated);
     } catch (err: any) {
       console.error("Error swapping player:", err);
@@ -4496,14 +4570,7 @@ export async function registerRoutes(
 
     try {
       const sessionId = Number(req.params.sessionId);
-
-      if (matchGenLocks.has(sessionId)) {
-        return res.status(409).json({ message: "Match generation already in progress" });
-      }
-      matchGenLocks.add(sessionId);
-
-      try {
-      const { resumedPlayerId, mode, genderType } = req.body;
+      const { resumedPlayerId } = req.body;
 
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
@@ -4511,108 +4578,11 @@ export async function registerRoutes(
       const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.sendStatus(403);
 
-      const existingMatches = await storage.getSessionMatches(sessionId);
-      const queuedMatches = existingMatches
-        .filter(m => m.status === "QUEUED")
-        .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+      console.log(`[RESUME] Player ${resumedPlayerId} resumed in session ${sessionId}. Added to idle pool. No queued matches modified.`);
 
-      for (const qm of queuedMatches) {
-        await storage.deleteMatch(qm.id);
-      }
+      await validateMatchIntegrity(sessionId, "RESUME");
 
-      const queueTarget = session.autoGenerateActive ? 1 : Math.max(queuedMatches.length, 3);
-      const matchMode = (mode || session.matchMode || "SOCIAL") as "SOCIAL" | "COMPETITIVE";
-      const playersPerSide = session.playersPerSide || 2;
-      const playersPerMatch = playersPerSide * 2;
-      const gType = genderType || session.matchGenderType || "MIXED";
-
-      const signups = await storage.getSessionSignups(sessionId);
-      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
-      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
-      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
-
-      const livePlayerIds = new Set<number>();
-      existingMatches.filter(m => m.status === "LIVE").forEach(m => {
-        if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
-        if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
-        if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
-        if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
-      });
-
-      const players = eligibleSignups
-        .filter(s => !s.isPaused)
-        .filter(s => !livePlayerIds.has(s.player.id))
-        .map(s => ({
-          id: s.player.id,
-          gender: s.player.gender,
-          grade: s.player.grade || s.player.category || "C3",
-          isPaused: false,
-          genderOverride: s.genderOverride,
-        }));
-
-      if (players.length < playersPerMatch) {
-        return res.json({ message: "Not enough active players to regenerate queue", rebalanced: 0, matches: [] });
-      }
-
-      const nonQueuedMatches = existingMatches.filter(m => m.status !== "QUEUED");
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
-        nonQueuedMatches.map(m => ({
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          status: m.status,
-        }))
-      );
-
-      for (const p of players) {
-        if (!playerMatchCounts.has(p.id)) {
-          playerMatchCounts.set(p.id, 0);
-        }
-      }
-
-      const generated = generateSmartMatches({
-        mode: matchMode,
-        players,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: gType,
-        queueTarget,
-        recentPairings,
-        recentOpponents,
-        playerMatchCounts,
-        priorityPlayerIds: [resumedPlayerId],
-        fixedPairs: extractFixedPairs(eligibleSignups),
-      });
-
-      const safeResumeMatches = deduplicateGeneratedMatches(generated.matches, livePlayerIds);
-      const defaultTarget = session.defaultPointsToPlayTo || 21;
-      const createdMatches = await Promise.all(
-        safeResumeMatches.map((m, i) => storage.createMatch({
-          sessionId,
-          courtNumber: null,
-          queuePosition: i + 1,
-          status: "QUEUED" as const,
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          scoreA: 0,
-          scoreB: 0,
-          isCompleted: false,
-          pointsToPlayTo: defaultTarget,
-          numberOfSets: session.numberOfSets || 1,
-          currentSet: 1,
-          setsWonA: 0,
-          setsWonB: 0,
-          setScores: [],
-        }))
-      );
-
-      res.json({ rebalanced: createdMatches.length, matches: createdMatches });
-
-      } finally {
-        matchGenLocks.delete(sessionId);
-      }
+      res.json({ rebalanced: 0, matches: [], message: "Player resumed and added to idle pool. Use Generate to create new matches." });
     } catch (err: any) {
       console.error("Error handling resume:", err);
       res.status(500).json({ message: err.message || "Failed to handle resume" });
