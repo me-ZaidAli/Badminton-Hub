@@ -411,7 +411,8 @@ function MatchCard({
   const showMatchCount = isLive || isQueued;
 
   const teamANames = (
-    <div className="flex items-center gap-1 min-w-0 flex-wrap">
+    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400 shrink-0">A</span>
       <ClickablePlayerName
         player={match.teamAPlayer1}
         matchId={match.id}
@@ -421,12 +422,12 @@ function MatchCard({
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-        className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
+        className="text-sm sm:text-base font-semibold text-white truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
       />
       {match.teamAPlayer2 && (
         <>
-          <span className="text-zinc-600 text-[10px] sm:text-xs">&</span>
+          <span className="text-zinc-600 text-xs">&</span>
           <ClickablePlayerName
             player={match.teamAPlayer2}
             matchId={match.id}
@@ -436,7 +437,7 @@ function MatchCard({
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-            className="text-xs sm:text-sm font-semibold text-white truncate max-w-[45%] sm:max-w-none"
+            className="text-sm sm:text-base font-semibold text-white truncate max-w-[40%] sm:max-w-none"
             isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
           />
         </>
@@ -445,7 +446,8 @@ function MatchCard({
   );
 
   const teamBNames = (
-    <div className="flex items-center gap-1 min-w-0 flex-wrap">
+    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-orange-400 shrink-0">B</span>
       <ClickablePlayerName
         player={match.teamBPlayer1}
         matchId={match.id}
@@ -455,12 +457,12 @@ function MatchCard({
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-        className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
+        className="text-sm sm:text-base font-semibold text-zinc-200 truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)}
       />
       {match.teamBPlayer2 && (
         <>
-          <span className="text-zinc-600 text-[10px] sm:text-xs">&</span>
+          <span className="text-zinc-600 text-xs">&</span>
           <ClickablePlayerName
             player={match.teamBPlayer2}
             matchId={match.id}
@@ -470,7 +472,7 @@ function MatchCard({
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-            className="text-xs sm:text-sm font-semibold text-zinc-300 truncate max-w-[45%] sm:max-w-none"
+            className="text-sm sm:text-base font-semibold text-zinc-200 truncate max-w-[40%] sm:max-w-none"
             isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
           />
         </>
@@ -497,7 +499,7 @@ function MatchCard({
         aria-expanded={expanded}
         aria-label={`Match: ${teamADisplayNames.join(" & ")} vs ${teamBDisplayNames.join(" & ")}${isLive ? " - Live" : isCompleted ? " - Completed" : " - Queued"}`}
         className={cn(
-          "flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 select-none",
+          "flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3.5 sm:py-4 select-none",
           canExpand ? "cursor-pointer" : "cursor-default"
         )}
         onClick={toggleExpand}
@@ -642,25 +644,36 @@ function MatchCard({
               <div className="flex items-center gap-1.5">
                 {teamANames}
                 {teamAGrades.length > 0 && (
-                  <span className="text-[9px] sm:text-[10px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
+                  <span className="text-[10px] sm:text-[11px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5">
+              <div className="flex items-center gap-2 my-1">
+                <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/20 via-zinc-700/40 to-orange-500/20" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">vs</span>
+                <div className="flex-1 h-px bg-gradient-to-r from-orange-500/20 via-zinc-700/40 to-emerald-500/20" />
+              </div>
+              <div className="flex items-center gap-1.5">
                 {teamBNames}
                 {teamBGrades.length > 0 && (
-                  <span className="text-[9px] sm:text-[10px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
+                  <span className="text-[10px] sm:text-[11px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
                 )}
               </div>
             </div>
 
             {isCompleted && match.scoreA != null && match.scoreB != null && (
-              <div className="flex flex-col items-end shrink-0 mr-1">
-                <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreA ?? 0) > (match.scoreB ?? 0) ? "text-white" : "text-zinc-500")}>
-                  {match.scoreA}
-                </span>
-                <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreB ?? 0) > (match.scoreA ?? 0) ? "text-white" : "text-zinc-500")}>
-                  {match.scoreB}
-                </span>
+              <div className="flex flex-col items-end shrink-0 mr-1 gap-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-emerald-400/60 uppercase">A</span>
+                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreA ?? 0) > (match.scoreB ?? 0) ? "text-white" : "text-zinc-500")}>
+                    {match.scoreA}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-orange-400/60 uppercase">B</span>
+                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreB ?? 0) > (match.scoreA ?? 0) ? "text-white" : "text-zinc-500")}>
+                    {match.scoreB}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -707,26 +720,26 @@ function MatchCard({
           {isQueued ? (
             <div className="space-y-3 pt-2">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-900/80 rounded-xl p-2.5 border border-zinc-800/60">
-                  <p className="text-[9px] uppercase tracking-wider text-amber-400/60 mb-1.5 font-semibold">Team A</p>
+                <div className="bg-zinc-900/80 rounded-xl p-3 border border-emerald-500/15">
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-400 mb-2 font-bold">Team A</p>
                   {[match.teamAPlayer1, match.teamAPlayer2].filter(Boolean).map((p, i) => (
-                    <div key={i} className="flex items-center justify-between py-0.5">
-                      <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
+                    <div key={i} className="flex items-center justify-between py-1">
+                      <span className="text-xs sm:text-sm text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[9px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
-                        <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
+                        <span className="text-[10px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
+                        <span className="text-[10px] font-mono text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="bg-zinc-900/80 rounded-xl p-2.5 border border-zinc-800/60">
-                  <p className="text-[9px] uppercase tracking-wider text-amber-400/60 mb-1.5 font-semibold">Team B</p>
+                <div className="bg-zinc-900/80 rounded-xl p-3 border border-orange-500/15">
+                  <p className="text-[10px] uppercase tracking-wider text-orange-400 mb-2 font-bold">Team B</p>
                   {[match.teamBPlayer1, match.teamBPlayer2].filter(Boolean).map((p, i) => (
-                    <div key={i} className="flex items-center justify-between py-0.5">
-                      <span className="text-[11px] text-zinc-300 truncate">{p?.user?.fullName}</span>
+                    <div key={i} className="flex items-center justify-between py-1">
+                      <span className="text-xs sm:text-sm text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[9px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
-                        <span className="text-[9px] font-mono text-amber-400/50">{p?.category}</span>
+                        <span className="text-[10px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
+                        <span className="text-[10px] font-mono text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
                   ))}
@@ -809,32 +822,34 @@ function MatchCard({
               <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Edit Score (Admin)</p>
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-400 mb-0.5 block font-bold">
                     Team A
                   </label>
+                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => setScoreA(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    className="bg-zinc-800/80 border-emerald-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
                     placeholder="0"
                     data-testid={`compact-edit-score-a-${match.id}`}
                   />
                 </div>
-                <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
+                <div className="text-zinc-600 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-400 mb-0.5 block font-bold">
                     Team B
                   </label>
+                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => setScoreB(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    className="bg-zinc-800/80 border-orange-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
                     placeholder="0"
                     data-testid={`compact-edit-score-b-${match.id}`}
                   />
@@ -873,20 +888,22 @@ function MatchCard({
           ) : step === "confirm" ? (
             <div className="space-y-3 pt-2">
               <div className="text-center">
-                <p className="text-xs text-zinc-400 mb-2">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
-                <div className="flex items-center justify-center gap-4">
+                <p className="text-xs text-zinc-400 mb-3">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
+                <div className="flex items-center justify-center gap-6">
                   <div className="text-center">
-                    <div className={cn("text-2xl font-bold font-mono", parseInt(scoreA) > parseInt(scoreB) ? "text-[#39ff14]" : "text-white")}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Team A</p>
+                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreA) > parseInt(scoreB) ? "text-[#39ff14]" : "text-white")}>
                       {scoreA}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamADisplayNames[0]}</p>
+                    <p className="text-[11px] text-zinc-400 mt-1 truncate max-w-[120px]">{teamADisplayNames.join(" & ")}</p>
                   </div>
                   <Swords className="w-5 h-5 text-amber-400/60" />
                   <div className="text-center">
-                    <div className={cn("text-2xl font-bold font-mono", parseInt(scoreB) > parseInt(scoreA) ? "text-[#39ff14]" : "text-white")}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Team B</p>
+                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreB) > parseInt(scoreA) ? "text-[#39ff14]" : "text-white")}>
                       {scoreB}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[100px]">{teamBDisplayNames[0]}</p>
+                    <p className="text-[11px] text-zinc-400 mt-1 truncate max-w-[120px]">{teamBDisplayNames.join(" & ")}</p>
                   </div>
                 </div>
               </div>
@@ -915,32 +932,34 @@ function MatchCard({
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-400 mb-0.5 block font-bold">
                     Team A
                   </label>
+                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => setScoreA(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    className="bg-zinc-800/80 border-emerald-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
                     placeholder="0"
                     data-testid={`compact-score-a-${match.id}`}
                   />
                 </div>
-                <div className="text-zinc-600 font-bold text-sm mt-4">vs</div>
+                <div className="text-zinc-600 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block truncate">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-400 mb-0.5 block font-bold">
                     Team B
                   </label>
+                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => setScoreB(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-zinc-700 text-white text-center text-lg font-mono h-10 compact-score-input"
+                    className="bg-zinc-800/80 border-orange-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
                     placeholder="0"
                     data-testid={`compact-score-b-${match.id}`}
                   />
