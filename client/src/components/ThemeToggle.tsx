@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -31,6 +31,21 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "sunset-copper": Sunset,
   "midnight-neon": Shield,
   "amoled-black": Monitor,
+  "neon-circuit": CircuitBoard,
+  "hologram-matrix": Binary,
+  "cyber-pulse": Radio,
+  "titanium-noir": Hexagon,
+  "rose-gold-elite": Heart,
+  "diamond-graphite": Grid3x3,
+  "aurora-borealis": Mountain,
+  "volcanic-ember": Flame,
+  "deep-ocean": Droplets,
+  "jungle-vibe": TreePine,
+  "adrenaline-rush": Activity,
+  "velocity-chrome": Gauge,
+  "circuit-court": Trophy,
+  "cosmic-elite": Orbit,
+  "phantom-luxe": Ghost,
 };
 
 const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Accessibility"] as const;

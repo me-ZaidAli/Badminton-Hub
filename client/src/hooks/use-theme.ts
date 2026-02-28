@@ -39,6 +39,21 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "sunset-copper", label: "Sunset Copper", description: "Espresso brown with warm copper gradients", grade: "Signature", colorFamily: "Copper", isRankLocked: true, requiredRank: "champion", accentHex: "#B87333", gradientStart: "#1A1410", gradientEnd: "#B87333", chartColors: ["#B87333", "#D4944A", "#8B5E28", "#E6A85C", "#6B4520"] },
   { value: "midnight-neon", label: "Midnight Neon", description: "Ultra-dark with cyan and magenta neon glow effects", grade: "Ultra Exclusive", colorFamily: "Neon", isBlackCard: true, accentHex: "#00F5FF", gradientStart: "#08090D", gradientEnd: "#FF2DA6", chartColors: ["#00F5FF", "#FF2DA6", "#7B61FF", "#FFE156", "#00FF88"] },
   { value: "amoled-black", label: "AMOLED Black", description: "True black for OLED screens, energy-efficient gold accents", grade: "Premium", colorFamily: "Onyx", isAmoled: true, requiredRank: "all", accentHex: "#D4AF37", gradientStart: "#000000", gradientEnd: "#D4AF37", chartColors: ["#D4AF37", "#C0392B", "#2ECC71", "#3498DB", "#9B59B6"] },
+  { value: "neon-circuit", label: "Neon Circuit", description: "True black with cyan, magenta & lime neon lines, holographic charts", grade: "Premium", colorFamily: "Neon", isAmoled: true, requiredRank: "all", accentHex: "#00F5FF", gradientStart: "#000000", gradientEnd: "#FF2DA6", chartColors: ["#00F5FF", "#FF2DA6", "#39FF14", "#FFE156", "#7B61FF"] },
+  { value: "hologram-matrix", label: "Hologram Matrix", description: "Deep black with digital green/blue holographic charts, futuristic typography", grade: "Premium", colorFamily: "Emerald", isAmoled: true, requiredRank: "all", accentHex: "#00FF41", gradientStart: "#050508", gradientEnd: "#00D4FF", chartColors: ["#00FF41", "#00D4FF", "#7B61FF", "#FFE156", "#FF6B6B"] },
+  { value: "cyber-pulse", label: "Cyber Pulse", description: "Black with electric blue pulses, pulsing animated line charts", grade: "Premium", colorFamily: "Sapphire", isAmoled: true, requiredRank: "all", accentHex: "#0080FF", gradientStart: "#080810", gradientEnd: "#0080FF", chartColors: ["#0080FF", "#00BFFF", "#4D8FFF", "#82B1FF", "#0040CC"] },
+  { value: "titanium-noir", label: "Titanium Noir", description: "True black with brushed titanium accents, metallic reflections", grade: "Premium", colorFamily: "Silver", isAmoled: true, requiredRank: "all", accentHex: "#8E9AAF", gradientStart: "#000000", gradientEnd: "#8E9AAF", chartColors: ["#8E9AAF", "#B0BEC5", "#6B7A89", "#CFD8DC", "#4A5568"] },
+  { value: "rose-gold-elite", label: "Rose Gold Elite", description: "Warm black with rose gold highlights, copper-gold charts", grade: "Premium", colorFamily: "Copper", requiredRank: "all", accentHex: "#B76E79", gradientStart: "#0A0808", gradientEnd: "#D4A574", chartColors: ["#B76E79", "#D4A574", "#E8A87C", "#C48B65", "#8B5E5E"] },
+  { value: "diamond-graphite", label: "Diamond Graphite", description: "Graphite black with diamond sparkle accents, shimmer KPIs", grade: "Premium", colorFamily: "Platinum", requiredRank: "all", accentHex: "#E8E8E8", gradientStart: "#0C0C0E", gradientEnd: "#E8E8E8", chartColors: ["#E8E8E8", "#B0BEC5", "#90A4AE", "#CFD8DC", "#78909C"] },
+  { value: "aurora-borealis", label: "Aurora Borealis", description: "Dark sky gradients with green/purple aurora streaks, glowing KPIs", grade: "Elite", colorFamily: "Emerald", isRankLocked: true, requiredRank: "top10", accentHex: "#00FF88", gradientStart: "#050510", gradientEnd: "#8B5CF6", chartColors: ["#00FF88", "#8B5CF6", "#06B6D4", "#A78BFA", "#34D399"] },
+  { value: "volcanic-ember", label: "Volcanic Ember", description: "Ash black with molten orange/red gradients, fiery heat-map charts", grade: "Elite", colorFamily: "Crimson", isRankLocked: true, requiredRank: "top10", accentHex: "#FF6B00", gradientStart: "#0A0806", gradientEnd: "#FF3D00", chartColors: ["#FF6B00", "#FF3D00", "#FF8F00", "#D84315", "#FFB300"] },
+  { value: "deep-ocean", label: "Deep Ocean", description: "Midnight navy with teal/cyan gradients, bioluminescent KPI glow", grade: "Elite", colorFamily: "Sapphire", isRankLocked: true, requiredRank: "top10", accentHex: "#00BCD4", gradientStart: "#040810", gradientEnd: "#008B8B", chartColors: ["#00BCD4", "#008B8B", "#26C6DA", "#0097A7", "#4DD0E1"] },
+  { value: "jungle-vibe", label: "Jungle Vibe", description: "Deep forest green with bright leaf accents, organic radar charts", grade: "Elite", colorFamily: "Emerald", isRankLocked: true, requiredRank: "top10", accentHex: "#4CAF50", gradientStart: "#060D06", gradientEnd: "#2E7D32", chartColors: ["#4CAF50", "#2E7D32", "#81C784", "#1B5E20", "#A5D6A7"] },
+  { value: "adrenaline-rush", label: "Adrenaline Rush", description: "Dark backgrounds with red/orange accents, high-energy pulsing KPIs", grade: "Signature", colorFamily: "Crimson", isRankLocked: true, requiredRank: "champion", accentHex: "#FF1744", gradientStart: "#080404", gradientEnd: "#FF6D00", chartColors: ["#FF1744", "#FF6D00", "#FF5252", "#FF9100", "#D50000"] },
+  { value: "velocity-chrome", label: "Velocity Chrome", description: "Sleek silver/steel with neon blue, speed-line overlays", grade: "Signature", colorFamily: "Platinum", isRankLocked: true, requiredRank: "champion", accentHex: "#2196F3", gradientStart: "#0A0A0E", gradientEnd: "#C0C0C0", chartColors: ["#2196F3", "#C0C0C0", "#64B5F6", "#90A4AE", "#1976D2"] },
+  { value: "circuit-court", label: "Circuit Court", description: "Stadium-inspired black with court-marking overlays, high-vis KPIs", grade: "Signature", colorFamily: "Gold", isRankLocked: true, requiredRank: "champion", accentHex: "#FFD600", gradientStart: "#080808", gradientEnd: "#FFD600", chartColors: ["#FFD600", "#F5F5F5", "#FFC107", "#FFAB00", "#FFD740"] },
+  { value: "cosmic-elite", label: "Cosmic Elite", description: "Space-inspired black with violet/cyan gradients, futuristic KPI effects", grade: "Ultra Exclusive", colorFamily: "Amethyst", isBlackCard: true, accentHex: "#7C4DFF", gradientStart: "#040408", gradientEnd: "#18FFFF", chartColors: ["#7C4DFF", "#18FFFF", "#B388FF", "#84FFFF", "#651FFF"] },
+  { value: "phantom-luxe", label: "Phantom Luxe", description: "Layered glass panels, muted metallic accents, soft ambient KPI glows", grade: "Ultra Exclusive", colorFamily: "Platinum", isBlackCard: true, accentHex: "#9E9E9E", gradientStart: "#060608", gradientEnd: "#9E9E9E", chartColors: ["#9E9E9E", "#BDBDBD", "#757575", "#E0E0E0", "#616161"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -64,6 +79,21 @@ const THEME_CLASSES: Record<string, string[]> = {
   "sunset-copper": ["dark", "sunset-copper"],
   "midnight-neon": ["dark", "midnight-neon"],
   "amoled-black": ["dark", "amoled-black"],
+  "neon-circuit": ["dark", "neon-circuit"],
+  "hologram-matrix": ["dark", "hologram-matrix"],
+  "cyber-pulse": ["dark", "cyber-pulse"],
+  "titanium-noir": ["dark", "titanium-noir"],
+  "rose-gold-elite": ["dark", "rose-gold-elite"],
+  "diamond-graphite": ["dark", "diamond-graphite"],
+  "aurora-borealis": ["dark", "aurora-borealis"],
+  "volcanic-ember": ["dark", "volcanic-ember"],
+  "deep-ocean": ["dark", "deep-ocean"],
+  "jungle-vibe": ["dark", "jungle-vibe"],
+  "adrenaline-rush": ["dark", "adrenaline-rush"],
+  "velocity-chrome": ["dark", "velocity-chrome"],
+  "circuit-court": ["dark", "circuit-court"],
+  "cosmic-elite": ["dark", "cosmic-elite"],
+  "phantom-luxe": ["dark", "phantom-luxe"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -72,6 +102,10 @@ const ALL_THEME_CLASSES = [
   "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
   "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
   "sunset-copper", "midnight-neon", "amoled-black",
+  "neon-circuit", "hologram-matrix", "cyber-pulse", "titanium-noir",
+  "rose-gold-elite", "diamond-graphite", "aurora-borealis", "volcanic-ember",
+  "deep-ocean", "jungle-vibe", "adrenaline-rush", "velocity-chrome",
+  "circuit-court", "cosmic-elite", "phantom-luxe",
 ];
 
 const DARK_THEMES = new Set([
@@ -79,6 +113,10 @@ const DARK_THEMES = new Set([
   "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
   "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
   "sunset-copper", "midnight-neon", "amoled-black",
+  "neon-circuit", "hologram-matrix", "cyber-pulse", "titanium-noir",
+  "rose-gold-elite", "diamond-graphite", "aurora-borealis", "volcanic-ember",
+  "deep-ocean", "jungle-vibe", "adrenaline-rush", "velocity-chrome",
+  "circuit-court", "cosmic-elite", "phantom-luxe",
 ]);
 
 function getInitialMode(): DisplayMode {

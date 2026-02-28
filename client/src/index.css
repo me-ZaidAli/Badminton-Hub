@@ -2250,3 +2250,1257 @@
   box-shadow: 0 0 20px rgba(217, 169, 56, 0.15);
 }
 
+/* ===== AMOLED 1. Neon Circuit Theme ===== */
+.neon-circuit {
+  --background: 0 0% 0%;
+  --foreground: 180 20% 88%;
+  --primary: 185 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 6%;
+  --secondary-foreground: 180 15% 75%;
+  --muted: 0 0% 5%;
+  --muted-foreground: 180 10% 45%;
+  --accent: 325 100% 58%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 65% 42%;
+  --destructive-foreground: 180 20% 92%;
+  --card: 0 0% 3%;
+  --card-foreground: 180 20% 88%;
+  --card-border: 185 30% 10%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 180 20% 88%;
+  --popover-border: 185 30% 10%;
+  --sidebar-background: 0 0% 0%;
+  --border: 185 20% 8%;
+  --input: 185 20% 8%;
+  --ring: 185 100% 50%;
+  --chart-1: 185 100% 50%;
+  --chart-2: 325 100% 58%;
+  --chart-3: 120 100% 45%;
+  --chart-4: 280 80% 55%;
+  --chart-5: 60 100% 50%;
+  --theme-accent: 185 100% 50%;
+  --theme-accent-glow: 185 100% 60%;
+  --theme-card-surface: 0 0% 3%;
+  --theme-gradient-start: 185 100% 50%;
+  --theme-gradient-end: 325 100% 58%;
+}
+
+.neon-circuit body,
+.neon-circuit {
+  background-color: hsl(0 0% 0%);
+  background-image:
+    radial-gradient(ellipse at 10% 10%, hsl(185 100% 50% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 90%, hsl(325 100% 58% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(120 100% 45% / 0.01) 0%, transparent 70%);
+}
+
+.neon-circuit h1,
+.neon-circuit h2,
+.neon-circuit h3,
+.neon-circuit h4 {
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, hsl(185 100% 65%) 0%, hsl(185 100% 50%) 25%, hsl(325 100% 60%) 50%, hsl(120 100% 50%) 75%, hsl(185 100% 65%) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: neon-circuit-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes neon-circuit-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes neon-circuit-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(185 100% 50% / 0.15), 0 0 4px hsl(325 100% 58% / 0.08); }
+  50% { box-shadow: 0 0 24px hsl(185 100% 50% / 0.3), 0 0 12px hsl(325 100% 58% / 0.2); }
+}
+
+.neon-circuit .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.neon-circuit .hover-card-effect:hover {
+  box-shadow: 0 0 24px hsl(185 100% 50% / 0.12), 0 0 12px hsl(325 100% 58% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.neon-circuit * {
+  scrollbar-color: hsl(185 30% 12%) hsl(0 0% 0%);
+}
+.neon-circuit ::-webkit-scrollbar { width: 5px; }
+.neon-circuit ::-webkit-scrollbar-track { background: hsl(0 0% 0%); }
+.neon-circuit ::-webkit-scrollbar-thumb { background: hsl(185 50% 18%); border-radius: 3px; }
+.neon-circuit ::-webkit-scrollbar-thumb:hover { background: hsl(185 60% 28%); }
+
+/* ===== AMOLED 2. Hologram Matrix Theme ===== */
+.hologram-matrix {
+  --background: 240 20% 2%;
+  --foreground: 140 25% 85%;
+  --primary: 140 100% 50%;
+  --primary-foreground: 240 20% 2%;
+  --secondary: 240 15% 7%;
+  --secondary-foreground: 140 18% 72%;
+  --muted: 240 12% 6%;
+  --muted-foreground: 140 12% 42%;
+  --accent: 195 100% 52%;
+  --accent-foreground: 240 20% 2%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 140 25% 92%;
+  --card: 240 18% 4%;
+  --card-foreground: 140 25% 85%;
+  --card-border: 140 25% 10%;
+  --popover: 240 18% 5%;
+  --popover-foreground: 140 25% 85%;
+  --popover-border: 140 25% 10%;
+  --sidebar-background: 240 20% 2%;
+  --border: 140 18% 8%;
+  --input: 140 18% 8%;
+  --ring: 140 100% 50%;
+  --chart-1: 140 100% 50%;
+  --chart-2: 195 100% 52%;
+  --chart-3: 120 80% 42%;
+  --chart-4: 160 90% 48%;
+  --chart-5: 100 70% 38%;
+  --theme-accent: 140 100% 50%;
+  --theme-accent-glow: 140 100% 60%;
+  --theme-card-surface: 240 18% 4%;
+  --theme-gradient-start: 140 100% 50%;
+  --theme-gradient-end: 195 100% 52%;
+}
+
+.hologram-matrix body,
+.hologram-matrix {
+  background-color: hsl(240 20% 2%);
+  background-image:
+    radial-gradient(ellipse at 15% 15%, hsl(140 100% 50% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, hsl(195 100% 52% / 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(140 80% 40% / 0.01) 0%, transparent 70%);
+}
+
+.hologram-matrix h1,
+.hologram-matrix h2,
+.hologram-matrix h3,
+.hologram-matrix h4 {
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, hsl(140 90% 62%) 0%, hsl(140 100% 50%) 30%, hsl(195 100% 55%) 70%, hsl(140 90% 62%) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: hologram-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes hologram-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes hologram-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.92; }
+  75% { opacity: 0.98; }
+}
+
+.hologram-matrix .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.hologram-matrix .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(140 100% 50% / 0.1), 0 0 8px hsl(195 100% 52% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.hologram-matrix * {
+  scrollbar-color: hsl(140 30% 12%) hsl(240 20% 2%);
+}
+.hologram-matrix ::-webkit-scrollbar { width: 5px; }
+.hologram-matrix ::-webkit-scrollbar-track { background: hsl(240 20% 2%); }
+.hologram-matrix ::-webkit-scrollbar-thumb { background: hsl(140 40% 16%); border-radius: 3px; }
+.hologram-matrix ::-webkit-scrollbar-thumb:hover { background: hsl(140 50% 25%); }
+
+/* ===== AMOLED 3. Cyber Pulse Theme ===== */
+.cyber-pulse {
+  --background: 240 30% 3%;
+  --foreground: 210 25% 88%;
+  --primary: 210 100% 50%;
+  --primary-foreground: 240 30% 3%;
+  --secondary: 240 20% 8%;
+  --secondary-foreground: 210 18% 72%;
+  --muted: 240 18% 6%;
+  --muted-foreground: 210 12% 45%;
+  --accent: 210 100% 50%;
+  --accent-foreground: 240 30% 3%;
+  --destructive: 0 62% 42%;
+  --destructive-foreground: 210 25% 92%;
+  --card: 240 25% 4%;
+  --card-foreground: 210 25% 88%;
+  --card-border: 210 30% 12%;
+  --popover: 240 25% 5%;
+  --popover-foreground: 210 25% 88%;
+  --popover-border: 210 30% 12%;
+  --sidebar-background: 240 30% 3%;
+  --border: 210 22% 9%;
+  --input: 210 22% 9%;
+  --ring: 210 100% 50%;
+  --chart-1: 210 100% 50%;
+  --chart-2: 200 90% 45%;
+  --chart-3: 220 80% 42%;
+  --chart-4: 195 95% 48%;
+  --chart-5: 230 70% 38%;
+  --theme-accent: 210 100% 50%;
+  --theme-accent-glow: 210 100% 62%;
+  --theme-card-surface: 240 25% 4%;
+  --theme-gradient-start: 210 100% 55%;
+  --theme-gradient-end: 220 80% 42%;
+}
+
+.cyber-pulse body,
+.cyber-pulse {
+  background-color: hsl(240 30% 3%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(210 100% 50% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(220 80% 42% / 0.02) 0%, transparent 50%);
+}
+
+.cyber-pulse h1,
+.cyber-pulse h2,
+.cyber-pulse h3,
+.cyber-pulse h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(210 85% 72%) 0%, hsl(210 100% 55%) 50%, hsl(220 80% 48%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: cyber-pulse-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes cyber-pulse-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes cyber-pulse-beat {
+  0%, 100% { box-shadow: 0 0 8px hsl(210 100% 50% / 0.12); }
+  50% { box-shadow: 0 0 22px hsl(210 100% 50% / 0.28); }
+}
+
+.cyber-pulse .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.cyber-pulse .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(210 100% 50% / 0.12), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.cyber-pulse * {
+  scrollbar-color: hsl(210 30% 12%) hsl(240 30% 3%);
+}
+.cyber-pulse ::-webkit-scrollbar { width: 5px; }
+.cyber-pulse ::-webkit-scrollbar-track { background: hsl(240 30% 3%); }
+.cyber-pulse ::-webkit-scrollbar-thumb { background: hsl(210 40% 18%); border-radius: 3px; }
+.cyber-pulse ::-webkit-scrollbar-thumb:hover { background: hsl(210 50% 28%); }
+
+/* ===== AMOLED 4. Titanium Noir Theme ===== */
+.titanium-noir {
+  --background: 0 0% 0%;
+  --foreground: 220 10% 82%;
+  --primary: 220 12% 58%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 6%;
+  --secondary-foreground: 220 8% 68%;
+  --muted: 0 0% 5%;
+  --muted-foreground: 220 6% 42%;
+  --accent: 220 12% 58%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 50% 40%;
+  --destructive-foreground: 220 10% 90%;
+  --card: 0 0% 3%;
+  --card-foreground: 220 10% 82%;
+  --card-border: 220 8% 12%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 220 10% 82%;
+  --popover-border: 220 8% 12%;
+  --sidebar-background: 0 0% 0%;
+  --border: 220 6% 10%;
+  --input: 220 6% 10%;
+  --ring: 220 12% 58%;
+  --chart-1: 220 14% 58%;
+  --chart-2: 215 10% 50%;
+  --chart-3: 225 8% 42%;
+  --chart-4: 218 12% 54%;
+  --chart-5: 222 8% 36%;
+  --theme-accent: 220 12% 58%;
+  --theme-accent-glow: 220 15% 65%;
+  --theme-card-surface: 0 0% 3%;
+  --theme-gradient-start: 220 14% 62%;
+  --theme-gradient-end: 220 10% 45%;
+}
+
+.titanium-noir body,
+.titanium-noir {
+  background-color: hsl(0 0% 0%);
+  background-image:
+    radial-gradient(ellipse at 25% 25%, hsl(220 12% 58% / 0.015) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 75%, hsl(220 10% 45% / 0.01) 0%, transparent 50%);
+}
+
+.titanium-noir h1,
+.titanium-noir h2,
+.titanium-noir h3,
+.titanium-noir h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(220 14% 72%) 0%, hsl(220 14% 60%) 50%, hsl(220 10% 50%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titanium-shimmer 9s ease-in-out infinite;
+}
+
+@keyframes titanium-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.titanium-noir .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.titanium-noir .hover-card-effect:hover {
+  box-shadow: 0 0 12px hsl(220 12% 58% / 0.06), 0 4px 10px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.titanium-noir * {
+  scrollbar-color: hsl(220 8% 12%) hsl(0 0% 0%);
+}
+.titanium-noir ::-webkit-scrollbar { width: 5px; }
+.titanium-noir ::-webkit-scrollbar-track { background: hsl(0 0% 0%); }
+.titanium-noir ::-webkit-scrollbar-thumb { background: hsl(220 8% 16%); border-radius: 3px; }
+.titanium-noir ::-webkit-scrollbar-thumb:hover { background: hsl(220 10% 24%); }
+
+/* ===== AMOLED 5. Rose Gold Elite Theme ===== */
+.rose-gold-elite {
+  --background: 10 15% 3%;
+  --foreground: 10 18% 85%;
+  --primary: 350 35% 52%;
+  --primary-foreground: 10 15% 3%;
+  --secondary: 10 10% 8%;
+  --secondary-foreground: 10 14% 72%;
+  --muted: 10 8% 6%;
+  --muted-foreground: 10 10% 44%;
+  --accent: 25 40% 48%;
+  --accent-foreground: 10 15% 3%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 10 18% 92%;
+  --card: 10 12% 5%;
+  --card-foreground: 10 18% 85%;
+  --card-border: 350 18% 12%;
+  --popover: 10 12% 6%;
+  --popover-foreground: 10 18% 85%;
+  --popover-border: 350 18% 12%;
+  --sidebar-background: 10 15% 3%;
+  --border: 350 14% 10%;
+  --input: 350 14% 10%;
+  --ring: 350 35% 52%;
+  --chart-1: 350 38% 52%;
+  --chart-2: 25 42% 48%;
+  --chart-3: 340 28% 42%;
+  --chart-4: 15 35% 50%;
+  --chart-5: 355 22% 35%;
+  --theme-accent: 350 35% 52%;
+  --theme-accent-glow: 350 40% 60%;
+  --theme-card-surface: 10 12% 5%;
+  --theme-gradient-start: 350 38% 58%;
+  --theme-gradient-end: 25 42% 42%;
+}
+
+.rose-gold-elite body,
+.rose-gold-elite {
+  background-color: hsl(10 15% 3%);
+  background-image:
+    radial-gradient(ellipse at 20% 15%, hsl(350 35% 52% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, hsl(25 40% 48% / 0.02) 0%, transparent 50%);
+}
+
+.rose-gold-elite h1,
+.rose-gold-elite h2,
+.rose-gold-elite h3,
+.rose-gold-elite h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(350 40% 70%) 0%, hsl(350 38% 55%) 40%, hsl(25 45% 52%) 70%, hsl(350 40% 68%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: rose-gold-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes rose-gold-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes rose-gold-glow {
+  0%, 100% { box-shadow: 0 0 6px hsl(350 35% 52% / 0.08); }
+  50% { box-shadow: 0 0 14px hsl(350 35% 52% / 0.18); }
+}
+
+.rose-gold-elite .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.rose-gold-elite .hover-card-effect:hover {
+  box-shadow: 0 0 18px hsl(350 35% 52% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.rose-gold-elite * {
+  scrollbar-color: hsl(350 18% 14%) hsl(10 15% 3%);
+}
+.rose-gold-elite ::-webkit-scrollbar { width: 5px; }
+.rose-gold-elite ::-webkit-scrollbar-track { background: hsl(10 15% 3%); }
+.rose-gold-elite ::-webkit-scrollbar-thumb { background: hsl(350 20% 18%); border-radius: 3px; }
+.rose-gold-elite ::-webkit-scrollbar-thumb:hover { background: hsl(350 25% 26%); }
+
+/* ===== AMOLED 6. Diamond Graphite Theme ===== */
+.diamond-graphite {
+  --background: 240 5% 4%;
+  --foreground: 0 0% 88%;
+  --primary: 0 0% 78%;
+  --primary-foreground: 240 5% 4%;
+  --secondary: 240 3% 8%;
+  --secondary-foreground: 0 0% 68%;
+  --muted: 240 3% 7%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 78%;
+  --accent-foreground: 240 5% 4%;
+  --destructive: 0 50% 40%;
+  --destructive-foreground: 0 0% 92%;
+  --card: 240 4% 6%;
+  --card-foreground: 0 0% 88%;
+  --card-border: 0 0% 14%;
+  --popover: 240 4% 7%;
+  --popover-foreground: 0 0% 88%;
+  --popover-border: 0 0% 14%;
+  --sidebar-background: 240 5% 3%;
+  --border: 0 0% 11%;
+  --input: 0 0% 11%;
+  --ring: 0 0% 78%;
+  --chart-1: 0 0% 78%;
+  --chart-2: 0 0% 65%;
+  --chart-3: 0 0% 52%;
+  --chart-4: 0 0% 72%;
+  --chart-5: 0 0% 42%;
+  --theme-accent: 0 0% 78%;
+  --theme-accent-glow: 0 0% 85%;
+  --theme-card-surface: 240 4% 6%;
+  --theme-gradient-start: 0 0% 82%;
+  --theme-gradient-end: 0 0% 58%;
+}
+
+.diamond-graphite body,
+.diamond-graphite {
+  background-color: hsl(240 5% 4%);
+  background-image:
+    radial-gradient(ellipse at 25% 20%, hsl(0 0% 78% / 0.015) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 80%, hsl(0 0% 58% / 0.01) 0%, transparent 50%);
+}
+
+.diamond-graphite h1,
+.diamond-graphite h2,
+.diamond-graphite h3,
+.diamond-graphite h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(0 0% 92%) 0%, hsl(0 0% 78%) 40%, hsl(0 0% 65%) 70%, hsl(0 0% 88%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: diamond-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes diamond-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes diamond-sparkle {
+  0%, 100% { box-shadow: 0 0 4px hsl(0 0% 78% / 0.06); }
+  50% { box-shadow: 0 0 12px hsl(0 0% 78% / 0.14); }
+}
+
+.diamond-graphite .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.diamond-graphite .hover-card-effect:hover {
+  box-shadow: 0 0 14px hsl(0 0% 78% / 0.06), 0 4px 10px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.diamond-graphite * {
+  scrollbar-color: hsl(0 0% 14%) hsl(240 5% 4%);
+}
+.diamond-graphite ::-webkit-scrollbar { width: 5px; }
+.diamond-graphite ::-webkit-scrollbar-track { background: hsl(240 5% 4%); }
+.diamond-graphite ::-webkit-scrollbar-thumb { background: hsl(0 0% 18%); border-radius: 3px; }
+.diamond-graphite ::-webkit-scrollbar-thumb:hover { background: hsl(0 0% 26%); }
+
+/* ===== AMOLED 7. Aurora Borealis Theme ===== */
+.aurora-borealis {
+  --background: 240 50% 3%;
+  --foreground: 150 20% 88%;
+  --primary: 155 100% 48%;
+  --primary-foreground: 240 50% 3%;
+  --secondary: 240 30% 8%;
+  --secondary-foreground: 150 15% 72%;
+  --muted: 240 25% 6%;
+  --muted-foreground: 150 12% 45%;
+  --accent: 265 80% 60%;
+  --accent-foreground: 240 50% 3%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 150 20% 92%;
+  --card: 240 40% 4%;
+  --card-foreground: 150 20% 88%;
+  --card-border: 155 25% 10%;
+  --popover: 240 40% 5%;
+  --popover-foreground: 150 20% 88%;
+  --popover-border: 155 25% 10%;
+  --sidebar-background: 240 50% 3%;
+  --border: 155 18% 8%;
+  --input: 155 18% 8%;
+  --ring: 155 100% 48%;
+  --chart-1: 155 100% 48%;
+  --chart-2: 265 80% 60%;
+  --chart-3: 180 70% 45%;
+  --chart-4: 200 85% 52%;
+  --chart-5: 290 65% 48%;
+  --theme-accent: 155 100% 48%;
+  --theme-accent-glow: 155 100% 58%;
+  --theme-card-surface: 240 40% 4%;
+  --theme-gradient-start: 155 100% 48%;
+  --theme-gradient-end: 265 80% 60%;
+}
+
+.aurora-borealis body,
+.aurora-borealis {
+  background-color: hsl(240 50% 3%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(155 100% 48% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(265 80% 60% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 40%, hsl(180 70% 45% / 0.015) 0%, transparent 70%);
+}
+
+.aurora-borealis h1,
+.aurora-borealis h2,
+.aurora-borealis h3,
+.aurora-borealis h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(155 90% 62%) 0%, hsl(155 100% 50%) 25%, hsl(265 80% 62%) 50%, hsl(180 70% 50%) 75%, hsl(155 90% 62%) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: aurora-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes aurora-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes aurora-wave {
+  0%, 100% { box-shadow: 0 0 10px hsl(155 100% 48% / 0.12), 0 0 5px hsl(265 80% 60% / 0.06); }
+  50% { box-shadow: 0 0 24px hsl(155 100% 48% / 0.25), 0 0 12px hsl(265 80% 60% / 0.15); }
+}
+
+.aurora-borealis .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.aurora-borealis .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(155 100% 48% / 0.1), 0 0 10px hsl(265 80% 60% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.aurora-borealis * {
+  scrollbar-color: hsl(155 25% 12%) hsl(240 50% 3%);
+}
+.aurora-borealis ::-webkit-scrollbar { width: 5px; }
+.aurora-borealis ::-webkit-scrollbar-track { background: hsl(240 50% 3%); }
+.aurora-borealis ::-webkit-scrollbar-thumb { background: hsl(155 30% 16%); border-radius: 3px; }
+.aurora-borealis ::-webkit-scrollbar-thumb:hover { background: hsl(155 40% 24%); }
+
+/* ===== AMOLED 8. Volcanic Ember Theme ===== */
+.volcanic-ember {
+  --background: 30 20% 2%;
+  --foreground: 25 20% 85%;
+  --primary: 25 100% 50%;
+  --primary-foreground: 30 20% 2%;
+  --secondary: 30 15% 7%;
+  --secondary-foreground: 25 15% 70%;
+  --muted: 30 12% 6%;
+  --muted-foreground: 25 10% 42%;
+  --accent: 5 100% 50%;
+  --accent-foreground: 30 20% 2%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 25 20% 92%;
+  --card: 30 16% 4%;
+  --card-foreground: 25 20% 85%;
+  --card-border: 25 25% 12%;
+  --popover: 30 16% 5%;
+  --popover-foreground: 25 20% 85%;
+  --popover-border: 25 25% 12%;
+  --sidebar-background: 30 20% 2%;
+  --border: 25 18% 9%;
+  --input: 25 18% 9%;
+  --ring: 25 100% 50%;
+  --chart-1: 25 100% 50%;
+  --chart-2: 5 100% 50%;
+  --chart-3: 40 80% 45%;
+  --chart-4: 15 90% 48%;
+  --chart-5: 0 70% 38%;
+  --theme-accent: 25 100% 50%;
+  --theme-accent-glow: 25 100% 60%;
+  --theme-card-surface: 30 16% 4%;
+  --theme-gradient-start: 25 100% 50%;
+  --theme-gradient-end: 5 100% 50%;
+}
+
+.volcanic-ember body,
+.volcanic-ember {
+  background-color: hsl(30 20% 2%);
+  background-image:
+    radial-gradient(ellipse at 20% 80%, hsl(25 100% 50% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, hsl(5 100% 50% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(40 80% 45% / 0.01) 0%, transparent 70%);
+}
+
+.volcanic-ember h1,
+.volcanic-ember h2,
+.volcanic-ember h3,
+.volcanic-ember h4 {
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, hsl(40 90% 65%) 0%, hsl(25 100% 55%) 30%, hsl(5 100% 52%) 70%, hsl(40 90% 65%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: volcanic-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes volcanic-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes volcanic-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(25 100% 50% / 0.1), 0 0 4px hsl(5 100% 50% / 0.06); }
+  50% { box-shadow: 0 0 22px hsl(25 100% 50% / 0.25), 0 0 10px hsl(5 100% 50% / 0.15); }
+}
+
+.volcanic-ember .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.volcanic-ember .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(25 100% 50% / 0.1), 0 0 8px hsl(5 100% 50% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.volcanic-ember * {
+  scrollbar-color: hsl(25 25% 12%) hsl(30 20% 2%);
+}
+.volcanic-ember ::-webkit-scrollbar { width: 5px; }
+.volcanic-ember ::-webkit-scrollbar-track { background: hsl(30 20% 2%); }
+.volcanic-ember ::-webkit-scrollbar-thumb { background: hsl(25 30% 16%); border-radius: 3px; }
+.volcanic-ember ::-webkit-scrollbar-thumb:hover { background: hsl(25 40% 24%); }
+
+/* ===== AMOLED 9. Deep Ocean Theme ===== */
+.deep-ocean {
+  --background: 210 60% 3%;
+  --foreground: 185 20% 88%;
+  --primary: 180 70% 35%;
+  --primary-foreground: 210 60% 3%;
+  --secondary: 210 40% 8%;
+  --secondary-foreground: 185 15% 72%;
+  --muted: 210 30% 6%;
+  --muted-foreground: 185 12% 44%;
+  --accent: 190 100% 42%;
+  --accent-foreground: 210 60% 3%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 185 20% 92%;
+  --card: 210 50% 4%;
+  --card-foreground: 185 20% 88%;
+  --card-border: 180 22% 10%;
+  --popover: 210 50% 5%;
+  --popover-foreground: 185 20% 88%;
+  --popover-border: 180 22% 10%;
+  --sidebar-background: 210 60% 3%;
+  --border: 180 18% 8%;
+  --input: 180 18% 8%;
+  --ring: 180 70% 35%;
+  --chart-1: 180 70% 35%;
+  --chart-2: 190 100% 42%;
+  --chart-3: 200 60% 38%;
+  --chart-4: 170 80% 38%;
+  --chart-5: 210 50% 32%;
+  --theme-accent: 190 100% 42%;
+  --theme-accent-glow: 190 100% 52%;
+  --theme-card-surface: 210 50% 4%;
+  --theme-gradient-start: 180 70% 40%;
+  --theme-gradient-end: 190 100% 42%;
+}
+
+.deep-ocean body,
+.deep-ocean {
+  background-color: hsl(210 60% 3%);
+  background-image:
+    radial-gradient(ellipse at 20% 80%, hsl(180 70% 35% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, hsl(190 100% 42% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(200 60% 38% / 0.015) 0%, transparent 70%);
+}
+
+.deep-ocean h1,
+.deep-ocean h2,
+.deep-ocean h3,
+.deep-ocean h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(180 65% 62%) 0%, hsl(180 75% 40%) 40%, hsl(190 100% 48%) 70%, hsl(180 65% 58%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: deep-ocean-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes deep-ocean-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes deep-ocean-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(190 100% 42% / 0.1); }
+  50% { box-shadow: 0 0 18px hsl(190 100% 42% / 0.22); }
+}
+
+.deep-ocean .hover-card-effect {
+  transition: all 0.4s ease;
+}
+.deep-ocean .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(190 100% 42% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.deep-ocean * {
+  scrollbar-color: hsl(180 22% 12%) hsl(210 60% 3%);
+}
+.deep-ocean ::-webkit-scrollbar { width: 5px; }
+.deep-ocean ::-webkit-scrollbar-track { background: hsl(210 60% 3%); }
+.deep-ocean ::-webkit-scrollbar-thumb { background: hsl(180 25% 16%); border-radius: 3px; }
+.deep-ocean ::-webkit-scrollbar-thumb:hover { background: hsl(180 30% 24%); }
+
+/* ===== AMOLED 10. Jungle Vibe Theme ===== */
+.jungle-vibe {
+  --background: 120 30% 2%;
+  --foreground: 120 18% 85%;
+  --primary: 120 60% 38%;
+  --primary-foreground: 120 30% 2%;
+  --secondary: 120 20% 7%;
+  --secondary-foreground: 120 14% 68%;
+  --muted: 120 15% 6%;
+  --muted-foreground: 120 10% 42%;
+  --accent: 135 70% 32%;
+  --accent-foreground: 120 30% 2%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 120 18% 92%;
+  --card: 120 22% 4%;
+  --card-foreground: 120 18% 85%;
+  --card-border: 120 18% 10%;
+  --popover: 120 22% 5%;
+  --popover-foreground: 120 18% 85%;
+  --popover-border: 120 18% 10%;
+  --sidebar-background: 120 30% 2%;
+  --border: 120 14% 8%;
+  --input: 120 14% 8%;
+  --ring: 120 60% 38%;
+  --chart-1: 120 60% 38%;
+  --chart-2: 135 70% 32%;
+  --chart-3: 100 50% 35%;
+  --chart-4: 145 55% 36%;
+  --chart-5: 110 40% 28%;
+  --theme-accent: 120 60% 38%;
+  --theme-accent-glow: 120 65% 48%;
+  --theme-card-surface: 120 22% 4%;
+  --theme-gradient-start: 120 65% 42%;
+  --theme-gradient-end: 135 70% 32%;
+}
+
+.jungle-vibe body,
+.jungle-vibe {
+  background-color: hsl(120 30% 2%);
+  background-image:
+    radial-gradient(ellipse at 15% 15%, hsl(120 60% 38% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, hsl(135 70% 32% / 0.025) 0%, transparent 50%);
+}
+
+.jungle-vibe h1,
+.jungle-vibe h2,
+.jungle-vibe h3,
+.jungle-vibe h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(120 55% 62%) 0%, hsl(120 65% 42%) 40%, hsl(135 70% 36%) 70%, hsl(120 55% 58%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: jungle-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes jungle-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes jungle-rustle {
+  0%, 100% { box-shadow: 0 0 6px hsl(120 60% 38% / 0.08); }
+  50% { box-shadow: 0 0 14px hsl(120 60% 38% / 0.18); }
+}
+
+.jungle-vibe .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.jungle-vibe .hover-card-effect:hover {
+  box-shadow: 0 0 18px hsl(120 60% 38% / 0.1), 0 4px 14px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.jungle-vibe * {
+  scrollbar-color: hsl(120 18% 12%) hsl(120 30% 2%);
+}
+.jungle-vibe ::-webkit-scrollbar { width: 5px; }
+.jungle-vibe ::-webkit-scrollbar-track { background: hsl(120 30% 2%); }
+.jungle-vibe ::-webkit-scrollbar-thumb { background: hsl(120 22% 15%); border-radius: 3px; }
+.jungle-vibe ::-webkit-scrollbar-thumb:hover { background: hsl(120 28% 22%); }
+
+/* ===== AMOLED 11. Adrenaline Rush Theme ===== */
+.adrenaline-rush {
+  --background: 0 20% 2%;
+  --foreground: 0 15% 88%;
+  --primary: 348 100% 55%;
+  --primary-foreground: 0 20% 2%;
+  --secondary: 0 12% 7%;
+  --secondary-foreground: 0 12% 70%;
+  --muted: 0 10% 6%;
+  --muted-foreground: 0 8% 42%;
+  --accent: 25 100% 50%;
+  --accent-foreground: 0 20% 2%;
+  --destructive: 0 70% 48%;
+  --destructive-foreground: 0 15% 92%;
+  --card: 0 15% 4%;
+  --card-foreground: 0 15% 88%;
+  --card-border: 348 25% 12%;
+  --popover: 0 15% 5%;
+  --popover-foreground: 0 15% 88%;
+  --popover-border: 348 25% 12%;
+  --sidebar-background: 0 20% 2%;
+  --border: 348 18% 9%;
+  --input: 348 18% 9%;
+  --ring: 348 100% 55%;
+  --chart-1: 348 100% 55%;
+  --chart-2: 25 100% 50%;
+  --chart-3: 0 80% 45%;
+  --chart-4: 15 90% 52%;
+  --chart-5: 340 70% 42%;
+  --theme-accent: 348 100% 55%;
+  --theme-accent-glow: 348 100% 65%;
+  --theme-card-surface: 0 15% 4%;
+  --theme-gradient-start: 348 100% 55%;
+  --theme-gradient-end: 25 100% 50%;
+}
+
+.adrenaline-rush body,
+.adrenaline-rush {
+  background-color: hsl(0 20% 2%);
+  background-image:
+    radial-gradient(ellipse at 15% 15%, hsl(348 100% 55% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, hsl(25 100% 50% / 0.025) 0%, transparent 50%);
+}
+
+.adrenaline-rush h1,
+.adrenaline-rush h2,
+.adrenaline-rush h3,
+.adrenaline-rush h4 {
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, hsl(25 100% 65%) 0%, hsl(348 100% 58%) 40%, hsl(0 80% 50%) 70%, hsl(25 100% 62%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: adrenaline-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes adrenaline-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes adrenaline-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(348 100% 55% / 0.12); }
+  25% { box-shadow: 0 0 20px hsl(348 100% 55% / 0.28); }
+  50% { box-shadow: 0 0 8px hsl(25 100% 50% / 0.12); }
+  75% { box-shadow: 0 0 20px hsl(25 100% 50% / 0.28); }
+}
+
+.adrenaline-rush .hover-card-effect {
+  transition: all 0.25s ease;
+}
+.adrenaline-rush .hover-card-effect:hover {
+  box-shadow: 0 0 22px hsl(348 100% 55% / 0.12), 0 0 8px hsl(25 100% 50% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.adrenaline-rush * {
+  scrollbar-color: hsl(348 25% 12%) hsl(0 20% 2%);
+}
+.adrenaline-rush ::-webkit-scrollbar { width: 5px; }
+.adrenaline-rush ::-webkit-scrollbar-track { background: hsl(0 20% 2%); }
+.adrenaline-rush ::-webkit-scrollbar-thumb { background: hsl(348 30% 16%); border-radius: 3px; }
+.adrenaline-rush ::-webkit-scrollbar-thumb:hover { background: hsl(348 40% 24%); }
+
+/* ===== AMOLED 12. Velocity Chrome Theme ===== */
+.velocity-chrome {
+  --background: 230 15% 4%;
+  --foreground: 0 0% 85%;
+  --primary: 0 0% 72%;
+  --primary-foreground: 230 15% 4%;
+  --secondary: 230 10% 8%;
+  --secondary-foreground: 0 0% 65%;
+  --muted: 230 8% 7%;
+  --muted-foreground: 0 0% 42%;
+  --accent: 210 80% 55%;
+  --accent-foreground: 230 15% 4%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 0 0% 92%;
+  --card: 230 12% 5%;
+  --card-foreground: 0 0% 85%;
+  --card-border: 210 15% 12%;
+  --popover: 230 12% 6%;
+  --popover-foreground: 0 0% 85%;
+  --popover-border: 210 15% 12%;
+  --sidebar-background: 230 15% 3%;
+  --border: 210 10% 10%;
+  --input: 210 10% 10%;
+  --ring: 210 80% 55%;
+  --chart-1: 0 0% 72%;
+  --chart-2: 210 80% 55%;
+  --chart-3: 0 0% 58%;
+  --chart-4: 200 70% 48%;
+  --chart-5: 0 0% 45%;
+  --theme-accent: 210 80% 55%;
+  --theme-accent-glow: 210 85% 65%;
+  --theme-card-surface: 230 12% 5%;
+  --theme-gradient-start: 0 0% 72%;
+  --theme-gradient-end: 210 80% 55%;
+}
+
+.velocity-chrome body,
+.velocity-chrome {
+  background-color: hsl(230 15% 4%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(0 0% 72% / 0.015) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(210 80% 55% / 0.02) 0%, transparent 50%);
+}
+
+.velocity-chrome h1,
+.velocity-chrome h2,
+.velocity-chrome h3,
+.velocity-chrome h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(0 0% 88%) 0%, hsl(0 0% 72%) 30%, hsl(210 80% 58%) 70%, hsl(0 0% 85%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: velocity-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes velocity-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes velocity-streak {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.velocity-chrome .hover-card-effect {
+  transition: all 0.25s ease;
+}
+.velocity-chrome .hover-card-effect:hover {
+  box-shadow: 0 0 14px hsl(210 80% 55% / 0.08), 0 0 8px hsl(0 0% 72% / 0.04), 0 4px 12px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.velocity-chrome * {
+  scrollbar-color: hsl(210 15% 14%) hsl(230 15% 4%);
+}
+.velocity-chrome ::-webkit-scrollbar { width: 5px; }
+.velocity-chrome ::-webkit-scrollbar-track { background: hsl(230 15% 4%); }
+.velocity-chrome ::-webkit-scrollbar-thumb { background: hsl(210 18% 18%); border-radius: 3px; }
+.velocity-chrome ::-webkit-scrollbar-thumb:hover { background: hsl(210 22% 26%); }
+
+/* ===== AMOLED 13. Circuit Court Theme ===== */
+.circuit-court {
+  --background: 0 0% 3%;
+  --foreground: 60 5% 88%;
+  --primary: 50 100% 50%;
+  --primary-foreground: 0 0% 3%;
+  --secondary: 0 0% 7%;
+  --secondary-foreground: 60 4% 72%;
+  --muted: 0 0% 6%;
+  --muted-foreground: 60 3% 44%;
+  --accent: 50 100% 50%;
+  --accent-foreground: 0 0% 3%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 60 5% 92%;
+  --card: 0 0% 5%;
+  --card-foreground: 60 5% 88%;
+  --card-border: 50 20% 12%;
+  --popover: 0 0% 6%;
+  --popover-foreground: 60 5% 88%;
+  --popover-border: 50 20% 12%;
+  --sidebar-background: 0 0% 2%;
+  --border: 50 12% 9%;
+  --input: 50 12% 9%;
+  --ring: 50 100% 50%;
+  --chart-1: 50 100% 50%;
+  --chart-2: 0 0% 92%;
+  --chart-3: 45 80% 42%;
+  --chart-4: 55 90% 48%;
+  --chart-5: 40 65% 35%;
+  --theme-accent: 50 100% 50%;
+  --theme-accent-glow: 50 100% 60%;
+  --theme-card-surface: 0 0% 5%;
+  --theme-gradient-start: 50 100% 50%;
+  --theme-gradient-end: 0 0% 92%;
+}
+
+.circuit-court body,
+.circuit-court {
+  background-color: hsl(0 0% 3%);
+  background-image:
+    radial-gradient(ellipse at 25% 25%, hsl(50 100% 50% / 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 75%, hsl(0 0% 92% / 0.01) 0%, transparent 50%);
+}
+
+.circuit-court h1,
+.circuit-court h2,
+.circuit-court h3,
+.circuit-court h4 {
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, hsl(55 100% 68%) 0%, hsl(50 100% 52%) 40%, hsl(0 0% 92%) 70%, hsl(50 100% 65%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: circuit-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes circuit-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes circuit-blink {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.7; }
+}
+
+.circuit-court .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.circuit-court .hover-card-effect:hover {
+  box-shadow: 0 0 18px hsl(50 100% 50% / 0.08), 0 4px 12px hsl(0 0% 0% / 0.4);
+  transform: translateY(-1px);
+}
+
+.circuit-court * {
+  scrollbar-color: hsl(50 20% 12%) hsl(0 0% 3%);
+}
+.circuit-court ::-webkit-scrollbar { width: 5px; }
+.circuit-court ::-webkit-scrollbar-track { background: hsl(0 0% 3%); }
+.circuit-court ::-webkit-scrollbar-thumb { background: hsl(50 25% 16%); border-radius: 3px; }
+.circuit-court ::-webkit-scrollbar-thumb:hover { background: hsl(50 30% 24%); }
+
+/* ===== AMOLED 14. Cosmic Elite Theme ===== */
+.cosmic-elite {
+  --background: 240 40% 2%;
+  --foreground: 260 18% 88%;
+  --primary: 262 100% 62%;
+  --primary-foreground: 240 40% 2%;
+  --secondary: 240 25% 7%;
+  --secondary-foreground: 260 14% 72%;
+  --muted: 240 20% 6%;
+  --muted-foreground: 260 10% 44%;
+  --accent: 175 100% 56%;
+  --accent-foreground: 240 40% 2%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 260 18% 92%;
+  --card: 240 35% 4%;
+  --card-foreground: 260 18% 88%;
+  --card-border: 262 25% 12%;
+  --popover: 240 35% 5%;
+  --popover-foreground: 260 18% 88%;
+  --popover-border: 262 25% 12%;
+  --sidebar-background: 240 40% 2%;
+  --border: 262 18% 9%;
+  --input: 262 18% 9%;
+  --ring: 262 100% 62%;
+  --chart-1: 262 100% 62%;
+  --chart-2: 175 100% 56%;
+  --chart-3: 290 75% 52%;
+  --chart-4: 200 90% 55%;
+  --chart-5: 320 65% 48%;
+  --theme-accent: 262 100% 62%;
+  --theme-accent-glow: 262 100% 72%;
+  --theme-card-surface: 240 35% 4%;
+  --theme-gradient-start: 262 100% 62%;
+  --theme-gradient-end: 175 100% 56%;
+}
+
+.cosmic-elite body,
+.cosmic-elite {
+  background-color: hsl(240 40% 2%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(262 100% 62% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(175 100% 56% / 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(290 75% 52% / 0.01) 0%, transparent 70%);
+}
+
+.cosmic-elite h1,
+.cosmic-elite h2,
+.cosmic-elite h3,
+.cosmic-elite h4 {
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, hsl(262 90% 75%) 0%, hsl(262 100% 65%) 25%, hsl(175 100% 58%) 50%, hsl(290 75% 55%) 75%, hsl(262 90% 72%) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: cosmic-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes cosmic-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes cosmic-twinkle {
+  0%, 100% { box-shadow: 0 0 8px hsl(262 100% 62% / 0.12), 0 0 4px hsl(175 100% 56% / 0.06); }
+  50% { box-shadow: 0 0 22px hsl(262 100% 62% / 0.28), 0 0 12px hsl(175 100% 56% / 0.15); }
+}
+
+.cosmic-elite .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.cosmic-elite .hover-card-effect:hover {
+  box-shadow: 0 0 24px hsl(262 100% 62% / 0.1), 0 0 10px hsl(175 100% 56% / 0.06), 0 4px 14px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.cosmic-elite * {
+  scrollbar-color: hsl(262 25% 12%) hsl(240 40% 2%);
+}
+.cosmic-elite ::-webkit-scrollbar { width: 5px; }
+.cosmic-elite ::-webkit-scrollbar-track { background: hsl(240 40% 2%); }
+.cosmic-elite ::-webkit-scrollbar-thumb { background: hsl(262 30% 16%); border-radius: 3px; }
+.cosmic-elite ::-webkit-scrollbar-thumb:hover { background: hsl(262 35% 24%); }
+
+/* ===== AMOLED 15. Phantom Luxe Theme ===== */
+.phantom-luxe {
+  --background: 240 10% 2%;
+  --foreground: 0 0% 82%;
+  --primary: 0 0% 60%;
+  --primary-foreground: 240 10% 2%;
+  --secondary: 240 6% 7%;
+  --secondary-foreground: 0 0% 58%;
+  --muted: 240 5% 6%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 60%;
+  --accent-foreground: 240 10% 2%;
+  --destructive: 0 50% 40%;
+  --destructive-foreground: 0 0% 90%;
+  --card: 240 8% 4%;
+  --card-foreground: 0 0% 82%;
+  --card-border: 0 0% 12%;
+  --popover: 240 8% 5%;
+  --popover-foreground: 0 0% 82%;
+  --popover-border: 0 0% 12%;
+  --sidebar-background: 240 10% 2%;
+  --border: 0 0% 9%;
+  --input: 0 0% 9%;
+  --ring: 0 0% 60%;
+  --chart-1: 0 0% 62%;
+  --chart-2: 0 0% 50%;
+  --chart-3: 0 0% 38%;
+  --chart-4: 0 0% 55%;
+  --chart-5: 0 0% 30%;
+  --theme-accent: 0 0% 60%;
+  --theme-accent-glow: 0 0% 70%;
+  --theme-card-surface: 240 8% 4%;
+  --theme-gradient-start: 0 0% 65%;
+  --theme-gradient-end: 0 0% 42%;
+}
+
+.phantom-luxe body,
+.phantom-luxe {
+  background-color: hsl(240 10% 2%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(0 0% 60% / 0.012) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(0 0% 42% / 0.008) 0%, transparent 50%);
+}
+
+.phantom-luxe h1,
+.phantom-luxe h2,
+.phantom-luxe h3,
+.phantom-luxe h4 {
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, hsl(0 0% 82%) 0%, hsl(0 0% 62%) 40%, hsl(0 0% 50%) 70%, hsl(0 0% 78%) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: phantom-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes phantom-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes phantom-glow {
+  0%, 100% { box-shadow: 0 0 4px hsl(0 0% 60% / 0.04); }
+  50% { box-shadow: 0 0 10px hsl(0 0% 60% / 0.1); }
+}
+
+.phantom-luxe .hover-card-effect {
+  transition: all 0.4s ease;
+}
+.phantom-luxe .hover-card-effect:hover {
+  box-shadow: 0 0 12px hsl(0 0% 60% / 0.05), 0 4px 10px hsl(0 0% 0% / 0.3);
+  transform: translateY(-1px);
+}
+
+.phantom-luxe [data-slot="card"] {
+  background: hsl(240 8% 4% / 0.85);
+  backdrop-filter: blur(12px);
+}
+
+.phantom-luxe * {
+  scrollbar-color: hsl(0 0% 12%) hsl(240 10% 2%);
+}
+.phantom-luxe ::-webkit-scrollbar { width: 5px; }
+.phantom-luxe ::-webkit-scrollbar-track { background: hsl(240 10% 2%); }
+.phantom-luxe ::-webkit-scrollbar-thumb { background: hsl(0 0% 16%); border-radius: 3px; }
+.phantom-luxe ::-webkit-scrollbar-thumb:hover { background: hsl(0 0% 24%); }
+

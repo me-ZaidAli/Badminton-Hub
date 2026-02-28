@@ -18,7 +18,8 @@ import {
   Eye, EyeOff, Users, Plus, Pencil, Trash2, Sun, Moon, Palette, Contrast,
   CircleOff, Zap, Crown, Gem, Trophy, Target, BarChart3, Activity, CalendarDays,
   PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake, CheckCircle,
-  Diamond, Snowflake, Leaf, Rocket, Flame, Sparkles, Cpu, Waves, Sunset, Monitor
+  Diamond, Snowflake, Leaf, Rocket, Flame, Sparkles, Cpu, Waves, Sunset, Monitor,
+  CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Gauge, Orbit, Ghost
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -41,6 +42,11 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "sapphire-velocity": Rocket, "crimson-prestige": Flame, "royal-amethyst": Sparkles,
   "carbon-titanium": Cpu, "arctic-blue": Waves, "sunset-copper": Sunset,
   "midnight-neon": Zap, "amoled-black": Monitor,
+  "neon-circuit": CircuitBoard, "hologram-matrix": Binary, "cyber-pulse": Radio,
+  "titanium-noir": Hexagon, "rose-gold-elite": Heart, "diamond-graphite": Grid3x3,
+  "aurora-borealis": Mountain, "volcanic-ember": Flame, "deep-ocean": Droplets,
+  "jungle-vibe": TreePine, "adrenaline-rush": Activity, "velocity-chrome": Gauge,
+  "circuit-court": Trophy, "cosmic-elite": Orbit, "phantom-luxe": Ghost,
 };
 
 function ProfileMembershipDuration({ joinedAt }: { joinedAt: string }) {

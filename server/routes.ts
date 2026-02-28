@@ -705,11 +705,18 @@ export async function registerRoutes(
         "obsidian-gold", "platinum-ice", "emerald-performance", "sapphire-velocity",
         "crimson-prestige", "royal-amethyst", "carbon-titanium", "arctic-blue",
         "sunset-copper", "midnight-neon", "amoled-black",
+        "neon-circuit", "hologram-matrix", "cyber-pulse", "titanium-noir",
+        "rose-gold-elite", "diamond-graphite", "aurora-borealis", "volcanic-ember",
+        "deep-ocean", "jungle-vibe", "adrenaline-rush", "velocity-chrome",
+        "circuit-court", "cosmic-elite", "phantom-luxe",
       ];
       const lockedThemes: Record<string, string> = {
         "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",
         "royal-amethyst": "champion", "sunset-copper": "champion",
         "midnight-neon": "blackcard",
+        "aurora-borealis": "top10", "volcanic-ember": "top10", "deep-ocean": "top10", "jungle-vibe": "top10",
+        "adrenaline-rush": "champion", "velocity-chrome": "champion", "circuit-court": "champion",
+        "cosmic-elite": "blackcard", "phantom-luxe": "blackcard",
       };
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
@@ -770,10 +777,18 @@ export async function registerRoutes(
       const premiumThemes = [
         "obsidian-gold", "platinum-ice", "emerald-performance",
         "carbon-titanium", "amoled-black",
+        "neon-circuit", "hologram-matrix", "cyber-pulse", "titanium-noir",
+        "rose-gold-elite", "diamond-graphite",
       ];
-      const eliteThemes = ["sapphire-velocity", "crimson-prestige", "arctic-blue"];
-      const signatureThemes = ["royal-amethyst", "sunset-copper"];
-      const blackCardThemes = ["midnight-neon"];
+      const eliteThemes = [
+        "sapphire-velocity", "crimson-prestige", "arctic-blue",
+        "aurora-borealis", "volcanic-ember", "deep-ocean", "jungle-vibe",
+      ];
+      const signatureThemes = [
+        "royal-amethyst", "sunset-copper",
+        "adrenaline-rush", "velocity-chrome", "circuit-court",
+      ];
+      const blackCardThemes = ["midnight-neon", "cosmic-elite", "phantom-luxe"];
 
       const unlockedThemes = [...standardThemes, ...premiumThemes];
 
