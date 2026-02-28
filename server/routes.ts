@@ -20564,6 +20564,284 @@ Provide:
     }
   });
 
+  // === PARENT CHILD AI REPORT & PDF ===
+
+  app.post("/api/juniors/:childId/report/generate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const childId = Number(req.params.childId);
+      const user = req.user!;
+
+      const [child] = await db.select().from(users).where(eq(users.id, childId));
+      if (!child) return res.status(404).json({ message: "Child not found" });
+
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
+      const profile = profiles[0];
+      if (!profile) return res.status(404).json({ message: "No junior profile found" });
+
+      if (child.parentUserId !== user.id && user.role !== "OWNER") {
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, profile.clubId), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+        if (adminProfiles.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, childId));
+      const history = await db.select().from(juniorProgressHistory).where(eq(juniorProgressHistory.childId, childId)).orderBy(desc(juniorProgressHistory.createdAt)).limit(30);
+
+      const categoryData = categories.map(cat => {
+        const catSkills = skills.filter(s => s.categoryId === cat.id);
+        const skillData = catSkills.map(sk => {
+          const prog = progress.find(p => p.skillId === sk.id);
+          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false };
+        });
+        const avgScore = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.percentage, 0) / skillData.length) : 0;
+        return { category: cat.name, avgScore, skills: skillData };
+      });
+
+      const weakest3 = categoryData.flatMap(c => c.skills.map(s => ({ ...s, category: c.category })))
+        .filter(s => s.percentage > 0).sort((a, b) => a.percentage - b.percentage).slice(0, 3);
+      const strongest3 = categoryData.flatMap(c => c.skills.map(s => ({ ...s, category: c.category })))
+        .filter(s => s.percentage > 0).sort((a, b) => b.percentage - a.percentage).slice(0, 3);
+      const prioritySkills = categoryData.flatMap(c => c.skills.filter(s => s.priority).map(s => ({ ...s, category: c.category })));
+
+      const recentImprovement = history.length >= 2
+        ? history[0].newPercentage - history[history.length - 1].newPercentage
+        : 0;
+
+      let aiSummary = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+        const prompt = `You are a friendly, encouraging badminton coach writing a progress report for a parent about their child's badminton development. Write in a warm, professional tone that parents will appreciate.
+
+Player: ${child.fullName}
+Age: ${child.dateOfBirth ? Math.floor((Date.now() - new Date(child.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : "Unknown"}
+Level: ${profile.juniorLevel.replace(/_/g, " ")}
+Overall Skill: ${profile.overallSkillPercentage}%
+Attendance: ${profile.attendancePercentage}%
+Effort Rating: ${profile.effortRating}/10
+Coach Rating: ${profile.coachRating}/10
+
+Category Performance:
+${categoryData.map(c => `  ${c.category}: ${c.avgScore}%`).join("\n")}
+
+Strongest Skills: ${strongest3.map(s => `${s.name} (${s.category}): ${s.percentage}%`).join(", ")}
+Weakest Skills: ${weakest3.map(s => `${s.name} (${s.category}): ${s.percentage}%`).join(", ")}
+Priority Focus Areas: ${prioritySkills.length > 0 ? prioritySkills.map(s => `${s.name} (${s.category})`).join(", ") : "None set"}
+Recent Progress Trend: ${recentImprovement > 0 ? `Improving (+${recentImprovement}%)` : recentImprovement < 0 ? `Needs attention (${recentImprovement}%)` : "Steady"}
+
+Write a comprehensive report with these sections:
+1. **Overall Summary** (2-3 sentences about where the player is in their journey)
+2. **Strengths** (what they're doing well, be specific and encouraging)
+3. **Areas for Development** (constructive, positive framing of weaknesses)
+4. **Coach Recommendations** (2-3 specific things the player should focus on at home or in practice)
+5. **Next Steps** (what level they're working towards and what it takes to get there)
+
+Keep it to about 300 words. Be encouraging but honest.`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 600,
+        });
+        aiSummary = completion.choices[0]?.message?.content || "Unable to generate report.";
+      } catch (aiErr: any) {
+        console.error("AI generation error:", aiErr);
+        aiSummary = `Progress Report for ${child.fullName}\n\nOverall skill level: ${profile.overallSkillPercentage}% (${profile.juniorLevel.replace(/_/g, " ")})\nAttendance: ${profile.attendancePercentage}%\nEffort: ${profile.effortRating}/10 | Coach Rating: ${profile.coachRating}/10\n\nStrongest areas: ${strongest3.map(s => `${s.name} (${s.percentage}%)`).join(", ")}.\nAreas to improve: ${weakest3.map(s => `${s.name} (${s.percentage}%)`).join(", ")}.\n\n${prioritySkills.length > 0 ? `Priority focus: ${prioritySkills.map(s => s.name).join(", ")}.` : ""}`;
+      }
+
+      const [report] = await db.insert(generatedReports).values({
+        createdBy: user.id,
+        clubId: profile.clubId,
+        dateRangeStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        dateRangeEnd: new Date(),
+        squadFilter: `child:${childId}`,
+        aiSummary,
+      }).returning();
+
+      res.json({
+        report,
+        childName: child.fullName,
+        profile: { juniorLevel: profile.juniorLevel, overallSkillPercentage: profile.overallSkillPercentage, attendancePercentage: profile.attendancePercentage, effortRating: profile.effortRating, coachRating: profile.coachRating },
+        categories: categoryData,
+        weakest: weakest3,
+        strongest: strongest3,
+        prioritySkills,
+      });
+    } catch (err: any) {
+      console.error("Error generating child report:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/juniors/:childId/report/:reportId/pdf", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const childId = Number(req.params.childId);
+      const reportId = Number(req.params.reportId);
+      const user = req.user!;
+
+      const [child] = await db.select().from(users).where(eq(users.id, childId));
+      if (!child) return res.status(404).json({ message: "Child not found" });
+
+      const profiles = await db.select().from(juniorProfiles).where(eq(juniorProfiles.userId, childId));
+      const profile = profiles[0];
+      if (!profile) return res.status(404).json({ message: "No junior profile found" });
+
+      if (child.parentUserId !== user.id && user.role !== "OWNER") {
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, profile.clubId), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
+        if (adminProfiles.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const [report] = await db.select().from(generatedReports).where(eq(generatedReports.id, reportId));
+      if (!report) return res.status(404).json({ message: "Report not found" });
+      if (report.squadFilter !== `child:${childId}`) return res.status(403).json({ message: "Report does not belong to this child" });
+      if (report.clubId !== profile.clubId) return res.status(403).json({ message: "Report does not belong to this club" });
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, profile.clubId));
+
+      const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
+      const skills = await db.select().from(juniorSkills);
+      const progress = await db.select().from(juniorSkillProgress).where(eq(juniorSkillProgress.childId, childId));
+
+      const categoryData = categories.map(cat => {
+        const catSkills = skills.filter(s => s.categoryId === cat.id);
+        const skillData = catSkills.map(sk => {
+          const prog = progress.find(p => p.skillId === sk.id);
+          return { name: sk.name, percentage: prog?.percentage || 0, priority: prog?.priority || false };
+        });
+        const avgScore = skillData.length > 0 ? Math.round(skillData.reduce((s, d) => s + d.percentage, 0) / skillData.length) : 0;
+        return { category: cat.name, avgScore, skills: skillData };
+      });
+
+      const PDFDocument = (await import("pdfkit")).default;
+      const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${child.fullName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf"`);
+      doc.pipe(res);
+
+      const gold = "#B8941E";
+      const darkGray = "#333333";
+      const midGray = "#666666";
+      const lightGray = "#F5F5F0";
+      const pageWidth = 495;
+
+      doc.rect(0, 0, doc.page.width, 120).fill("#1A1A1A");
+      doc.rect(0, 120, doc.page.width, 4).fill(gold);
+
+      doc.fontSize(28).font("Helvetica-Bold").fillColor("#FFFFFF").text("Player Progress Report", 50, 35);
+      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Badminton Club", 50, 70);
+      doc.fontSize(10).fillColor("#999999").text(`Generated: ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, 50, 90);
+
+      let y = 140;
+
+      doc.rect(50, y, pageWidth, 70).fill(lightGray);
+      doc.fontSize(20).font("Helvetica-Bold").fillColor(darkGray).text(child.fullName, 65, y + 12);
+
+      const age = child.dateOfBirth ? Math.floor((Date.now() - new Date(child.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+      const levelLabel = (profile?.juniorLevel || "BEGINNER").replace(/_/g, " ");
+      doc.fontSize(10).font("Helvetica").fillColor(midGray).text(
+        `${age ? `Age ${age}` : ""} ${age ? " | " : ""}Level: ${levelLabel}`,
+        65, y + 38
+      );
+      doc.roundedRect(370, y + 10, 160, 50, 5).fill(gold);
+      doc.fontSize(24).font("Helvetica-Bold").fillColor("#FFFFFF").text(`${profile?.overallSkillPercentage || 0}%`, 380, y + 14, { width: 140, align: "center" });
+      doc.fontSize(8).font("Helvetica").text("OVERALL SKILL", 380, y + 42, { width: 140, align: "center" });
+
+      y += 90;
+
+      const statBoxW = (pageWidth - 30) / 4;
+      const stats = [
+        { label: "ATTENDANCE", value: `${profile?.attendancePercentage || 0}%`, color: "#22c55e" },
+        { label: "EFFORT", value: `${profile?.effortRating || 0}/10`, color: "#3b82f6" },
+        { label: "COACH RATING", value: `${profile?.coachRating || 0}/10`, color: "#a855f7" },
+        { label: "SKILLS TRACKED", value: `${progress.length}`, color: "#f59e0b" },
+      ];
+      stats.forEach((stat, i) => {
+        const x = 50 + i * (statBoxW + 10);
+        doc.roundedRect(x, y, statBoxW, 55, 4).fillAndStroke("#FFFFFF", "#E5E5E5");
+        doc.fontSize(16).font("Helvetica-Bold").fillColor(stat.color).text(stat.value, x + 5, y + 8, { width: statBoxW - 10, align: "center" });
+        doc.fontSize(7).font("Helvetica").fillColor(midGray).text(stat.label, x + 5, y + 32, { width: statBoxW - 10, align: "center" });
+      });
+      y += 75;
+
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("Category Performance", 50, y);
+      doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
+      y += 28;
+
+      for (const cat of categoryData) {
+        if (y > 700) { doc.addPage(); y = 50; }
+        doc.fontSize(10).font("Helvetica-Bold").fillColor(darkGray).text(cat.category, 50, y, { width: 160 });
+        doc.fontSize(10).font("Helvetica-Bold").fillColor(gold).text(`${cat.avgScore}%`, 480, y, { width: 50, align: "right" });
+
+        const barX = 220;
+        const barW = 250;
+        doc.roundedRect(barX, y + 1, barW, 12, 3).fill("#E5E5E5");
+        if (cat.avgScore > 0) {
+          const fillW = Math.max(6, (cat.avgScore / 100) * barW);
+          const barColor = cat.avgScore >= 70 ? "#22c55e" : cat.avgScore >= 40 ? gold : "#ef4444";
+          doc.roundedRect(barX, y + 1, fillW, 12, 3).fill(barColor);
+        }
+        y += 22;
+
+        for (const sk of cat.skills) {
+          if (y > 720) { doc.addPage(); y = 50; }
+          doc.fontSize(8).font("Helvetica").fillColor(midGray).text(
+            `${sk.priority ? "★ " : "  "}${sk.name}`, 70, y, { width: 145 }
+          );
+          const skBarX = 220;
+          const skBarW = 250;
+          doc.roundedRect(skBarX, y + 1, skBarW, 8, 2).fill("#EEEEEE");
+          if (sk.percentage > 0) {
+            const skFillW = Math.max(4, (sk.percentage / 100) * skBarW);
+            const skColor = sk.percentage >= 70 ? "#22c55e" : sk.percentage >= 40 ? "#D4AF37" : "#ef4444";
+            doc.roundedRect(skBarX, y + 1, skFillW, 8, 2).fill(skColor);
+          }
+          doc.fontSize(8).font("Helvetica").fillColor(darkGray).text(`${sk.percentage}%`, 480, y, { width: 50, align: "right" });
+          y += 14;
+        }
+        y += 8;
+      }
+
+      if (y > 500) { doc.addPage(); y = 50; }
+
+      doc.fontSize(14).font("Helvetica-Bold").fillColor(darkGray).text("AI Coach Analysis", 50, y);
+      doc.moveTo(50, y + 18).lineTo(50 + pageWidth, y + 18).strokeColor(gold).lineWidth(2).stroke();
+      y += 28;
+
+      const reportLines = report.aiSummary.split("\n");
+      for (const line of reportLines) {
+        if (y > 720) { doc.addPage(); y = 50; }
+        const trimmed = line.trim();
+        if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+          doc.fontSize(11).font("Helvetica-Bold").fillColor(darkGray).text(trimmed.replace(/\*\*/g, ""), 50, y, { width: pageWidth });
+        } else if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          doc.fontSize(9).font("Helvetica").fillColor(midGray).text(`  •  ${trimmed.slice(2)}`, 60, y, { width: pageWidth - 10 });
+        } else if (trimmed.length > 0) {
+          doc.fontSize(9).font("Helvetica").fillColor(midGray).text(trimmed.replace(/\*\*/g, ""), 50, y, { width: pageWidth });
+        }
+        const lineFontSize = (trimmed.startsWith("**") && trimmed.endsWith("**")) ? 11 : 9;
+        y += trimmed.length > 0 ? doc.heightOfString(trimmed.replace(/\*\*/g, ""), { width: pageWidth, fontSize: lineFontSize }) + 4 : 8;
+      }
+
+      const totalPages = doc.bufferedPageRange().count;
+      for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(7).font("Helvetica").fillColor("#AAAAAA")
+          .text(`Page ${i + 1} of ${totalPages}  |  ${child.fullName}  |  ${club?.name || "Club"}  |  Confidential`, 50, doc.page.height - 30, { width: pageWidth, align: "center" });
+      }
+
+      doc.end();
+    } catch (err: any) {
+      console.error("Error generating PDF:", err);
+      if (!res.headersSent) res.status(500).json({ message: err.message });
+    }
+  });
+
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
 

@@ -98,6 +98,7 @@ import {
   BellOff,
   ExternalLink,
   HelpCircle,
+  FileDown,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
@@ -932,6 +933,201 @@ function TopSkillsList({ categories, progressMap }: { categories: any[]; progres
   );
 }
 
+function ChildReportSection({ childId, childName }: { childId: number; childName: string }) {
+  const { toast } = useToast();
+  const [reportData, setReportData] = useState<any>(null);
+  const [showReport, setShowReport] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/juniors/${childId}/report/generate`, {});
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setReportData(data);
+      setShowReport(true);
+      toast({ title: "Report Generated", description: "Your child's AI progress report is ready." });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const handleDownloadPdf = async () => {
+    if (!reportData?.report?.id) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/juniors/${childId}/report/${reportData.report.id}/pdf`, { credentials: "include" });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${childName.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: "Downloaded", description: "PDF report saved to your device." });
+    } catch {
+      toast({ title: "Error", description: "Could not download the report", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border border-amber-500/20 p-4" data-testid="card-child-report">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="rounded-xl bg-amber-500/20 p-2.5 shrink-0">
+              <Sparkles className="h-5 w-5 text-amber-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white">AI Progress Report</p>
+              <p className="text-xs text-muted-foreground">Get a personalised coaching analysis with downloadable PDF</p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {reportData && (
+              <Button
+                data-testid="button-download-pdf"
+                size="sm"
+                variant="outline"
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={handleDownloadPdf}
+                disabled={downloading}
+              >
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                <span className="ml-1.5 hidden sm:inline">PDF</span>
+              </Button>
+            )}
+            <Button
+              data-testid="button-generate-child-report"
+              size="sm"
+              className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
+              {reportData ? "Refresh" : "Generate"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={showReport} onOpenChange={setShowReport}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Progress Report — {childName}
+            </DialogTitle>
+            <DialogDescription>
+              Generated on {reportData?.report?.createdAt ? new Date(reportData.report.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "today"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {reportData && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-3 text-center">
+                  <p className="text-xl font-black text-amber-400">{reportData.profile?.overallSkillPercentage || 0}%</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Overall</p>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 p-3 text-center">
+                  <p className="text-xl font-black text-emerald-400">{reportData.profile?.attendancePercentage || 0}%</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Attendance</p>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 p-3 text-center">
+                  <p className="text-xl font-black text-blue-400">{reportData.profile?.effortRating || 0}/10</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Effort</p>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-purple-500/10 to-violet-500/10 border border-purple-500/20 p-3 text-center">
+                  <p className="text-xl font-black text-purple-400">{reportData.profile?.coachRating || 0}/10</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Coach Rating</p>
+                </div>
+              </div>
+
+              {reportData.strongest?.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5" /> Strongest Skills
+                    </p>
+                    {reportData.strongest.map((s: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 py-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span className="text-xs text-foreground flex-1">{s.name}</span>
+                        <span className="text-xs font-bold text-emerald-400">{s.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+                    <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Target className="h-3.5 w-3.5" /> Areas to Develop
+                    </p>
+                    {reportData.weakest?.map((s: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 py-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                        <span className="text-xs text-foreground flex-1">{s.name}</span>
+                        <span className="text-xs font-bold text-orange-400">{s.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {reportData.categories?.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category Breakdown</p>
+                  {reportData.categories.map((cat: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-xs text-foreground w-28 truncate">{cat.category}</span>
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${cat.avgScore}%`,
+                            background: cat.avgScore >= 70 ? "#22c55e" : cat.avgScore >= 40 ? "#D4AF37" : "#ef4444"
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold w-10 text-right" style={{ color: cat.avgScore >= 70 ? "#22c55e" : cat.avgScore >= 40 ? "#D4AF37" : "#ef4444" }}>{cat.avgScore}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> AI Coach Analysis
+                </p>
+                <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  {reportData.report?.aiSummary}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  data-testid="button-download-pdf-modal"
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                  onClick={handleDownloadPdf}
+                  disabled={downloading}
+                >
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
+                  Download PDF Report
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
   const [activeSubTab, setActiveSubTab] = useState("overview");
   const [filterWeakest, setFilterWeakest] = useState(false);
@@ -1125,6 +1321,8 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
           </div>
         </div>
       </div>
+
+      <ChildReportSection childId={userId} childName={profileData.user.fullName} />
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-slate-900/60 rounded-xl p-1 h-auto">
