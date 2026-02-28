@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
+import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,7 +64,7 @@ function StatCard({ label, value, icon: Icon, sub, color = GOLD }: { label: stri
 }
 
 export default function CoachJuniorSkillsDashboard() {
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
