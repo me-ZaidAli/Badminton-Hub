@@ -451,6 +451,7 @@ export function setupAuth(app: Express) {
     
     const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
     const profile = profiles.length > 0 ? profiles[0] : null;
-    res.json({ ...req.user, playerProfile: profile, playerProfiles: profiles });
+    const children = await storage.getJuniorAccounts(req.user!.id);
+    res.json({ ...req.user, playerProfile: profile, playerProfiles: profiles, hasChildren: children.length > 0 });
   });
 }

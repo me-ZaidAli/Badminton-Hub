@@ -69,6 +69,7 @@ interface NavItem {
   secondaryBadgeKey?: keyof BadgeCounts;
   isGodMode?: boolean;
   premiumOnly?: boolean;
+  hidden?: boolean;
 }
 
 interface NavGroup {
@@ -101,7 +102,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
-    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity" },
+    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasChildren },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
 
@@ -131,6 +132,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   const showPremium = isPremium || isSuperAdmin;
   const filteredItems = items.filter(item => {
+    if (item.hidden) return false;
     if (!item.premiumOnly) return true;
     return showPremium;
   });
