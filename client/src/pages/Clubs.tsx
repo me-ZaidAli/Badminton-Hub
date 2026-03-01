@@ -23,7 +23,7 @@ import {
   Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map,
   CheckCircle, Clock, XCircle, Loader2, Building2, Pencil,
   Trash2, Archive, Pause, Mail, Key, Save, Send, User,
-  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus, Gift, CheckCircle2
+  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus, Gift, CheckCircle2, Upload, Camera
 } from "lucide-react";
 
 type Membership = {
@@ -1190,6 +1190,38 @@ function EditClubDialog({
   isOwner: boolean;
 }) {
   const { toast } = useToast();
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !club) return;
+    const file = e.target.files[0];
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Error", description: "Image must be less than 5MB", variant: "destructive" });
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+      const res = await fetch(`/api/clubs/${club.id}/logo`, { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      const data = await res.json();
+      setLogoPreview(data.logoUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      toast({ title: "Logo Updated", description: "Club logo has been uploaded." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to upload logo", variant: "destructive" });
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const [editClubForm, setEditClubForm] = useState<ClubEditForm>({
     name: "",
     description: "",
@@ -1222,6 +1254,7 @@ function EditClubDialog({
 
   useEffect(() => {
     if (club) {
+      setLogoPreview(club.logoUrl || null);
       setEditClubForm({
         name: club.name || "",
         description: club.description || "",
@@ -1256,7 +1289,7 @@ function EditClubDialog({
 
   const updateClubMutation = useMutation({
     mutationFn: async (data: { id: number; form: ClubEditForm }) => {
-      const res = await apiRequest("PATCH", `/api/super-admin/clubs/${data.id}`, {
+      const res = await apiRequest("PATCH", `/api/clubs/${data.id}`, {
         name: data.form.name,
         description: data.form.description,
         status: data.form.status,
@@ -1313,6 +1346,28 @@ function EditClubDialog({
           <div>
             <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Basic Info</div>
             <div className="space-y-3">
+              <div>
+                <Label>Club Logo</Label>
+                <div className="flex items-center gap-4 mt-1">
+                  <div className="h-16 w-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden flex-shrink-0 bg-muted/30">
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Club logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <Building2 className="h-8 w-8 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label htmlFor="club-logo-upload" className="cursor-pointer">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-background hover:bg-muted transition-colors text-sm w-fit" data-testid="button-upload-club-logo">
+                        {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                        {uploadingLogo ? "Uploading..." : logoPreview ? "Change Logo" : "Upload Logo"}
+                      </div>
+                    </label>
+                    <input id="club-logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} data-testid="input-club-logo-file" />
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. JPG, PNG, or WebP.</p>
+                  </div>
+                </div>
+              </div>
               <div>
                 <Label>Name</Label>
                 <Input
@@ -1834,6 +1889,7 @@ export default function Clubs() {
   const canEditClub = (clubId: number) => {
     if (!user) return false;
     if (isOwnerRole) return true;
+    if (myAdminClubIds.has(clubId)) return true;
     return false;
   };
 

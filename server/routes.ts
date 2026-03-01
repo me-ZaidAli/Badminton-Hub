@@ -85,6 +85,26 @@ const uploadAnnouncementPhoto = multer({
   },
 });
 
+const clubLogoUploadsDir = path.join(process.cwd(), "public", "uploads", "clubs");
+if (!fs.existsSync(clubLogoUploadsDir)) {
+  fs.mkdirSync(clubLogoUploadsDir, { recursive: true });
+}
+const clubLogoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, clubLogoUploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    cb(null, `club-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadClubLogo = multer({
+  storage: clubLogoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
+
 const profilePhotoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, profileUploadsDir),
   filename: (_req, file, cb) => {
@@ -6158,20 +6178,39 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/clubs/:clubId/logo", uploadClubLogo.single("logo"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const isSuperAdmin = req.user!.role === "OWNER";
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const isClubOwner = club.ownerId === req.user!.id;
+      const [adminProfile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      if (!isSuperAdmin && !isClubOwner && !adminProfile) return res.sendStatus(403);
+      if (!req.file) return res.status(400).json({ message: "No image file provided" });
+      const logoUrl = `/uploads/clubs/${req.file.filename}`;
+      await db.update(clubs).set({ logoUrl }).where(eq(clubs.id, clubId));
+      res.json({ logoUrl });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to upload club logo" });
+    }
+  });
+
   // === Update club (name, logo) ===
   app.patch("/api/clubs/:clubId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
     
-    // Allow super admin or club owner
     const isSuperAdmin = req.user!.role === "OWNER";
     const club = await storage.getClub(clubId);
     if (!club) {
       return res.status(404).json({ message: "Club not found" });
     }
     const isClubOwner = club.ownerId === req.user!.id;
+    const [adminProfile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
     
-    if (!isSuperAdmin && !isClubOwner) {
+    if (!isSuperAdmin && !isClubOwner && !adminProfile) {
       return res.sendStatus(403);
     }
 
@@ -6183,7 +6222,8 @@ export async function registerRoutes(
         "name", "logoUrl", "address", "city", "postcode", "googleMapsUrl",
         "latitude", "longitude", "description", "beRegistrationNumber",
         "socialGameTimings", "trainingDetails", "shuttlecockType",
-        "contactFullName", "contactPhone", "contactAddress"
+        "contactFullName", "contactPhone", "contactAddress",
+        "region", "country", "continent", "clubPolicies", "clubStandards", "status"
       ];
       for (const field of stringFields) {
         if (body[field] !== undefined) {
@@ -6200,7 +6240,7 @@ export async function registerRoutes(
 
       const booleanFields = [
         "isRegisteredWithBE", "hasCompetitions", "hasSocialGames",
-        "providesTraining", "providesClubTShirts"
+        "providesTraining", "providesClubTShirts", "hasMembership"
       ];
       for (const field of booleanFields) {
         if (body[field] !== undefined) {
