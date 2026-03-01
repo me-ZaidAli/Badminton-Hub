@@ -1,12 +1,13 @@
 import { Link, useLocation, Redirect } from "wouter";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { Button } from "@/components/ui/button";
-import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck } from "lucide-react";
+import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck, Download } from "lucide-react";
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { usePwaInstall } from "@/components/PwaInstallPrompt";
 
 const publicNavItems = [
   { label: "Home", href: "/", icon: LayoutDashboard },
@@ -50,6 +51,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   const { data: user } = useUser();
   const logout = useLogout();
   const navItems = useNavItems();
+  const { canInstall, isInstalled, install } = usePwaInstall();
 
   if (user && location === "/") {
     return <Redirect to="/dashboard" />;
@@ -88,6 +90,18 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </nav>
 
           <div className="flex items-center gap-2">
+            {canInstall && !isInstalled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden md:inline-flex gap-2"
+                onClick={install}
+                data-testid="button-install-pwa-header"
+              >
+                <Download className="w-4 h-4" />
+                Install App
+              </Button>
+            )}
             <ThemeToggle />
             {user ? (
               <>
@@ -191,6 +205,23 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                     Join Club
                   </Button>
                 </Link>
+              </div>
+            )}
+            {canInstall && !isInstalled && (
+              <div className="border-t border-border/40 pt-2 mt-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  size="sm"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    install();
+                  }}
+                  data-testid="mobile-nav-install-pwa"
+                >
+                  <Download className="w-4 h-4" />
+                  Install App
+                </Button>
               </div>
             )}
           </div>
