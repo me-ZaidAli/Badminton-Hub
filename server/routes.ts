@@ -19084,6 +19084,106 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/junior-skills/categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const { name, iconName } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
+      const maxOrder = await db.select({ max: sql<number>`COALESCE(MAX(${juniorSkillCategories.displayOrder}), 0)` }).from(juniorSkillCategories);
+      const nextOrder = (maxOrder[0]?.max || 0) + 1;
+      const [created] = await db.insert(juniorSkillCategories).values({ name: name.trim(), displayOrder: nextOrder, iconName: iconName || "Target" }).returning();
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/junior-skills/categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const id = Number(req.params.id);
+      const { name, iconName } = req.body;
+      const updates: any = {};
+      if (name?.trim()) updates.name = name.trim();
+      if (iconName) updates.iconName = iconName;
+      const [updated] = await db.update(juniorSkillCategories).set(updates).where(eq(juniorSkillCategories.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Category not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/junior-skills/categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const id = Number(req.params.id);
+      const skillsInCat = await db.select({ id: juniorSkills.id }).from(juniorSkills).where(eq(juniorSkills.categoryId, id));
+      for (const skill of skillsInCat) {
+        await db.delete(juniorSkillProgress).where(eq(juniorSkillProgress.skillId, skill.id));
+      }
+      await db.delete(juniorSkills).where(eq(juniorSkills.categoryId, id));
+      await db.delete(juniorSkillCategories).where(eq(juniorSkillCategories.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/junior-skills", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const { categoryId, name } = req.body;
+      if (!categoryId || !name?.trim()) return res.status(400).json({ message: "categoryId and name required" });
+      const [cat] = await db.select().from(juniorSkillCategories).where(eq(juniorSkillCategories.id, categoryId)).limit(1);
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const maxOrder = await db.select({ max: sql<number>`COALESCE(MAX(${juniorSkills.displayOrder}), 0)` }).from(juniorSkills).where(eq(juniorSkills.categoryId, categoryId));
+      const nextOrder = (maxOrder[0]?.max || 0) + 1;
+      const [created] = await db.insert(juniorSkills).values({ categoryId, name: name.trim(), displayOrder: nextOrder }).returning();
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/junior-skills/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const id = Number(req.params.id);
+      const { name } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
+      const [updated] = await db.update(juniorSkills).set({ name: name.trim() }).where(eq(juniorSkills.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Skill not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/junior-skills/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = req.user!.role;
+    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    try {
+      const id = Number(req.params.id);
+      await db.delete(juniorSkillProgress).where(eq(juniorSkillProgress.skillId, id));
+      await db.delete(juniorSkills).where(eq(juniorSkills.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/junior-profiles/:userId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {

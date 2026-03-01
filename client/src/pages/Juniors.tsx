@@ -19,6 +19,7 @@ import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useSearch } from "wouter";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
+import { SkillCategoryManager } from "@/components/SkillCategoryManager";
 import { format } from "date-fns";
 import {
   ResponsiveContainer,
@@ -3539,6 +3540,10 @@ export default function Juniors() {
                 )}
               </>
             )}
+
+            <div className="mt-8 pt-6 border-t">
+              <SkillCategoryManager />
+            </div>
           </div>
         );
       case "training":
