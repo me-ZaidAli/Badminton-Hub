@@ -1691,6 +1691,16 @@ export default function Profile() {
   const [clubsModalOpen, setClubsModalOpen] = useState(false);
   const [discountCodesModalOpen, setDiscountCodesModalOpen] = useState(false);
   const [rankingClubFilter, setRankingClubFilter] = useState<string>("all");
+  const [tierCardFlipped, setTierCardFlipped] = useState(false);
+
+  const { data: availableThemesData } = useQuery<{
+    unlockedThemes: string[];
+    userRank: string;
+    hasBlackCard: boolean;
+  }>({
+    queryKey: ["/api/user/available-themes"],
+    enabled: !!user,
+  });
 
   const [privacyNickname, setPrivacyNickname] = useState("");
   const [privacyShowPublicName, setPrivacyShowPublicName] = useState(false);
@@ -1891,65 +1901,204 @@ export default function Profile() {
         <ProfileMembershipDuration joinedAt={primaryProfile.joinedAt} />
       )}
 
-      {(user as any).blackCardAccess && (
-        <div className="relative overflow-hidden rounded-2xl" data-testid="card-black-card-visual"
-          style={{
-            background: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
-            boxShadow: "0 0 0 2px #b8860b, 0 0 0 3px rgba(184,134,11,0.3), 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)",
-            aspectRatio: "1.586",
-            maxWidth: "420px",
-          }}>
-          <div className="absolute inset-0 rounded-2xl" style={{
-            background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
-          }} />
-          <div className="absolute inset-0 rounded-2xl" style={{
-            background: "radial-gradient(ellipse at 30% 20%, rgba(184,134,11,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(184,134,11,0.05) 0%, transparent 40%)",
-          }} />
-          <div className="absolute inset-[2px] rounded-2xl border border-amber-700/20" />
-          <div className="relative h-full flex flex-col justify-between p-5 sm:p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-lg sm:text-xl font-bold tracking-[0.08em]" style={{ color: "#c5a044" }}>
-                  {user.fullName?.toUpperCase()}
-                </p>
-                <p className="text-[11px] uppercase tracking-[0.25em] mt-0.5 font-medium" style={{ color: "#9a7d2e" }}>
-                  Titanium Gold Member
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
-                background: "linear-gradient(135deg, #c5a044, #8b6914)",
-                boxShadow: "0 2px 8px rgba(184,134,11,0.3)",
+      {user && (() => {
+        const tierData = (() => {
+          if ((user as any).blackCardAccess) return {
+            name: "BLACK CARD", subtitle: "Titanium Gold Member",
+            bg: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
+            border: "#b8860b", borderGlow: "rgba(184,134,11,0.3)",
+            accent: "#c5a044", accentDark: "#9a7d2e", accentDim: "#7a6420",
+            iconBg: "linear-gradient(135deg, #c5a044, #8b6914)",
+            iconShadow: "rgba(184,134,11,0.3)",
+            innerBorder: "rgba(180,130,20,0.2)",
+            benefits: [
+              "3 Ultra Exclusive themes",
+              "Midnight Neon, Cosmic Elite, Phantom Luxe",
+              "Titanium card privileges",
+              "Invite-only access tier",
+              "Priority support channel",
+              "Exclusive profile badge",
+            ],
+          };
+          if (availableThemesData?.userRank === "champion") return {
+            name: "SIGNATURE", subtitle: "Champion #1",
+            bg: "linear-gradient(135deg, #10061a 0%, #1a0d28 30%, #140a20 50%, #1e1030 70%, #10061a 100%)",
+            border: "#8B5CF6", borderGlow: "rgba(139,92,246,0.3)",
+            accent: "#A78BFA", accentDark: "#7C3AED", accentDim: "#6D28D9",
+            iconBg: "linear-gradient(135deg, #A78BFA, #7C3AED)",
+            iconShadow: "rgba(139,92,246,0.3)",
+            innerBorder: "rgba(139,92,246,0.2)",
+            benefits: [
+              "5 Signature themes unlocked",
+              "Royal Amethyst, Sunset Copper",
+              "Adrenaline Rush, Velocity Chrome",
+              "Circuit Court theme",
+              "Champion profile badge",
+              "All Elite themes included",
+            ],
+          };
+          if (availableThemesData?.userRank === "top10") return {
+            name: "ELITE", subtitle: "Top 10 Contender",
+            bg: "linear-gradient(135deg, #0a0f1a 0%, #0d1525 30%, #0a1020 50%, #0e1828 70%, #0a0f1a 100%)",
+            border: "#06B6D4", borderGlow: "rgba(6,182,212,0.3)",
+            accent: "#22D3EE", accentDark: "#0891B2", accentDim: "#0E7490",
+            iconBg: "linear-gradient(135deg, #22D3EE, #0891B2)",
+            iconShadow: "rgba(6,182,212,0.3)",
+            innerBorder: "rgba(6,182,212,0.2)",
+            benefits: [
+              "7 Elite themes unlocked",
+              "Sapphire Velocity, Crimson Prestige",
+              "Arctic Blue, Aurora Borealis",
+              "Volcanic Ember, Deep Ocean",
+              "Jungle Vibe theme",
+              "All Premium themes included",
+            ],
+          };
+          return {
+            name: "PREMIUM", subtitle: "Bronze Member",
+            bg: "linear-gradient(135deg, #1a1610 0%, #2a2418 30%, #1e1a12 50%, #252016 70%, #1a1610 100%)",
+            border: "#8B6914", borderGlow: "rgba(139,105,20,0.25)",
+            accent: "#D4A45A", accentDark: "#A07830", accentDim: "#7A5C20",
+            iconBg: "linear-gradient(135deg, #D4A45A, #8B6914)",
+            iconShadow: "rgba(139,105,20,0.3)",
+            innerBorder: "rgba(139,105,20,0.15)",
+            benefits: [
+              "11 Premium themes unlocked",
+              "Obsidian Gold, Platinum Ice",
+              "Emerald Performance, Carbon Titanium",
+              "AMOLED Black + 6 more",
+              "Full theme customisation",
+              "Rank up for Elite themes",
+            ],
+          };
+        })();
+
+        const isReducedMotion = (user as any).reducedMotion === true;
+
+        return (
+          <div
+            className="cursor-pointer mx-auto w-full"
+            style={{ maxWidth: "420px", perspective: "1000px" }}
+            onClick={() => setTierCardFlipped(!tierCardFlipped)}
+            data-testid="card-tier-visual"
+          >
+            <div style={{
+              position: "relative",
+              width: "100%",
+              aspectRatio: "1.586",
+              transition: isReducedMotion ? "none" : "transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
+              transformStyle: "preserve-3d",
+              WebkitTransformStyle: "preserve-3d" as any,
+              transform: tierCardFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            }}>
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden" as any,
+                background: tierData.bg,
+                boxShadow: `0 0 0 2px ${tierData.border}, 0 0 0 3px ${tierData.borderGlow}, 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
               }}>
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="#1a1a1a" strokeWidth="1.5">
-                  <path d="M12 2L6 8H2L5 14L3 22H21L19 14L22 8H18L12 2Z" fill="#1a1a1a" stroke="#1a1a1a" />
-                  <path d="M7 8L12 3L17 8" stroke="#2a2a2a" strokeWidth="1" />
-                  <rect x="8" y="12" width="8" height="4" rx="0.5" fill="#2a2a2a" />
-                </svg>
-              </div>
-            </div>
-            <div>
-              <div className="mb-4">
-                <svg viewBox="0 0 60 36" className="w-14 h-auto" fill="none">
-                  <path d="M10 30L20 15L30 25L40 10L50 20" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <path d="M22 8L30 2L38 8" stroke="#c5a044" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  <path d="M26 8L30 4L34 8" stroke="#9a7d2e" strokeWidth="1" strokeLinecap="round" fill="none" />
-                  <circle cx="30" cy="2" r="1.5" fill="#c5a044" />
-                </svg>
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] font-medium" style={{ color: "#7a6420" }}>
-                    Member Since {new Date((user as any).createdAt || Date.now()).getFullYear()}
-                  </p>
+                <div className="absolute inset-0" style={{
+                  background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
+                }} />
+                <div className="absolute inset-0" style={{
+                  background: `radial-gradient(ellipse at 30% 20%, ${tierData.border}14 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, ${tierData.border}0a 0%, transparent 40%)`,
+                }} />
+                <div className="absolute inset-[2px] rounded-2xl" style={{ borderWidth: 1, borderStyle: "solid", borderColor: tierData.innerBorder }} />
+                <div className="relative h-full flex flex-col justify-between p-5 sm:p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold tracking-[0.08em]" style={{ color: tierData.accent }}>
+                        {(user.fullName || "").toUpperCase()}
+                      </p>
+                      <p className="text-[11px] uppercase tracking-[0.25em] mt-0.5 font-medium" style={{ color: tierData.accentDark }}>
+                        {tierData.subtitle}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
+                      background: tierData.iconBg,
+                      boxShadow: `0 2px 8px ${tierData.iconShadow}`,
+                    }}>
+                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                        <path d="M12 2L6 8H2L5 14L3 22H21L19 14L22 8H18L12 2Z" fill="#1a1a1a" stroke="#1a1a1a" strokeWidth="1.5" />
+                        <path d="M7 8L12 3L17 8" stroke="#2a2a2a" strokeWidth="1" />
+                        <rect x="8" y="12" width="8" height="4" rx="0.5" fill="#2a2a2a" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-4">
+                      <svg viewBox="0 0 60 36" className="w-14 h-auto" fill="none">
+                        <path d="M10 30L20 15L30 25L40 10L50 20" stroke={tierData.accent} strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M22 8L30 2L38 8" stroke={tierData.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M26 8L30 4L34 8" stroke={tierData.accentDark} strokeWidth="1" strokeLinecap="round" />
+                        <circle cx="30" cy="2" r="1.5" fill={tierData.accent} />
+                      </svg>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <p className="text-[10px] uppercase tracking-[0.2em] font-medium" style={{ color: tierData.accentDim }}>
+                        Member Since {new Date((user as any).createdAt || Date.now()).getFullYear()}
+                      </p>
+                      <p className="text-[11px] font-mono tracking-wider" style={{ color: tierData.accentDark }}>
+                        NO. {String(user.id || 0).padStart(4, "0")}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[11px] font-mono tracking-wider" style={{ color: "#9a7d2e" }}>
-                  NO. {String(user.id).padStart(4, "0")}
-                </p>
+                <div className="absolute bottom-2 right-3 text-[8px] uppercase tracking-widest" style={{ color: `${tierData.accentDim}80` }}>
+                  Tap to flip
+                </div>
+              </div>
+
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden" as any,
+                transform: "rotateY(180deg)",
+                background: tierData.bg,
+                boxShadow: `0 0 0 2px ${tierData.border}, 0 0 0 3px ${tierData.borderGlow}, 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
+              }}>
+                <div className="absolute inset-0" style={{
+                  background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
+                }} />
+                <div className="absolute inset-0" style={{
+                  background: `radial-gradient(ellipse at 70% 30%, ${tierData.border}14 0%, transparent 50%)`,
+                }} />
+                <div className="absolute inset-[2px] rounded-2xl" style={{ borderWidth: 1, borderStyle: "solid", borderColor: tierData.innerBorder }} />
+                <div className="absolute top-0 left-0 right-0 h-10" style={{ background: `linear-gradient(180deg, ${tierData.accent}15, transparent)` }} />
+                <div className="relative h-full flex flex-col p-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold tracking-[0.15em] uppercase" style={{ color: tierData.accent }}>
+                      {tierData.name}
+                    </p>
+                    <p className="text-[9px] uppercase tracking-[0.2em]" style={{ color: tierData.accentDim }}>
+                      Benefits
+                    </p>
+                  </div>
+                  <div className="w-full h-px mb-3" style={{ background: `linear-gradient(90deg, transparent, ${tierData.accent}40, transparent)` }} />
+                  <div className="flex-1 flex flex-col justify-center gap-2">
+                    {tierData.benefits.map((benefit, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: tierData.accent }} />
+                        <p className="text-[10px] sm:text-[11px] font-medium" style={{ color: i < 2 ? tierData.accent : tierData.accentDark }}>
+                          {benefit}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-full h-px mt-3" style={{ background: `linear-gradient(90deg, transparent, ${tierData.accent}40, transparent)` }} />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em]" style={{ color: tierData.accentDim }}>
+                      NO. {String(user.id || 0).padStart(4, "0")}
+                    </p>
+                    <p className="text-[8px] uppercase tracking-widest" style={{ color: `${tierData.accentDim}80` }}>
+                      Tap to flip
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Financial Summary */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4">
