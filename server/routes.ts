@@ -21255,10 +21255,10 @@ Provide:
         .where(and(eq(expenses.clubId, Number(clubId)), gte(expenses.createdAt, thirtyDaysAgo)));
       const totalExpenses = expensesAll.reduce((s, e) => s + (e.amount || 0), 0);
 
-      const creditEntries = await db.select({ amount: creditLedger.amount, type: creditLedger.type }).from(creditLedger)
+      const creditEntries = await db.select({ amount: creditLedger.amount }).from(creditLedger)
         .where(and(eq(creditLedger.clubId, Number(clubId)), gte(creditLedger.createdAt, thirtyDaysAgo)));
-      const creditsIssued = creditEntries.filter(c => c.type === "CREDIT").reduce((s, c) => s + c.amount, 0);
-      const creditsUsed = creditEntries.filter(c => c.type === "DEBIT").reduce((s, c) => s + Math.abs(c.amount), 0);
+      const creditsIssued = creditEntries.filter(c => c.amount > 0).reduce((s, c) => s + c.amount, 0);
+      const creditsUsed = creditEntries.filter(c => c.amount < 0).reduce((s, c) => s + Math.abs(c.amount), 0);
 
       const donationsAll = await db.select({ amount: donations.amount, status: donations.status }).from(donations);
       const donationsReceived = donationsAll.filter(d => d.status === "RECEIVED").reduce((s, d) => s + d.amount, 0);
@@ -21340,7 +21340,7 @@ Provide a concise report (200-250 words) covering:
 
       const playerMatchCounts = new Map<number, number>();
       for (const m of completedMatches) {
-        const playerIds = [m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id].filter(Boolean) as number[];
+        const playerIds = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
         for (const pid of playerIds) {
           playerMatchCounts.set(pid, (playerMatchCounts.get(pid) || 0) + 1);
         }
@@ -21348,13 +21348,18 @@ Provide a concise report (200-250 words) covering:
       const uniquePlayers = playerMatchCounts.size;
       const topPlayersEntries = [...playerMatchCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
       const topPlayerIds = topPlayersEntries.map(e => e[0]);
-      const topPlayerUsers = topPlayerIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, topPlayerIds)) : [];
-      const topPlayers = topPlayersEntries.map(([id, count]) => ({
-        name: topPlayerUsers.find(u => u.id === id)?.fullName || "Unknown",
-        matchCount: count,
-      }));
+      const topPlayerProfiles = topPlayerIds.length > 0
+        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, topPlayerIds))
+        : [];
+      const topUserIds = topPlayerProfiles.map(p => p.userId);
+      const topPlayerUsers = topUserIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, topUserIds)) : [];
+      const topPlayers = topPlayersEntries.map(([profileId, count]) => {
+        const profile = topPlayerProfiles.find(p => p.id === profileId);
+        const userName = profile ? topPlayerUsers.find(u => u.id === profile.userId)?.fullName : undefined;
+        return { name: userName || "Unknown", matchCount: count };
+      });
 
-      const doublesMatches = completedMatches.filter(m => m.team1Player2Id || m.team2Player2Id).length;
+      const doublesMatches = completedMatches.filter(m => m.teamAPlayer2Id || m.teamBPlayer2Id).length;
       const singlesMatches = completedMatches.length - doublesMatches;
       const avgMatchesPerSession = recentSessions.length > 0 ? (completedMatches.length / recentSessions.length).toFixed(1) : "0";
 
