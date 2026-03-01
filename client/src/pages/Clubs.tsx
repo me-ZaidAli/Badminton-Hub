@@ -23,7 +23,7 @@ import {
   Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map,
   CheckCircle, Clock, XCircle, Loader2, Building2, Pencil,
   Trash2, Archive, Pause, Mail, Key, Save, Send, User,
-  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus
+  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus, Gift, CheckCircle2
 } from "lucide-react";
 
 type Membership = {
@@ -1690,6 +1690,9 @@ export default function Clubs() {
   const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
   const [selectedClub, setSelectedClub] = useState<any | null>(null);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [joinReferralCode, setJoinReferralCode] = useState("");
+  const [joinReferralStatus, setJoinReferralStatus] = useState<{ valid: boolean; referrerName?: string; message?: string } | null>(null);
+  const [validatingJoinReferral, setValidatingJoinReferral] = useState(false);
   const [editClub, setEditClub] = useState<ClubRecord | null>(null);
   const [manageClub, setManageClub] = useState<ClubRecord | null>(null);
 
@@ -1720,20 +1723,24 @@ export default function Clubs() {
   }, [memberships, myAdminClubIds]);
 
   const joinMutation = useMutation({
-    mutationFn: async (data: { clubId: number }) => {
+    mutationFn: async (data: { clubId: number; referralCode?: string }) => {
       const res = await apiRequest("POST", "/api/clubs/join", data);
       return res.json();
     },
     onSuccess: () => {
       toast({
         title: "Join request submitted",
-        description: "The club admin will review your request.",
+        description: joinReferralStatus?.valid
+          ? "Your referral code has been applied. The club admin will review your request."
+          : "The club admin will review your request.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user/memberships"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/player-profiles"] });
       setJoinDialogOpen(false);
       setSelectedClub(null);
+      setJoinReferralCode("");
+      setJoinReferralStatus(null);
     },
     onError: (error: Error) => {
       toast({
@@ -1774,7 +1781,28 @@ export default function Clubs() {
 
   const handleJoinRequest = () => {
     if (!selectedClub || !user) return;
-    joinMutation.mutate({ clubId: selectedClub.id });
+    const payload: { clubId: number; referralCode?: string } = { clubId: selectedClub.id };
+    if (joinReferralCode.trim() && joinReferralStatus?.valid) {
+      payload.referralCode = joinReferralCode.trim();
+    }
+    joinMutation.mutate(payload);
+  };
+
+  const validateJoinReferral = async (code: string) => {
+    if (!code.trim()) {
+      setJoinReferralStatus(null);
+      return;
+    }
+    setValidatingJoinReferral(true);
+    try {
+      const res = await fetch(`/api/referrals/validate/${encodeURIComponent(code.trim())}`);
+      const data = await res.json();
+      setJoinReferralStatus(data);
+    } catch {
+      setJoinReferralStatus({ valid: false, message: "Failed to validate code" });
+    } finally {
+      setValidatingJoinReferral(false);
+    }
   };
 
   const getJoinButtonState = (clubId: number) => {
@@ -2131,7 +2159,7 @@ export default function Clubs() {
         )}
       </div>
 
-      <Dialog open={!!selectedClub} onOpenChange={(open) => { if (!open) { setSelectedClub(null); } }}>
+      <Dialog open={!!selectedClub} onOpenChange={(open) => { if (!open) { setSelectedClub(null); setJoinReferralCode(""); setJoinReferralStatus(null); } }}>
         <DialogContent className="sm:max-w-[500px]" data-testid="dialog-club-detail">
           {selectedClub && (
             <>
@@ -2254,24 +2282,76 @@ export default function Clubs() {
                     );
                   }
                   return (
-                    <Button
-                      onClick={handleJoinRequest}
-                      disabled={joinMutation.isPending}
-                      className="w-full sm:w-auto"
-                      data-testid="button-request-join"
-                    >
-                      {joinMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Users className="w-4 h-4 mr-2" />
-                          Request to Join Club
-                        </>
-                      )}
-                    </Button>
+                    <div className="w-full space-y-3">
+                      <div className="rounded-lg border p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Gift className="w-4 h-4" />
+                          Referral Code (optional)
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="e.g. REF-A1B2C3D4"
+                            value={joinReferralCode}
+                            onChange={(e) => {
+                              setJoinReferralCode(e.target.value.toUpperCase());
+                              if (!e.target.value.trim()) setJoinReferralStatus(null);
+                            }}
+                            className="flex-1 h-9 text-sm"
+                            data-testid="input-join-referral-code"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => validateJoinReferral(joinReferralCode)}
+                            disabled={!joinReferralCode.trim() || validatingJoinReferral}
+                            data-testid="button-validate-join-referral"
+                          >
+                            {validatingJoinReferral ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Verify"}
+                          </Button>
+                        </div>
+                        {joinReferralStatus && (
+                          <div
+                            className={`flex items-center gap-2 text-xs rounded-md p-2 ${
+                              joinReferralStatus.valid
+                                ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                                : "bg-destructive/10 text-destructive"
+                            }`}
+                            data-testid="text-join-referral-status"
+                          >
+                            {joinReferralStatus.valid ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                <span>Valid referral from <strong>{joinReferralStatus.referrerName}</strong></span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-3.5 h-3.5 shrink-0" />
+                                <span>{joinReferralStatus.message || "Invalid referral code"}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        onClick={handleJoinRequest}
+                        disabled={joinMutation.isPending}
+                        className="w-full"
+                        data-testid="button-request-join"
+                      >
+                        {joinMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="w-4 h-4 mr-2" />
+                            Request to Join Club
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   );
                 })()}
                 {!user && (
