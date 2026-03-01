@@ -101,7 +101,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
-    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", premiumOnly: true },
+    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
 
