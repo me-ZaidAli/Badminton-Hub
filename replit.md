@@ -86,6 +86,12 @@ The UI incorporates a privacy-enhanced public view, a modern player profile dash
 - **esbuild**: Backend bundling for production.
 - **tsx**: For running TypeScript files directly in development.
 
+### Progressive Web App (PWA)
+- **Web App Manifest**: `client/public/manifest.json` — app name, icons (128/180/192/512px), standalone display, gold theme color.
+- **Service Worker**: `client/public/sw.js` — network-first caching strategy for static assets, API calls pass through uncached.
+- **Registration**: Service worker registered in `client/src/main.tsx` on page load.
+- **Apple Support**: Apple touch icon, mobile web app meta tags with black-translucent status bar.
+
 ### APIs / Integrations
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
