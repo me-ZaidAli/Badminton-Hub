@@ -1693,6 +1693,7 @@ export default function Clubs() {
   const [joinReferralCode, setJoinReferralCode] = useState("");
   const [joinReferralStatus, setJoinReferralStatus] = useState<{ valid: boolean; referrerName?: string; message?: string } | null>(null);
   const [validatingJoinReferral, setValidatingJoinReferral] = useState(false);
+  const [cancelJoinClubId, setCancelJoinClubId] = useState<number | null>(null);
   const [editClub, setEditClub] = useState<ClubRecord | null>(null);
   const [manageClub, setManageClub] = useState<ClubRecord | null>(null);
 
@@ -1748,6 +1749,23 @@ export default function Clubs() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const cancelJoinMutation = useMutation({
+    mutationFn: async (clubId: number) => {
+      const res = await apiRequest("POST", `/api/clubs/${clubId}/cancel-join`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Request cancelled", description: "Your join request has been withdrawn." });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/memberships"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-profiles"] });
+      setCancelJoinClubId(null);
+      setSelectedClub(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2275,10 +2293,22 @@ export default function Clubs() {
                   }
                   if (state === "pending") {
                     return (
-                      <Button disabled className="w-full sm:w-auto" data-testid="button-join-pending">
-                        <Clock className="w-4 h-4 mr-2" />
-                        Request Sent (Pending Approval)
-                      </Button>
+                      <div className="flex flex-col sm:flex-row gap-2 w-full">
+                        <Button disabled className="flex-1" data-testid="button-join-pending">
+                          <Clock className="w-4 h-4 mr-2" />
+                          Request Sent (Pending Approval)
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="default"
+                          className="flex-shrink-0"
+                          onClick={() => setCancelJoinClubId(selectedClub.id)}
+                          data-testid="button-cancel-join-request"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Cancel Request
+                        </Button>
+                      </div>
                     );
                   }
                   return (
@@ -2380,6 +2410,29 @@ export default function Clubs() {
         onClose={() => setManageClub(null)}
         isOwner={isOwnerRole}
       />
+
+      <AlertDialog open={cancelJoinClubId !== null} onOpenChange={(open) => { if (!open) setCancelJoinClubId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Join Request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel your join request? You can always request to join again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-join-dismiss">Keep Request</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (cancelJoinClubId) cancelJoinMutation.mutate(cancelJoinClubId); }}
+              disabled={cancelJoinMutation.isPending}
+              data-testid="button-cancel-join-confirm"
+            >
+              {cancelJoinMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <XCircle className="w-4 h-4 mr-1" />}
+              Yes, Cancel Request
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
