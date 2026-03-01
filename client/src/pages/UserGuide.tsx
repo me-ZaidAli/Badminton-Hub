@@ -248,7 +248,7 @@ const playerSections: GuideSection[] = [
     title: "Junior Hub (For Parents)",
     description: "Manage your children's profiles, skills, sessions, and training",
     steps: [
-      "Go to 'Juniors' in the sidebar to access the Junior Hub - a dedicated area for managing your children's badminton development.",
+      "Go to 'Juniors' in the sidebar to access the Junior Hub - a dedicated area for managing your children's sporting development.",
       "My Children: Add your child's profile with their name, date of birth, emergency contact, and any medical notes. You can link them to a club so they appear in the system.",
       "Skill Dashboard: View your child's progress across all skill areas. The radar chart shows strengths at a glance, while detailed progress bars break down each skill category. All stats come from real session data and coach assessments.",
       "Rankings: See how your child compares to others. Rankings are calculated using skill progress (50%), attendance (20%), effort, coach ratings, win rate, and match volume.",

@@ -213,6 +213,54 @@ async function validateMatchIntegrity(sessionId: number, context: string): Promi
   return errors;
 }
 
+async function getClubPlanStatus(clubId: number): Promise<{ planType: string; planStatus: string; premiumEndDate: Date | null }> {
+  const [club] = await db.select({
+    planType: clubs.planType,
+    planStatus: clubs.planStatus,
+    premiumEndDate: clubs.premiumEndDate,
+  }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+  if (!club) return { planType: "FREE", planStatus: "FREE", premiumEndDate: null };
+  if (club.planStatus === "ACTIVE_PREMIUM" && club.premiumEndDate && new Date(club.premiumEndDate) < new Date()) {
+    await db.update(clubs).set({ planStatus: "FREE", planType: "FREE" }).where(eq(clubs.id, clubId));
+    return { planType: "FREE", planStatus: "FREE", premiumEndDate: null };
+  }
+  return club;
+}
+
+function isClubPremium(planStatus: string): boolean {
+  return planStatus === "ACTIVE_PREMIUM";
+}
+
+function requirePremium(getClubId: (req: any) => number | null) {
+  return async (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated?.()) return res.status(401).json({ message: "Not authenticated" });
+    const user = req.user as any;
+    if (user.role === "OWNER") return next();
+    const clubId = getClubId(req);
+    if (!clubId) return res.status(400).json({ message: "Club context required" });
+    const plan = await getClubPlanStatus(clubId);
+    if (isClubPremium(plan.planStatus)) return next();
+    return res.status(403).json({ message: "This feature requires a Premium plan. Please upgrade your club plan to access it.", requiresPremium: true });
+  };
+}
+
+function clubIdFromParam(req: any): number | null {
+  const id = parseInt(req.params.clubId);
+  return isNaN(id) ? null : id;
+}
+
+function clubIdFromQuery(req: any): number | null {
+  const id = parseInt(req.query.clubId as string);
+  return isNaN(id) ? null : id;
+}
+
+async function clubIdFromSession(req: any): Promise<number | null> {
+  if (!req.user) return null;
+  const userId = (req.user as any).id;
+  const profiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
+  return profiles[0]?.clubId || null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -233,7 +281,7 @@ export async function registerRoutes(
     const hashedPassword = await hashPassword("password123");
     const admin = await storage.createUser({
       fullName: "Club Admin",
-      email: "admin@badminton.club",
+      email: "admin@clubmaster.app",
       password: hashedPassword,
       role: "ADMIN",
       accountStatus: "APPROVED" as any
@@ -429,6 +477,84 @@ export async function registerRoutes(
     res.json(club);
   });
 
+  // === Club Plan Management ===
+  app.get("/api/clubs/:id/plan", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.id);
+    try {
+      const plan = await getClubPlanStatus(clubId);
+      const [club] = await db.select({
+        premiumStartDate: clubs.premiumStartDate,
+        sportTypes: clubs.sportTypes,
+      }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      res.json({ ...plan, premiumStartDate: club?.premiumStartDate || null, sportTypes: club?.sportTypes || ["badminton"] });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch plan info" });
+    }
+  });
+
+  app.post("/api/clubs/:id/request-premium", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.id);
+    const user = req.user!;
+    const isAdmin = await hasAdminAccess(user.id, user.role, clubId);
+    if (!isAdmin) return res.status(403).json({ message: "Only club admins can request premium upgrades" });
+    const plan = await getClubPlanStatus(clubId);
+    if (plan.planStatus === "ACTIVE_PREMIUM") return res.status(400).json({ message: "Club already has an active premium plan" });
+    if (plan.planStatus === "PENDING_ACTIVATION") return res.status(400).json({ message: "Premium upgrade already requested and pending activation" });
+    await db.update(clubs).set({ planStatus: "PENDING_ACTIVATION" }).where(eq(clubs.id, clubId));
+    res.json({ message: "Premium upgrade requested. Please complete the bank transfer and wait for activation by the platform admin." });
+  });
+
+  // === Super Admin Billing Management ===
+  app.get("/api/super-admin/clubs/billing", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const allClubs = await db.select({
+        id: clubs.id,
+        name: clubs.name,
+        slug: clubs.slug,
+        status: clubs.status,
+        planType: clubs.planType,
+        planStatus: clubs.planStatus,
+        premiumStartDate: clubs.premiumStartDate,
+        premiumEndDate: clubs.premiumEndDate,
+        premiumPaymentReference: clubs.premiumPaymentReference,
+        sportTypes: clubs.sportTypes,
+        createdAt: clubs.createdAt,
+      }).from(clubs).orderBy(desc(clubs.createdAt));
+      res.json(allClubs);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch billing data" });
+    }
+  });
+
+  app.patch("/api/super-admin/clubs/:id/plan", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    const clubId = Number(req.params.id);
+    const { planStatus, premiumStartDate, premiumEndDate, paymentReference } = req.body;
+    const validStatuses = ["FREE", "PENDING_ACTIVATION", "ACTIVE_PREMIUM", "SUSPENDED"];
+    if (planStatus && !validStatuses.includes(planStatus)) {
+      return res.status(400).json({ message: "Invalid plan status" });
+    }
+    try {
+      const updateData: any = {};
+      if (planStatus) {
+        updateData.planStatus = planStatus;
+        updateData.planType = planStatus === "ACTIVE_PREMIUM" ? "PREMIUM" : (planStatus === "FREE" ? "FREE" : undefined);
+        if (updateData.planType === undefined) delete updateData.planType;
+      }
+      if (premiumStartDate) updateData.premiumStartDate = new Date(premiumStartDate);
+      if (premiumEndDate) updateData.premiumEndDate = new Date(premiumEndDate);
+      if (paymentReference !== undefined) updateData.premiumPaymentReference = paymentReference;
+      await db.update(clubs).set(updateData).where(eq(clubs.id, clubId));
+      const [updated] = await db.select().from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
   // === Player Profiles (current user) ===
   app.get("/api/player-profiles", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -486,7 +612,8 @@ export async function registerRoutes(
         hasCompetitions, hasSocialGames, socialGameTimings,
         providesTraining, trainingDetails,
         sessionFee, hasMembership, membershipFee,
-        ageGroups, playerLevels, shuttlecockType, providesClubTShirts
+        ageGroups, playerLevels, shuttlecockType, providesClubTShirts,
+        sportTypes
       } = req.body;
       
       // Validate name
@@ -552,6 +679,17 @@ export async function registerRoutes(
         validatedPlayerLevels = playerLevels.filter(
           (pl: unknown) => typeof pl === 'string' && ALLOWED_PLAYER_LEVELS.includes(pl)
         );
+      }
+
+      const ALLOWED_SPORT_TYPES = ["badminton", "tennis", "padel", "squash", "table_tennis", "other"];
+      let validatedSportTypes: string[] = ["badminton"];
+      if (Array.isArray(sportTypes)) {
+        const filtered = sportTypes.filter(
+          (st: unknown) => typeof st === 'string' && ALLOWED_SPORT_TYPES.includes(st)
+        );
+        if (filtered.length > 0) {
+          validatedSportTypes = filtered;
+        }
       }
 
       // Validate shuttlecockType
@@ -627,7 +765,8 @@ export async function registerRoutes(
         ageGroups: validatedAgeGroups,
         playerLevels: validatedPlayerLevels,
         shuttlecockType: validatedShuttlecockType,
-        providesClubTShirts: Boolean(providesClubTShirts)
+        providesClubTShirts: Boolean(providesClubTShirts),
+        sportTypes: validatedSportTypes
       });
 
       // Create a player profile for the owner in this club with OWNER role and APPROVED status
@@ -1360,8 +1499,7 @@ export async function registerRoutes(
     }
   });
 
-  // === PUBLIC: Leaderboard (no auth required) - dynamically calculated from matches ===
-  app.get("/api/leaderboard/:clubId", async (req, res) => {
+  app.get("/api/leaderboard/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
     const clubId = Number(req.params.clubId);
     
     const club = await storage.getClub(clubId);
@@ -6037,10 +6175,16 @@ export async function registerRoutes(
         }
       }
 
-      const arrayFields = ["ageGroups", "playerLevels"];
+      const ALLOWED_SPORT_TYPES = ["badminton", "tennis", "padel", "squash", "table_tennis", "other"];
+      const arrayFields = ["ageGroups", "playerLevels", "sportTypes"];
       for (const field of arrayFields) {
         if (body[field] !== undefined) {
-          updates[field] = Array.isArray(body[field]) ? body[field] : null;
+          if (field === "sportTypes" && Array.isArray(body[field])) {
+            updates[field] = body[field].filter((s: string) => ALLOWED_SPORT_TYPES.includes(s));
+            if (updates[field].length === 0) updates[field] = ["badminton"];
+          } else {
+            updates[field] = Array.isArray(body[field]) ? body[field] : null;
+          }
         }
       }
       
@@ -10282,7 +10426,7 @@ export async function registerRoutes(
         isRegisteredWithBE, beRegistrationNumber, hasCompetitions, hasSocialGames,
         socialGameTimings, providesTraining, trainingDetails,
         sessionFee, hasMembership, membershipFee, shuttlecockType,
-        providesClubTShirts, ageGroups, playerLevels, adminUserId } = req.body;
+        providesClubTShirts, ageGroups, playerLevels, sportTypes, adminUserId } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description || null;
@@ -10310,6 +10454,7 @@ export async function registerRoutes(
       if (providesClubTShirts !== undefined) updateData.providesClubTShirts = providesClubTShirts;
       if (ageGroups !== undefined) updateData.ageGroups = ageGroups;
       if (playerLevels !== undefined) updateData.playerLevels = playerLevels;
+      if (sportTypes !== undefined) updateData.sportTypes = Array.isArray(sportTypes) ? sportTypes : null;
 
       if (adminUserId) {
         const uid = parseInt(adminUserId);
@@ -20762,7 +20907,7 @@ export async function registerRoutes(
       try {
         const OpenAI = (await import("openai")).default;
         const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
-        const prompt = `You are a badminton coach analytics assistant. Analyze this junior player data and provide actionable coaching insights in 3-4 paragraphs.
+        const prompt = `You are a sports coach analytics assistant. Analyze this junior player data and provide actionable coaching insights in 3-4 paragraphs.
 
 Data summary:
 - Total juniors: ${juniorUserIds.length}
@@ -20866,7 +21011,7 @@ Provide:
       try {
         const OpenAI = (await import("openai")).default;
         const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
-        const prompt = `You are a financial analyst for a badminton club. Analyze these financial metrics from the last 30 days and provide actionable insights.
+        const prompt = `You are a financial analyst for a sports club. Analyze these financial metrics from the last 30 days and provide actionable insights.
 
 Financial Data:
 - Total Session Income: £${(totalIncome / 100).toFixed(2)}
@@ -20961,7 +21106,7 @@ Provide a concise report (200-250 words) covering:
       try {
         const OpenAI = (await import("openai")).default;
         const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
-        const prompt = `You are a sports analytics coach for a badminton club. Analyze these match statistics from the last 30 days and provide coaching insights.
+        const prompt = `You are a sports analytics coach for a racket sports club. Analyze these match statistics from the last 30 days and provide coaching insights.
 
 Match Data:
 - Total Matches Played: ${completedMatches.length}
@@ -21047,7 +21192,7 @@ Provide a concise report (200-250 words) covering:
       try {
         const OpenAI = (await import("openai")).default;
         const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
-        const prompt = `You are a club management analyst for a badminton club. Analyze these attendance metrics from the last 30 days and provide insights.
+        const prompt = `You are a club management analyst for a sports club. Analyze these attendance metrics from the last 30 days and provide insights.
 
 Attendance Data:
 - Total Sessions: ${recentSessions.length}
@@ -21168,7 +21313,7 @@ Provide a concise report (200-250 words) covering:
       try {
         const OpenAI = (await import("openai")).default;
         const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
-        const prompt = `You are a friendly, encouraging badminton coach writing a progress report for a parent about their child's badminton development. Write in a warm, professional tone that parents will appreciate.
+        const prompt = `You are a friendly, encouraging sports coach writing a progress report for a parent about their child's sporting development. Write in a warm, professional tone that parents will appreciate.
 
 Player: ${child.fullName}
 Age: ${child.dateOfBirth ? Math.floor((Date.now() - new Date(child.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : "Unknown"}
@@ -21313,7 +21458,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       doc.rect(0, 120, doc.page.width, 4).fill(gold);
 
       doc.fontSize(28).font("Helvetica-Bold").fillColor("#FFFFFF").text("Player Progress Report", 50, 35);
-      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Badminton Club", 50, 70);
+      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Sports Club", 50, 70);
       doc.fontSize(10).fillColor("#999999").text(`Generated: ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, 50, 90);
 
       let y = 140;
@@ -21483,7 +21628,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       doc.rect(0, 0, doc.page.width, 120).fill("#1A1A1A");
       doc.rect(0, 120, doc.page.width, 4).fill(gold);
       doc.fontSize(28).font("Helvetica-Bold").fillColor("#FFFFFF").text("Junior Skills Analytics Report", 50, 35);
-      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Badminton Club", 50, 70);
+      doc.fontSize(12).font("Helvetica").fillColor("#CCCCCC").text(club?.name || "Sports Club", 50, 70);
       doc.fontSize(10).fillColor("#999999").text(`Generated: ${new Date(report.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}  |  Squad: ${squadLabel}`, 50, 90);
 
       let y = 140;

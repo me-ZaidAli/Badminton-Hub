@@ -14,6 +14,15 @@ import { useCreateClub } from "@/hooks/use-clubs";
 import { ArrowLeft, Building2, Loader2, Trophy, Users, GraduationCap, Clock, PoundSterling, AlertCircle, Lock, ScrollText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const SPORT_TYPES = [
+  { id: "badminton", label: "Badminton" },
+  { id: "tennis", label: "Tennis" },
+  { id: "padel", label: "Padel" },
+  { id: "squash", label: "Squash" },
+  { id: "table_tennis", label: "Table Tennis" },
+  { id: "other", label: "Other" },
+];
+
 const AGE_GROUPS = [
   { id: "junior", label: "Junior (Under 18)" },
   { id: "adult", label: "Adult (18-55)" },
@@ -29,15 +38,16 @@ const PLAYER_LEVELS = [
   { id: "all", label: "All Levels Welcome" },
 ];
 
-const SHUTTLECOCK_TYPES = [
-  { id: "feather", label: "Feather Shuttlecocks" },
-  { id: "plastic", label: "Plastic Shuttlecocks" },
+const EQUIPMENT_TYPES = [
+  { id: "feather", label: "Feather" },
+  { id: "plastic", label: "Plastic" },
   { id: "both", label: "Both (Feather & Plastic)" },
 ];
 
 const createClubSchema = z.object({
   name: z.string().min(3, "Club name must be at least 3 characters").max(50, "Club name must be less than 50 characters"),
   description: z.string().max(500, "Description must be less than 500 characters").optional(),
+  sportTypes: z.array(z.string()).min(1, "Select at least one sport"),
   address: z.string().max(200, "Address must be less than 200 characters").optional(),
   city: z.string().max(100, "City must be less than 100 characters").optional(),
   postcode: z.string().max(20, "Postcode must be less than 20 characters").optional(),
@@ -100,6 +110,7 @@ export default function CreateClub() {
     defaultValues: {
       name: "",
       description: "",
+      sportTypes: ["badminton"],
       address: "",
       city: "",
       postcode: "",
@@ -183,7 +194,7 @@ export default function CreateClub() {
               <div>
                 <CardTitle>Create a New Club</CardTitle>
                 <CardDescription>
-                  Fill out the details below to register your badminton club
+                  Fill out the details below to register your club
                 </CardDescription>
               </div>
             </div>
@@ -205,7 +216,7 @@ export default function CreateClub() {
                         <FormLabel>Club Name *</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="e.g., Downtown Badminton Club"
+                            placeholder="e.g., Downtown Sports Club"
                             data-testid="input-club-name"
                             {...field}
                           />
@@ -233,6 +244,47 @@ export default function CreateClub() {
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sportTypes"
+                    render={() => (
+                      <FormItem>
+                        <div className="mb-4">
+                          <FormLabel className="text-base">Sport Types *</FormLabel>
+                          <FormDescription>
+                            Which sports does your club offer?
+                          </FormDescription>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {SPORT_TYPES.map((item) => (
+                            <FormField
+                              key={item.id}
+                              control={form.control}
+                              name="sportTypes"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(item.id)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...field.value, item.id])
+                                          : field.onChange(field.value?.filter((v) => v !== item.id));
+                                      }}
+                                      data-testid={`checkbox-sport-${item.id}`}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal">{item.label}</FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -324,7 +376,7 @@ export default function CreateClub() {
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">Social Games Sessions</FormLabel>
                           <FormDescription>
-                            Does your club offer casual/social badminton sessions?
+                            Does your club offer casual/social sessions?
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -506,12 +558,12 @@ export default function CreateClub() {
                     name="shuttlecockType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Shuttlecock Type *</FormLabel>
+                        <FormLabel>Equipment Type *</FormLabel>
                         <FormDescription>
-                          What type of shuttlecocks does your club use?
+                          What type of equipment does your club use?
                         </FormDescription>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                          {SHUTTLECOCK_TYPES.map((item) => (
+                          {EQUIPMENT_TYPES.map((item) => (
                             <div
                               key={item.id}
                               className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${

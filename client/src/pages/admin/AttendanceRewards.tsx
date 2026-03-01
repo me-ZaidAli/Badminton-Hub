@@ -337,7 +337,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
               <Input
                 id="gifts"
                 type="text"
-                placeholder="e.g. Free shuttlecocks, Club t-shirt"
+                placeholder="e.g. Free equipment, Club t-shirt"
                 value={formData.gifts}
                 onChange={(e) => setFormData({ ...formData, gifts: e.target.value })}
                 data-testid="input-gifts"

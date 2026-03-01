@@ -36,7 +36,7 @@ export default function ExploreClubs() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h1 className="text-3xl md:text-4xl font-display font-bold mb-3">Find a Club</h1>
-            <p className="text-muted-foreground text-lg">Browse badminton clubs near you</p>
+            <p className="text-muted-foreground text-lg">Browse clubs near you</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 mb-6">
@@ -99,6 +99,19 @@ export default function ExploreClubs() {
                             {(club.city || club.postcode) && (
                               <div className="text-xs text-muted-foreground mt-0.5 ml-4">
                                 {[club.city, club.postcode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                            {(club as any).sportTypes && (club as any).sportTypes.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap mt-1">
+                                {((club as any).sportTypes as string[]).map((sport: string) => {
+                                  const labels: Record<string, string> = { badminton: "Badminton", tennis: "Tennis", padel: "Padel", squash: "Squash", table_tennis: "Table Tennis", other: "Other" };
+                                  const colors: Record<string, string> = { badminton: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", tennis: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", padel: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", squash: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", table_tennis: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200", other: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" };
+                                  return (
+                                    <Badge key={sport} variant="secondary" className={`text-xs ${colors[sport] || ""} no-default-hover-elevate no-default-active-elevate`} data-testid={`badge-sport-${sport}`}>
+                                      {labels[sport] || sport}
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             )}
                             {(club.googleMapsUrl || (club.latitude && club.longitude)) && (
@@ -169,8 +182,21 @@ export default function ExploreClubs() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {(club as any).sportTypes && (club as any).sportTypes.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {((club as any).sportTypes as string[]).map((sport: string) => {
+                            const labels: Record<string, string> = { badminton: "Badminton", tennis: "Tennis", padel: "Padel", squash: "Squash", table_tennis: "Table Tennis", other: "Other" };
+                            const colors: Record<string, string> = { badminton: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", tennis: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", padel: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", squash: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", table_tennis: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200", other: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" };
+                            return (
+                              <Badge key={sport} variant="secondary" className={`text-xs ${colors[sport] || ""} no-default-hover-elevate no-default-active-elevate`} data-testid={`badge-sport-${sport}`}>
+                                {labels[sport] || sport}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
                       <p className="text-sm text-muted-foreground line-clamp-2">
-                        {club.description || "A great place to play badminton and meet fellow players."}
+                        {club.description || "A great place to play and meet fellow players."}
                       </p>
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-3">

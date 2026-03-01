@@ -233,7 +233,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       </main>
 
       <footer className="py-8 border-t border-border text-center text-muted-foreground text-sm space-y-2">
-        <p>Club Master - Badminton Club Management Platform</p>
+        <p>Club Master - Racket Sports Club Management Platform</p>
         <div className="flex items-center justify-center gap-4">
           <Link href="/policy">
             <span className="hover:text-foreground transition-colors cursor-pointer" data-testid="link-policy">Policies</span>

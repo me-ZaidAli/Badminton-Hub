@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
 import { useToast } from "@/hooks/use-toast";
+import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords
+  MapPin, Swords, CreditCard, Crown
 } from "lucide-react";
 import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
@@ -171,6 +172,8 @@ function DashboardContent({
   const [kpiDetail, setKpiDetail] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const adminClubId = useAdminClubId();
+  const { planStatus, isPremium, isSuperAdmin } = useClubPlan(adminClubId);
 
   const { data: mySessions, isLoading: mySessionsLoading } = useQuery<any[]>({
     queryKey: ["/api/my-sessions"],
@@ -262,8 +265,48 @@ function DashboardContent({
     <div className="space-y-8">
       <PageHeader
         title={`Welcome back, ${user?.fullName.split(' ')[0]}!`}
-        description="Your badminton dashboard overview."
+        description="Your dashboard overview."
       />
+
+      {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
+        <Card className={`border ${
+          planStatus === "ACTIVE_PREMIUM" ? "border-emerald-500/30 bg-emerald-500/5" :
+          planStatus === "PENDING_ACTIVATION" ? "border-amber-500/30 bg-amber-500/5" :
+          planStatus === "SUSPENDED" ? "border-red-500/30 bg-red-500/5" :
+          "border-border bg-muted/30"
+        }`} data-testid="card-plan-status">
+          <CardContent className="py-3 px-4 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              {planStatus === "ACTIVE_PREMIUM" ? (
+                <Crown className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <CreditCard className="h-5 w-5 text-muted-foreground" />
+              )}
+              <div>
+                <span className="text-sm font-semibold">
+                  {planStatus === "ACTIVE_PREMIUM" ? "Premium Plan" :
+                   planStatus === "PENDING_ACTIVATION" ? "Upgrade Pending" :
+                   planStatus === "SUSPENDED" ? "Plan Suspended" :
+                   "Free Plan"}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {planStatus === "ACTIVE_PREMIUM" ? "All features unlocked" :
+                   planStatus === "PENDING_ACTIVATION" ? "Waiting for admin activation" :
+                   planStatus === "SUSPENDED" ? "Contact platform admin to reactivate" :
+                   "Upgrade to unlock rankings, analytics, and more"}
+                </p>
+              </div>
+            </div>
+            {planStatus === "FREE" && (
+              <Link href="/admin/billing">
+                <Button size="sm" variant="outline" data-testid="button-upgrade-plan">
+                  Upgrade
+                </Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {activeAnnouncements.length > 0 && (
         <Card data-testid="card-announcements-preview">
@@ -618,7 +661,7 @@ function DashboardContent({
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm">Start Your Own Club or Group</h3>
-              <p className="text-xs text-muted-foreground">Create and manage your badminton club</p>
+              <p className="text-xs text-muted-foreground">Create and manage your club</p>
             </div>
           </div>
           <Link href="/create-club">

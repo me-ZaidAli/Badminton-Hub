@@ -409,7 +409,7 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="points-gifts">Gifts</Label>
-              <Input id="points-gifts" type="text" value={formData.gifts} onChange={(e) => setFormData({ ...formData, gifts: e.target.value })} placeholder="e.g. Club t-shirt, shuttlecocks" data-testid="input-points-gifts" />
+              <Input id="points-gifts" type="text" value={formData.gifts} onChange={(e) => setFormData({ ...formData, gifts: e.target.value })} placeholder="e.g. Club t-shirt, equipment" data-testid="input-points-gifts" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="points-sessions">Free Sessions</Label>

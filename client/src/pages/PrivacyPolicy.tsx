@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
           <p>
             Club Master is operated by Dragon Badminton Club &ndash; BPG Ltd, a company registered in England and Wales (Company No.{" "}
             <a href="https://find-and-update.company-information.service.gov.uk/company/16964545" target="_blank" rel="noopener noreferrer" className="text-primary underline">16964545</a>
-            ). This app is used to book badminton sessions, manage attendance, process payments, and communicate club information.
+            ). This app is used to book sports sessions, manage attendance, process payments, and communicate club information.
           </p>
         </CardContent>
       </Card>
@@ -65,7 +65,7 @@ export default function PrivacyPolicy() {
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>We use your personal data to:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Book and manage badminton sessions</li>
+            <li>Book and manage sports sessions</li>
             <li>Communicate updates, session changes, and club announcements</li>
             <li>Manage payments, fees, and attendance tracking</li>
             <li>Calculate player rankings and display match statistics</li>

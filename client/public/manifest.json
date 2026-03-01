@@ -1,7 +1,7 @@
 {
-  "name": "Club Master - Badminton Club Management",
+  "name": "Club Master - Racket Sports Club Management",
   "short_name": "Club Master",
-  "description": "Streamline your badminton club with session scheduling, match management, player rankings, and more.",
+  "description": "Streamline your sports club with session scheduling, match management, player rankings, and more.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

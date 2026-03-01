@@ -7,7 +7,8 @@ import { Sidebar, MobileTopNav } from "@/components/layout/Sidebar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
-import { Loader2 } from "lucide-react";
+import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
+import { Loader2, Lock } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense, useEffect } from "react";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
@@ -47,6 +48,8 @@ const SuperAdminSessions = lazy(() => import("@/pages/super-admin/SuperAdminSess
 const SuperAdminUsersManagement = lazy(() => import("@/pages/super-admin/SuperAdminUsersManagement"));
 const GodMode = lazy(() => import("@/pages/super-admin/GodMode"));
 const SuperAdminReferrals = lazy(() => import("@/pages/super-admin/SuperAdminReferrals"));
+const SuperAdminBilling = lazy(() => import("@/pages/SuperAdminBilling"));
+const ClubBilling = lazy(() => import("@/pages/ClubBilling"));
 
 const PlayerManagement = lazy(() => import("@/pages/admin/PlayerManagement"));
 const Financials = lazy(() => import("@/pages/admin/Financials"));
@@ -279,6 +282,77 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
   );
 }
 
+function PremiumRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const { data: myAdminClubs, isLoading: clubsLoading } = useMyAdminClubs(!!user);
+  const [, setLocation] = useLocation();
+  const adminClubId = useAdminClubId();
+  const { isPremium, isSuperAdmin, isLoading: planLoading } = useClubPlan(adminClubId);
+
+  if (isLoading || clubsLoading || planLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!user) {
+    setLocation("/login");
+    return null;
+  }
+
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  const isSuperUser = user?.role === "OWNER";
+  const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
+
+  if (!isPlatformAdmin || (!isSuperUser && !hasClubAdminAccess)) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  if (!isPremium && !isSuperAdmin) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <MobileTopNav />
+        <div className="flex flex-1">
+          <Sidebar />
+          <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <Lock className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h2 className="text-2xl font-bold">Premium Feature</h2>
+              <p className="text-muted-foreground max-w-md">
+                This feature is available on the Premium plan. Upgrade your club to unlock advanced analytics, rankings, league management, and more.
+              </p>
+              <button
+                onClick={() => setLocation("/admin/billing")}
+                className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                data-testid="button-upgrade-from-premium-gate"
+              >
+                View Upgrade Options
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <ErrorBoundary>
+            <Suspense fallback={<LazyFallback />}>
+              <Component />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function PublicRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user } = useUser();
   
@@ -431,6 +505,9 @@ function Router() {
       </Route>
 
       {/* Admin Routes */}
+      <Route path="/admin/billing">
+        <AdminRoute component={ClubBilling} />
+      </Route>
       <Route path="/admin">
         <AdminRoute component={AdminDashboard} />
       </Route>
@@ -444,7 +521,7 @@ function Router() {
         <NonOrganiserAdminRoute component={PlayerProfile} />
       </Route>
       <Route path="/admin/financials">
-        <NonOrganiserAdminRoute component={Financials} />
+        <PremiumRoute component={Financials} />
       </Route>
       <Route path="/admin/membership-board">
         <NonOrganiserAdminRoute component={MembershipBoard} />
@@ -453,25 +530,25 @@ function Router() {
         <NonOrganiserAdminRoute component={MembershipBoard} />
       </Route>
       <Route path="/admin/league">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><LeagueManagement /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><LeagueManagement /></Suspense>} />
       </Route>
       <Route path="/admin/inventory">
-        <NonOrganiserAdminRoute component={AdminInventory} />
+        <PremiumRoute component={AdminInventory} />
       </Route>
       <Route path="/admin/referrals">
-        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminReferrals /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><AdminReferrals /></Suspense>} />
       </Route>
       <Route path="/admin/notifications">
         <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminNotifications /></Suspense>} />
       </Route>
       <Route path="/admin/attendance-rewards">
-        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceRewards /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceRewards /></Suspense>} />
       </Route>
       <Route path="/admin/rewards">
-        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><ClubRewards /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><ClubRewards /></Suspense>} />
       </Route>
       <Route path="/admin/rewards-dashboard">
-        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><RewardsDashboard /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><RewardsDashboard /></Suspense>} />
       </Route>
       <Route path="/admin/announcements">
         <OwnerRoute component={AdminAnnouncements} />
@@ -498,16 +575,16 @@ function Router() {
         <OwnerRoute component={Analytics} />
       </Route>
       <Route path="/admin/acquisition-analytics">
-        <AdminRoute component={AcquisitionAnalytics} />
+        <PremiumRoute component={AcquisitionAnalytics} />
       </Route>
       <Route path="/admin/attendance-analytics">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceAnalytics /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceAnalytics /></Suspense>} />
       </Route>
       <Route path="/admin/inactive-members">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><InactiveMembers /></Suspense>} />
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><InactiveMembers /></Suspense>} />
       </Route>
       <Route path="/admin/import-members">
-        <NonOrganiserAdminRoute component={MemberImport} />
+        <PremiumRoute component={MemberImport} />
       </Route>
 
       <Route path="/admin/password-resets">
@@ -541,6 +618,9 @@ function Router() {
       </Route>
       <Route path="/super-admin/god-mode">
         <OwnerRoute component={GodMode} />
+      </Route>
+      <Route path="/super-admin/billing">
+        <OwnerRoute component={SuperAdminBilling} />
       </Route>
       <Route path="/super-admin/referrals">
         <OwnerRoute component={SuperAdminReferrals} />

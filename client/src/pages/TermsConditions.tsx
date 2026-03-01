@@ -90,7 +90,7 @@ export default function TermsConditions() {
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p className="font-medium text-foreground">4.1 Permitted Use</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>The Platform is provided solely for the purpose of managing badminton club activities, including session bookings, attendance tracking, match organisation, player rankings, communications, and financial management.</li>
+            <li>The Platform is provided solely for the purpose of managing sports club activities, including session bookings, attendance tracking, match organisation, player rankings, communications, and financial management.</li>
             <li>You may only use the Platform for its intended purpose and in accordance with these Terms and all applicable laws.</li>
           </ul>
           <p className="font-medium text-foreground mt-3">4.2 Prohibited Conduct</p>

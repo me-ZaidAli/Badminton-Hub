@@ -115,7 +115,7 @@ export default function CalendarImport() {
     <div className="space-y-6">
       <PageHeader 
         title="Calendar Import" 
-        description="Import badminton sessions from your Google Calendar"
+        description="Import sessions from your Google Calendar"
       />
 
       {isSuperAdmin && clubs && clubs.length > 0 && (

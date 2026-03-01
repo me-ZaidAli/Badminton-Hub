@@ -327,7 +327,7 @@ export default function ClubManagement() {
                   <Label htmlFor="name">Club Name</Label>
                   <Input 
                     id="name"
-                    placeholder="e.g., Downtown Badminton Club"
+                    placeholder="e.g., Downtown Sports Club"
                     value={newClub.name}
                     onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
                     data-testid="input-club-name"
@@ -337,7 +337,7 @@ export default function ClubManagement() {
                   <Label htmlFor="slug">URL Slug</Label>
                   <Input 
                     id="slug"
-                    placeholder="e.g., downtown-badminton"
+                    placeholder="e.g., downtown-sports"
                     value={newClub.slug}
                     onChange={(e) => setNewClub({ ...newClub, slug: e.target.value })}
                     data-testid="input-club-slug"
@@ -716,7 +716,7 @@ export default function ClubManagement() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Shuttlecock Type</Label>
+                  <Label>Equipment Type</Label>
                   <Select
                     value={editDetails.shuttlecockType}
                     onValueChange={(v) => setEditDetails({ ...editDetails, shuttlecockType: v })}

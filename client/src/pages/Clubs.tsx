@@ -71,6 +71,7 @@ interface ClubRecord {
   logoUrl?: string;
   clubPolicies?: string;
   clubStandards?: string;
+  sportTypes?: string[];
 }
 
 interface ClubEditForm {
@@ -100,6 +101,7 @@ interface ClubEditForm {
   beRegistrationNumber: string;
   clubPolicies: string;
   clubStandards: string;
+  sportTypes: string[];
 }
 
 interface MemberRecord {
@@ -169,6 +171,37 @@ interface UserDetailFormData {
   playerStatus: string;
   role: string;
   joinedAt: string;
+}
+
+const SPORT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  badminton: { label: "Badminton", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  tennis: { label: "Tennis", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  padel: { label: "Padel", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  squash: { label: "Squash", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
+  table_tennis: { label: "Table Tennis", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  other: { label: "Other", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200" },
+};
+
+function SportTypeBadges({ sportTypes }: { sportTypes?: string[] }) {
+  if (!sportTypes || sportTypes.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {sportTypes.map((sport) => {
+        const config = SPORT_TYPE_CONFIG[sport];
+        if (!config) return null;
+        return (
+          <Badge
+            key={sport}
+            variant="secondary"
+            className={`text-xs ${config.color} no-default-hover-elevate no-default-active-elevate`}
+            data-testid={`badge-sport-${sport}`}
+          >
+            {config.label}
+          </Badge>
+        );
+      })}
+    </div>
+  );
 }
 
 function getMembershipStatus(memberships: Membership[] | undefined, clubId: number) {
@@ -1184,6 +1217,7 @@ function EditClubDialog({
     beRegistrationNumber: "",
     clubPolicies: "",
     clubStandards: "",
+    sportTypes: ["badminton"],
   });
 
   useEffect(() => {
@@ -1215,6 +1249,7 @@ function EditClubDialog({
         beRegistrationNumber: club.beRegistrationNumber || "",
         clubPolicies: club.clubPolicies || "",
         clubStandards: club.clubStandards || "",
+        sportTypes: club.sportTypes || ["badminton"],
       });
     }
   }, [club]);
@@ -1248,6 +1283,7 @@ function EditClubDialog({
         beRegistrationNumber: data.form.beRegistrationNumber,
         clubPolicies: data.form.clubPolicies,
         clubStandards: data.form.clubStandards,
+        sportTypes: data.form.sportTypes,
       });
       return res.json();
     },
@@ -1293,6 +1329,36 @@ function EditClubDialog({
                   rows={3}
                   data-testid="input-edit-club-description"
                 />
+              </div>
+              <div>
+                <Label className="mb-2 block">Sport Types</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: "badminton", label: "Badminton" },
+                    { id: "tennis", label: "Tennis" },
+                    { id: "padel", label: "Padel" },
+                    { id: "squash", label: "Squash" },
+                    { id: "table_tennis", label: "Table Tennis" },
+                    { id: "other", label: "Other" },
+                  ].map((sport) => (
+                    <div key={sport.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`edit-sport-${sport.id}`}
+                        checked={editClubForm.sportTypes.includes(sport.id)}
+                        onCheckedChange={(checked) => {
+                          setEditClubForm(f => ({
+                            ...f,
+                            sportTypes: checked
+                              ? [...f.sportTypes, sport.id]
+                              : f.sportTypes.filter(s => s !== sport.id),
+                          }));
+                        }}
+                        data-testid={`checkbox-edit-sport-${sport.id}`}
+                      />
+                      <Label htmlFor={`edit-sport-${sport.id}`} className="cursor-pointer font-normal">{sport.label}</Label>
+                    </div>
+                  ))}
+                </div>
               </div>
               {isOwner && (
                 <div>
@@ -1484,7 +1550,7 @@ function EditClubDialog({
             <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Equipment</div>
             <div className="space-y-3">
               <div>
-                <Label>Shuttlecock Type</Label>
+                <Label>Equipment Type</Label>
                 <Select value={editClubForm.shuttlecockType} onValueChange={(v) => setEditClubForm(f => ({ ...f, shuttlecockType: v }))}>
                   <SelectTrigger data-testid="select-edit-club-shuttlecock-type">
                     <SelectValue placeholder="Select type..." />
@@ -1763,7 +1829,7 @@ export default function Clubs() {
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <PageHeader 
           title={isRegularPlayer && clubScope === "my" ? "My Clubs" : "Browse Clubs"}
-          description={isRegularPlayer && clubScope === "my" ? "Clubs you are a member of." : "Find a badminton club near you. Search by name, city, postcode, or country."}
+          description={isRegularPlayer && clubScope === "my" ? "Clubs you are a member of." : "Find a club near you. Search by name, city, postcode, or country."}
         />
 
         <div className="flex flex-wrap items-center gap-3">
@@ -1894,6 +1960,9 @@ export default function Clubs() {
                                 </span>
                               </div>
                             )}
+                            <div className="mt-1">
+                              <SportTypeBadges sportTypes={(club as any).sportTypes} />
+                            </div>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             {user && <MembershipBadge membership={membership} />}
@@ -1962,6 +2031,9 @@ export default function Clubs() {
                               {[club.city, club.postcode, club.country].filter(Boolean).join(", ") || club.slug}
                             </span>
                           </div>
+                          <div className="mt-1">
+                            <SportTypeBadges sportTypes={(club as any).sportTypes} />
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -2027,8 +2099,9 @@ export default function Clubs() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <SportTypeBadges sportTypes={(club as any).sportTypes} />
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {club.description || "A great place to play badminton and meet fellow players."}
+                      {club.description || "A great place to play and meet fellow players."}
                     </p>
                     {club.country && (
                       <p className="text-xs text-muted-foreground">{club.country}</p>

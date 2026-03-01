@@ -610,7 +610,7 @@ export default function Register() {
                         <FormLabel className="cursor-pointer text-sm font-normal">
                           I have read and agree to the{" "}
                           <Link href="/terms-conditions" className="text-primary underline" target="_blank">
-                            Dragon Badminton Club Terms &amp; Conditions
+                            Club Terms &amp; Conditions
                           </Link>{" "}
                           (Version 1 &ndash; 20/02/2026)
                         </FormLabel>

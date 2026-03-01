@@ -120,7 +120,7 @@ export default function Tournaments() {
     <div className="space-y-6">
       <PageHeader
         title="Tournaments"
-        description="Manage and view badminton tournaments"
+        description="Manage and view tournaments"
         action={
           canManage ? (
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>

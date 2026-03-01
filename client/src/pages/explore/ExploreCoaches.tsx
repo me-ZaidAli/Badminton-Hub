@@ -154,10 +154,10 @@ export default function ExploreCoaches() {
             <GraduationCap className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl md:text-5xl font-display font-bold mb-4" data-testid="text-hero-title">
-            Find a Badminton Coach
+            Find a Coach
           </h1>
           <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
-            Browse qualified badminton coaches in your area and take your game to the next level.
+            Browse qualified coaches in your area and take your game to the next level.
           </p>
           {!isLoading && (
             <Badge variant="secondary" className="text-sm" data-testid="badge-total-coaches">

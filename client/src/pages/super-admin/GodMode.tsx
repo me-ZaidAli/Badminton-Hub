@@ -962,7 +962,7 @@ function SessionEditModal({ session, clubId, venues, open, onClose }: { session:
                 <Input type="number" step="0.01" value={form.sessionFee} onChange={(e) => setForm(f => ({ ...f, sessionFee: e.target.value }))} data-testid="input-god-session-fee" />
               </div>
               <div>
-                <Label>Shuttlecock Type</Label>
+                <Label>Equipment Type</Label>
                 <Select value={form.shuttlecockType || "none"} onValueChange={(v) => setForm(f => ({ ...f, shuttlecockType: v === "none" ? "" : v }))}>
                   <SelectTrigger data-testid="select-god-session-shuttle"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>

@@ -848,7 +848,7 @@ export default function Sessions() {
                   {session.shuttlecockType && (
                     <div className="flex items-center gap-2">
                       <CircleDot className="h-4 w-4" />
-                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} shuttlecocks</span>
+                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} equipment</span>
                     </div>
                   )}
                 </div>
@@ -2030,7 +2030,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
                 name="shuttlecockType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Shuttlecock Type</FormLabel>
+                    <FormLabel>Equipment Type</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger data-testid="select-shuttlecock-type">
@@ -2554,7 +2554,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
               <p className="text-xs text-muted-foreground mt-1">Leave empty for club default</p>
             </div>
             <div>
-              <Label>Shuttlecock Type</Label>
+              <Label>Equipment Type</Label>
               <Select value={editShuttlecockType || "none"} onValueChange={(v) => setEditShuttlecockType(v === "none" ? "" : v)}>
                 <SelectTrigger className="mt-2" data-testid="select-edit-shuttlecock-type">
                   <SelectValue placeholder="Select type" />

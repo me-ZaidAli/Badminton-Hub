@@ -3313,7 +3313,7 @@ export default function Financials() {
                               id="mc-reason"
                               value={mcReason}
                               onChange={(e) => setMcReason(e.target.value)}
-                              placeholder={mcActionType === "credit" ? "e.g. Session refund, Reward bonus" : "e.g. Shuttlecock purchase, Session charge"}
+                              placeholder={mcActionType === "credit" ? "e.g. Session refund, Reward bonus" : "e.g. Equipment purchase, Session charge"}
                               data-testid="input-mc-reason"
                             />
                           </div>
@@ -4901,7 +4901,7 @@ export default function Financials() {
       >
         <div className="space-y-3">
           <div className="text-sm text-muted-foreground">
-            Stock used represents the total number of inventory items that have been consumed or allocated during sessions. This includes shuttlecocks, equipment, and other consumables tracked through the inventory system.
+            Stock used represents the total number of inventory items that have been consumed or allocated during sessions. This includes equipment and other consumables tracked through the inventory system.
           </div>
         </div>
       </KpiDetailDialog>

@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
+import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +35,8 @@ import {
   Heart,
   Rocket,
   Palette,
+  Lock,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -65,6 +68,7 @@ interface NavItem {
   badgeKey?: keyof BadgeCounts;
   secondaryBadgeKey?: keyof BadgeCounts;
   isGodMode?: boolean;
+  premiumOnly?: boolean;
 }
 
 interface NavGroup {
@@ -82,10 +86,12 @@ function useBadgeCounts() {
   });
 }
 
-function useNavGroups(): NavGroup[] {
+function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: string } {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
+  const adminClubId = useAdminClubId();
+  const { isPremium, planStatus, isSuperAdmin } = useClubPlan(adminClubId);
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -95,20 +101,20 @@ function useNavGroups(): NavGroup[] {
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
-    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity" },
-    { href: "/league", label: "League", icon: Swords, group: "activity" },
-    { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity" },
+    { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", premiumOnly: true },
+    { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
+    { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club", badgeKey: "pendingMemberships" },
-    { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals" },
-    { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards" },
+    { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals", premiumOnly: true },
+    { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards", premiumOnly: true },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
 
-    { href: "/themes", label: "Themes", icon: Palette, group: "info" },
+    { href: "/themes", label: "Themes", icon: Palette, group: "info", premiumOnly: true },
     { href: "/guide", label: "User Guide", icon: BookOpen, group: "info" },
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];
@@ -116,10 +122,18 @@ function useNavGroups(): NavGroup[] {
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
+    items.push({ href: "/super-admin/billing", label: "Club Billing", icon: CreditCard, group: "godmode" });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
   }
+
+  const showPremium = isPremium || isSuperAdmin;
+  const filteredItems = items.filter(item => {
+    if (!item.premiumOnly) return true;
+    return showPremium;
+  });
 
   const groupOrder = ["main", "activity", "club", "comms", "info", "admin", "godmode"];
   const groupLabels: Record<string, string> = {
@@ -134,13 +148,13 @@ function useNavGroups(): NavGroup[] {
 
   const groups: NavGroup[] = [];
   for (const key of groupOrder) {
-    const groupItems = items.filter(i => i.group === key);
+    const groupItems = filteredItems.filter(i => i.group === key);
     if (groupItems.length > 0) {
       groups.push({ key, label: groupLabels[key], items: groupItems });
     }
   }
 
-  return groups;
+  return { groups, isPremium: showPremium, planStatus };
 }
 
 function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -203,7 +217,7 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
         {step === "form" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              We are building the most structured badminton performance ecosystem in the region. We continuously invest in improving analytics, training tools, and competition systems to give every player a better experience.
+              We are building the most structured racket sports performance ecosystem in the region. We continuously invest in improving analytics, training tools, and competition systems to give every player a better experience.
             </p>
 
             <div className="space-y-2">
@@ -325,7 +339,7 @@ function DonationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             <div className="rounded-xl border bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Account Name</span>
-                <span className="font-medium text-foreground">{bankDetails?.bankAccountName || "Dragon Badminton Club - BPG Ltd"}</span>
+                <span className="font-medium text-foreground">{bankDetails?.bankAccountName || "Club Master"}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Sort Code</span>
@@ -405,7 +419,7 @@ function DonationCard({ compact = false }: { compact?: boolean }) {
               Support Platform Development
             </p>
             <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-              We are building the most structured badminton performance ecosystem in the region.
+              We are building the most structured racket sports performance ecosystem in the region.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <button
@@ -445,8 +459,11 @@ export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const navGroups = useNavGroups();
+  const { groups: navGroups, isPremium, planStatus } = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
+
+  const planBadgeLabel = planStatus === "ACTIVE_PREMIUM" ? "Premium" : planStatus === "PENDING_ACTIVATION" ? "Pending" : planStatus === "SUSPENDED" ? "Suspended" : "Free Plan";
+  const planBadgeColor = planStatus === "ACTIVE_PREMIUM" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : planStatus === "PENDING_ACTIVATION" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : planStatus === "SUSPENDED" ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-muted text-muted-foreground border-border";
 
   return (
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
@@ -457,6 +474,11 @@ export function Sidebar() {
               <img src={logoPath} alt="Club Master" className="h-10 w-10 rounded-xl shadow-lg group-hover:shadow-primary/25 transition-all object-contain" />
               <div>
                 <h1 className="font-display font-bold text-xl tracking-tight text-foreground">Club Master</h1>
+                {(user?.role === "ADMIN" || user?.role === "OWNER") && (
+                  <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${planBadgeColor}`} data-testid="badge-plan-status">
+                    {planBadgeLabel}
+                  </span>
+                )}
               </div>
             </div>
           </Link>
@@ -623,7 +645,7 @@ export function MobileTopNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const navGroups = useNavGroups();
+  const { groups: navGroups } = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
   const [menuOpen, setMenuOpen] = useState(false);
 

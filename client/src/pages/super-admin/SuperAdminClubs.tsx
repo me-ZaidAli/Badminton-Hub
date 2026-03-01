@@ -1649,7 +1649,7 @@ export default function SuperAdminClubs() {
               <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Equipment</div>
               <div className="space-y-3">
                 <div>
-                  <Label>Shuttlecock Type</Label>
+                  <Label>Equipment Type</Label>
                   <Select value={editClubForm.shuttlecockType} onValueChange={(v) => setEditClubForm(f => ({ ...f, shuttlecockType: v }))}>
                     <SelectTrigger data-testid="select-edit-club-shuttlecock-type">
                       <SelectValue placeholder="Select type..." />

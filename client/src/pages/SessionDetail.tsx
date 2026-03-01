@@ -637,7 +637,7 @@ export default function SessionDetail() {
                         <p className="text-xs text-muted-foreground mt-1">Leave empty for club default</p>
                       </div>
                       <div>
-                        <Label>Shuttlecock Type</Label>
+                        <Label>Equipment Type</Label>
                         <Select value={editShuttlecockType || "none"} onValueChange={(v) => setEditShuttlecockType(v === "none" ? "" : v)}>
                           <SelectTrigger className="mt-2" data-testid="select-edit-shuttlecock-type">
                             <SelectValue placeholder="Select type" />

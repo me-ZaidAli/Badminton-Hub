@@ -22,7 +22,7 @@ export default function JuniorConsentPolicy() {
             Junior &amp; Parental Consent Policy
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground">Badminton Master App &mdash; Version 1.0 &mdash; Last updated February 2026</p>
+        <p className="text-sm text-muted-foreground">Club Master App &mdash; Version 1.0 &mdash; Last updated February 2026</p>
       </div>
 
       <Card>
@@ -31,7 +31,7 @@ export default function JuniorConsentPolicy() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            Badminton Master supports junior players (under 18 years of age). Junior accounts are managed by a parent or guardian
+            Club Master supports junior players (under 18 years of age). Junior accounts are managed by a parent or guardian
             and require explicit parental consent before the account can be created and used.
           </p>
           <p>
@@ -97,10 +97,10 @@ export default function JuniorConsentPolicy() {
           <CardTitle className="text-base">Safeguarding Responsibilities</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-          <p>Dragon Badminton Club &ndash; BPG Ltd is committed to safeguarding all children and young people who use this app or attend our sessions.</p>
+          <p>The club is committed to safeguarding all children and young people who use this app or attend our sessions.</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>All coaches and administrators working with juniors are vetted according to UK safeguarding standards</li>
-            <li>The club follows Badminton England&apos;s safeguarding guidelines</li>
+            <li>The club follows national governing body safeguarding guidelines</li>
             <li>Any safeguarding concerns should be reported immediately to a club administrator</li>
             <li>The club may suspend or terminate any account if safeguarding concerns arise</li>
           </ul>
@@ -113,7 +113,7 @@ export default function JuniorConsentPolicy() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            A parent or guardian may withdraw consent for their child&apos;s account at any time by contacting Dragon Badminton Club &ndash; BPG Ltd.
+            A parent or guardian may withdraw consent for their child&apos;s account at any time by contacting the club.
           </p>
           <p>
             Upon withdrawal of consent, the junior account will be deactivated and personal data will be deleted within a reasonable period,
@@ -144,7 +144,7 @@ export default function JuniorConsentPolicy() {
 
       <div className="text-center space-y-3 pb-8">
         <p className="text-xs text-muted-foreground">
-          If you have questions about junior accounts or parental consent, please contact Dragon Badminton Club &ndash; BPG Ltd.
+          If you have questions about junior accounts or parental consent, please contact the club.
         </p>
         <Link href="/contact">
           <Button variant="outline" size="sm" data-testid="button-contact-from-junior">

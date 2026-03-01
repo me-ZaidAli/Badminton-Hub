@@ -52,7 +52,7 @@ export default function Home() {
         <div className="absolute inset-0">
           <img
             src={heroPath}
-            alt="Indoor badminton court with players in action"
+            alt="Indoor sports court with players in action"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/30" />
@@ -60,10 +60,10 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-36 lg:py-44">
           <div className="max-w-2xl">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight text-white mb-6 leading-tight" data-testid="text-hero-headline">
-              Run Your Badminton Club <span className="text-primary">Smarter</span>
+              Run Your Club <span className="text-primary">Smarter</span>
             </h1>
             <p className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed max-w-xl" data-testid="text-hero-subheading">
-              All-in-one session, member, venue, and payment management built specifically for badminton and racket sports.
+              All-in-one session, member, venue, and payment management built specifically for racket sports clubs.
             </p>
             <div className="flex flex-col sm:flex-row flex-wrap items-start gap-3">
               <Link href="/register">
@@ -223,7 +223,7 @@ export default function Home() {
                   <Search className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">Find Clubs</h3>
-                <p className="text-muted-foreground leading-relaxed mb-4">Search for badminton clubs near you with map and list views.</p>
+                <p className="text-muted-foreground leading-relaxed mb-4">Search for clubs near you with map and list views.</p>
                 <span className="inline-flex items-center text-sm font-medium text-primary">
                   Browse Clubs <ArrowRight className="ml-1 w-4 h-4" />
                 </span>
@@ -249,7 +249,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 -z-10" />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-display font-bold mb-5" data-testid="text-closing-headline">
-            Built for How Badminton Clubs Really Operate
+            Built for How Sports Clubs Really Operate
           </h2>
           <p className="text-muted-foreground text-lg mb-10 leading-relaxed max-w-2xl mx-auto" data-testid="text-closing-description">
             From grassroots clubs to multi-venue operations, Club Master helps you fill courts fairly, reduce admin workload, and keep players informed.

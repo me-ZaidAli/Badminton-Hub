@@ -393,7 +393,7 @@ export default function FindCoach() {
           Find a Coach
         </h1>
         <p className="text-muted-foreground mt-1">
-          Browse qualified badminton coaches and find the right one for you.
+          Browse qualified coaches and find the right one for you.
         </p>
       </div>
 

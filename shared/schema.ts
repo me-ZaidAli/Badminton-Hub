@@ -26,6 +26,8 @@ export const matchGenderTypeEnum = pgEnum("match_gender_type", ["MIXED", "FEMALE
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"]);
 export const clubStatusEnum = pgEnum("club_status", ["PENDING", "APPROVED", "REJECTED", "ARCHIVED", "PAUSED"]); // Club approval status
+export const planTypeEnum = pgEnum("plan_type", ["FREE", "PREMIUM"]);
+export const planStatusEnum = pgEnum("plan_status", ["FREE", "PENDING_ACTIVATION", "ACTIVE_PREMIUM", "SUSPENDED"]);
 export const playerStatusEnum = pgEnum("player_status", ["ACTIVE", "SUSPENDED", "ARCHIVED", "BANNED"]); // Player profile status
 export const genderRestrictionEnum = pgEnum("gender_restriction", ["ALL", "FEMALE_ONLY"]);
 export const sessionTypeEnum = pgEnum("session_type", ["OPEN", "JUNIORS_ONLY"]);
@@ -142,6 +144,12 @@ export const clubs = pgTable("clubs", {
   bankSortCode: text("bank_sort_code"),
   bankAccountNumber: text("bank_account_number"),
   bankReference: text("bank_reference"),
+  planType: planTypeEnum("plan_type").default("FREE").notNull(),
+  planStatus: planStatusEnum("plan_status").default("FREE").notNull(),
+  premiumStartDate: timestamp("premium_start_date"),
+  premiumEndDate: timestamp("premium_end_date"),
+  premiumPaymentReference: text("premium_payment_reference"),
+  sportTypes: jsonb("sport_types").$type<string[]>().default(["badminton"]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

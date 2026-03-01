@@ -228,7 +228,7 @@ function BankDetailsPanel({ clubId, clubName }: { clubId: number; clubName: stri
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Account Name</Label>
-            <Input value={effectiveAccountName} onChange={(e) => setAccountName(e.target.value)} placeholder="e.g. ABC Badminton Club" data-testid={`input-account-name-${clubId}`} />
+            <Input value={effectiveAccountName} onChange={(e) => setAccountName(e.target.value)} placeholder="e.g. ABC Sports Club" data-testid={`input-account-name-${clubId}`} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Sort Code</Label>

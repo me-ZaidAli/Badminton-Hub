@@ -99,7 +99,7 @@ export default function JoinClub() {
             {club.name}
           </CardTitle>
           <CardDescription data-testid="text-club-description">
-            {club.description || "A great place to play badminton and meet fellow players."}
+            {club.description || "A great place to play and meet fellow players."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

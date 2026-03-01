@@ -763,13 +763,13 @@ export default function LeaguePage() {
       <div className="relative h-[280px] sm:h-[340px] overflow-hidden" data-testid="league-hero">
         <img
           src={heroBg}
-          alt="Badminton League"
+          alt="Sports League"
           className="absolute inset-0 w-full h-full object-cover object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a1628] via-[#0a1628]/70 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-8">
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight uppercase leading-none" data-testid="text-league-title">
-            BADMINTON
+            CLUB
             <br />
             LEAGUE
           </h1>

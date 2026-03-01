@@ -241,7 +241,7 @@ export default function RegisterCoach() {
       <Alert className="mb-6">
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Complete the form below to register as a badminton coach. Your profile will be reviewed by an admin before going live.
+          Complete the form below to register as a coach. Your profile will be reviewed by an admin before going live.
         </AlertDescription>
       </Alert>
 
@@ -520,7 +520,7 @@ export default function RegisterCoach() {
                   <FormItem>
                     <FormLabel>Professional Career Details</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Describe your professional badminton career..." className="resize-none" rows={4} data-testid="input-professional-career" {...field} />
+                      <Textarea placeholder="Describe your professional sporting career..." className="resize-none" rows={4} data-testid="input-professional-career" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -587,7 +587,7 @@ export default function RegisterCoach() {
                 <FormField control={form.control} name="equipmentProvided" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Equipment Provided</FormLabel>
-                    <FormControl><Input placeholder="e.g. Shuttlecocks, rackets for beginners" data-testid="input-equipment-provided" {...field} /></FormControl>
+                    <FormControl><Input placeholder="e.g. Rackets, balls for beginners" data-testid="input-equipment-provided" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />

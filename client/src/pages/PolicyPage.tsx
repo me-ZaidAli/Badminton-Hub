@@ -14,7 +14,7 @@ export default function PolicyPage() {
           </h1>
         </div>
         <p className="text-muted-foreground">
-          Badminton Master is operated by Dragon Badminton Club &ndash; BPG Ltd.
+          Club Master is operated by Dragon Badminton Club &ndash; BPG Ltd.
           Please review our policies below.
         </p>
       </div>
@@ -78,12 +78,12 @@ export default function PolicyPage() {
           <CardTitle className="text-base">Quick Summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-          <p>By using Badminton Master, you agree to:</p>
+          <p>By using Club Master, you agree to:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>Provide accurate registration details</li>
             <li>Book and attend sessions responsibly</li>
             <li>Follow club rules and coach instructions</li>
-            <li>Accept that badminton activities carry some risk</li>
+            <li>Accept that sporting activities carry some risk</li>
           </ul>
           <p>
             Your personal data is used only to run the club, manage sessions, and communicate with you.

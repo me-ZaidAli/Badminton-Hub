@@ -156,7 +156,7 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
                 type="text"
                 value={formGifts}
                 onChange={(e) => setFormGifts(e.target.value)}
-                placeholder="e.g. Free shuttlecocks, Club t-shirt"
+                placeholder="e.g. Free equipment, Club t-shirt"
                 data-testid="input-anniversary-gifts"
               />
             </div>
@@ -374,7 +374,7 @@ function BirthdayRewardsTab({ clubId }: { clubId: number }) {
                 type="text"
                 value={formGifts}
                 onChange={(e) => setFormGifts(e.target.value)}
-                placeholder="e.g. Free shuttlecocks, Birthday cake"
+                placeholder="e.g. Free equipment, Birthday cake"
                 data-testid="input-birthday-gifts"
               />
             </div>

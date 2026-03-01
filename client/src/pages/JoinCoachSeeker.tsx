@@ -229,9 +229,9 @@ export default function JoinCoachSeeker() {
               <GraduationCap className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <CardTitle data-testid="text-heading">Find a Badminton Coach</CardTitle>
+              <CardTitle data-testid="text-heading">Find a Coach</CardTitle>
               <CardDescription>
-                Get access to qualified badminton coaches in your area
+                Get access to qualified coaches in your area
               </CardDescription>
             </div>
           </div>
@@ -245,7 +245,7 @@ export default function JoinCoachSeeker() {
                 <div>
                   <p className="font-medium">Full Coach Directory</p>
                   <p className="text-sm text-muted-foreground">
-                    Access to our complete directory of qualified badminton coaches
+                    Access to our complete directory of qualified coaches
                   </p>
                 </div>
               </div>
@@ -374,7 +374,7 @@ export default function JoinCoachSeeker() {
                   name="timePlaying"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Time Playing Badminton</FormLabel>
+                      <FormLabel>Time Playing</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="e.g. 2 years, 6 months"

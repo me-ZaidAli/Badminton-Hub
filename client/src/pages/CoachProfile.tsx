@@ -596,7 +596,7 @@ export default function CoachProfile() {
                     <FormItem>
                       <FormLabel>Professional Career Details</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Describe your professional badminton career..." className="resize-none" rows={4} data-testid="input-professional-career" {...field} />
+                        <Textarea placeholder="Describe your professional sporting career..." className="resize-none" rows={4} data-testid="input-professional-career" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -663,7 +663,7 @@ export default function CoachProfile() {
                   <FormField control={form.control} name="equipmentProvided" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Equipment Provided</FormLabel>
-                      <FormControl><Input placeholder="e.g. Shuttlecocks, rackets for beginners" data-testid="input-equipment-provided" {...field} /></FormControl>
+                      <FormControl><Input placeholder="e.g. Rackets, balls for beginners" data-testid="input-equipment-provided" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />

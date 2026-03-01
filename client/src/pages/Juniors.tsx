@@ -227,7 +227,7 @@ function JuniorHero() {
           </Badge>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold mb-2" data-testid="text-juniors-title">
-          Junior Badminton
+          Junior Programme
         </h1>
         <p className="text-base md:text-lg text-white/90 leading-relaxed">
           Welcome to our junior programme! Whether your child is picking up a racket for the first
@@ -1234,7 +1234,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
         <div className="flex-1" />
         <SectionInfoButton title="Skill Dashboard">
           <p className="font-medium text-foreground">Welcome to your child's Skill Dashboard!</p>
-          <p>This is where you can see exactly how your child is progressing in their badminton journey. Everything shown here is based on real data from actual sessions, matches, and coach assessments.</p>
+          <p>This is where you can see exactly how your child is progressing in their sporting journey. Everything shown here is based on real data from actual sessions, matches, and coach assessments.</p>
           <p className="font-medium text-foreground mt-2">What the stats mean:</p>
           <ul className="list-disc pl-4 space-y-1">
             <li><strong>Overall Skill</strong> — A percentage showing your child's progress across all 66 individual skills (like footwork, serves, and positioning), assessed by their coach.</li>
@@ -1252,7 +1252,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
           <p>We want every child to develop their skills progressively and have fun doing it. The dashboard helps you see their improvement over time, celebrate their strengths, and understand where they can grow. Speak to the coach if you have any questions about specific skill areas.</p>
         </SectionInfoButton>
       </div>
-      <StripedLevelBar value={overallSkill} label="Badminton Level Progress" />
+      <StripedLevelBar value={overallSkill} label="Skill Level Progress" />
 
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50" data-testid="card-junior-profile-header">
         <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
@@ -1945,7 +1945,7 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
             <p>The junior rankings show how all the children in the club compare to each other. This isn't just about winning matches — we look at the whole picture of their development.</p>
             <p className="font-medium text-foreground mt-2">How scores are calculated:</p>
             <ul className="list-disc pl-4 space-y-1">
-              <li><strong>Skill Progress (50%)</strong> — The biggest part of the score comes from how well your child is developing their badminton skills, as assessed by the coach across all categories.</li>
+              <li><strong>Skill Progress (50%)</strong> — The biggest part of the score comes from how well your child is developing their skills, as assessed by the coach across all categories.</li>
               <li><strong>Attendance (20%)</strong> — Regular attendance matters! Children who come to sessions consistently score higher here.</li>
               <li><strong>Effort Rating</strong> — The coach rates how hard your child tries during sessions. Great effort is always rewarded.</li>
               <li><strong>Coach Rating</strong> — An overall assessment from the coach about your child's progress and attitude.</li>
@@ -2375,7 +2375,7 @@ function FeesPanel() {
 function AboutPanel() {
   const features = [
     { icon: Target, title: "Technical Coaching", description: "Age-appropriate coaching covering footwork, grips, and strokes tailored to each player's level.", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { icon: Dumbbell, title: "Movement & Agility", description: "Developing coordination, agility, and movement skills essential for badminton and general fitness.", color: "text-blue-500", bg: "bg-blue-500/10" },
+    { icon: Dumbbell, title: "Movement & Agility", description: "Developing coordination, agility, and movement skills essential for racket sports and general fitness.", color: "text-blue-500", bg: "bg-blue-500/10" },
     { icon: Brain, title: "Game Understanding", description: "Building tactical awareness and game intelligence through structured drills and guided play.", color: "text-purple-500", bg: "bg-purple-500/10" },
     { icon: Trophy, title: "Structured Match Play", description: "Confidence-building through organised match play, helping players apply skills in real game situations.", color: "text-amber-500", bg: "bg-amber-500/10" },
     { icon: Smile, title: "Fun & Engaging", description: "Fun, engaging drills and activities that keep juniors motivated, active, and loving the sport.", color: "text-pink-500", bg: "bg-pink-500/10" },
@@ -2415,7 +2415,7 @@ function AboutPanel() {
               <h2 className="text-xl font-bold mb-3" data-testid="text-safeguarding">Safeguarding & Player Welfare</h2>
               <p className="text-muted-foreground mb-4 leading-relaxed">
                 Player safety and wellbeing are our top priority. All junior sessions adhere to
-                Badminton England safeguarding policies. Parents and guardians can be confident
+                national governing body safeguarding policies. Parents and guardians can be confident
                 their children are in a safe, inclusive, and respectful environment.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2630,7 +2630,7 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
           <h2 className="text-xl font-bold" data-testid="text-training-title">Training Challenges</h2>
           <SectionInfoButton title="Training Challenges">
             <p className="font-medium text-foreground">Your child's exercise and training programme</p>
-            <p>Training Challenges give your child structured weekly exercise routines they can follow at home, in the gym, or on the court. It's designed to build their fitness and badminton skills between sessions.</p>
+            <p>Training Challenges give your child structured weekly exercise routines they can follow at home, in the gym, or on the court. It's designed to build their fitness and sporting skills between sessions.</p>
             <p className="font-medium text-foreground mt-2">How it works:</p>
             <ul className="list-disc pl-4 space-y-1">
               <li><strong>Weekly Challenges</strong> — Each week has a set of exercises spread across 5 days (Monday to Friday). New weeks are unlocked by the coach as your child progresses.</li>
