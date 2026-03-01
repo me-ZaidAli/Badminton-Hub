@@ -5,17 +5,22 @@ import { Club } from "@shared/schema";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, Check, Loader2, MapPin, ScrollText, ShieldCheck } from "lucide-react";
+import { Users, Check, Loader2, MapPin, ScrollText, ShieldCheck, Gift, CheckCircle2, XCircle } from "lucide-react";
 
 export default function JoinClub() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [policiesAccepted, setPoliciesAccepted] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralStatus, setReferralStatus] = useState<{ valid: boolean; referrerName?: string; message?: string } | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
 
   const { data: club, isLoading: clubLoading } = useQuery<Club>({
     queryKey: ["/api/clubs", id],
@@ -29,8 +34,25 @@ export default function JoinClub() {
 
   const hasPolicies = !!(club?.clubPolicies || club?.clubStandards);
 
+  async function validateReferralCode(code: string) {
+    if (!code.trim()) {
+      setReferralStatus(null);
+      return;
+    }
+    setValidatingCode(true);
+    try {
+      const res = await fetch(`/api/referrals/validate/${encodeURIComponent(code.trim())}`);
+      const data = await res.json();
+      setReferralStatus(data);
+    } catch {
+      setReferralStatus({ valid: false, message: "Failed to validate code" });
+    } finally {
+      setValidatingCode(false);
+    }
+  }
+
   const joinMutation = useMutation({
-    mutationFn: async (data: { clubId: number }) => {
+    mutationFn: async (data: { clubId: number; referralCode?: string }) => {
       const res = await apiRequest("POST", "/api/clubs/join", data);
       if (!res.ok) {
         const error = await res.json();
@@ -41,7 +63,9 @@ export default function JoinClub() {
     onSuccess: () => {
       toast({
         title: "Join request submitted",
-        description: "The club admin will review your request.",
+        description: referralStatus?.valid
+          ? "Your referral code has been applied. The club admin will review your request."
+          : "The club admin will review your request.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user/profiles"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -66,7 +90,11 @@ export default function JoinClub() {
       });
       return;
     }
-    joinMutation.mutate({ clubId: Number(id) });
+    const payload: { clubId: number; referralCode?: string } = { clubId: Number(id) };
+    if (referralCode.trim() && referralStatus?.valid) {
+      payload.referralCode = referralCode.trim();
+    }
+    joinMutation.mutate(payload);
   };
 
   if (clubLoading) {
@@ -181,6 +209,68 @@ export default function JoinClub() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gift className="w-5 h-5" />
+            Referral Code
+          </CardTitle>
+          <CardDescription>
+            Were you referred by an existing member? Enter their referral code below (optional)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="referral-code">Referral Code</Label>
+            <div className="flex gap-2">
+              <Input
+                id="referral-code"
+                placeholder="e.g. REF-A1B2C3D4"
+                value={referralCode}
+                onChange={(e) => {
+                  setReferralCode(e.target.value.toUpperCase());
+                  if (!e.target.value.trim()) setReferralStatus(null);
+                }}
+                className="flex-1"
+                data-testid="input-referral-code"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => validateReferralCode(referralCode)}
+                disabled={!referralCode.trim() || validatingCode}
+                data-testid="button-validate-referral"
+              >
+                {validatingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify"}
+              </Button>
+            </div>
+          </div>
+
+          {referralStatus && (
+            <div
+              className={`flex items-center gap-2 text-sm rounded-md p-3 ${
+                referralStatus.valid
+                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                  : "bg-destructive/10 text-destructive"
+              }`}
+              data-testid="text-referral-status"
+            >
+              {referralStatus.valid ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Valid referral from <strong>{referralStatus.referrerName}</strong></span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  <span>{referralStatus.message || "Invalid referral code"}</span>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="pt-6 space-y-4">

@@ -1188,7 +1188,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const { clubId, gender: providedGender } = req.body;
+      const { clubId, gender: providedGender, referralCode } = req.body;
       const user = req.user!;
       
       if (isSuperAdmin(user)) {
@@ -1268,6 +1268,46 @@ export async function registerRoutes(
         }
       } catch (notifErr) {
         console.error("[JOIN] Failed to send notifications:", notifErr);
+      }
+
+      if (referralCode && typeof referralCode === "string" && referralCode.trim()) {
+        try {
+          const code = referralCode.trim().toUpperCase();
+          const [referral] = await db.select().from(referrals).where(eq(referrals.code, code));
+          const referralClubMatch = referral && (!referral.clubId || referral.clubId === clubId);
+          if (referral && referralClubMatch && referral.status === "ACTIVE" && new Date(referral.expiresAt) > new Date() && referral.referrerId !== user.id) {
+            const existingReferralForUser = await db.select().from(referrals)
+              .where(and(
+                eq(referrals.referredEmail, user.email),
+                or(eq(referrals.status, "PENDING"), eq(referrals.status, "APPROVED"))
+              ));
+            if (existingReferralForUser.length === 0) {
+              let clubName = "the club";
+              if (referral.clubId) {
+                const [rClub] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, referral.clubId));
+                if (rClub) clubName = rClub.name;
+              }
+              await db.update(referrals).set({
+                status: "PENDING",
+                referredUserId: user.id,
+                referredName: user.fullName,
+                referredEmail: user.email,
+                usedAt: new Date(),
+              }).where(eq(referrals.id, referral.id));
+              await db.insert(notifications).values({
+                userId: referral.referrerId,
+                type: "REFERRAL",
+                title: "Referral Used — Club Join",
+                message: `${user.fullName} has joined ${club.name} using your referral code ${referral.code}. It's now pending admin approval.`,
+                linkUrl: "/referrals",
+                status: "in_progress",
+              });
+              console.log(`[JOIN] Referral code ${code} applied for userId=${user.id} joining clubId=${clubId}`);
+            }
+          }
+        } catch (refErr) {
+          console.error("[JOIN] Referral processing error (non-blocking):", refErr);
+        }
       }
 
       console.log(`[JOIN] REQUEST: userId=${user.id} requested to join clubId=${clubId}`);
