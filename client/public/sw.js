@@ -1,7 +1,6 @@
-const CACHE_NAME = "clubmaster-v1";
+const CACHE_NAME = "clubmaster-v2";
 
 const PRECACHE_ASSETS = [
-  "/",
   "/favicon.png",
   "/icon-192.png",
   "/icon-512.png",
@@ -36,6 +35,14 @@ self.addEventListener("fetch", (event) => {
 
   if (request.url.includes("/api/")) return;
 
+  const url = new URL(request.url);
+  if (url.pathname === "/" || request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(() => caches.match("/"))
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -47,6 +54,6 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
+      .catch(() => caches.match(request))
   );
 });
