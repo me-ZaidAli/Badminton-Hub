@@ -12943,7 +12943,10 @@ export async function registerRoutes(
       const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)));
       if (!profile) return res.status(404).json({ message: "No join request found" });
       if (profile.membershipStatus !== "PENDING") return res.status(400).json({ message: "Only pending requests can be cancelled" });
-      await db.delete(sessionSignups).where(eq(sessionSignups.userId, userId));
+      const clubSessionIds = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+      if (clubSessionIds.length > 0) {
+        await db.delete(sessionSignups).where(and(eq(sessionSignups.playerId, profile.id), inArray(sessionSignups.sessionId, clubSessionIds.map(s => s.id))));
+      }
       await db.delete(playerProfiles).where(eq(playerProfiles.id, profile.id));
       console.log(`[CLUB] User ${userId} cancelled join request for club ${clubId}`);
       res.json({ success: true });
