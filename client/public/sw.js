@@ -1,4 +1,4 @@
-const CACHE_NAME = "clubmaster-v2";
+const CACHE_NAME = "clubmaster-v3";
 
 const PRECACHE_ASSETS = [
   "/favicon.png",

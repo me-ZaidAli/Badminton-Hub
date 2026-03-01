@@ -1938,11 +1938,21 @@
     }
   }
   body {
-    @apply bg-background text-foreground antialiased font-body;
+    @apply text-foreground antialiased font-body;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight font-bold;
   }
+}
+
+html, body {
+  background-color: hsl(var(--background));
+  min-height: 100%;
+}
+
+#root {
+  background: transparent;
+  min-height: 100vh;
 }
 
 /* Custom Gradients */
