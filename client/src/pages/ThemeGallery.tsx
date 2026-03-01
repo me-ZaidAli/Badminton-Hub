@@ -33,6 +33,156 @@ const RANK_LABELS: Record<string, string> = {
   champion: "Reach #1 in any club",
 };
 
+interface TierCardProps {
+  userRank?: string;
+  hasBlackCard?: boolean;
+}
+
+function TierShowcaseCards({ userRank, hasBlackCard }: TierCardProps) {
+  const tiers = [
+    {
+      name: "STANDARD",
+      subtitle: "Foundation Member",
+      requirement: "Available to all",
+      unlocked: true,
+      themeCount: 5,
+      bg: "linear-gradient(135deg, #2a2a2e 0%, #3a3a40 30%, #2e2e32 50%, #353538 70%, #2a2a2e 100%)",
+      border: "#6B7280",
+      accent: "#9CA3AF",
+      accentDark: "#6B7280",
+      textureOpacity: 0.03,
+      iconBg: "linear-gradient(135deg, #9CA3AF, #6B7280)",
+    },
+    {
+      name: "PREMIUM",
+      subtitle: "Gold Tier Member",
+      requirement: "Available to all members",
+      unlocked: true,
+      themeCount: 11,
+      bg: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
+      border: "#b8860b",
+      accent: "#c5a044",
+      accentDark: "#9a7d2e",
+      textureOpacity: 0.02,
+      iconBg: "linear-gradient(135deg, #c5a044, #8b6914)",
+    },
+    {
+      name: "ELITE",
+      subtitle: "Top 10 Contender",
+      requirement: "Reach Top 10 ranking",
+      unlocked: userRank === "top10" || userRank === "champion",
+      themeCount: 7,
+      bg: "linear-gradient(135deg, #0a0f1a 0%, #0d1525 30%, #0a1020 50%, #0e1828 70%, #0a0f1a 100%)",
+      border: "#06B6D4",
+      accent: "#22D3EE",
+      accentDark: "#0891B2",
+      textureOpacity: 0.025,
+      iconBg: "linear-gradient(135deg, #22D3EE, #0891B2)",
+    },
+    {
+      name: "SIGNATURE",
+      subtitle: "Champion #1",
+      requirement: "Reach #1 ranking",
+      unlocked: userRank === "champion",
+      themeCount: 5,
+      bg: "linear-gradient(135deg, #10061a 0%, #1a0d28 30%, #140a20 50%, #1e1030 70%, #10061a 100%)",
+      border: "#8B5CF6",
+      accent: "#A78BFA",
+      accentDark: "#7C3AED",
+      textureOpacity: 0.025,
+      iconBg: "linear-gradient(135deg, #A78BFA, #7C3AED)",
+    },
+    {
+      name: "BLACK CARD",
+      subtitle: "Titanium Gold Member",
+      requirement: "Invite-only access",
+      unlocked: !!hasBlackCard,
+      themeCount: 3,
+      bg: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
+      border: "#b8860b",
+      accent: "#c5a044",
+      accentDark: "#7a6420",
+      textureOpacity: 0.02,
+      iconBg: "linear-gradient(135deg, #c5a044, #8b6914)",
+      isBlackCard: true,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="grid-tier-cards">
+      {tiers.map((tier) => (
+        <div
+          key={tier.name}
+          className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
+            tier.unlocked ? "" : "opacity-70"
+          }`}
+          style={{
+            background: tier.bg,
+            boxShadow: `0 0 0 1.5px ${tier.border}${tier.unlocked ? "" : "80"}, 0 8px 24px rgba(0,0,0,0.4)`,
+            aspectRatio: "1.586",
+          }}
+          data-testid={`card-tier-${tier.name.toLowerCase().replace(/\s+/g, "-")}`}
+        >
+          <div className="absolute inset-0 rounded-xl" style={{
+            background: `repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,${tier.textureOpacity}) 1px, rgba(255,255,255,${tier.textureOpacity}) 2px)`,
+          }} />
+          <div className="absolute inset-0 rounded-xl" style={{
+            background: `radial-gradient(ellipse at 30% 20%, ${tier.border}14 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, ${tier.border}0a 0%, transparent 40%)`,
+          }} />
+          <div className="absolute inset-[1.5px] rounded-xl" style={{ borderWidth: 1, borderStyle: "solid", borderColor: `${tier.accent}20` }} />
+
+          <div className="relative h-full flex flex-col justify-between p-3 sm:p-3.5">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] sm:text-xs font-bold tracking-[0.1em] truncate" style={{ color: tier.accent }}>
+                  {tier.name}
+                </p>
+                <p className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em] mt-0.5 font-medium truncate" style={{ color: tier.accentDark }}>
+                  {tier.subtitle}
+                </p>
+              </div>
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded flex items-center justify-center flex-shrink-0 ml-1" style={{
+                background: tier.iconBg,
+                boxShadow: `0 2px 6px ${tier.border}40`,
+              }}>
+                {tier.isBlackCard ? (
+                  <svg viewBox="0 0 24 24" className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none">
+                    <path d="M12 2L6 8H2L5 14L3 22H21L19 14L22 8H18L12 2Z" fill="#1a1a1a" stroke="#1a1a1a" strokeWidth="1" />
+                    <path d="M7 8L12 3L17 8" stroke="#2a2a2a" strokeWidth="0.8" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke={tier.bg.includes("#0a0f1a") ? "#0a1020" : tier.bg.includes("#10061a") ? "#140a20" : "#1a1a1a"} strokeWidth="1.5">
+                    <path d="M12 4L8 10H4L7 16L5 22H19L17 16L20 10H16L12 4Z" fill="currentColor" />
+                  </svg>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-end justify-between">
+                <div className="min-w-0">
+                  <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.15em] font-medium truncate" style={{ color: tier.accentDark }}>
+                    {tier.unlocked ? `${tier.themeCount} themes unlocked` : tier.requirement}
+                  </p>
+                </div>
+                {tier.unlocked ? (
+                  <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${tier.accent}30` }}>
+                    <Check className="w-2.5 h-2.5" style={{ color: tier.accent }} />
+                  </div>
+                ) : (
+                  <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.1)" }}>
+                    <Lock className="w-2.5 h-2.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
   const a = s * Math.min(l, 1 - l) / 100;
@@ -340,6 +490,11 @@ export default function ThemeGallery() {
           ))}
         </div>
       )}
+
+      <TierShowcaseCards
+        userRank={availableThemes?.userRank}
+        hasBlackCard={availableThemes?.hasBlackCard}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-theme-cards">
         {filteredModes.map((mode) => {
