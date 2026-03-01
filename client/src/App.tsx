@@ -16,6 +16,7 @@ import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
 import Home from "@/pages/Home";
+import Pricing from "@/pages/Pricing";
 import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
@@ -470,6 +471,9 @@ function Router() {
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TicketDetail /></Suspense>} />
       </Route>
 
+      <Route path="/pricing">
+        <PublicRoute component={Pricing} />
+      </Route>
       <Route path="/contact">
         <PublicRoute component={ContactForm} />
       </Route>
