@@ -60,7 +60,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   const logoHref = user ? "/dashboard" : "/";
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col">
       <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50 bg-background/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <Link href={logoHref}>

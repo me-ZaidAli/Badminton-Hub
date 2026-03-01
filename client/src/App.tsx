@@ -112,7 +112,7 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
@@ -152,7 +152,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
@@ -193,7 +193,7 @@ function NonOrganiserAdminRoute({ component: Component }: { component: React.Com
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
@@ -228,7 +228,7 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
@@ -263,7 +263,7 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
@@ -284,7 +284,7 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
   
   if (user) {
     return (
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen">
         <MobileTopNav />
         <div className="flex flex-1">
           <Sidebar />
