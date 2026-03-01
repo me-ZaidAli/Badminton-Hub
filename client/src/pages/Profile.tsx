@@ -2382,7 +2382,6 @@ export default function Profile() {
                     {[
                       "Exclusive member session rates",
                       `Active at ${memberClubs.length > 0 ? memberClubs.slice(0, 2).join(", ") : "your clubs"}`,
-                      "Priority booking & invitations",
                       "Member discount codes",
                       "VIP profile badge",
                       primaryMembership?.endDate
