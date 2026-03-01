@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import logoPath from "@assets/image_1770381062912_optimized.png";
+import { PwaInstallBanner, PwaInstallButton } from "@/components/PwaInstallPrompt";
 import { useState } from "react";
 import { 
   Calendar, 
@@ -578,6 +579,7 @@ export function Sidebar() {
         ))}
       </nav>
 
+      <PwaInstallBanner />
       <DonationCard />
 
       <div className="p-4 border-t border-border/50 bg-muted/20">
@@ -779,6 +781,9 @@ export function MobileTopNav() {
             ))}
           </div>
           <DonationCard compact />
+          <div className="px-2 pb-1">
+            <PwaInstallButton compact />
+          </div>
           <div className="border-t border-border/40 p-2 space-y-1">
             <Link href="/profile">
               <Button
