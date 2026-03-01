@@ -12935,7 +12935,120 @@ export async function registerRoutes(
     }
   });
 
-  // Delete club permanently (super admin only)
+  app.post("/api/clubs/:clubId/cancel-join", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const userId = req.user!.id;
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "No join request found" });
+      if (profile.membershipStatus !== "PENDING") return res.status(400).json({ message: "Only pending requests can be cancelled" });
+      await db.delete(sessionSignups).where(eq(sessionSignups.userId, userId));
+      await db.delete(playerProfiles).where(eq(playerProfiles.id, profile.id));
+      console.log(`[CLUB] User ${userId} cancelled join request for club ${clubId}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/clubs/:clubId/leave", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const userId = req.user!.id;
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "You are not a member of this club" });
+      if (profile.clubRole === "OWNER") return res.status(400).json({ message: "Club owners cannot leave their own club. Transfer ownership first or delete the club." });
+      const sessionIds = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+      if (sessionIds.length > 0) {
+        await db.delete(sessionSignups).where(and(eq(sessionSignups.userId, userId), inArray(sessionSignups.sessionId, sessionIds.map(s => s.id))));
+      }
+      await db.delete(clubMemberships).where(and(eq(clubMemberships.userId, userId), eq(clubMemberships.clubId, clubId)));
+      await db.delete(playerProfiles).where(eq(playerProfiles.id, profile.id));
+      const club = await storage.getClub(clubId);
+      const owners = await storage.getUsersByRole("OWNER");
+      const clubProfiles = await (storage as any).getClubPlayers(clubId);
+      const clubAdmins = clubProfiles.filter((p: any) => p.profile.clubRole === "ADMIN" || p.profile.clubRole === "OWNER").map((p: any) => p.profile.userId);
+      const notifyUserIds = new Set([...owners.map((o: any) => o.id), ...clubAdmins]);
+      for (const notifyId of notifyUserIds) {
+        await storage.createNotification({
+          userId: notifyId,
+          type: "MEMBER_LEFT",
+          title: "Member Left Club",
+          message: `${req.user!.fullName} has left ${club?.name || "the club"}.`,
+          linkUrl: "/admin/approvals",
+        });
+      }
+      console.log(`[CLUB] User ${userId} left club ${clubId}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/clubs/:clubId/delete-permanent", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const user = req.user!;
+      const isOwnerRole = user.role === "OWNER";
+      if (!isOwnerRole) {
+        const [adminProfile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (!adminProfile) return res.status(403).json({ message: "Only club admins and super admins can delete a club" });
+      }
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const sessionIds = db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+      await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
+      await db.delete(matches).where(inArray(matches.sessionId, sessionIds));
+      await db.delete(sessions).where(eq(sessions.clubId, clubId));
+      await db.delete(clubMemberships).where(eq(clubMemberships.clubId, clubId));
+      await db.delete(membershipRequests).where(eq(membershipRequests.clubId, clubId));
+      await db.delete(membershipPlans).where(eq(membershipPlans.clubId, clubId));
+      await db.delete(merchandiseOrders).where(eq(merchandiseOrders.clubId, clubId));
+      await db.delete(merchandise).where(eq(merchandise.clubId, clubId));
+      await db.delete(inventoryMovements).where(eq(inventoryMovements.clubId, clubId));
+      await db.delete(inventoryItems).where(eq(inventoryItems.clubId, clubId));
+      await db.delete(expenses).where(eq(expenses.clubId, clubId));
+      await db.delete(venues).where(eq(venues.clubId, clubId));
+      await db.delete(announcements).where(eq(announcements.clubId, clubId));
+      await db.delete(discountCodes).where(eq(discountCodes.clubId, clubId));
+      await db.delete(recurringEvents).where(eq(recurringEvents.clubId, clubId));
+      await db.delete(clubReferralSettings).where(eq(clubReferralSettings.clubId, clubId));
+      await db.delete(referralPrograms).where(eq(referralPrograms.clubId, clubId));
+      await db.delete(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.clubId, clubId));
+      await db.delete(playerRewardLedger).where(eq(playerRewardLedger.clubId, clubId));
+      await db.delete(clubAnniversarySettings).where(eq(clubAnniversarySettings.clubId, clubId));
+      await db.delete(clubBirthdaySettings).where(eq(clubBirthdaySettings.clubId, clubId));
+      await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId));
+      await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId));
+      const leagueIds = db.select({ id: leagues.id }).from(leagues).where(eq(leagues.clubId, clubId));
+      await db.delete(leagueGameScores).where(inArray(leagueGameScores.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
+      await db.delete(leagueMatchResults).where(inArray(leagueMatchResults.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
+      await db.delete(leagueMatchPlayers).where(inArray(leagueMatchPlayers.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
+      await db.delete(leagueMatches).where(eq(leagueMatches.clubId, clubId));
+      await db.delete(leagueTeams).where(eq(leagueTeams.clubId, clubId));
+      await db.delete(leagueOpponents).where(eq(leagueOpponents.clubId, clubId));
+      await db.delete(clubHomeVenues).where(eq(clubHomeVenues.clubId, clubId));
+      await db.delete(leagues).where(eq(leagues.clubId, clubId));
+      await db.delete(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+      await db.delete(juniorRankings).where(eq(juniorRankings.clubId, clubId));
+      await db.delete(generatedReports).where(eq(generatedReports.clubId, clubId));
+      await db.delete(notificationScheduleSettings).where(eq(notificationScheduleSettings.clubId, clubId));
+      await db.delete(notificationLogs).where(eq(notificationLogs.clubId, clubId));
+      await db.delete(adminAuditLogs).where(eq(adminAuditLogs.clubId, clubId));
+      await db.delete(playerProfiles).where(eq(playerProfiles.clubId, clubId));
+      await db.delete(clubs).where(eq(clubs.id, clubId));
+      console.log(`[CLUB] Club ${clubId} (${club.name}) permanently deleted by user ${user.id}`);
+      res.json({ success: true, message: `Club "${club.name}" and all its data have been permanently deleted.` });
+    } catch (err: any) {
+      console.error("Error permanently deleting club:", err);
+      res.status(500).json({ message: "Failed to permanently delete club: " + err.message });
+    }
+  });
+
+  // Delete club permanently (super admin only - legacy endpoint)
   app.delete("/api/super-admin/clubs/:id/permanent", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const user = req.user as any;
