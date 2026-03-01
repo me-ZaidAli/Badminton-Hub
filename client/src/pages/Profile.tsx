@@ -1692,6 +1692,7 @@ export default function Profile() {
   const [discountCodesModalOpen, setDiscountCodesModalOpen] = useState(false);
   const [rankingClubFilter, setRankingClubFilter] = useState<string>("all");
   const [tierCardFlipped, setTierCardFlipped] = useState(false);
+  const [membershipCardFlipped, setMembershipCardFlipped] = useState(false);
 
   const { data: availableThemesData } = useQuery<{
     unlockedThemes: string[];
@@ -2260,41 +2261,168 @@ export default function Profile() {
         </Card>
       )}
 
-      {/* Active Memberships */}
-      {activeMembershipCount > 0 && (
-        <div
-          className="cursor-pointer rounded-md bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px]"
-          onClick={() => setMembershipsModalOpen(true)}
-          data-testid="card-active-memberships"
-        >
-          <div className="rounded-md bg-background/95 dark:bg-background/90 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-amber-500/10">
-                  <Award className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="font-medium">VIP Membership</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(() => {
-                      const activeCount = (clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").length;
-                      const pendingCount = (clubMemberships || []).filter((m: any) => m.status === "PENDING").length;
-                      const parts = [];
-                      if (activeCount > 0) parts.push(`${activeCount} active`);
-                      if (pendingCount > 0) parts.push(`${pendingCount} pending`);
-                      return `${parts.join(", ")} membership${activeMembershipCount > 1 ? "s" : ""}`;
-                    })()}
+      {/* Active Memberships - VIP Card */}
+      {activeMembershipCount > 0 && user && (() => {
+        const activeCount = (clubMemberships || []).filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING").length;
+        const pendingCount = (clubMemberships || []).filter((m: any) => m.status === "PENDING").length;
+        const primaryMembership = (clubMemberships || []).find((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING");
+        const memberClubs = (clubMemberships || [])
+          .filter((m: any) => m.status === "ACTIVE" || m.status === "EXPIRING")
+          .map((m: any) => m.clubName);
+        const isReducedMotion = (user as any).reducedMotion === true;
+
+        return (
+          <div
+            className="cursor-pointer mx-auto w-full"
+            style={{ maxWidth: "420px", perspective: "1000px" }}
+            onClick={() => setMembershipCardFlipped(!membershipCardFlipped)}
+            data-testid="card-active-memberships"
+          >
+            <div style={{
+              position: "relative",
+              width: "100%",
+              aspectRatio: "1.586",
+              transition: isReducedMotion ? "none" : "transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
+              transformStyle: "preserve-3d",
+              WebkitTransformStyle: "preserve-3d" as any,
+              transform: membershipCardFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            }}>
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden" as any,
+                background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a18 30%, #0e0e0c 50%, #161614 70%, #0a0a0a 100%)",
+                boxShadow: "0 0 0 2px #8B7320, 0 0 0 3px rgba(139,115,32,0.3), 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)",
+              }}>
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 265" fill="none" preserveAspectRatio="none">
+                  <rect x="12" y="12" width="396" height="241" rx="8" stroke="#8B7320" strokeWidth="0.5" opacity="0.4" />
+                  <rect x="18" y="18" width="384" height="229" rx="6" stroke="#8B7320" strokeWidth="0.3" opacity="0.25" />
+                  <path d="M12 12L30 30M408 12L390 30M12 253L30 235M408 253L390 235" stroke="#8B7320" strokeWidth="0.5" opacity="0.35" />
+                  <path d="M12 12L18 18M408 12L402 18M12 253L18 247M408 253L402 247" stroke="#B8941F" strokeWidth="0.8" opacity="0.5" />
+                  <line x1="30" y1="30" x2="50" y2="30" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="30" y1="30" x2="30" y2="50" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="390" y1="30" x2="370" y2="30" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="390" y1="30" x2="390" y2="50" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="30" y1="235" x2="50" y2="235" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="30" y1="235" x2="30" y2="215" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="390" y1="235" x2="370" y2="235" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="390" y1="235" x2="390" y2="215" stroke="#8B7320" strokeWidth="0.5" opacity="0.3" />
+                  <path d="M35 15L45 25M375 15L385 25" stroke="#8B7320" strokeWidth="0.3" opacity="0.2" />
+                  <path d="M35 250L45 240M375 250L385 240" stroke="#8B7320" strokeWidth="0.3" opacity="0.2" />
+                </svg>
+                <div className="absolute inset-0" style={{
+                  background: "radial-gradient(ellipse at 50% 40%, rgba(139,115,32,0.06) 0%, transparent 60%)",
+                }} />
+                <div className="relative h-full flex flex-col items-center justify-center p-6">
+                  <div className="flex items-center gap-1 mb-1">
+                    <svg viewBox="0 0 40 44" className="w-8 h-8" fill="none">
+                      <path d="M20 2L4 14V30L20 42L36 30V14L20 2Z" stroke="#B8941F" strokeWidth="1.2" fill="none" />
+                      <path d="M20 6L8 16V28L20 38L32 28V16L20 6Z" stroke="#8B7320" strokeWidth="0.6" fill="none" />
+                      <path d="M14 20L18 24L26 16" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="text-2xl sm:text-3xl font-black tracking-[0.05em]" style={{
+                      background: "linear-gradient(180deg, #E6C555 0%, #D4AF37 40%, #B8941F 70%, #8B7320 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                    }}>VIP</span>
+                    <svg viewBox="0 0 28 32" className="w-6 h-7" fill="none">
+                      <path d="M14 4C10 4 6 8 6 12C6 18 14 28 14 28C14 28 22 18 22 12C22 8 18 4 14 4Z" fill="none" stroke="#B8941F" strokeWidth="0.8" />
+                      <circle cx="14" cy="12" r="3" fill="none" stroke="#D4AF37" strokeWidth="0.6" />
+                      <path d="M8 6C4 6 2 10 4 14" stroke="#8B7320" strokeWidth="0.4" opacity="0.5" />
+                    </svg>
+                  </div>
+                  <p className="text-base sm:text-lg font-bold tracking-[0.12em] text-center" style={{
+                    background: "linear-gradient(180deg, #E6C555 0%, #D4AF37 50%, #B8941F 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}>
+                    {(user.fullName || "").toUpperCase()}
                   </p>
+                  <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.3em] mt-1 font-medium" style={{ color: "#8B7320" }}>
+                    {activeCount > 1 ? `${activeCount} Club Memberships` : "Club Membership"}
+                    {pendingCount > 0 ? ` · ${pendingCount} Pending` : ""}
+                  </p>
+                  {primaryMembership?.membershipNumber && (
+                    <p className="text-[10px] font-mono tracking-[0.15em] mt-3" style={{ color: "#6B5B1F" }}>
+                      MEMBER NO. {primaryMembership.membershipNumber}
+                    </p>
+                  )}
+                </div>
+                <div className="absolute bottom-3 right-4 text-[8px] uppercase tracking-widest" style={{ color: "rgba(139,115,32,0.4)" }}>
+                  Tap to flip
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-amber-500 text-white no-default-hover-elevate">VIP</Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden" as any,
+                transform: "rotateY(180deg)",
+                background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a18 30%, #0e0e0c 50%, #161614 70%, #0a0a0a 100%)",
+                boxShadow: "0 0 0 2px #8B7320, 0 0 0 3px rgba(139,115,32,0.3), 0 20px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)",
+              }}>
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 265" fill="none" preserveAspectRatio="none">
+                  <rect x="12" y="12" width="396" height="241" rx="8" stroke="#8B7320" strokeWidth="0.5" opacity="0.4" />
+                  <rect x="18" y="18" width="384" height="229" rx="6" stroke="#8B7320" strokeWidth="0.3" opacity="0.25" />
+                </svg>
+                <div className="absolute inset-0" style={{
+                  background: "radial-gradient(ellipse at 50% 30%, rgba(139,115,32,0.05) 0%, transparent 50%)",
+                }} />
+                <div className="relative h-full flex flex-col p-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold tracking-[0.15em] uppercase" style={{ color: "#D4AF37" }}>
+                      VIP Membership
+                    </p>
+                    <p className="text-[9px] uppercase tracking-[0.2em]" style={{ color: "#6B5B1F" }}>
+                      Benefits
+                    </p>
+                  </div>
+                  <div className="w-full h-px mb-2" style={{ background: "linear-gradient(90deg, transparent, rgba(139,115,32,0.4), transparent)" }} />
+                  <div className="flex-1 flex flex-col justify-center gap-1.5">
+                    {[
+                      "Exclusive member session rates",
+                      `Active at ${memberClubs.length > 0 ? memberClubs.slice(0, 2).join(", ") : "your clubs"}`,
+                      "Priority booking & invitations",
+                      "Member discount codes",
+                      "VIP profile badge",
+                      primaryMembership?.endDate
+                        ? `Valid until ${format(new Date(primaryMembership.endDate), "MMM d, yyyy")}`
+                        : "Annual membership benefits",
+                    ].map((benefit, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: "#D4AF37" }} />
+                        <p className="text-[10px] sm:text-[11px] font-medium" style={{ color: i < 2 ? "#D4AF37" : "#8B7320" }}>
+                          {benefit}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-full h-px mt-2 mb-2" style={{ background: "linear-gradient(90deg, transparent, rgba(139,115,32,0.4), transparent)" }} />
+                  <div className="flex items-center justify-between">
+                    <button
+                      className="text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-md transition-colors"
+                      style={{
+                        color: "#0a0a0a",
+                        background: "linear-gradient(135deg, #D4AF37, #B8941F)",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMembershipsModalOpen(true);
+                      }}
+                      data-testid="button-view-memberships-card"
+                    >
+                      View All Memberships
+                    </button>
+                    <p className="text-[8px] uppercase tracking-widest" style={{ color: "rgba(139,115,32,0.4)" }}>
+                      Tap to flip
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {activeMembershipCount > 0 && (
         <Card className="cursor-pointer hover-elevate" onClick={() => setDiscountCodesModalOpen(true)} data-testid="card-discount-codes">
