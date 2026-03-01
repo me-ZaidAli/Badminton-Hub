@@ -426,7 +426,7 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="font-semibold text-sm truncate">{category.name}</h3>
+              <h3 className="font-semibold text-sm truncate text-white">{category.name}</h3>
               <span className="text-xs font-medium text-amber-400 ml-2">{categoryProgress}%</span>
             </div>
             <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -434,7 +434,7 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
             </div>
           </div>
           <div className="shrink-0">
-            {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            {expanded ? <ChevronUp className="h-4 w-4 text-white/50" /> : <ChevronDown className="h-4 w-4 text-white/50" />}
           </div>
         </button>
         {expanded && (
@@ -446,9 +446,9 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
               return (
                 <div key={skill.id} className={`p-3 rounded-xl bg-slate-800/50 ${isAdmin ? "cursor-pointer active:bg-slate-700/50" : ""} ${progress?.priority ? "ring-1 ring-amber-500/40" : ""}`} onClick={() => isAdmin && openEditSkill(skill)} data-testid={`skill-card-${skill.id}`}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-medium">{skill.name}</span>
+                    <span className="text-sm font-medium text-white">{skill.name}</span>
                     <div className="flex items-center gap-2">
-                      {progress?.comment && <MessageSquare className="h-3 w-3 text-muted-foreground" />}
+                      {progress?.comment && <MessageSquare className="h-3 w-3 text-white/50" />}
                       {progress?.priority && <Zap className="h-3 w-3 text-amber-400" />}
                     </div>
                   </div>
@@ -458,11 +458,11 @@ function SkillCategoryCard({ category, skills, progressMap, isAdmin, userId }: {
                         <div className={`h-full rounded-full transition-all duration-500 ${pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : pct >= 25 ? "bg-blue-500" : "bg-slate-600"}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
-                    <span className="text-xs font-medium text-muted-foreground w-8 text-right">{pct}%</span>
+                    <span className="text-xs font-medium text-white/70 w-8 text-right">{pct}%</span>
                     <StarRating value={level} size="sm" />
                   </div>
                   {progress?.updatedAt && (
-                    <p className="text-[10px] text-muted-foreground mt-1">Updated {format(new Date(progress.updatedAt), "d MMM")}</p>
+                    <p className="text-[10px] text-white/50 mt-1">Updated {format(new Date(progress.updatedAt), "d MMM")}</p>
                   )}
                 </div>
               );
@@ -757,12 +757,12 @@ function MonthlyProgressChart({ userId }: { userId: number }) {
                   {act.change > 0 ? `+${act.change}` : act.change}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{act.skill}</p>
-                  <p className="text-[10px] text-muted-foreground">{act.from}% → {act.to}%</p>
+                  <p className="text-xs font-medium truncate text-white">{act.skill}</p>
+                  <p className="text-[10px] text-white/60">{act.from}% → {act.to}%</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] text-muted-foreground">{act.date}</p>
-                  <p className="text-[9px] text-muted-foreground/70">{act.time}</p>
+                  <p className="text-[10px] text-white/70">{act.date}</p>
+                  <p className="text-[9px] text-white/50">{act.time}</p>
                 </div>
               </div>
             ))}
@@ -772,9 +772,9 @@ function MonthlyProgressChart({ userId }: { userId: number }) {
 
       {(!history || history.length === 0) && (
         <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 p-8 text-center">
-          <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">No progress history yet</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">Updates will be tracked as coaches assess skills</p>
+          <Calendar className="h-8 w-8 mx-auto mb-2 text-white/30" />
+          <p className="text-sm text-white/70">No progress history yet</p>
+          <p className="text-xs text-white/50 mt-1">Updates will be tracked as coaches assess skills</p>
         </div>
       )}
     </div>
@@ -1293,14 +1293,14 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
               <Star className="h-5 w-5 text-amber-400" />
               <div>
                 <StarRating value={profile?.effortRating || 0} size="sm" />
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Effort</p>
+                <p className="text-[10px] text-white/60 uppercase tracking-wider mt-0.5">Effort</p>
               </div>
             </div>
             <div className="rounded-xl bg-white/5 backdrop-blur-sm p-3 flex items-center gap-3 border border-white/5" data-testid="stat-coach">
               <Award className="h-5 w-5 text-emerald-400" />
               <div>
                 <StarRating value={profile?.coachRating || 0} size="sm" />
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Coach</p>
+                <p className="text-[10px] text-white/60 uppercase tracking-wider mt-0.5">Coach</p>
               </div>
             </div>
           </div>
@@ -1308,15 +1308,15 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
               <p className="text-lg font-black text-white">{totalSkillsAssessed}</p>
-              <p className="text-[9px] text-muted-foreground uppercase">Skills Assessed</p>
+              <p className="text-[9px] text-white/60 uppercase">Skills Assessed</p>
             </div>
             <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
               <p className="text-lg font-black text-white">{totalSkills}</p>
-              <p className="text-[9px] text-muted-foreground uppercase">Total Skills</p>
+              <p className="text-[9px] text-white/60 uppercase">Total Skills</p>
             </div>
             <div className="rounded-lg bg-white/5 p-2 text-center border border-white/5">
               <p className="text-lg font-black text-amber-400">{prioritySkills}</p>
-              <p className="text-[9px] text-muted-foreground uppercase">Priority</p>
+              <p className="text-[9px] text-white/60 uppercase">Priority</p>
             </div>
           </div>
         </div>
@@ -1367,7 +1367,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
                 {categories && categories.length > 0 ? (
                   <SkillRadarChart categories={categories} progressMap={progressMap} />
                 ) : (
-                  <div className="flex flex-col items-center py-8 text-muted-foreground">
+                  <div className="flex flex-col items-center py-8 text-white/50">
                     <BarChart3 className="h-8 w-8 mb-2 opacity-30" />
                     <p className="text-xs">No skill data yet</p>
                   </div>
@@ -1385,7 +1385,7 @@ function PerformancePanel({ userId, isAdmin }: { userId: number; isAdmin: boolea
               {categories && categories.length > 0 ? (
                 <SkillBarChart categories={categories} progressMap={progressMap} />
               ) : (
-                <div className="flex flex-col items-center py-8 text-muted-foreground">
+                <div className="flex flex-col items-center py-8 text-white/50">
                   <Activity className="h-8 w-8 mb-2 opacity-30" />
                   <p className="text-xs">No data available</p>
                 </div>
@@ -2818,8 +2818,8 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
                                   {exercise.difficulty}
                                 </Badge>
                               </div>
-                              <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{exercise.description}</p>
-                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                              <p className="text-xs text-white/60 line-clamp-2 mb-2">{exercise.description}</p>
+                              <div className="flex items-center gap-3 text-[10px] text-white/50">
                                 {(item.targetDurationMinutes || exercise.durationMinutes) && (
                                   <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{item.targetDurationMinutes || exercise.durationMinutes} min</span>
                                 )}
@@ -2889,11 +2889,11 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-bold">{ex.name}</h4>
+                      <h4 className="text-sm font-bold text-white">{ex.name}</h4>
                       <Badge className={`text-[9px] px-1.5 py-0 border ${DIFFICULTY_COLORS[ex.difficulty] || ""}`}>{ex.difficulty}</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{ex.description}</p>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                    <p className="text-xs text-white/60 line-clamp-2 mb-2">{ex.description}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-white/50 flex-wrap">
                       {ex.durationMinutes && <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{ex.durationMinutes} min</span>}
                       {ex.reps && <span className="flex items-center gap-1"><Repeat className="h-3 w-3" />{ex.reps} reps</span>}
                       {ex.sets && <span>{ex.sets} sets</span>}
@@ -3144,7 +3144,7 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
                         <MapPin className="h-3 w-3" />{ex.location === "gym" ? "Gym" : "Home"}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{ex.description}</p>
+                    <p className="text-sm text-white/70 leading-relaxed">{ex.description}</p>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
