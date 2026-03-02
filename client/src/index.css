@@ -3510,6 +3510,618 @@ html, body {
   scrollbar-color: hsl(0 0% 12%) hsl(240 10% 2%);
 }
 
+/* ===== METALLIC COMET 1. Obsidian Gold Ultra Theme ===== */
+.obsidian-gold-ultra {
+  --background: 0 0% 0%;
+  --foreground: 43 20% 88%;
+  --primary: 43 63% 52%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 43 30% 12%;
+  --secondary-foreground: 43 22% 80%;
+  --muted: 0 0% 6%;
+  --muted-foreground: 43 15% 50%;
+  --accent: 43 52% 59%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 62% 38%;
+  --destructive-foreground: 43 20% 92%;
+  --card: 0 0% 4%;
+  --card-foreground: 43 20% 88%;
+  --card-border: 43 30% 14%;
+  --popover: 0 0% 5%;
+  --popover-foreground: 43 20% 88%;
+  --popover-border: 43 30% 14%;
+  --sidebar-background: 0 0% 2%;
+  --border: 43 20% 12%;
+  --input: 43 20% 12%;
+  --ring: 43 63% 52%;
+  --chart-1: 43 63% 52%;
+  --chart-2: 43 52% 59%;
+  --chart-3: 43 40% 28%;
+  --chart-4: 43 58% 45%;
+  --chart-5: 43 35% 35%;
+  --theme-accent: 43 63% 52%;
+  --theme-accent-glow: 43 72% 60%;
+  --theme-card-surface: 0 0% 4%;
+  --theme-gradient-start: 0 0% 0%;
+  --theme-gradient-end: 43 63% 52%;
+}
+
+.obsidian-gold-ultra body,
+.obsidian-gold-ultra {
+  background-color: hsl(0 0% 0%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(43 63% 52% / 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(43 52% 59% / 0.015) 0%, transparent 50%);
+}
+
+.obsidian-gold-ultra h1,
+.obsidian-gold-ultra h2,
+.obsidian-gold-ultra h3,
+.obsidian-gold-ultra h4 {
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  background: linear-gradient(
+    135deg,
+    hsl(45 80% 72%) 0%,
+    hsl(43 90% 58%) 25%,
+    hsl(38 70% 48%) 50%,
+    hsl(43 90% 62%) 75%,
+    hsl(45 80% 72%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: obsidian-gold-ultra-foil 4s ease-in-out infinite;
+}
+
+@keyframes obsidian-gold-ultra-foil {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes obsidian-gold-ultra-pulse {
+  0%, 100% { box-shadow: 0 0 6px hsl(43 63% 52% / 0.08); }
+  50% { box-shadow: 0 0 18px hsl(43 63% 52% / 0.2); }
+}
+
+.obsidian-gold-ultra .hover-card-effect {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.obsidian-gold-ultra .hover-card-effect:hover {
+  box-shadow:
+    0 0 24px hsl(43 63% 52% / 0.15),
+    0 0 40px hsl(43 63% 52% / 0.06),
+    0 8px 30px hsl(0 0% 0% / 0.7);
+  border-color: hsl(43 50% 40% / 0.5);
+  transform: translateY(-1px);
+}
+
+.obsidian-gold-ultra [data-slot="card"] {
+  background:
+    repeating-conic-gradient(hsl(0 0% 6%) 0% 25%, hsl(0 0% 4%) 0% 50%) 0 0 / 10px 10px,
+    linear-gradient(165deg, hsl(0 0% 5%) 0%, hsl(0 0% 3%) 100%);
+  box-shadow:
+    inset 0 1px 0 hsl(43 30% 18% / 0.2),
+    inset 0 -1px 0 hsl(0 0% 0% / 0.5),
+    inset 1px 0 0 hsl(43 20% 14% / 0.1),
+    inset -1px 0 0 hsl(43 20% 14% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.6),
+    0 0 1px hsl(43 63% 52% / 0.1);
+}
+
+.obsidian-gold-ultra * {
+  scrollbar-color: hsl(43 30% 18%) hsl(0 0% 0%);
+}
+.obsidian-gold-ultra ::-webkit-scrollbar { width: 5px; }
+.obsidian-gold-ultra ::-webkit-scrollbar-track { background: hsl(0 0% 0%); }
+.obsidian-gold-ultra ::-webkit-scrollbar-thumb { background: hsl(43 30% 18%); border-radius: 3px; }
+.obsidian-gold-ultra ::-webkit-scrollbar-thumb:hover { background: hsl(43 50% 28%); }
+
+/* ===== METALLIC COMET 2. Mint Prestige Theme (LIGHT) ===== */
+.mint-prestige {
+  --background: 60 80% 98%;
+  --foreground: 210 20% 20%;
+  --primary: 153 55% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 270 34% 88%;
+  --secondary-foreground: 210 20% 25%;
+  --muted: 153 30% 92%;
+  --muted-foreground: 210 12% 45%;
+  --accent: 25 100% 72%;
+  --accent-foreground: 210 20% 18%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 20% 20%;
+  --card-border: 153 30% 82%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 20% 20%;
+  --popover-border: 153 30% 82%;
+  --sidebar-background: 60 60% 97%;
+  --border: 153 25% 82%;
+  --input: 153 25% 82%;
+  --ring: 153 55% 48%;
+  --chart-1: 153 55% 48%;
+  --chart-2: 270 34% 68%;
+  --chart-3: 25 80% 72%;
+  --chart-4: 153 45% 55%;
+  --chart-5: 270 40% 75%;
+  --theme-accent: 153 55% 48%;
+  --theme-accent-glow: 153 60% 58%;
+  --theme-card-surface: 0 0% 100%;
+  --theme-gradient-start: 120 40% 97%;
+  --theme-gradient-end: 270 34% 88%;
+}
+
+.mint-prestige body,
+.mint-prestige {
+  background-color: hsl(60 80% 98%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(153 55% 78% / 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(270 34% 76% / 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(25 100% 86% / 0.08) 0%, transparent 70%);
+}
+
+.mint-prestige h1,
+.mint-prestige h2,
+.mint-prestige h3,
+.mint-prestige h4 {
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(153 45% 35%);
+}
+
+@keyframes mint-sparkle {
+  0%, 100% { opacity: 0; transform: translateY(0) scale(0.8); }
+  50% { opacity: 1; transform: translateY(-8px) scale(1.1); }
+}
+
+.mint-prestige .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.mint-prestige .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(153 55% 48% / 0.12), 0 4px 16px hsl(0 0% 0% / 0.06);
+  transform: translateY(-2px);
+}
+
+.mint-prestige [data-slot="card"] {
+  background: hsl(0 0% 100%);
+  border-radius: 1rem;
+  border: 1px solid hsl(153 30% 85%);
+  box-shadow: 0 2px 12px hsl(153 40% 50% / 0.06);
+}
+
+.mint-prestige * {
+  scrollbar-color: hsl(153 30% 80%) hsl(60 80% 98%);
+}
+.mint-prestige ::-webkit-scrollbar { width: 6px; }
+.mint-prestige ::-webkit-scrollbar-track { background: hsl(60 80% 98%); }
+.mint-prestige ::-webkit-scrollbar-thumb { background: hsl(153 30% 80%); border-radius: 3px; }
+.mint-prestige ::-webkit-scrollbar-thumb:hover { background: hsl(153 40% 70%); }
+
+/* ===== METALLIC COMET 3. Crystal Court Theme ===== */
+.crystal-court {
+  --background: 215 25% 12%;
+  --foreground: 210 20% 88%;
+  --primary: 210 40% 65%;
+  --primary-foreground: 215 25% 8%;
+  --secondary: 215 18% 18%;
+  --secondary-foreground: 210 18% 78%;
+  --muted: 215 15% 16%;
+  --muted-foreground: 210 14% 52%;
+  --accent: 210 40% 65%;
+  --accent-foreground: 215 25% 8%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 210 20% 92%;
+  --card: 215 20% 16%;
+  --card-foreground: 210 20% 88%;
+  --card-border: 210 20% 24%;
+  --popover: 215 20% 17%;
+  --popover-foreground: 210 20% 88%;
+  --popover-border: 210 20% 24%;
+  --sidebar-background: 215 25% 11%;
+  --border: 210 18% 22%;
+  --input: 210 18% 22%;
+  --ring: 210 40% 65%;
+  --chart-1: 210 40% 65%;
+  --chart-2: 200 50% 58%;
+  --chart-3: 220 45% 50%;
+  --chart-4: 205 48% 55%;
+  --chart-5: 215 35% 62%;
+  --theme-accent: 210 40% 65%;
+  --theme-accent-glow: 210 50% 72%;
+  --theme-card-surface: 215 20% 16%;
+  --theme-gradient-start: 215 25% 18%;
+  --theme-gradient-end: 210 40% 65%;
+}
+
+.crystal-court body,
+.crystal-court {
+  background-color: hsl(215 25% 12%);
+  background-image:
+    radial-gradient(ellipse at 25% 15%, hsl(210 40% 65% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 85%, hsl(220 35% 50% / 0.03) 0%, transparent 50%);
+}
+
+.crystal-court h1,
+.crystal-court h2,
+.crystal-court h3,
+.crystal-court h4 {
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  background: linear-gradient(
+    135deg,
+    hsl(210 50% 82%) 0%,
+    hsl(210 45% 68%) 40%,
+    hsl(215 35% 58%) 70%,
+    hsl(210 50% 78%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: crystal-gloss 6s ease-in-out infinite;
+}
+
+@keyframes crystal-gloss {
+  0% { background-position: -100% 50%; }
+  50% { background-position: 200% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+@keyframes crystal-refract {
+  0%, 100% { box-shadow: 0 0 8px hsl(210 40% 65% / 0.08); }
+  50% { box-shadow: 0 0 20px hsl(210 40% 65% / 0.18); }
+}
+
+.crystal-court .hover-card-effect {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.crystal-court .hover-card-effect:hover {
+  box-shadow:
+    0 0 20px hsl(210 40% 65% / 0.1),
+    0 8px 30px hsl(0 0% 0% / 0.4);
+  transform: perspective(800px) rotateX(1deg) rotateY(-1deg) translateY(-2px);
+}
+
+.crystal-court [data-slot="card"] {
+  background: hsl(215 20% 16% / 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(210 30% 40% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(210 40% 70% / 0.08),
+    0 2px 12px hsl(0 0% 0% / 0.3);
+}
+
+.crystal-court * {
+  scrollbar-color: hsl(215 18% 24%) hsl(215 25% 12%);
+}
+.crystal-court ::-webkit-scrollbar { width: 5px; }
+.crystal-court ::-webkit-scrollbar-track { background: hsl(215 25% 12%); }
+.crystal-court ::-webkit-scrollbar-thumb { background: hsl(215 18% 24%); border-radius: 3px; }
+.crystal-court ::-webkit-scrollbar-thumb:hover { background: hsl(215 22% 32%); }
+
+/* ===== METALLIC COMET 4. Phosphor Elite Theme ===== */
+.phosphor-elite {
+  --background: 0 0% 4%;
+  --foreground: 130 30% 80%;
+  --primary: 130 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 8%;
+  --secondary-foreground: 130 25% 70%;
+  --muted: 0 0% 7%;
+  --muted-foreground: 130 15% 45%;
+  --accent: 42 100% 50%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 130 30% 90%;
+  --card: 0 0% 6%;
+  --card-foreground: 130 30% 80%;
+  --card-border: 130 40% 12%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 130 30% 80%;
+  --popover-border: 130 40% 12%;
+  --sidebar-background: 0 0% 3%;
+  --border: 130 25% 10%;
+  --input: 130 25% 10%;
+  --ring: 130 100% 50%;
+  --chart-1: 130 100% 50%;
+  --chart-2: 42 100% 50%;
+  --chart-3: 130 80% 35%;
+  --chart-4: 42 80% 45%;
+  --chart-5: 130 60% 40%;
+  --theme-accent: 130 100% 50%;
+  --theme-accent-glow: 130 100% 60%;
+  --theme-card-surface: 0 0% 6%;
+  --theme-gradient-start: 0 0% 4%;
+  --theme-gradient-end: 130 100% 50%;
+}
+
+.phosphor-elite body,
+.phosphor-elite {
+  background-color: hsl(0 0% 4%);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 49px,
+      hsl(130 100% 50% / 0.03) 49px,
+      hsl(130 100% 50% / 0.03) 50px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 49px,
+      hsl(130 100% 50% / 0.03) 49px,
+      hsl(130 100% 50% / 0.03) 50px
+    );
+}
+
+.phosphor-elite h1,
+.phosphor-elite h2,
+.phosphor-elite h3,
+.phosphor-elite h4 {
+  letter-spacing: 0.08em;
+  font-family: 'Courier New', 'Fira Code', monospace;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(130 100% 50%);
+  text-shadow: 0 0 8px hsl(130 100% 50% / 0.4);
+  animation: phosphor-flicker 4s steps(2, end) infinite;
+}
+
+@keyframes phosphor-flicker {
+  0%, 100% { opacity: 1; }
+  48% { opacity: 1; }
+  50% { opacity: 0.92; }
+  52% { opacity: 1; }
+  80% { opacity: 1; }
+  82% { opacity: 0.95; }
+  84% { opacity: 1; }
+}
+
+@keyframes phosphor-scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.phosphor-elite .hover-card-effect {
+  transition: all 0.2s ease;
+}
+.phosphor-elite .hover-card-effect:hover {
+  box-shadow:
+    0 0 16px hsl(130 100% 50% / 0.12),
+    0 0 2px hsl(130 100% 50% / 0.3);
+  border-color: hsl(130 80% 40% / 0.5);
+  transform: translateY(-1px);
+}
+
+.phosphor-elite [data-slot="card"] {
+  background: hsl(0 0% 6%);
+  border-radius: 0;
+  border: 1px solid hsl(130 60% 20% / 0.3);
+  box-shadow: 0 0 4px hsl(130 100% 50% / 0.05);
+}
+
+.phosphor-elite * {
+  scrollbar-color: hsl(130 40% 15%) hsl(0 0% 4%);
+  font-family: 'Courier New', 'Fira Code', monospace;
+}
+.phosphor-elite ::-webkit-scrollbar { width: 5px; }
+.phosphor-elite ::-webkit-scrollbar-track { background: hsl(0 0% 4%); }
+.phosphor-elite ::-webkit-scrollbar-thumb { background: hsl(130 40% 15%); border-radius: 0; }
+.phosphor-elite ::-webkit-scrollbar-thumb:hover { background: hsl(130 60% 25%); }
+
+/* ===== METALLIC COMET 5. Adaptive Pro Theme ===== */
+.adaptive-pro {
+  --background: 210 100% 12%;
+  --foreground: 0 0% 92%;
+  --primary: 17 100% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 60% 18%;
+  --secondary-foreground: 0 0% 82%;
+  --muted: 210 50% 16%;
+  --muted-foreground: 0 0% 58%;
+  --accent: 193 100% 42%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 92%;
+  --card: 210 70% 14%;
+  --card-foreground: 0 0% 92%;
+  --card-border: 210 50% 22%;
+  --popover: 210 70% 15%;
+  --popover-foreground: 0 0% 92%;
+  --popover-border: 210 50% 22%;
+  --sidebar-background: 210 100% 10%;
+  --border: 210 45% 20%;
+  --input: 210 45% 20%;
+  --ring: 17 100% 60%;
+  --chart-1: 17 100% 60%;
+  --chart-2: 210 100% 29%;
+  --chart-3: 193 100% 42%;
+  --chart-4: 17 90% 52%;
+  --chart-5: 210 80% 40%;
+  --theme-accent: 17 100% 60%;
+  --theme-accent-glow: 17 100% 68%;
+  --theme-card-surface: 210 70% 14%;
+  --theme-gradient-start: 210 100% 29%;
+  --theme-gradient-end: 17 100% 60%;
+}
+
+.adaptive-pro body,
+.adaptive-pro {
+  background: linear-gradient(
+    135deg,
+    hsl(17 100% 22%) 0%,
+    hsl(210 100% 18%) 33%,
+    hsl(193 100% 20%) 66%,
+    hsl(17 100% 22%) 100%
+  );
+  background-size: 400% 400%;
+  animation: adaptive-cycle 15s ease infinite;
+}
+
+.adaptive-pro h1,
+.adaptive-pro h2,
+.adaptive-pro h3,
+.adaptive-pro h4 {
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  background: linear-gradient(
+    90deg,
+    hsl(17 100% 65%) 0%,
+    hsl(193 100% 55%) 50%,
+    hsl(17 100% 65%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: adaptive-text-shift 8s ease-in-out infinite;
+}
+
+@keyframes adaptive-cycle {
+  0%, 100% { background-position: 0% 50%; }
+  25% { background-position: 50% 0%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 100%; }
+}
+
+@keyframes adaptive-text-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes adaptive-border-flow {
+  0%, 100% { border-color: hsl(17 100% 60% / 0.3); }
+  33% { border-color: hsl(210 100% 50% / 0.3); }
+  66% { border-color: hsl(193 100% 42% / 0.3); }
+}
+
+.adaptive-pro .hover-card-effect {
+  transition: all 0.4s ease;
+}
+.adaptive-pro .hover-card-effect:hover {
+  box-shadow:
+    0 0 20px hsl(17 100% 60% / 0.1),
+    0 0 40px hsl(193 100% 42% / 0.06),
+    0 8px 30px hsl(0 0% 0% / 0.5);
+  transform: translateY(-2px);
+}
+
+.adaptive-pro [data-slot="card"] {
+  background: hsl(210 70% 14% / 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(210 50% 30% / 0.2);
+  animation: adaptive-border-flow 15s ease infinite;
+  box-shadow: 0 2px 12px hsl(0 0% 0% / 0.3);
+}
+
+.adaptive-pro * {
+  scrollbar-color: hsl(210 50% 22%) hsl(210 100% 12%);
+}
+.adaptive-pro ::-webkit-scrollbar { width: 5px; }
+.adaptive-pro ::-webkit-scrollbar-track { background: hsl(210 100% 12%); }
+.adaptive-pro ::-webkit-scrollbar-thumb { background: hsl(210 50% 22%); border-radius: 3px; }
+.adaptive-pro ::-webkit-scrollbar-thumb:hover { background: hsl(210 55% 30%); }
+
+/* ===== METALLIC COMET 6. Royal Indigo Theme ===== */
+.royal-indigo {
+  --background: 260 60% 10%;
+  --foreground: 240 20% 88%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 260 35% 16%;
+  --secondary-foreground: 240 18% 78%;
+  --muted: 260 28% 14%;
+  --muted-foreground: 240 14% 50%;
+  --accent: 239 84% 67%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 60% 42%;
+  --destructive-foreground: 240 20% 92%;
+  --card: 260 45% 13%;
+  --card-foreground: 240 20% 88%;
+  --card-border: 239 40% 22%;
+  --popover: 260 45% 14%;
+  --popover-foreground: 240 20% 88%;
+  --popover-border: 239 40% 22%;
+  --sidebar-background: 260 60% 9%;
+  --border: 239 30% 20%;
+  --input: 239 30% 20%;
+  --ring: 239 84% 67%;
+  --chart-1: 239 84% 67%;
+  --chart-2: 239 70% 56%;
+  --chart-3: 239 60% 46%;
+  --chart-4: 270 60% 62%;
+  --chart-5: 260 50% 35%;
+  --theme-accent: 239 84% 67%;
+  --theme-accent-glow: 239 84% 75%;
+  --theme-card-surface: 260 45% 13%;
+  --theme-gradient-start: 260 60% 16%;
+  --theme-gradient-end: 239 84% 67%;
+}
+
+.royal-indigo body,
+.royal-indigo {
+  background-color: hsl(260 60% 10%);
+  background-image:
+    radial-gradient(ellipse at 20% 15%, hsl(239 84% 67% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 85%, hsl(220 63% 15% / 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, hsl(260 60% 10%) 0%, hsl(220 63% 12%) 100%);
+}
+
+.royal-indigo h1,
+.royal-indigo h2,
+.royal-indigo h3,
+.royal-indigo h4 {
+  letter-spacing: 0.03em;
+  font-family: Georgia, 'Times New Roman', serif;
+  border-bottom: 1px solid hsl(43 63% 52% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(240 20% 88%);
+  text-shadow:
+    0 1px 0 hsl(239 60% 40% / 0.6),
+    0 2px 4px hsl(0 0% 0% / 0.3),
+    0 0 12px hsl(239 84% 67% / 0.15);
+}
+
+@keyframes royal-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(239 84% 67% / 0.1); }
+  50% { box-shadow: 0 0 22px hsl(239 84% 67% / 0.25); }
+}
+
+.royal-indigo .hover-card-effect {
+  transition: all 0.4s ease;
+}
+.royal-indigo .hover-card-effect:hover {
+  box-shadow:
+    0 0 20px hsl(239 84% 67% / 0.12),
+    0 0 40px hsl(239 84% 67% / 0.05),
+    0 8px 25px hsl(0 0% 0% / 0.5);
+  transform: translateY(-1px);
+}
+
+.royal-indigo [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(260 45% 15%) 0%, hsl(260 40% 12%) 100%);
+  border: 1px solid hsl(239 40% 25% / 0.3);
+  box-shadow:
+    0 0 8px hsl(239 84% 67% / 0.05),
+    0 2px 10px hsl(0 0% 0% / 0.3);
+}
+
+.royal-indigo * {
+  scrollbar-color: hsl(260 35% 22%) hsl(260 60% 10%);
+}
+.royal-indigo ::-webkit-scrollbar { width: 5px; }
+.royal-indigo ::-webkit-scrollbar-track { background: hsl(260 60% 10%); }
+.royal-indigo ::-webkit-scrollbar-thumb { background: hsl(260 35% 22%); border-radius: 3px; }
+.royal-indigo ::-webkit-scrollbar-thumb:hover { background: hsl(260 40% 30%); }
+
 @keyframes metal-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
   100% { transform: translateX(200%) skewX(-15deg); }

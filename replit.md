@@ -18,7 +18,7 @@ A 2-plan freemium model (Basic FREE, Premium) is implemented with a clear plan s
 The platform supports multiple racket sports, allowing clubs to select one or more sport types, which are then reflected across the application for tailored experiences.
 
 ### UI/UX Decisions
-The UI features a modern design with a privacy-enhanced public view, comprehensive player profiles, and an animated anniversary countdown. A sophisticated Premium Theme System offers 35 themes across 5 tiers (Standard, Accessibility, Premium, Elite, Signature, Ultra Exclusive), many optimized for AMOLED displays with unique animations and design tokens. Theme access can be unlocked via club ranking or special Black Card access, which is managed via a dedicated admin interface.
+The UI features a modern design with a privacy-enhanced public view, comprehensive player profiles, and an animated anniversary countdown. A sophisticated Premium Theme System offers 41 themes across 6 tiers (Standard, Accessibility, Premium, Elite, Signature, Ultra Exclusive, Metallic Comet), many optimized for AMOLED displays with unique animations and design tokens. Theme access can be unlocked via club ranking, special Black Card access, or Metallic Comet Card ownership. The Metallic Comet tier includes 6 ultra-premium themes (Obsidian Gold Ultra, Mint Prestige, Crystal Court, Phosphor Elite, Adaptive Pro, Royal Indigo) unlocked exclusively by receiving the admin-gifted Metallic Comet recognition card.
 
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform and club levels.
@@ -41,7 +41,7 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **Internal Messaging System**: Chat interface with message categories (General, Payment, System) and filtering.
 - **AI-Powered Reporting**: AI-generated reports for coaches (junior skill analytics, personalized progress reports), parents (junior progress reports with PDF download), and admins (financial, match, attendance summaries).
 - **Enhanced Badge Count System**: Sidebar badges for notifications, tickets, messages, announcements, upcoming sessions, pending memberships, outstanding payments, and rewards.
-- **Premium Recognition Cards System**: Admin-gifted recognition cards celebrating character, leadership, and contribution. 10 card types (Heart of the Club, Captain's Spirit, Fair Play Champion, Rising Star, Community Builder, Ironclad Commitment, Mentor's Touch, Trailblazer, Silent Guardian, Golden Racket) with 5 rarity levels (Standard, Rare, Epic, Legendary, Mythic). Features 3D flippable cards with unique gradients, a Premium Wallet display on Profile, and full-screen carousel viewer. Schema: `cards` and `user_cards` tables.
+- **Premium Recognition Cards System**: Admin-gifted recognition cards celebrating character, leadership, and contribution. 11 card types (Heart of the Club, Captain's Spirit, Fair Play Champion, Rising Star, Community Builder, Ironclad Commitment, Mentor's Touch, Trailblazer, Silent Guardian, Golden Racket, Metallic Comet) with 5 rarity levels (Standard, Rare, Epic, Legendary, Mythic). Features 3D flippable cards with unique gradients, a Premium Wallet display on Profile, and full-screen carousel viewer. The Metallic Comet card unlocks the exclusive Metallic Comet theme tier. Schema: `cards` and `user_cards` tables.
 
 ## External Dependencies
 

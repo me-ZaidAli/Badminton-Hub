@@ -1,4 +1,4 @@
-import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown } from "lucide-react";
+import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
 
 type CardDesignConfig = {
   gradient: string;
@@ -31,6 +31,7 @@ const CARD_ICONS: Record<string, typeof Heart> = {
   lightning: Zap,
   "shield-dark": EyeOff,
   crown: Crown,
+  comet: Sparkles,
 };
 
 const METAL_MATERIALS: Record<number, MetalMaterial> = {
@@ -147,6 +148,18 @@ const METAL_MATERIALS: Record<number, MetalMaterial> = {
     shimmerColor: "rgba(255,255,200,0.25)",
     hasGlow: true,
   },
+  11: {
+    base: "linear-gradient(145deg, #d4af37 0%, #c9a030 12%, #f0d860 22%, #b8941f 35%, #e8c84a 48%, #d4af37 58%, #c49b2a 70%, #ffe066 82%, #b8941f 92%, #d4af37 100%)",
+    lighting: "linear-gradient(155deg, rgba(255,240,180,0.3) 0%, transparent 30%, rgba(255,215,0,0.1) 55%, transparent 100%)",
+    texture: "repeating-conic-gradient(rgba(255,255,255,0.05) 0deg 15deg, transparent 15deg 30deg)",
+    chip: "linear-gradient(135deg, #ffe066, #8a6d14, #d4af37, #b8941f)",
+    textMain: "#1a1400",
+    textSub: "rgba(26,20,0,0.7)",
+    divider: "rgba(139,109,20,0.4)",
+    edgeHighlight: "inset 0 0 0 1.5px rgba(255,215,0,0.2)",
+    shimmerColor: "rgba(255,240,180,0.25)",
+    hasGlow: true,
+  },
 };
 
 const DEFAULT_MATERIAL: MetalMaterial = {
@@ -178,6 +191,7 @@ const EMBLEM_COLORS: Record<number, [string, string, string, string]> = {
   8: EMBLEM_GOLD,
   9: EMBLEM_BRONZE,
   10: EMBLEM_GOLD,
+  11: EMBLEM_GOLD,
 };
 
 const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
@@ -220,6 +234,10 @@ const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
   10: {
     filled: "M-22,4 L-16,-16 L-8,0 L0,-24 L8,0 L16,-16 L22,4 L22,12 L-22,12Z",
     stroked: "M-24,16 Q-28,8 -26,-2 Q-24,-10 -18,-18 Q-14,-22 -10,-24 M-18,-18 Q-16,-12 -20,-6 Q-24,-10 -18,-18 M-24,-4 Q-22,2 -26,8 Q-30,4 -24,-4 M-26,10 Q-24,16 -28,20 Q-32,16 -26,10 M24,16 Q28,8 26,-2 Q24,-10 18,-18 Q14,-22 10,-24 M18,-18 Q16,-12 20,-6 Q24,-10 18,-18 M24,-4 Q22,2 26,8 Q30,4 24,-4 M26,10 Q24,16 28,20 Q32,16 26,10 M-8,16 Q-4,18 0,16 Q4,18 8,16 M0,-18 A1.5,1.5 0 1,1 0,-15 A1.5,1.5 0 1,1 0,-18 M-8,-10 A1,1 0 1,1 -8,-8 A1,1 0 1,1 -8,-10 M8,-10 A1,1 0 1,1 8,-8 A1,1 0 1,1 8,-10",
+  },
+  11: {
+    filled: "M12,-20 A8,8 0 1,1 12,-19.99Z M12,-20 Q4,-10 -8,0 Q-20,10 -32,14 Q-24,10 -16,4 Q-8,-2 0,-10 Q6,-16 12,-20Z",
+    stroked: "M-32,14 Q-36,16 -40,16 M-32,14 Q-34,18 -34,22 M-24,10 Q-30,12 -34,10 M-16,4 Q-22,8 -26,4 M-8,0 Q-6,6 -10,10 M6,-14 Q2,-8 -4,0 M16,-22 Q22,-26 26,-24 M18,-16 Q22,-12 28,-12 M14,-26 Q18,-30 16,-34 M10,-14 Q14,-10 18,-10 M20,-28 Q16,-32 18,-36 M-20,18 Q-16,22 -18,26 M-28,22 Q-24,26 -26,30 M4,-6 A1.5,1.5 0 1,1 4,-4.5 A1.5,1.5 0 1,1 4,-6 M-12,6 A1,1 0 1,1 -12,7 A1,1 0 1,1 -12,6 M-24,14 A1,1 0 1,1 -24,15 A1,1 0 1,1 -24,14",
   },
 };
 

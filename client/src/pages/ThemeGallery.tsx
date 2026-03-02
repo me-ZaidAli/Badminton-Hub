@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, Lock, Search, Crown, Sparkles, Shield, Diamond, Star } from "lucide-react";
 
-const GRADE_FILTERS = ["All", "Standard", "Accessibility", "Premium", "Elite", "Signature", "Ultra Exclusive"] as const;
+const GRADE_FILTERS = ["All", "Standard", "Accessibility", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet"] as const;
 
 const GRADE_COLORS: Record<string, string> = {
   Standard: "bg-slate-500/20 text-slate-300 border-slate-500/30",
@@ -16,6 +16,7 @@ const GRADE_COLORS: Record<string, string> = {
   Elite: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
   Signature: "bg-purple-500/20 text-purple-300 border-purple-500/30",
   "Ultra Exclusive": "bg-rose-500/20 text-rose-300 border-rose-500/30",
+  "Metallic Comet": "bg-amber-500/20 text-amber-300 border-amber-500/30",
 };
 
 const GRADE_ICONS: Record<string, typeof Crown> = {
@@ -25,6 +26,7 @@ const GRADE_ICONS: Record<string, typeof Crown> = {
   Elite: Diamond,
   Signature: Sparkles,
   "Ultra Exclusive": Crown,
+  "Metallic Comet": Sparkles,
 };
 
 const RANK_LABELS: Record<string, string> = {
@@ -36,9 +38,10 @@ const RANK_LABELS: Record<string, string> = {
 interface TierCardProps {
   userRank?: string;
   hasBlackCard?: boolean;
+  hasMetallicComet?: boolean;
 }
 
-function TierShowcaseCards({ userRank, hasBlackCard }: TierCardProps) {
+function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet }: TierCardProps) {
   const tiers = [
     {
       name: "STANDARD",
@@ -106,10 +109,23 @@ function TierShowcaseCards({ userRank, hasBlackCard }: TierCardProps) {
       iconBg: "linear-gradient(135deg, #c5a044, #8b6914)",
       isBlackCard: true,
     },
+    {
+      name: "METALLIC COMET",
+      subtitle: "Comet Card Holder",
+      requirement: "Awarded Metallic Comet Card",
+      unlocked: !!hasMetallicComet,
+      themeCount: 6,
+      bg: "linear-gradient(135deg, #1a1200 0%, #2a2000 30%, #332800 50%, #2a2000 70%, #1a1200 100%)",
+      border: "#D4AF37",
+      accent: "#FFD700",
+      accentDark: "#B8860B",
+      textureOpacity: 0.03,
+      iconBg: "linear-gradient(135deg, #FFD700, #B8860B)",
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="grid-tier-cards">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="grid-tier-cards">
       {tiers.map((tier) => (
         <div
           key={tier.name}
@@ -379,6 +395,7 @@ export default function ThemeGallery() {
     unlockedThemes: string[];
     userRank: string;
     hasBlackCard: boolean;
+    hasMetallicComet: boolean;
   }>({
     queryKey: ["/api/user/available-themes"],
     enabled: !!user,
@@ -408,6 +425,10 @@ export default function ThemeGallery() {
   }, [gradeFilter, colorFilter, searchQuery]);
 
   const isThemeLocked = (mode: ThemeModeInfo): boolean => {
+    if (mode.grade === "Metallic Comet") {
+      if (!availableThemes) return true;
+      return !availableThemes.unlockedThemes.includes(mode.value);
+    }
     if (mode.isRankLocked || mode.isBlackCard) {
       if (!availableThemes) return true;
       return !availableThemes.unlockedThemes.includes(mode.value);
@@ -416,6 +437,7 @@ export default function ThemeGallery() {
   };
 
   const getLockReason = (mode: ThemeModeInfo): string => {
+    if (mode.grade === "Metallic Comet") return "Metallic Comet Card required";
     if (mode.isBlackCard) return "Black Card access required";
     if (mode.requiredRank === "champion") return "Reach #1 in any club to unlock";
     if (mode.requiredRank === "top10") return "Reach Top 10 in any club to unlock";
@@ -494,6 +516,7 @@ export default function ThemeGallery() {
       <TierShowcaseCards
         userRank={availableThemes?.userRank}
         hasBlackCard={availableThemes?.hasBlackCard}
+        hasMetallicComet={availableThemes?.hasMetallicComet}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-theme-cards">

@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost, Codesandbox, Flower2, GlassWater, Terminal, RefreshCw, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -46,9 +46,15 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "circuit-court": Trophy,
   "cosmic-elite": Orbit,
   "phantom-luxe": Ghost,
+  "obsidian-gold-ultra": Codesandbox,
+  "mint-prestige": Flower2,
+  "crystal-court": GlassWater,
+  "phosphor-elite": Terminal,
+  "adaptive-pro": RefreshCw,
+  "royal-indigo": CircleDot,
 };
 
-const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Accessibility"] as const;
+const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Accessibility"] as const;
 
 export function ThemeToggle() {
   const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();

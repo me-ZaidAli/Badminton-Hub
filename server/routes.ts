@@ -877,6 +877,8 @@ export async function registerRoutes(
         "rose-gold-elite", "diamond-graphite", "aurora-borealis", "volcanic-ember",
         "deep-ocean", "jungle-vibe", "adrenaline-rush", "velocity-chrome",
         "circuit-court", "cosmic-elite", "phantom-luxe",
+        "obsidian-gold-ultra", "mint-prestige", "crystal-court",
+        "phosphor-elite", "adaptive-pro", "royal-indigo",
       ];
       const lockedThemes: Record<string, string> = {
         "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",
@@ -885,6 +887,9 @@ export async function registerRoutes(
         "aurora-borealis": "top10", "volcanic-ember": "top10", "deep-ocean": "top10", "jungle-vibe": "top10",
         "adrenaline-rush": "champion", "velocity-chrome": "champion", "circuit-court": "champion",
         "cosmic-elite": "blackcard", "phantom-luxe": "blackcard",
+        "obsidian-gold-ultra": "metallic-comet", "mint-prestige": "metallic-comet",
+        "crystal-court": "metallic-comet", "phosphor-elite": "metallic-comet",
+        "adaptive-pro": "metallic-comet", "royal-indigo": "metallic-comet",
       };
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
@@ -894,6 +899,12 @@ export async function registerRoutes(
           const user = await storage.getUser(req.user!.id);
           if (lockRequirement === "blackcard" && !user?.blackCardAccess) {
             return res.status(403).json({ message: "Black Card access required for this theme" });
+          }
+          if (lockRequirement === "metallic-comet") {
+            const hasCard = await db.select({ id: userCards.id }).from(userCards).innerJoin(cards, eq(cards.id, userCards.cardId)).where(and(eq(userCards.userId, req.user!.id), eq(cards.name, "Metallic Comet"))).limit(1);
+            if (hasCard.length === 0) {
+              return res.status(403).json({ message: "Metallic Comet Card required for this theme" });
+            }
           }
           if (lockRequirement === "top10" || lockRequirement === "champion") {
             let bestRank = "all";
@@ -990,7 +1001,14 @@ export async function registerRoutes(
         unlockedThemes.push(...blackCardThemes);
       }
 
-      res.json({ unlockedThemes, userRank, hasBlackCard });
+      const metallicCometThemes = ["obsidian-gold-ultra", "mint-prestige", "crystal-court", "phosphor-elite", "adaptive-pro", "royal-indigo"];
+      const metallicCometCheck = await db.select({ id: userCards.id }).from(userCards).innerJoin(cards, eq(cards.id, userCards.cardId)).where(and(eq(userCards.userId, userId), eq(cards.name, "Metallic Comet"))).limit(1);
+      const hasMetallicComet = metallicCometCheck.length > 0;
+      if (hasMetallicComet) {
+        unlockedThemes.push(...metallicCometThemes);
+      }
+
+      res.json({ unlockedThemes, userRank, hasBlackCard, hasMetallicComet });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to get available themes" });
     }
@@ -22231,6 +22249,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         { name: "Trailblazer", description: "Awarded to those who bring fresh ideas, innovative suggestions, or new energy that moves the club forward.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-orange-500 via-amber-500 to-yellow-500", textColor: "text-white", accentColor: "#f97316", pattern: "lightning" }, isActive: true },
         { name: "Silent Guardian", description: "For the unsung heroes who quietly keep things running — setting up courts, managing equipment, handling logistics without being asked.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-gray-700 via-slate-600 to-gray-800", textColor: "text-white", accentColor: "#64748b", pattern: "shield-dark" }, isActive: true },
         { name: "Golden Racket", description: "The highest honour — awarded for extraordinary contribution, exceptional character, and lasting positive impact on the club.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-yellow-400 via-amber-400 to-orange-400", textColor: "text-black", accentColor: "#eab308", pattern: "crown" }, isActive: true },
+        { name: "Metallic Comet", description: "The rarest recognition — blazing across the sky like a comet. Awarded to those who have demonstrated extraordinary dedication, skill, and unwavering passion for the sport.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-yellow-300 via-amber-400 to-yellow-600", textColor: "text-black", accentColor: "#D4AF37", pattern: "comet" }, isActive: true },
       ];
 
       const inserted = await db.insert(cards).values(cardSeedData).returning();
