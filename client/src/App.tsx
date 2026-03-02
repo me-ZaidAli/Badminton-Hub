@@ -573,7 +573,7 @@ function Router() {
         <PrivateRoute component={Venues} />
       </Route>
       <Route path="/admin/clubs-management">
-        <OwnerRoute component={ClubsManagement} />
+        <OwnerRoute component={SuperAdminClubs} />
       </Route>
       <Route path="/admin/analytics">
         <OwnerRoute component={Analytics} />

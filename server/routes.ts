@@ -1604,7 +1604,7 @@ export async function registerRoutes(
   });
 
   // === Enhanced Leaderboard with filters ===
-  app.get("/api/leaderboard", async (req, res) => {
+  app.get("/api/leaderboard", requirePremium(clubIdFromQuery), async (req, res) => {
     try {
       const filters: any = {};
       if (req.query.clubId) filters.clubId = Number(req.query.clubId);
@@ -15612,7 +15612,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/referral-programs/:id - Delete referral program
-  app.delete("/api/referral-programs/:id", async (req, res) => {
+  app.delete("/api/referral-programs/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -20648,48 +20648,51 @@ export async function registerRoutes(
 
   // === DONATIONS SYSTEM ===
 
-  app.get("/api/donation-bank-details", async (_req, res) => {
+  app.get("/api/donation-bank-details", requirePremium(clubIdFromSession), async (req, res) => {
     try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const user = req.user as any;
+      const profile = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
+      const clubId = profile[0]?.clubId;
+      if (!clubId) return res.status(404).json({ message: "No club found" });
+
       const settings = await db.select({
         bankName: clubs.bankName,
         bankAccountName: clubs.bankAccountName,
         bankSortCode: clubs.bankSortCode,
         bankAccountNumber: clubs.bankAccountNumber,
         bankReference: clubs.bankReference,
-      }).from(clubs).where(eq(clubs.name, "Dragon Badminton Club")).limit(1);
+      }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
 
       if (settings.length > 0) {
         res.json(settings[0]);
       } else {
-        res.json({
-          bankName: "Dragon Badminton Club - BPG Ltd",
-          bankSortCode: "04-06-05",
-          bankAccountNumber: "29999001",
-          bankAccountName: "Dragon Badminton Club - BPG Ltd",
-          bankReference: null,
-        });
+        res.json({ bankName: null, bankSortCode: null, bankAccountNumber: null, bankAccountName: null, bankReference: null });
       }
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch bank details" });
     }
   });
 
-  app.put("/api/admin/donation-bank-details", async (req, res) => {
+  app.put("/api/admin/donation-bank-details", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
     try {
       const { bankName, bankAccountName, bankSortCode, bankAccountNumber, bankReference } = req.body;
+      const profile = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
+      const clubId = profile[0]?.clubId;
+      if (!clubId) return res.status(404).json({ message: "No club found" });
       await db.update(clubs)
         .set({ bankName, bankAccountName, bankSortCode, bankAccountNumber, bankReference })
-        .where(eq(clubs.name, "Dragon Badminton Club"));
+        .where(eq(clubs.id, clubId));
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to update bank details" });
     }
   });
 
-  app.get("/api/donations", async (req, res) => {
+  app.get("/api/donations", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user as any;
@@ -20739,7 +20742,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/donations", async (req, res) => {
+  app.post("/api/donations", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user as any;
@@ -20761,7 +20764,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/donations/:id/status", async (req, res) => {
+  app.patch("/api/donations/:id/status", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
@@ -20790,7 +20793,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/donations/:id", async (req, res) => {
+  app.delete("/api/donations/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
     if (user.role !== "OWNER") return res.sendStatus(403);
@@ -20802,7 +20805,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/donation-summary", async (req, res) => {
+  app.get("/api/admin/donation-summary", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
@@ -20845,7 +20848,7 @@ export async function registerRoutes(
     return adminProfiles.map(p => p.clubId);
   }
 
-  app.get("/api/coach/juniors/skills/overview", async (req, res) => {
+  app.get("/api/coach/juniors/skills/overview", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -20889,7 +20892,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/trends", async (req, res) => {
+  app.get("/api/coach/juniors/skills/trends", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -20941,7 +20944,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/weak-strong", async (req, res) => {
+  app.get("/api/coach/juniors/skills/weak-strong", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -20984,7 +20987,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/players/below-threshold", async (req, res) => {
+  app.get("/api/coach/juniors/players/below-threshold", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -21032,7 +21035,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/heatmap", async (req, res) => {
+  app.get("/api/coach/juniors/skills/heatmap", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -21066,7 +21069,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/category/:categoryId", async (req, res) => {
+  app.get("/api/coach/juniors/skills/category/:categoryId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const categoryId = Number(req.params.categoryId);
@@ -21101,7 +21104,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/detail/:skillId", async (req, res) => {
+  app.get("/api/coach/juniors/skills/detail/:skillId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const skillId = Number(req.params.skillId);
@@ -21138,7 +21141,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coach/juniors/skills/player/:userId", async (req, res) => {
+  app.get("/api/coach/juniors/skills/player/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = Number(req.params.userId);
@@ -21259,7 +21262,7 @@ Provide:
     }
   });
 
-  app.get("/api/coach/juniors/reports", async (req, res) => {
+  app.get("/api/coach/juniors/reports", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);
@@ -21882,7 +21885,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.get("/api/coach/juniors/reports/:reportId/pdf", async (req, res) => {
+  app.get("/api/coach/juniors/reports/:reportId/pdf", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const reportId = Number(req.params.reportId);
@@ -22032,7 +22035,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.get("/api/coach/juniors/skills/export-csv", async (req, res) => {
+  app.get("/api/coach/juniors/skills/export-csv", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.query.clubId);

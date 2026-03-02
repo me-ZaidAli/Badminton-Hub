@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
   Building2, Search, Loader2, Pencil, Trash2, CheckCircle, XCircle,
   Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users, Archive, Pause, Play,
-  Mail, Key, Save, Send, AlertTriangle, User, ShieldAlert, UserMinus
+  Mail, Key, Save, Send, AlertTriangle, User, ShieldAlert, UserMinus, Ban, DollarSign, MessageSquare, Crown
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -58,6 +58,12 @@ interface ClubRecord {
   longitude?: string;
   googleMapsUrl?: string;
   logoUrl?: string;
+  sportTypes?: string[];
+  planType?: string;
+  planStatus?: string;
+  premiumStartDate?: string;
+  premiumEndDate?: string;
+  ownerId_user?: { email?: string; fullName?: string };
 }
 
 interface ClubEditForm {
@@ -1052,6 +1058,10 @@ export default function SuperAdminClubs() {
   const [transferClub, setTransferClub] = useState<ClubRecord | null>(null);
   const [newOwnerId, setNewOwnerId] = useState("");
   const [manageClub, setManageClub] = useState<ClubRecord | null>(null);
+  const [suspendClub, setSuspendClub] = useState<ClubRecord | null>(null);
+  const [contactClub, setContactClub] = useState<ClubRecord | null>(null);
+  const [contactSubject, setContactSubject] = useState("");
+  const [contactBody, setContactBody] = useState("");
   const pageSize = 25;
 
   useEffect(() => {
