@@ -190,6 +190,7 @@ export default function TypographyStudio() {
                   <div className="flex items-center gap-2">
                     <span
                       className="text-lg font-semibold truncate"
+                      data-font-sample="true"
                       style={{ fontFamily: font.family }}
                     >
                       {font.label}
@@ -208,6 +209,7 @@ export default function TypographyStudio() {
                   <p className="text-xs text-muted-foreground mt-0.5">{font.description}</p>
                   <p
                     className="text-sm mt-1.5 text-foreground/70 truncate"
+                    data-font-sample="true"
                     style={{ fontFamily: font.family }}
                   >
                     The quick brown fox jumps over the lazy dog — 0123456789

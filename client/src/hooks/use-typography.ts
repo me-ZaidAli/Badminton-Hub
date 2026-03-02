@@ -261,7 +261,7 @@ function applyFontToDOM(fontId: string, mode: FontMode) {
     fontStyleEl.textContent = `
       html[data-font],
       html[data-font] body,
-      html[data-font] *:not([class*="lucide"]):not([class*="icon"]):not(code):not(pre) {
+      html[data-font] *:not([class*="lucide"]):not([class*="icon"]):not(code):not(pre):not([data-font-sample]) {
         font-family: ${option.family} !important;
       }
     `;
