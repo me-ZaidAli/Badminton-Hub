@@ -66,6 +66,12 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "retro-cream-tech", label: "Retro Cream-Tech", description: "Vintage cream with warm grid overlays and retro pixel accents", grade: "Royal Duty", colorFamily: "Gold", accentHex: "#FF8C42", gradientStart: "#FFF8E7", gradientEnd: "#FF8C42", chartColors: ["#FF8C42", "#66BB6A", "#FFA726", "#43A047", "#E65100"] },
   { value: "lavender-opulence", label: "Lavender Opulence", description: "Soft lavender with frosted glass and platinum highlights", grade: "Royal Duty", colorFamily: "Amethyst", accentHex: "#8B5CF6", gradientStart: "#F3F0FF", gradientEnd: "#8B5CF6", chartColors: ["#8B5CF6", "#A78BFA", "#7C3AED", "#C4B5FD", "#6D28D9"] },
   { value: "champagne-mint", label: "Champagne Mint Modern", description: "Mint and champagne cream with embossed metallic icons", grade: "Royal Duty", colorFamily: "Mint", accentHex: "#34D399", gradientStart: "#F0FFF4", gradientEnd: "#34D399", chartColors: ["#34D399", "#C9A96E", "#6EE7B7", "#D4B88C", "#10B981"] },
+  { value: "tropical-dawn", label: "Tropical Dawn", description: "Soft coral and pale yellow with frosted glass and sunbeam animations", grade: "Signature", colorFamily: "Copper", isRankLocked: true, requiredRank: "champion", accentHex: "#FF6F61", gradientStart: "#FFF0ED", gradientEnd: "#87CEEB", chartColors: ["#FF6F61", "#FFD700", "#87CEEB", "#FFA07A", "#F0E68C"] },
+  { value: "savanna-breeze", label: "Savanna Breeze", description: "Warm sand and ochre with earthy textures and gentle sway", grade: "Signature", colorFamily: "Gold", isRankLocked: true, requiredRank: "champion", accentHex: "#CC8400", gradientStart: "#F5E6C8", gradientEnd: "#CC8400", chartColors: ["#CC8400", "#808000", "#D2B48C", "#DAA520", "#8B7D3C"] },
+  { value: "rainforest-canopy", label: "Rainforest Canopy", description: "Pale green layers with translucent glass panels and floating particles", grade: "Signature", colorFamily: "Emerald", isRankLocked: true, requiredRank: "champion", accentHex: "#66BB6A", gradientStart: "#E8F5E9", gradientEnd: "#80CBC4", chartColors: ["#66BB6A", "#80CBC4", "#A5D6A7", "#4DB6AC", "#388E3C"] },
+  { value: "misty-bamboo", label: "Misty Bamboo", description: "Mint and ivory with bamboo-textured frosted cards", grade: "Signature", colorFamily: "Mint", isRankLocked: true, requiredRank: "champion", accentHex: "#00A86B", gradientStart: "#F0FFF0", gradientEnd: "#00A86B", chartColors: ["#00A86B", "#98D8A8", "#2E8B57", "#7BC8A4", "#228B22"] },
+  { value: "tropical-lagoon", label: "Tropical Lagoon", description: "Turquoise and aqua with curved glass boxes and ripple effects", grade: "Signature", colorFamily: "Blue", isRankLocked: true, requiredRank: "champion", accentHex: "#00BCD4", gradientStart: "#E0F7FA", gradientEnd: "#00BCD4", chartColors: ["#00BCD4", "#4DD0E1", "#0097A7", "#80DEEA", "#00838F"] },
+  { value: "sunset-savannah", label: "Sunset Savannah", description: "Pale peach and apricot with layered translucent boxes and warm glow", grade: "Signature", colorFamily: "Copper", isRankLocked: true, requiredRank: "champion", accentHex: "#FF8C69", gradientStart: "#FFECD2", gradientEnd: "#FF8C69", chartColors: ["#FF8C69", "#FFCBA4", "#E6E0F8", "#DDA0DD", "#FF7F50"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -118,6 +124,12 @@ const THEME_CLASSES: Record<string, string[]> = {
   "retro-cream-tech": ["retro-cream-tech"],
   "lavender-opulence": ["lavender-opulence"],
   "champagne-mint": ["champagne-mint"],
+  "tropical-dawn": ["tropical-dawn"],
+  "savanna-breeze": ["savanna-breeze"],
+  "rainforest-canopy": ["rainforest-canopy"],
+  "misty-bamboo": ["misty-bamboo"],
+  "tropical-lagoon": ["tropical-lagoon"],
+  "sunset-savannah": ["sunset-savannah"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -134,6 +146,8 @@ const ALL_THEME_CLASSES = [
   "phosphor-elite", "adaptive-pro", "royal-indigo",
   "champagne-pearl", "coral-luxe", "arctic-frost",
   "retro-cream-tech", "lavender-opulence", "champagne-mint",
+  "tropical-dawn", "savanna-breeze", "rainforest-canopy",
+  "misty-bamboo", "tropical-lagoon", "sunset-savannah",
 ];
 
 const DARK_THEMES = new Set([

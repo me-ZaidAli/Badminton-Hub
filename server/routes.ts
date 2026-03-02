@@ -881,6 +881,8 @@ export async function registerRoutes(
         "phosphor-elite", "adaptive-pro", "royal-indigo",
         "champagne-pearl", "coral-luxe", "arctic-frost",
         "retro-cream-tech", "lavender-opulence", "champagne-mint",
+        "tropical-dawn", "savanna-breeze", "rainforest-canopy",
+        "misty-bamboo", "tropical-lagoon", "sunset-savannah",
       ];
       const lockedThemes: Record<string, string> = {
         "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",
@@ -895,6 +897,9 @@ export async function registerRoutes(
         "champagne-pearl": "royal-duty", "coral-luxe": "royal-duty",
         "arctic-frost": "royal-duty", "retro-cream-tech": "royal-duty",
         "lavender-opulence": "royal-duty", "champagne-mint": "royal-duty",
+        "tropical-dawn": "champion", "savanna-breeze": "champion",
+        "rainforest-canopy": "champion", "misty-bamboo": "champion",
+        "tropical-lagoon": "champion", "sunset-savannah": "champion",
       };
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
@@ -977,6 +982,8 @@ export async function registerRoutes(
       const signatureThemes = [
         "royal-amethyst", "sunset-copper",
         "adrenaline-rush", "velocity-chrome", "circuit-court",
+        "tropical-dawn", "savanna-breeze", "rainforest-canopy",
+        "misty-bamboo", "tropical-lagoon", "sunset-savannah",
       ];
       const blackCardThemes = ["midnight-neon", "cosmic-elite", "phantom-luxe"];
 

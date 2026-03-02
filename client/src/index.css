@@ -261,6 +261,23 @@
   --chart-5: 43 25% 25%;
 }
 
+.premium-gold body,
+.premium-gold {
+  background-color: hsl(240 10% 8%);
+  background-image:
+    radial-gradient(ellipse at 80% 90%, hsl(43 72% 52% / 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 40%, hsl(43 50% 35% / 0.04) 0%, transparent 50%),
+    linear-gradient(180deg, hsl(240 10% 8%) 0%, hsl(240 8% 9%) 50%, hsl(240 10% 7%) 100%);
+}
+
+.premium-gold [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 8% 12%) 0%, hsl(240 8% 10%) 100%);
+  border-top: 1px solid hsl(43 30% 22% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(43 25% 18% / 0.12),
+    0 2px 8px hsl(0 0% 0% / 0.4);
+}
+
 .premium-gold .bg-gradient-primary {
   background: linear-gradient(135deg, hsl(43 72% 52%) 0%, hsl(43 50% 35%) 100%);
 }
@@ -382,9 +399,10 @@
     radial-gradient(ellipse at 15% 10%, hsl(42 72% 50% / 0.018) 0%, transparent 50%),
     radial-gradient(ellipse at 85% 90%, hsl(42 72% 50% / 0.012) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, hsl(42 50% 40% / 0.006) 0%, transparent 70%),
+    linear-gradient(170deg, hsl(0 0% 3%) 0%, hsl(0 0% 2%) 40%, hsl(42 10% 3%) 100%),
     url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23ffffff' stroke-width='0.3' opacity='0.025'/%3E%3Cpath d='M30 10L50 30L30 50L10 30Z' fill='none' stroke='%23d4a843' stroke-width='0.2' opacity='0.03'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='0.5' fill='%23d4a843' opacity='0.04'/%3E%3C/svg%3E");
-  background-size: 100% 100%, 100% 100%, 100% 100%, 60px 60px, 40px 40px;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 60px 60px, 40px 40px;
 }
 
 .ultra-premium h1,
@@ -453,13 +471,14 @@
 .ultra-premium [data-slot="card"],
 .ultra-premium .rounded-lg[class*="border"],
 .ultra-premium .rounded-xl[class*="border"] {
-  background: linear-gradient(165deg, hsl(0 0% 5%) 0%, hsl(0 0% 3%) 100%);
+  background: linear-gradient(165deg, hsl(0 0% 6%) 0%, hsl(0 0% 4%) 50%, hsl(0 0% 3%) 100%);
+  border-top: 1px solid hsl(42 40% 24% / 0.15);
   box-shadow:
-    inset 0 1px 0 hsl(42 30% 18% / 0.15),
+    inset 0 1px 0 hsl(42 30% 18% / 0.18),
     inset 0 0 0 1px hsl(42 20% 12% / 0.1),
     0 2px 8px hsl(0 0% 0% / 0.6),
     0 8px 24px hsl(0 0% 0% / 0.3),
-    0 0 1px hsl(42 72% 50% / 0.08);
+    0 0 1px hsl(42 72% 50% / 0.1);
 }
 
 .ultra-premium [data-slot="badge"][class*="bg-primary"],
@@ -735,7 +754,9 @@
   background-image:
     radial-gradient(ellipse at 15% 10%, hsl(145 80% 42% / 0.04) 0%, transparent 50%),
     radial-gradient(ellipse at 85% 90%, hsl(160 70% 35% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(145 60% 30% / 0.015) 0%, transparent 70%);
+    radial-gradient(ellipse at 50% 95%, hsl(145 80% 42% / 0.05) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(145 60% 30% / 0.015) 0%, transparent 70%),
+    linear-gradient(175deg, hsl(150 12% 4%) 0%, hsl(150 10% 3%) 40%, hsl(145 8% 4%) 100%);
   background-size: 100% 100%;
 }
 
@@ -802,11 +823,13 @@
 .green-glow [data-slot="card"],
 .green-glow .rounded-lg[class*="border"],
 .green-glow .rounded-xl[class*="border"] {
-  background: hsl(150 8% 5% / 0.85);
+  background: linear-gradient(165deg, hsl(150 10% 6% / 0.9) 0%, hsl(150 8% 5% / 0.85) 100%);
   backdrop-filter: blur(12px);
   border: 1px solid hsl(145 40% 20% / 0.15) !important;
+  border-top: 1px solid hsl(145 50% 30% / 0.12) !important;
   box-shadow:
-    0 0 1px hsl(145 80% 42% / 0.1),
+    inset 0 1px 0 hsl(145 40% 25% / 0.08),
+    0 0 1px hsl(145 80% 42% / 0.12),
     0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
@@ -1072,8 +1095,18 @@
 .obsidian-gold {
   background-color: hsl(240 7% 6%);
   background-image:
-    radial-gradient(ellipse at 20% 15%, hsl(43 55% 52% / 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, hsl(43 40% 40% / 0.015) 0%, transparent 50%);
+    radial-gradient(ellipse at 75% 85%, hsl(43 55% 52% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 15%, hsl(43 55% 52% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(43 40% 40% / 0.015) 0%, transparent 65%),
+    linear-gradient(180deg, hsl(240 7% 7%) 0%, hsl(240 7% 6%) 45%, hsl(240 6% 5%) 100%);
+}
+
+.obsidian-gold [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 5% 10%) 0%, hsl(240 5% 8%) 100%);
+  border-top: 1px solid hsl(43 30% 22% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(43 25% 18% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .obsidian-gold h1,
@@ -1151,8 +1184,10 @@
 .platinum-ice {
   background-color: hsl(210 15% 12%);
   background-image:
-    radial-gradient(ellipse at 25% 20%, hsl(210 25% 65% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 80%, hsl(210 20% 50% / 0.02) 0%, transparent 50%);
+    radial-gradient(ellipse at 25% 20%, hsl(210 30% 65% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 80%, hsl(210 20% 50% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 10%, hsl(210 25% 55% / 0.04) 0%, transparent 40%),
+    linear-gradient(175deg, hsl(210 15% 13%) 0%, hsl(210 15% 12%) 45%, hsl(210 14% 11%) 100%);
 }
 
 .platinum-ice h1,
@@ -1179,8 +1214,12 @@
 }
 
 .platinum-ice [data-slot="card"] {
-  background: hsl(210 12% 15% / 0.85);
+  background: linear-gradient(165deg, hsl(210 12% 16% / 0.9) 0%, hsl(210 12% 14% / 0.85) 100%);
   backdrop-filter: blur(16px);
+  border-top: 1px solid hsl(210 25% 40% / 0.1);
+  box-shadow:
+    inset 0 1px 0 hsl(210 20% 30% / 0.08),
+    0 2px 8px hsl(0 0% 0% / 0.3);
 }
 
 .platinum-ice .hover-card-effect {
@@ -1235,8 +1274,18 @@
 .emerald-performance {
   background-color: hsl(155 40% 8%);
   background-image:
-    radial-gradient(ellipse at 15% 15%, hsl(145 70% 42% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 85%, hsl(155 60% 35% / 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 15%, hsl(145 70% 42% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, hsl(155 60% 35% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, hsl(145 70% 42% / 0.06) 0%, transparent 45%),
+    linear-gradient(175deg, hsl(155 38% 9%) 0%, hsl(155 40% 8%) 45%, hsl(155 35% 7%) 100%);
+}
+
+.emerald-performance [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(155 28% 11%) 0%, hsl(155 28% 9%) 100%);
+  border-top: 1px solid hsl(145 40% 25% / 0.12);
+  box-shadow:
+    inset 0 1px 0 hsl(145 35% 22% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .emerald-performance h1,
@@ -1314,8 +1363,18 @@
 .sapphire-velocity {
   background-color: hsl(215 60% 10%);
   background-image:
-    radial-gradient(ellipse at 20% 10%, hsl(218 100% 56% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 90%, hsl(225 80% 42% / 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 10%, hsl(218 100% 56% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, hsl(225 80% 42% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 50%, hsl(218 80% 45% / 0.03) 0%, transparent 55%),
+    linear-gradient(170deg, hsl(215 58% 11%) 0%, hsl(215 60% 10%) 45%, hsl(218 55% 9%) 100%);
+}
+
+.sapphire-velocity [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(215 45% 13%) 0%, hsl(215 45% 11%) 100%);
+  border-top: 1px solid hsl(218 60% 35% / 0.12);
+  box-shadow:
+    inset 0 1px 0 hsl(218 50% 30% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .sapphire-velocity h1,
@@ -1393,8 +1452,18 @@
 .crimson-prestige {
   background-color: hsl(350 50% 8%);
   background-image:
-    radial-gradient(ellipse at 15% 20%, hsl(350 60% 45% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, hsl(20 55% 55% / 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 20%, hsl(350 60% 45% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, hsl(20 55% 55% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 85%, hsl(350 60% 45% / 0.05) 0%, transparent 45%),
+    linear-gradient(175deg, hsl(350 48% 9%) 0%, hsl(350 50% 8%) 45%, hsl(350 45% 7%) 100%);
+}
+
+.crimson-prestige [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(350 35% 11%) 0%, hsl(350 35% 9%) 100%);
+  border-top: 1px solid hsl(350 40% 25% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(20 30% 22% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .crimson-prestige h1,
@@ -1472,9 +1541,19 @@
 .royal-amethyst {
   background-color: hsl(270 50% 8%);
   background-image:
+    radial-gradient(ellipse at 10% 40%, hsl(265 100% 62% / 0.06) 0%, transparent 50%),
     radial-gradient(ellipse at 20% 15%, hsl(265 100% 62% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, hsl(280 70% 45% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(265 80% 50% / 0.015) 0%, transparent 70%);
+    radial-gradient(ellipse at 80% 85%, hsl(280 70% 45% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(265 80% 50% / 0.02) 0%, transparent 70%),
+    linear-gradient(175deg, hsl(270 48% 9%) 0%, hsl(270 50% 8%) 45%, hsl(275 45% 7%) 100%);
+}
+
+.royal-amethyst [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(270 35% 11%) 0%, hsl(270 35% 9%) 100%);
+  border-top: 1px solid hsl(265 50% 35% / 0.12);
+  box-shadow:
+    inset 0 1px 0 hsl(265 40% 28% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .royal-amethyst h1,
@@ -1552,8 +1631,17 @@
 .carbon-titanium {
   background-color: hsl(215 10% 10%);
   background-image:
-    radial-gradient(ellipse at 30% 20%, hsl(215 15% 55% / 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 80%, hsl(215 12% 42% / 0.015) 0%, transparent 50%);
+    radial-gradient(ellipse at 30% 20%, hsl(215 15% 55% / 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsl(215 12% 42% / 0.025) 0%, transparent 50%),
+    linear-gradient(160deg, hsl(215 10% 11%) 0%, hsl(215 10% 10%) 30%, hsl(215 8% 9%) 60%, hsl(215 10% 10%) 100%);
+}
+
+.carbon-titanium [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(215 8% 14%) 0%, hsl(215 8% 12%) 100%);
+  border-top: 1px solid hsl(215 12% 25% / 0.12);
+  box-shadow:
+    inset 0 1px 0 hsl(215 10% 20% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.3);
 }
 
 .carbon-titanium h1,
@@ -1626,8 +1714,18 @@
 .arctic-blue {
   background-color: hsl(205 50% 12%);
   background-image:
-    radial-gradient(ellipse at 20% 10%, hsl(195 100% 56% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 90%, hsl(205 70% 40% / 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 10%, hsl(195 100% 56% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, hsl(205 70% 40% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(195 80% 50% / 0.03) 0%, transparent 55%),
+    linear-gradient(175deg, hsl(205 48% 13%) 0%, hsl(205 50% 12%) 45%, hsl(205 45% 11%) 100%);
+}
+
+.arctic-blue [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(205 38% 15%) 0%, hsl(205 38% 13%) 100%);
+  border-top: 1px solid hsl(195 50% 35% / 0.1);
+  box-shadow:
+    inset 0 1px 0 hsl(195 40% 28% / 0.08),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .arctic-blue h1,
@@ -1705,8 +1803,18 @@
 .sunset-copper {
   background-color: hsl(25 25% 7%);
   background-image:
-    radial-gradient(ellipse at 20% 20%, hsl(25 60% 48% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, hsl(15 50% 38% / 0.02) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 20%, hsl(25 60% 48% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(15 50% 38% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 90%, hsl(25 60% 48% / 0.05) 0%, transparent 45%),
+    linear-gradient(175deg, hsl(25 23% 8%) 0%, hsl(25 25% 7%) 45%, hsl(20 22% 6%) 100%);
+}
+
+.sunset-copper [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(25 18% 11%) 0%, hsl(25 18% 9%) 100%);
+  border-top: 1px solid hsl(25 35% 25% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(25 30% 20% / 0.1),
+    0 2px 8px hsl(0 0% 0% / 0.35);
 }
 
 .sunset-copper h1,
@@ -1784,9 +1892,19 @@
 .midnight-neon {
   background-color: hsl(230 30% 3%);
   background-image:
-    radial-gradient(ellipse at 15% 10%, hsl(185 100% 50% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 90%, hsl(325 100% 58% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(260 80% 55% / 0.01) 0%, transparent 70%);
+    radial-gradient(ellipse at 15% 10%, hsl(185 100% 50% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(325 100% 58% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(260 80% 55% / 0.02) 0%, transparent 70%),
+    linear-gradient(170deg, hsl(230 28% 4%) 0%, hsl(230 30% 3%) 40%, hsl(235 25% 4%) 100%);
+}
+
+.midnight-neon [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(230 22% 6%) 0%, hsl(230 22% 4%) 100%);
+  border-top: 1px solid hsl(185 60% 30% / 0.1);
+  box-shadow:
+    inset 0 1px 0 hsl(185 50% 25% / 0.08),
+    0 0 1px hsl(325 100% 58% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .midnight-neon h1,
@@ -1863,6 +1981,9 @@
 .amoled-black body,
 .amoled-black {
   background-color: hsl(0 0% 0%);
+  background-image:
+    radial-gradient(ellipse at 50% 50%, hsl(43 30% 8% / 0.04) 0%, transparent 70%),
+    radial-gradient(ellipse at 80% 80%, hsl(43 20% 5% / 0.03) 0%, transparent 50%);
 }
 
 .amoled-black h1,
@@ -1886,7 +2007,12 @@
 }
 
 .amoled-black [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(0 0% 4%) 0%, hsl(0 0% 2%) 100%);
   border-color: hsl(43 15% 8%);
+  border-top: 1px solid hsl(43 15% 12% / 0.08);
+  box-shadow:
+    inset 0 1px 0 hsl(43 10% 10% / 0.06),
+    0 1px 4px hsl(0 0% 0% / 0.3);
 }
 
 .amoled-black * {
@@ -2300,9 +2426,19 @@ html, body {
 .neon-circuit {
   background-color: hsl(0 0% 0%);
   background-image:
-    radial-gradient(ellipse at 10% 10%, hsl(185 100% 50% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 90%, hsl(325 100% 58% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(120 100% 45% / 0.01) 0%, transparent 70%);
+    radial-gradient(ellipse at 10% 10%, hsl(185 100% 50% / 0.05) 0%, transparent 45%),
+    radial-gradient(ellipse at 90% 90%, hsl(325 100% 58% / 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(120 100% 45% / 0.02) 0%, transparent 60%),
+    linear-gradient(160deg, hsl(240 10% 2%) 0%, hsl(0 0% 0%) 40%, hsl(200 15% 2%) 100%);
+}
+
+.neon-circuit [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(0 0% 4%) 0%, hsl(0 0% 2%) 100%);
+  border: 1px solid hsl(185 60% 25% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(185 100% 50% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.5),
+    0 0 1px hsl(185 100% 50% / 0.08);
 }
 
 .neon-circuit h1,
@@ -2384,9 +2520,19 @@ html, body {
 .hologram-matrix {
   background-color: hsl(240 20% 2%);
   background-image:
-    radial-gradient(ellipse at 15% 15%, hsl(140 100% 50% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 85%, hsl(195 100% 52% / 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(140 80% 40% / 0.01) 0%, transparent 70%);
+    radial-gradient(ellipse at 15% 15%, hsl(140 100% 50% / 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 85% 85%, hsl(195 100% 52% / 0.035) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(140 80% 40% / 0.015) 0%, transparent 60%),
+    linear-gradient(135deg, hsl(240 22% 3%) 0%, hsl(240 20% 2%) 50%, hsl(200 18% 3%) 100%);
+}
+
+.hologram-matrix [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 18% 5%) 0%, hsl(240 20% 3%) 100%);
+  border: 1px solid hsl(140 40% 18% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(140 100% 50% / 0.05),
+    inset 0 0 0 1px hsl(195 60% 30% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .hologram-matrix h1,
@@ -2469,8 +2615,19 @@ html, body {
 .cyber-pulse {
   background-color: hsl(240 30% 3%);
   background-image:
-    radial-gradient(ellipse at 20% 20%, hsl(210 100% 50% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, hsl(220 80% 42% / 0.02) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 20%, hsl(210 100% 50% / 0.05) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 80%, hsl(220 80% 42% / 0.035) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 90%, hsl(210 100% 50% / 0.02) 0%, transparent 50%),
+    linear-gradient(170deg, hsl(240 32% 4%) 0%, hsl(240 30% 3%) 50%, hsl(230 25% 3%) 100%);
+}
+
+.cyber-pulse [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 25% 5%) 0%, hsl(240 28% 3%) 100%);
+  border: 1px solid hsl(210 40% 20% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(210 100% 50% / 0.05),
+    0 2px 8px hsl(0 0% 0% / 0.5),
+    0 0 1px hsl(210 100% 50% / 0.08);
 }
 
 .cyber-pulse h1,
@@ -2552,8 +2709,18 @@ html, body {
 .titanium-noir {
   background-color: hsl(0 0% 0%);
   background-image:
-    radial-gradient(ellipse at 25% 25%, hsl(220 12% 58% / 0.015) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 75%, hsl(220 10% 45% / 0.01) 0%, transparent 50%);
+    radial-gradient(ellipse at 25% 25%, hsl(220 12% 58% / 0.025) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 75%, hsl(220 10% 45% / 0.018) 0%, transparent 45%),
+    linear-gradient(180deg, hsl(220 5% 2%) 0%, hsl(0 0% 0%) 30%, hsl(220 8% 1%) 100%);
+}
+
+.titanium-noir [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(0 0% 4%) 0%, hsl(0 0% 2%) 100%);
+  border: 1px solid hsl(220 8% 16% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(220 15% 50% / 0.06),
+    inset 0 0 0 1px hsl(220 10% 12% / 0.08),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .titanium-noir h1,
@@ -2630,8 +2797,19 @@ html, body {
 .rose-gold-elite {
   background-color: hsl(10 15% 3%);
   background-image:
-    radial-gradient(ellipse at 20% 15%, hsl(350 35% 52% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, hsl(25 40% 48% / 0.02) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 15%, hsl(350 35% 52% / 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 85%, hsl(25 40% 48% / 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 60% 50%, hsl(350 30% 40% / 0.015) 0%, transparent 60%),
+    linear-gradient(160deg, hsl(10 18% 4%) 0%, hsl(10 15% 3%) 50%, hsl(350 12% 3%) 100%);
+}
+
+.rose-gold-elite [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(10 12% 6%) 0%, hsl(10 14% 4%) 100%);
+  border: 1px solid hsl(350 20% 18% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(350 35% 52% / 0.06),
+    inset 0 0 0 1px hsl(25 30% 20% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .rose-gold-elite h1,
@@ -2713,8 +2891,19 @@ html, body {
 .diamond-graphite {
   background-color: hsl(240 5% 4%);
   background-image:
-    radial-gradient(ellipse at 25% 20%, hsl(0 0% 78% / 0.015) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 80%, hsl(0 0% 58% / 0.01) 0%, transparent 50%);
+    radial-gradient(ellipse at 25% 20%, hsl(0 0% 78% / 0.025) 0%, transparent 40%),
+    radial-gradient(ellipse at 75% 80%, hsl(0 0% 58% / 0.018) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(0 0% 100% / 0.006) 0%, transparent 50%),
+    linear-gradient(155deg, hsl(240 6% 5%) 0%, hsl(240 5% 4%) 40%, hsl(240 4% 3%) 100%);
+}
+
+.diamond-graphite [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 4% 7%) 0%, hsl(240 5% 5%) 100%);
+  border: 1px solid hsl(0 0% 18% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 78% / 0.04),
+    inset 0 0 0 1px hsl(0 0% 20% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .diamond-graphite h1,
@@ -2796,9 +2985,20 @@ html, body {
 .aurora-borealis {
   background-color: hsl(240 50% 3%);
   background-image:
-    radial-gradient(ellipse at 15% 10%, hsl(155 100% 48% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 90%, hsl(265 80% 60% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 40%, hsl(180 70% 45% / 0.015) 0%, transparent 70%);
+    radial-gradient(ellipse at 15% 10%, hsl(155 100% 48% / 0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 90%, hsl(265 80% 60% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 40%, hsl(180 70% 45% / 0.025) 0%, transparent 55%),
+    radial-gradient(ellipse at 30% 70%, hsl(200 85% 52% / 0.015) 0%, transparent 50%),
+    linear-gradient(160deg, hsl(240 52% 4%) 0%, hsl(240 50% 3%) 40%, hsl(250 45% 3%) 100%);
+}
+
+.aurora-borealis [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 40% 5%) 0%, hsl(240 42% 3%) 100%);
+  border: 1px solid hsl(155 30% 18% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(155 100% 48% / 0.05),
+    inset 0 0 0 1px hsl(265 40% 25% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .aurora-borealis h1,
@@ -2880,9 +3080,20 @@ html, body {
 .volcanic-ember {
   background-color: hsl(30 20% 2%);
   background-image:
-    radial-gradient(ellipse at 20% 80%, hsl(25 100% 50% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, hsl(5 100% 50% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(40 80% 45% / 0.01) 0%, transparent 70%);
+    radial-gradient(ellipse at 20% 80%, hsl(25 100% 50% / 0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 20%, hsl(5 100% 50% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 95%, hsl(15 100% 45% / 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(40 80% 45% / 0.015) 0%, transparent 60%),
+    linear-gradient(170deg, hsl(30 22% 3%) 0%, hsl(30 20% 2%) 50%, hsl(20 18% 2%) 100%);
+}
+
+.volcanic-ember [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(30 16% 5%) 0%, hsl(30 18% 3%) 100%);
+  border: 1px solid hsl(25 30% 16% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(25 100% 50% / 0.05),
+    inset 0 -1px 0 hsl(5 80% 40% / 0.04),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .volcanic-ember h1,
@@ -2964,9 +3175,20 @@ html, body {
 .deep-ocean {
   background-color: hsl(210 60% 3%);
   background-image:
-    radial-gradient(ellipse at 20% 80%, hsl(180 70% 35% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, hsl(190 100% 42% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(200 60% 38% / 0.015) 0%, transparent 70%);
+    radial-gradient(ellipse at 20% 80%, hsl(180 70% 35% / 0.045) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 20%, hsl(190 100% 42% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(200 60% 38% / 0.025) 0%, transparent 55%),
+    radial-gradient(ellipse at 40% 30%, hsl(170 80% 30% / 0.015) 0%, transparent 50%),
+    linear-gradient(175deg, hsl(210 62% 4%) 0%, hsl(210 60% 3%) 40%, hsl(200 55% 3%) 100%);
+}
+
+.deep-ocean [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(210 50% 5%) 0%, hsl(210 52% 3%) 100%);
+  border: 1px solid hsl(180 25% 15% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(190 100% 42% / 0.05),
+    inset 0 0 0 1px hsl(180 30% 18% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .deep-ocean h1,
@@ -3048,8 +3270,19 @@ html, body {
 .jungle-vibe {
   background-color: hsl(120 30% 2%);
   background-image:
-    radial-gradient(ellipse at 15% 15%, hsl(120 60% 38% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 85%, hsl(135 70% 32% / 0.025) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 15%, hsl(120 60% 38% / 0.045) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 85%, hsl(135 70% 32% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 60%, hsl(100 50% 30% / 0.015) 0%, transparent 50%),
+    linear-gradient(165deg, hsl(120 32% 3%) 0%, hsl(120 30% 2%) 50%, hsl(130 25% 2%) 100%);
+}
+
+.jungle-vibe [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(120 22% 5%) 0%, hsl(120 24% 3%) 100%);
+  border: 1px solid hsl(120 20% 14% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(120 60% 38% / 0.05),
+    inset 0 0 0 1px hsl(135 30% 15% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .jungle-vibe h1,
@@ -3131,8 +3364,19 @@ html, body {
 .adrenaline-rush {
   background-color: hsl(0 20% 2%);
   background-image:
-    radial-gradient(ellipse at 15% 15%, hsl(348 100% 55% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 85%, hsl(25 100% 50% / 0.025) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 15%, hsl(348 100% 55% / 0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 85%, hsl(25 100% 50% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 80%, hsl(348 80% 45% / 0.025) 0%, transparent 50%),
+    linear-gradient(165deg, hsl(0 22% 3%) 0%, hsl(0 20% 2%) 50%, hsl(350 18% 2%) 100%);
+}
+
+.adrenaline-rush [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(0 15% 5%) 0%, hsl(0 17% 3%) 100%);
+  border: 1px solid hsl(348 25% 16% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(348 100% 55% / 0.06),
+    inset 0 0 0 1px hsl(25 50% 25% / 0.05),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .adrenaline-rush h1,
@@ -3216,8 +3460,19 @@ html, body {
 .velocity-chrome {
   background-color: hsl(230 15% 4%);
   background-image:
-    radial-gradient(ellipse at 20% 20%, hsl(0 0% 72% / 0.015) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, hsl(210 80% 55% / 0.02) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 20%, hsl(0 0% 72% / 0.025) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 80%, hsl(210 80% 55% / 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(0 0% 60% / 0.008) 0%, transparent 50%),
+    linear-gradient(160deg, hsl(230 16% 5%) 0%, hsl(230 15% 4%) 40%, hsl(220 12% 3%) 100%);
+}
+
+.velocity-chrome [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(230 12% 6%) 0%, hsl(230 14% 4%) 100%);
+  border: 1px solid hsl(210 18% 16% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 72% / 0.05),
+    inset 0 0 0 1px hsl(210 30% 20% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .velocity-chrome h1,
@@ -3299,8 +3554,19 @@ html, body {
 .circuit-court {
   background-color: hsl(0 0% 3%);
   background-image:
-    radial-gradient(ellipse at 25% 25%, hsl(50 100% 50% / 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 75%, hsl(0 0% 92% / 0.01) 0%, transparent 50%);
+    radial-gradient(ellipse at 25% 25%, hsl(50 100% 50% / 0.035) 0%, transparent 40%),
+    radial-gradient(ellipse at 75% 75%, hsl(0 0% 92% / 0.018) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 10%, hsl(50 80% 50% / 0.015) 0%, transparent 45%),
+    linear-gradient(170deg, hsl(0 0% 4%) 0%, hsl(0 0% 3%) 50%, hsl(40 5% 3%) 100%);
+}
+
+.circuit-court [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(0 0% 6%) 0%, hsl(0 0% 4%) 100%);
+  border: 1px solid hsl(50 25% 16% / 0.2);
+  box-shadow:
+    inset 0 1px 0 hsl(50 100% 50% / 0.05),
+    inset 0 0 0 1px hsl(50 20% 14% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .circuit-court h1,
@@ -3382,9 +3648,20 @@ html, body {
 .cosmic-elite {
   background-color: hsl(240 40% 2%);
   background-image:
-    radial-gradient(ellipse at 15% 10%, hsl(262 100% 62% / 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 90%, hsl(175 100% 56% / 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(290 75% 52% / 0.01) 0%, transparent 70%);
+    radial-gradient(ellipse at 15% 10%, hsl(262 100% 62% / 0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 90%, hsl(175 100% 56% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(290 75% 52% / 0.02) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 30%, hsl(200 90% 55% / 0.012) 0%, transparent 45%),
+    linear-gradient(155deg, hsl(250 42% 3%) 0%, hsl(240 40% 2%) 40%, hsl(260 35% 3%) 100%);
+}
+
+.cosmic-elite [data-slot="card"] {
+  background: linear-gradient(165deg, hsl(240 35% 5%) 0%, hsl(240 38% 3%) 100%);
+  border: 1px solid hsl(262 30% 18% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(262 100% 62% / 0.05),
+    inset 0 0 0 1px hsl(175 50% 25% / 0.05),
+    0 2px 8px hsl(0 0% 0% / 0.5);
 }
 
 .cosmic-elite h1,
@@ -3466,8 +3743,10 @@ html, body {
 .phantom-luxe {
   background-color: hsl(240 10% 2%);
   background-image:
-    radial-gradient(ellipse at 20% 20%, hsl(0 0% 60% / 0.012) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, hsl(0 0% 42% / 0.008) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 20%, hsl(0 0% 60% / 0.02) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 80%, hsl(0 0% 42% / 0.015) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(240 8% 20% / 0.008) 0%, transparent 50%),
+    linear-gradient(165deg, hsl(240 11% 3%) 0%, hsl(240 10% 2%) 50%, hsl(240 8% 2%) 100%);
 }
 
 .phantom-luxe h1,
@@ -3502,8 +3781,13 @@ html, body {
 }
 
 .phantom-luxe [data-slot="card"] {
-  background: hsl(240 8% 4% / 0.85);
+  background: linear-gradient(165deg, hsl(240 8% 5%) 0%, hsl(240 9% 3%) 100%);
   backdrop-filter: blur(12px);
+  border: 1px solid hsl(0 0% 14% / 0.15);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 60% / 0.04),
+    inset 0 0 0 1px hsl(0 0% 12% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .phantom-luxe * {
@@ -3550,8 +3834,10 @@ html, body {
 .obsidian-gold-ultra {
   background-color: hsl(0 0% 0%);
   background-image:
-    radial-gradient(ellipse at 15% 10%, hsl(43 63% 52% / 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 90%, hsl(43 52% 59% / 0.015) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 10%, hsl(43 63% 52% / 0.035) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 90%, hsl(43 52% 59% / 0.025) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(43 50% 40% / 0.01) 0%, transparent 55%),
+    linear-gradient(160deg, hsl(30 8% 2%) 0%, hsl(0 0% 0%) 40%, hsl(240 5% 1%) 100%);
 }
 
 .obsidian-gold-ultra h1,
@@ -3603,12 +3889,12 @@ html, body {
     repeating-conic-gradient(hsl(0 0% 6%) 0% 25%, hsl(0 0% 4%) 0% 50%) 0 0 / 10px 10px,
     linear-gradient(165deg, hsl(0 0% 5%) 0%, hsl(0 0% 3%) 100%);
   box-shadow:
-    inset 0 1px 0 hsl(43 30% 18% / 0.2),
+    inset 0 1px 0 hsl(43 40% 22% / 0.25),
     inset 0 -1px 0 hsl(0 0% 0% / 0.5),
-    inset 1px 0 0 hsl(43 20% 14% / 0.1),
-    inset -1px 0 0 hsl(43 20% 14% / 0.1),
+    inset 1px 0 0 hsl(43 25% 16% / 0.12),
+    inset -1px 0 0 hsl(43 25% 16% / 0.12),
     0 2px 8px hsl(0 0% 0% / 0.6),
-    0 0 1px hsl(43 63% 52% / 0.1);
+    0 0 1px hsl(43 63% 52% / 0.12);
 }
 
 .obsidian-gold-ultra * {
@@ -3742,8 +4028,10 @@ html, body {
 .crystal-court {
   background-color: hsl(215 25% 12%);
   background-image:
-    radial-gradient(ellipse at 25% 15%, hsl(210 40% 65% / 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 85%, hsl(220 35% 50% / 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 25% 15%, hsl(210 40% 65% / 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 75% 85%, hsl(220 35% 50% / 0.045) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(210 50% 60% / 0.015) 0%, transparent 55%),
+    linear-gradient(165deg, hsl(215 26% 13%) 0%, hsl(215 25% 12%) 40%, hsl(210 22% 11%) 100%);
 }
 
 .crystal-court h1,
@@ -3789,12 +4077,14 @@ html, body {
 }
 
 .crystal-court [data-slot="card"] {
-  background: hsl(215 20% 16% / 0.6);
+  background: linear-gradient(165deg, hsl(215 20% 17%) 0%, hsl(215 22% 15%) 100%);
   backdrop-filter: blur(20px);
-  border: 1px solid hsl(210 30% 40% / 0.15);
+  border: 1px solid hsl(210 30% 40% / 0.18);
   box-shadow:
-    inset 0 1px 0 hsl(210 40% 70% / 0.08),
-    0 2px 12px hsl(0 0% 0% / 0.3);
+    inset 0 1px 0 hsl(210 50% 75% / 0.08),
+    inset 0 0 0 1px hsl(210 30% 35% / 0.06),
+    0 2px 12px hsl(0 0% 0% / 0.3),
+    0 0 1px hsl(210 40% 65% / 0.06);
 }
 
 .crystal-court * {
@@ -3845,6 +4135,8 @@ html, body {
 .phosphor-elite {
   background-color: hsl(0 0% 4%);
   background-image:
+    radial-gradient(ellipse at 30% 20%, hsl(130 100% 50% / 0.02) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 80%, hsl(130 80% 40% / 0.015) 0%, transparent 40%),
     repeating-linear-gradient(
       0deg,
       transparent,
@@ -3901,10 +4193,13 @@ html, body {
 }
 
 .phosphor-elite [data-slot="card"] {
-  background: hsl(0 0% 6%);
+  background: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 5%) 100%);
   border-radius: 0;
   border: 1px solid hsl(130 60% 20% / 0.3);
-  box-shadow: 0 0 4px hsl(130 100% 50% / 0.05);
+  box-shadow:
+    inset 0 1px 0 hsl(130 100% 50% / 0.04),
+    0 0 4px hsl(130 100% 50% / 0.06),
+    0 2px 8px hsl(0 0% 0% / 0.4);
 }
 
 .phosphor-elite * {
@@ -3954,14 +4249,18 @@ html, body {
 
 .adaptive-pro body,
 .adaptive-pro {
-  background: linear-gradient(
-    135deg,
-    hsl(17 100% 22%) 0%,
-    hsl(210 100% 18%) 33%,
-    hsl(193 100% 20%) 66%,
-    hsl(17 100% 22%) 100%
-  );
-  background-size: 400% 400%;
+  background-color: hsl(210 100% 12%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(17 100% 60% / 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 80%, hsl(193 100% 42% / 0.035) 0%, transparent 40%),
+    linear-gradient(
+      135deg,
+      hsl(17 100% 22%) 0%,
+      hsl(210 100% 18%) 33%,
+      hsl(193 100% 20%) 66%,
+      hsl(17 100% 22%) 100%
+    );
+  background-size: 100% 100%, 100% 100%, 400% 400%;
   animation: adaptive-cycle 15s ease infinite;
 }
 
@@ -4015,11 +4314,14 @@ html, body {
 }
 
 .adaptive-pro [data-slot="card"] {
-  background: hsl(210 70% 14% / 0.85);
+  background: linear-gradient(165deg, hsl(210 70% 15%) 0%, hsl(210 72% 13%) 100%);
   backdrop-filter: blur(12px);
-  border: 1px solid hsl(210 50% 30% / 0.2);
+  border: 1px solid hsl(210 50% 30% / 0.22);
   animation: adaptive-border-flow 15s ease infinite;
-  box-shadow: 0 2px 12px hsl(0 0% 0% / 0.3);
+  box-shadow:
+    inset 0 1px 0 hsl(17 100% 60% / 0.04),
+    inset 0 0 0 1px hsl(210 50% 28% / 0.06),
+    0 2px 12px hsl(0 0% 0% / 0.3);
 }
 
 .adaptive-pro * {
@@ -4070,9 +4372,10 @@ html, body {
 .royal-indigo {
   background-color: hsl(260 60% 10%);
   background-image:
-    radial-gradient(ellipse at 20% 15%, hsl(239 84% 67% / 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 85%, hsl(220 63% 15% / 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, hsl(260 60% 10%) 0%, hsl(220 63% 12%) 100%);
+    radial-gradient(ellipse at 20% 15%, hsl(239 84% 67% / 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 85%, hsl(220 63% 15% / 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(260 70% 40% / 0.02) 0%, transparent 50%),
+    linear-gradient(170deg, hsl(260 62% 11%) 0%, hsl(260 60% 10%) 40%, hsl(250 55% 9%) 100%);
 }
 
 .royal-indigo h1,
@@ -4110,8 +4413,10 @@ html, body {
   background: linear-gradient(165deg, hsl(260 45% 15%) 0%, hsl(260 40% 12%) 100%);
   border: 1px solid hsl(239 40% 25% / 0.3);
   box-shadow:
-    0 0 8px hsl(239 84% 67% / 0.05),
-    0 2px 10px hsl(0 0% 0% / 0.3);
+    inset 0 1px 0 hsl(239 84% 67% / 0.06),
+    inset 0 0 0 1px hsl(260 35% 22% / 0.08),
+    0 0 8px hsl(239 84% 67% / 0.06),
+    0 2px 10px hsl(0 0% 0% / 0.35);
 }
 
 .royal-indigo * {
@@ -4711,6 +5016,516 @@ html, body {
 .champagne-mint ::-webkit-scrollbar-track { background: hsl(138 100% 97%); }
 .champagne-mint ::-webkit-scrollbar-thumb { background: hsl(140 30% 82%); border-radius: 3px; }
 .champagne-mint ::-webkit-scrollbar-thumb:hover { background: hsl(140 32% 72%); }
+
+/* ===== NATURE COLLECTION: Tropical Dawn ===== */
+.tropical-dawn {
+  --background: 8 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 8 74% 56%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 197 71% 73%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 10 60% 93%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 45 100% 51%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 55 100% 95%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 10 50% 88%;
+  --popover: 55 100% 95%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 10 50% 88%;
+  --sidebar-background: 8 90% 96%;
+  --border: 10 50% 88%;
+  --input: 10 50% 88%;
+  --ring: 8 74% 56%;
+  --chart-1: 8 74% 56%;
+  --chart-2: 45 100% 51%;
+  --chart-3: 197 71% 73%;
+  --chart-4: 24 100% 67%;
+  --chart-5: 54 80% 72%;
+}
+
+.tropical-dawn body,
+.tropical-dawn {
+  background-color: hsl(8 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 30% 20%, hsl(45 100% 51% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsl(197 71% 73% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(55 100% 95% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.tropical-dawn h1,
+.tropical-dawn h2,
+.tropical-dawn h3,
+.tropical-dawn h4 {
+  letter-spacing: 0.02em;
+  font-style: italic;
+  font-weight: 600;
+  color: hsl(8 60% 42%);
+  text-shadow: 0 1px 3px hsl(8 74% 56% / 0.15);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes tropical-dawn-sunbeam {
+  0%, 100% { background-position: -100% 0%; }
+  50% { background-position: 200% 0%; }
+}
+
+.tropical-dawn .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.tropical-dawn .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(8 74% 56% / 0.1), 0 0 30px hsl(45 100% 51% / 0.06), 0 8px 20px hsl(0 0% 0% / 0.05);
+  transform: translateY(-2px);
+}
+
+.tropical-dawn [data-slot="card"] {
+  background: hsl(55 100% 95% / 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(10 50% 88% / 0.6);
+  box-shadow: 0 4px 16px hsl(8 74% 56% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  background-image: linear-gradient(135deg, transparent 40%, hsl(45 100% 80% / 0.08) 60%, transparent 80%);
+  background-size: 300% 300%;
+  animation: tropical-dawn-sunbeam 12s ease-in-out infinite;
+}
+
+.tropical-dawn * {
+  scrollbar-color: hsl(45 80% 72%) hsl(8 100% 97%);
+}
+.tropical-dawn ::-webkit-scrollbar { width: 6px; }
+.tropical-dawn ::-webkit-scrollbar-track { background: hsl(8 100% 97%); }
+.tropical-dawn ::-webkit-scrollbar-thumb { background: hsl(45 80% 72%); border-radius: 3px; }
+.tropical-dawn ::-webkit-scrollbar-thumb:hover { background: hsl(45 75% 62%); }
+
+/* ===== NATURE COLLECTION: Savanna Breeze ===== */
+.savanna-breeze {
+  --background: 35 69% 87%;
+  --foreground: 222 47% 11%;
+  --primary: 38 100% 40%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 60 100% 25%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 36 50% 82%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 38 100% 40%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 40 55% 92%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 36 40% 78%;
+  --popover: 40 55% 92%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 36 40% 78%;
+  --sidebar-background: 35 60% 86%;
+  --border: 36 40% 78%;
+  --input: 36 40% 78%;
+  --ring: 38 100% 40%;
+  --chart-1: 38 100% 40%;
+  --chart-2: 60 100% 25%;
+  --chart-3: 30 57% 70%;
+  --chart-4: 43 76% 49%;
+  --chart-5: 48 45% 38%;
+}
+
+.savanna-breeze body,
+.savanna-breeze {
+  background-color: hsl(35 69% 87%);
+  background-image:
+    radial-gradient(ellipse at 25% 30%, hsl(38 100% 40% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 70%, hsl(60 100% 25% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(40 55% 92% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.savanna-breeze h1,
+.savanna-breeze h2,
+.savanna-breeze h3,
+.savanna-breeze h4 {
+  letter-spacing: 0.03em;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  color: hsl(38 80% 30%);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes savanna-breeze-sway {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(0.3deg); }
+  75% { transform: rotate(-0.3deg); }
+}
+
+.savanna-breeze .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.savanna-breeze .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(38 100% 40% / 0.12), 0 0 30px hsl(60 100% 25% / 0.06), 0 8px 20px hsl(0 0% 0% / 0.06);
+  transform: translateY(-2px);
+}
+
+.savanna-breeze [data-slot="card"] {
+  background: hsl(40 55% 92%);
+  border: 1px solid hsl(36 40% 78% / 0.6);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px hsl(38 100% 40% / 0.07), 0 2px 4px hsl(0 0% 0% / 0.04), inset 0 2px 0 hsl(0 0% 100% / 0.5), inset 0 -2px 0 hsl(0 0% 0% / 0.02);
+  animation: savanna-breeze-sway 10s ease-in-out infinite;
+}
+
+.savanna-breeze * {
+  scrollbar-color: hsl(38 70% 60%) hsl(35 69% 87%);
+}
+.savanna-breeze ::-webkit-scrollbar { width: 6px; }
+.savanna-breeze ::-webkit-scrollbar-track { background: hsl(35 69% 87%); }
+.savanna-breeze ::-webkit-scrollbar-thumb { background: hsl(38 70% 60%); border-radius: 3px; }
+.savanna-breeze ::-webkit-scrollbar-thumb:hover { background: hsl(38 80% 50%); }
+
+/* ===== NATURE COLLECTION: Rainforest Canopy ===== */
+.rainforest-canopy {
+  --background: 120 25% 94%;
+  --foreground: 222 47% 11%;
+  --primary: 174 36% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 122 31% 74%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 120 20% 90%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 174 36% 55%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 122 28% 88%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 120 20% 82%;
+  --popover: 122 28% 88%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 120 20% 82%;
+  --sidebar-background: 120 22% 93%;
+  --border: 120 20% 82%;
+  --input: 120 20% 82%;
+  --ring: 174 36% 55%;
+  --chart-1: 122 38% 55%;
+  --chart-2: 174 36% 55%;
+  --chart-3: 122 31% 74%;
+  --chart-4: 171 44% 53%;
+  --chart-5: 141 53% 36%;
+}
+
+.rainforest-canopy body,
+.rainforest-canopy {
+  background-color: hsl(120 25% 94%);
+  background-image:
+    radial-gradient(ellipse at 20% 30%, hsl(122 31% 74% / 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, hsl(174 36% 55% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(120 20% 92% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.rainforest-canopy h1,
+.rainforest-canopy h2,
+.rainforest-canopy h3,
+.rainforest-canopy h4 {
+  letter-spacing: 0.02em;
+  font-style: italic;
+  font-weight: 600;
+  color: hsl(174 36% 38%);
+  text-shadow: 0 1px 3px hsl(174 36% 55% / 0.15);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes rainforest-canopy-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes rainforest-canopy-particles {
+  0%, 100% { box-shadow: 0 4px 16px hsl(122 31% 74% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6); }
+  50% { box-shadow: 0 6px 24px hsl(174 36% 55% / 0.1), 0 4px 8px hsl(0 0% 0% / 0.05), inset 0 1px 0 hsl(0 0% 100% / 0.7), 0 0 30px hsl(122 31% 74% / 0.06); }
+}
+
+.rainforest-canopy .hover-card-effect {
+  transition: all 0.4s ease;
+}
+.rainforest-canopy .hover-card-effect:hover {
+  box-shadow: 0 8px 28px hsl(174 36% 55% / 0.12), 0 0 30px hsl(122 31% 74% / 0.06), 0 8px 20px hsl(0 0% 0% / 0.05);
+  transform: translateY(-3px);
+}
+
+.rainforest-canopy [data-slot="card"] {
+  background: hsl(122 28% 88% / 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid hsl(120 20% 82% / 0.5);
+  box-shadow: 0 4px 16px hsl(122 31% 74% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6);
+  animation: rainforest-canopy-particles 10s ease-in-out infinite;
+}
+
+.rainforest-canopy * {
+  scrollbar-color: hsl(122 28% 76%) hsl(120 25% 94%);
+}
+.rainforest-canopy ::-webkit-scrollbar { width: 6px; }
+.rainforest-canopy ::-webkit-scrollbar-track { background: hsl(120 25% 94%); }
+.rainforest-canopy ::-webkit-scrollbar-thumb { background: hsl(122 28% 76%); border-radius: 3px; }
+.rainforest-canopy ::-webkit-scrollbar-thumb:hover { background: hsl(122 30% 66%); }
+
+/* ===== NATURE COLLECTION: Misty Bamboo ===== */
+.misty-bamboo {
+  --background: 120 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 155 100% 33%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 120 30% 80%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 100 40% 93%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 155 100% 33%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 60 100% 97%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 120 30% 86%;
+  --popover: 60 100% 97%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 120 30% 86%;
+  --sidebar-background: 120 80% 96%;
+  --border: 120 30% 86%;
+  --input: 120 30% 86%;
+  --ring: 155 100% 33%;
+  --chart-1: 155 100% 33%;
+  --chart-2: 142 50% 66%;
+  --chart-3: 146 63% 36%;
+  --chart-4: 152 45% 58%;
+  --chart-5: 140 56% 28%;
+}
+
+.misty-bamboo body,
+.misty-bamboo {
+  background-color: hsl(120 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 30% 20%, hsl(155 100% 33% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsl(120 30% 80% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(60 100% 97% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.misty-bamboo h1,
+.misty-bamboo h2,
+.misty-bamboo h3,
+.misty-bamboo h4 {
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  color: hsl(155 70% 26%);
+  text-shadow: 0 1px 3px hsl(155 100% 33% / 0.12);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes misty-bamboo-tilt {
+  0%, 100% { transform: perspective(800px) rotateY(0deg); }
+  50% { transform: perspective(800px) rotateY(0.5deg); }
+}
+
+.misty-bamboo .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.misty-bamboo .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(155 100% 33% / 0.1), 0 0 30px hsl(120 30% 80% / 0.06), 0 8px 20px hsl(0 0% 0% / 0.05);
+  transform: translateY(-2px);
+}
+
+.misty-bamboo [data-slot="card"] {
+  background: hsl(60 100% 97% / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(120 30% 86% / 0.6);
+  box-shadow: 0 4px 16px hsl(155 100% 33% / 0.05), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  background-image: repeating-linear-gradient(90deg, transparent, transparent 30px, hsl(120 30% 80% / 0.06) 30px, hsl(120 30% 80% / 0.06) 31px);
+  animation: misty-bamboo-tilt 12s ease-in-out infinite;
+}
+
+.misty-bamboo * {
+  scrollbar-color: hsl(155 60% 60%) hsl(120 100% 97%);
+}
+.misty-bamboo ::-webkit-scrollbar { width: 6px; }
+.misty-bamboo ::-webkit-scrollbar-track { background: hsl(120 100% 97%); }
+.misty-bamboo ::-webkit-scrollbar-thumb { background: hsl(155 60% 60%); border-radius: 3px; }
+.misty-bamboo ::-webkit-scrollbar-thumb:hover { background: hsl(155 70% 48%); }
+
+/* ===== NATURE COLLECTION: Tropical Lagoon ===== */
+.tropical-lagoon {
+  --background: 187 71% 93%;
+  --foreground: 222 47% 11%;
+  --primary: 187 100% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 39 77% 83%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 187 50% 89%;
+  --muted-foreground: 215 16% 42%;
+  --accent: 187 100% 42%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 185 55% 95%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 187 40% 84%;
+  --popover: 185 55% 95%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 187 40% 84%;
+  --sidebar-background: 187 60% 92%;
+  --border: 187 40% 84%;
+  --input: 187 40% 84%;
+  --ring: 187 100% 42%;
+  --chart-1: 187 100% 42%;
+  --chart-2: 186 65% 56%;
+  --chart-3: 186 100% 30%;
+  --chart-4: 186 50% 64%;
+  --chart-5: 186 100% 26%;
+}
+
+.tropical-lagoon body,
+.tropical-lagoon {
+  background-color: hsl(187 71% 93%);
+  background-image:
+    radial-gradient(ellipse at 25% 25%, hsl(187 100% 42% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 75%, hsl(39 77% 83% / 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(185 55% 95% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+}
+
+.tropical-lagoon h1,
+.tropical-lagoon h2,
+.tropical-lagoon h3,
+.tropical-lagoon h4 {
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: hsl(187 80% 32%);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes tropical-lagoon-ripple {
+  0%, 100% { box-shadow: 0 4px 16px hsl(187 100% 42% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6); }
+  50% { box-shadow: 0 4px 16px hsl(187 100% 42% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6), 0 0 0 4px hsl(187 100% 42% / 0.04), 0 0 0 8px hsl(187 100% 42% / 0.02); }
+}
+
+.tropical-lagoon .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.tropical-lagoon .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(187 100% 42% / 0.12), 0 0 30px hsl(39 77% 83% / 0.08), 0 8px 20px hsl(0 0% 0% / 0.05);
+  transform: translateY(-2px);
+}
+
+.tropical-lagoon [data-slot="card"] {
+  background: hsl(185 55% 95% / 0.75);
+  backdrop-filter: blur(14px);
+  border: 1px solid hsl(187 40% 84% / 0.6);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px hsl(187 100% 42% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6);
+  animation: tropical-lagoon-ripple 8s ease-in-out infinite;
+}
+
+.tropical-lagoon * {
+  scrollbar-color: hsl(187 60% 70%) hsl(187 71% 93%);
+}
+.tropical-lagoon ::-webkit-scrollbar { width: 6px; }
+.tropical-lagoon ::-webkit-scrollbar-track { background: hsl(187 71% 93%); }
+.tropical-lagoon ::-webkit-scrollbar-thumb { background: hsl(187 60% 70%); border-radius: 3px; }
+.tropical-lagoon ::-webkit-scrollbar-thumb:hover { background: hsl(187 70% 58%); }
+
+/* ===== NATURE COLLECTION: Sunset Savannah ===== */
+.sunset-savannah {
+  --background: 30 100% 91%;
+  --foreground: 222 47% 11%;
+  --primary: 24 100% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 252 59% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 28 60% 87%;
+  --muted-foreground: 215 16% 42%;
+  --accent: 24 100% 55%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 24 100% 82%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 28 50% 82%;
+  --popover: 30 80% 94%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 28 50% 82%;
+  --sidebar-background: 30 85% 90%;
+  --border: 28 50% 82%;
+  --input: 28 50% 82%;
+  --ring: 24 100% 55%;
+  --chart-1: 24 100% 55%;
+  --chart-2: 24 100% 82%;
+  --chart-3: 252 59% 93%;
+  --chart-4: 300 47% 75%;
+  --chart-5: 16 100% 66%;
+}
+
+.sunset-savannah body,
+.sunset-savannah {
+  background-color: hsl(30 100% 91%);
+  background-image:
+    radial-gradient(ellipse at 20% 30%, hsl(24 100% 55% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, hsl(252 59% 93% / 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(30 80% 94% / 0.5) 0%, transparent 70%);
+  background-size: 200% 200%;
+  animation: sunset-savannah-bg-shift 25s ease-in-out infinite;
+}
+
+@keyframes sunset-savannah-bg-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.sunset-savannah h1,
+.sunset-savannah h2,
+.sunset-savannah h3,
+.sunset-savannah h4 {
+  letter-spacing: 0.02em;
+  font-style: italic;
+  font-weight: 600;
+  color: hsl(24 70% 38%);
+  text-shadow: 0 1px 3px hsl(24 100% 55% / 0.12);
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
+  padding-bottom: 0.15em;
+}
+
+@keyframes sunset-savannah-glow {
+  0%, 100% { box-shadow: 0 4px 16px hsl(24 100% 55% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6); }
+  50% { box-shadow: 0 6px 24px hsl(24 100% 55% / 0.1), 0 4px 8px hsl(0 0% 0% / 0.05), inset 0 1px 0 hsl(0 0% 100% / 0.7), 0 0 20px hsl(24 100% 55% / 0.05); }
+}
+
+.sunset-savannah .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.sunset-savannah .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(24 100% 55% / 0.12), 0 0 30px hsl(252 59% 93% / 0.08), 0 8px 20px hsl(0 0% 0% / 0.05);
+  transform: translateY(-2px);
+}
+
+.sunset-savannah [data-slot="card"] {
+  background: hsl(24 100% 82% / 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid hsl(28 50% 82% / 0.6);
+  box-shadow: 0 4px 16px hsl(24 100% 55% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.03), inset 0 1px 0 hsl(0 0% 100% / 0.6);
+  animation: sunset-savannah-glow 10s ease-in-out infinite;
+}
+
+.sunset-savannah * {
+  scrollbar-color: hsl(24 80% 72%) hsl(30 100% 91%);
+}
+.sunset-savannah ::-webkit-scrollbar { width: 6px; }
+.sunset-savannah ::-webkit-scrollbar-track { background: hsl(30 100% 91%); }
+.sunset-savannah ::-webkit-scrollbar-thumb { background: hsl(24 80% 72%); border-radius: 3px; }
+.sunset-savannah ::-webkit-scrollbar-thumb:hover { background: hsl(24 85% 62%); }
 
 @keyframes metal-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
