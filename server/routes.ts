@@ -6811,7 +6811,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/calendar/import", async (req, res) => {
+  app.post("/api/admin/calendar/import", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = (req.user as any).role;
     if (!["OWNER", "ADMIN"].includes(role)) {
@@ -8457,7 +8457,7 @@ export async function registerRoutes(
   });
 
   // Player confirms they've made payment for an outstanding session
-  app.post("/api/my-payment-confirmation", async (req, res) => {
+  app.post("/api/my-payment-confirmation", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const { signupId, paymentDate, paymentMethod } = req.body;
@@ -8752,7 +8752,7 @@ export async function registerRoutes(
   });
 
   // Admin: Send payment confirmation notification to player (when marking as paid)
-  app.post("/api/admin/send-payment-confirmation", async (req, res) => {
+  app.post("/api/admin/send-payment-confirmation", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { signupId, sessionId, playerId, immediate } = req.body;
 
@@ -8814,7 +8814,7 @@ export async function registerRoutes(
   });
 
   // Admin: Bulk send payment confirmations
-  app.post("/api/admin/bulk-payment-confirmation", async (req, res) => {
+  app.post("/api/admin/bulk-payment-confirmation", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { entries, immediate } = req.body;
 
@@ -9586,7 +9586,7 @@ export async function registerRoutes(
   });
 
   // Register as coach (authenticated users)
-  app.post("/api/coaches/register", async (req, res) => {
+  app.post("/api/coaches/register", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const existing = await storage.getCoachByUserId(req.user!.id);
@@ -9613,7 +9613,7 @@ export async function registerRoutes(
   });
 
   // Upload coach profile photo
-  app.post("/api/coaches/upload-photo", uploadCoachPhoto.single("photo"), async (req, res) => {
+  app.post("/api/coaches/upload-photo", requirePremium(clubIdFromSession), uploadCoachPhoto.single("photo"), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -9626,7 +9626,7 @@ export async function registerRoutes(
   });
 
   // Get own coach profile
-  app.get("/api/coaches/me", async (req, res) => {
+  app.get("/api/coaches/me", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const coach = await storage.getCoachByUserId(req.user!.id);
@@ -9639,7 +9639,7 @@ export async function registerRoutes(
   });
 
   // Update own coach profile
-  app.patch("/api/coaches/me", async (req, res) => {
+  app.patch("/api/coaches/me", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const coach = await storage.getCoachByUserId(req.user!.id);
@@ -9660,7 +9660,7 @@ export async function registerRoutes(
   });
 
   // Coach Seeker Membership - join (request membership)
-  app.post("/api/coach-seeker/join", async (req, res) => {
+  app.post("/api/coach-seeker/join", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const existing = await storage.getCoachSeekerMembership(req.user!.id);
@@ -9701,7 +9701,7 @@ export async function registerRoutes(
   });
 
   // Get own coach seeker membership status
-  app.get("/api/coach-seeker/me", async (req, res) => {
+  app.get("/api/coach-seeker/me", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const membership = await storage.getCoachSeekerMembership(req.user!.id);
@@ -9713,7 +9713,7 @@ export async function registerRoutes(
   });
 
   // Cancel own coach seeker membership
-  app.post("/api/coach-seeker/cancel", async (req, res) => {
+  app.post("/api/coach-seeker/cancel", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const membership = await storage.getCoachSeekerMembership(req.user!.id);
@@ -10012,7 +10012,7 @@ export async function registerRoutes(
   });
 
   // Admin get all contact messages
-  app.get("/api/admin/messages", async (req, res) => {
+  app.get("/api/admin/messages", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN")) return res.sendStatus(403);
     try {
       const msgs = await storage.getContactMessages();
@@ -10024,7 +10024,7 @@ export async function registerRoutes(
   });
 
   // Admin update message status
-  app.patch("/api/admin/messages/:id", async (req, res) => {
+  app.patch("/api/admin/messages/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN")) return res.sendStatus(403);
     try {
       const updated = await storage.updateContactMessageStatus(Number(req.params.id), req.body.status);
@@ -12266,7 +12266,7 @@ export async function registerRoutes(
 
   // === INTERNAL MESSAGES ===
 
-  app.get("/api/messages/contacts", async (req, res) => {
+  app.get("/api/messages/contacts", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12312,7 +12312,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/messages/conversations", async (req, res) => {
+  app.get("/api/messages/conversations", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12394,7 +12394,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/messages/thread/:contactId", async (req, res) => {
+  app.get("/api/messages/thread/:contactId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12433,7 +12433,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/messages/unread-count", async (req, res) => {
+  app.get("/api/messages/unread-count", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12606,7 +12606,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/messages/send", async (req, res) => {
+  app.post("/api/messages/send", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const senderId = (req.user as any).id;
@@ -12663,7 +12663,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/messages/:id/read", async (req, res) => {
+  app.patch("/api/messages/:id/read", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12679,7 +12679,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/messages/archive-conversation/:contactId", async (req, res) => {
+  app.post("/api/messages/archive-conversation/:contactId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -12699,7 +12699,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/messages/conversation/:contactId", async (req, res) => {
+  app.delete("/api/messages/conversation/:contactId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = (req.user as any).id;
@@ -13675,7 +13675,7 @@ export async function registerRoutes(
   // === TICKET SYSTEM ===
 
   // 1. POST /api/tickets - Create ticket (supports onBehalfOfUserId for admins)
-  app.post("/api/tickets", async (req, res) => {
+  app.post("/api/tickets", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const { clubId, subject, description, category, priority, onBehalfOfUserId } = req.body;
@@ -13738,7 +13738,7 @@ export async function registerRoutes(
   });
 
   // 2. GET /api/tickets - List tickets for current user
-  app.get("/api/tickets", async (req, res) => {
+  app.get("/api/tickets", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -13786,7 +13786,7 @@ export async function registerRoutes(
   });
 
   // 3. GET /api/admin/tickets - List tickets for staff
-  app.get("/api/admin/tickets", async (req, res) => {
+  app.get("/api/admin/tickets", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -13857,7 +13857,7 @@ export async function registerRoutes(
   });
 
   // 4. GET /api/tickets/:id - Get ticket detail
-  app.get("/api/tickets/:id", async (req, res) => {
+  app.get("/api/tickets/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -13978,7 +13978,7 @@ export async function registerRoutes(
   });
 
   // 5. PATCH /api/tickets/:id/status - Update ticket status
-  app.patch("/api/tickets/:id/status", async (req, res) => {
+  app.patch("/api/tickets/:id/status", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -14042,7 +14042,7 @@ export async function registerRoutes(
   });
 
   // 6. PATCH /api/tickets/:id/assign - Assign or unassign ticket
-  app.patch("/api/tickets/:id/assign", async (req, res) => {
+  app.patch("/api/tickets/:id/assign", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -14111,7 +14111,7 @@ export async function registerRoutes(
   });
 
   // 7. POST /api/tickets/:id/replies - Add reply
-  app.post("/api/tickets/:id/replies", async (req, res) => {
+  app.post("/api/tickets/:id/replies", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -14199,7 +14199,7 @@ export async function registerRoutes(
   });
 
   // 8. POST /api/tickets/:id/notes - Add internal note (staff only)
-  app.post("/api/tickets/:id/notes", async (req, res) => {
+  app.post("/api/tickets/:id/notes", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -14237,7 +14237,7 @@ export async function registerRoutes(
   });
 
   // 9. GET /api/tickets/:id/audit-log - Get audit log (staff only)
-  app.get("/api/tickets/:id/audit-log", async (req, res) => {
+  app.get("/api/tickets/:id/audit-log", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const ticketId = Number(req.params.id);
@@ -14441,7 +14441,7 @@ export async function registerRoutes(
   // NOTIFICATION SCHEDULE SETTINGS & LOGS
   // ============================================================
 
-  app.get("/api/clubs/:clubId/notification-settings", async (req, res) => {
+  app.get("/api/clubs/:clubId/notification-settings", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
@@ -14467,7 +14467,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/clubs/:clubId/notification-settings", async (req, res) => {
+  app.put("/api/clubs/:clubId/notification-settings", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
@@ -14507,7 +14507,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/notification-logs", async (req, res) => {
+  app.get("/api/admin/notification-logs", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14559,7 +14559,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/notification-stats", async (req, res) => {
+  app.get("/api/admin/notification-stats", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14595,7 +14595,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/clubs/:clubId/bank-details", async (req, res) => {
+  app.get("/api/clubs/:clubId/bank-details", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
@@ -14617,7 +14617,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/clubs/:clubId/bank-details", async (req, res) => {
+  app.put("/api/clubs/:clubId/bank-details", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
@@ -17117,7 +17117,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/player-credits/:userId", async (req, res) => {
+  app.get("/api/admin/player-credits/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
     const isOwner = currentUser.role === "OWNER";
@@ -17551,7 +17551,7 @@ export async function registerRoutes(
 
   // === ATTENDANCE ANALYTICS & INACTIVE MEMBERS ===
 
-  app.get("/api/admin/attendance-analytics", async (req, res) => {
+  app.get("/api/admin/attendance-analytics", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -17816,7 +17816,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/attendance-analytics/kpi-detail/:metric", async (req, res) => {
+  app.get("/api/admin/attendance-analytics/kpi-detail/:metric", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -17957,7 +17957,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/attendance-analytics/member/:profileId", async (req, res) => {
+  app.get("/api/admin/attendance-analytics/member/:profileId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -18056,7 +18056,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/attendance-analytics/date-detail/:date", async (req, res) => {
+  app.get("/api/admin/attendance-analytics/date-detail/:date", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -18125,7 +18125,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/attendance-analytics/distribution/:bucket", async (req, res) => {
+  app.get("/api/admin/attendance-analytics/distribution/:bucket", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -18216,7 +18216,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/attendance-analytics/session-type/:type", async (req, res) => {
+  app.get("/api/admin/attendance-analytics/session-type/:type", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -18409,7 +18409,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/inactive-members/:userId/message", async (req, res) => {
+  app.post("/api/admin/inactive-members/:userId/message", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -19133,7 +19133,7 @@ export async function registerRoutes(
   });
 
   // Lock/unlock result
-  app.patch("/api/league/results/:id/lock", async (req, res) => {
+  app.patch("/api/league/results/:id/lock", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const resultId = Number(req.params.id);
@@ -19169,7 +19169,7 @@ export async function registerRoutes(
   });
 
   // Get club members for player assignment dropdown
-  app.get("/api/league/club-members/:clubId", async (req, res) => {
+  app.get("/api/league/club-members/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -19200,7 +19200,7 @@ export async function registerRoutes(
 
   // === LEAGUE OPPONENTS ROUTES ===
 
-  app.get("/api/league/opponents", async (req, res) => {
+  app.get("/api/league/opponents", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
@@ -19215,7 +19215,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/league/opponents", async (req, res) => {
+  app.post("/api/league/opponents", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const parsed = insertLeagueOpponentSchema.safeParse(req.body);
@@ -19236,7 +19236,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/league/opponents/:id", async (req, res) => {
+  app.patch("/api/league/opponents/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -19257,7 +19257,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/league/opponents/:id", async (req, res) => {
+  app.delete("/api/league/opponents/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -19355,7 +19355,7 @@ export async function registerRoutes(
 
   // === JUNIOR SKILL DEVELOPMENT ROUTES ===
 
-  app.get("/api/junior-skills/categories", async (_req, res) => {
+  app.get("/api/junior-skills/categories", requirePremium(clubIdFromSession), async (_req, res) => {
     try {
       const categories = await db.select().from(juniorSkillCategories).orderBy(juniorSkillCategories.displayOrder);
       const skills = await db.select().from(juniorSkills).orderBy(juniorSkills.displayOrder);
@@ -20673,14 +20673,14 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-skill-points/:userId", async (req, res) => {
+  app.get("/api/junior-skill-points/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       const result = await db.select({ total: sql<number>`COALESCE(SUM(${juniorChallengeCompletions.skillPointsEarned}), 0)` }).from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, parseInt(req.params.userId)));
       res.json({ totalPoints: Number(result[0]?.total || 0) });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-exercise-videos", async (req, res) => {
+  app.get("/api/junior-exercise-videos", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
       let videos;
@@ -20693,7 +20693,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/junior-exercise-videos", async (req, res) => {
+  app.post("/api/junior-exercise-videos", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
       const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
@@ -20705,7 +20705,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/junior-exercise-videos/:id", async (req, res) => {
+  app.patch("/api/junior-exercise-videos/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
       const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
@@ -20717,7 +20717,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/junior-exercise-videos/:id", async (req, res) => {
+  app.delete("/api/junior-exercise-videos/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
     try {
@@ -22193,7 +22193,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
 
   // === PREMIUM RECOGNITION CARDS ROUTES ===
 
-  app.get("/api/cards", async (req, res) => {
+  app.get("/api/cards", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       const allCards = await db.select().from(cards).where(eq(cards.isActive, true));
       res.json(allCards);
@@ -22202,7 +22202,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.get("/api/admin/cards", async (req, res) => {
+  app.get("/api/admin/cards", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
       const allCards = await db.select().from(cards);
@@ -22212,7 +22212,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.post("/api/admin/cards/seed", async (req, res) => {
+  app.post("/api/admin/cards/seed", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
       const existing = await db.select({ id: cards.id }).from(cards).limit(1);
@@ -22240,7 +22240,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.get("/api/my-cards", async (req, res) => {
+  app.get("/api/my-cards", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       const userId = (req.user as any).id;
@@ -22270,7 +22270,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.get("/api/admin/user-cards/:userId", async (req, res) => {
+  app.get("/api/admin/user-cards/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
       const userId = parseInt(req.params.userId);
@@ -22301,7 +22301,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.post("/api/admin/user-cards", async (req, res) => {
+  app.post("/api/admin/user-cards", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
       const issueSchema = z.object({
@@ -22347,7 +22347,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  app.post("/api/admin/user-cards/:id/revoke", async (req, res) => {
+  app.post("/api/admin/user-cards/:id/revoke", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
       const id = parseInt(req.params.id);

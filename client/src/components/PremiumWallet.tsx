@@ -248,7 +248,7 @@ export default function PremiumWallet() {
     );
   }
 
-  if (!myCards || myCards.length === 0) return null;
+  const hasCards = myCards && myCards.length > 0;
 
   const openCarousel = (index: number) => {
     setCarouselIndex(index);
@@ -256,7 +256,7 @@ export default function PremiumWallet() {
   };
 
   const rarityOrder = ["mythic", "legendary", "epic", "rare", "standard"];
-  const sorted = [...myCards].sort((a, b) => rarityOrder.indexOf(a.rarityLevel) - rarityOrder.indexOf(b.rarityLevel));
+  const sorted = hasCards ? [...myCards].sort((a, b) => rarityOrder.indexOf(a.rarityLevel) - rarityOrder.indexOf(b.rarityLevel)) : [];
 
   return (
     <>
@@ -265,29 +265,41 @@ export default function PremiumWallet() {
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <h3 className="font-semibold text-sm">Recognition Cards</h3>
-            <Badge variant="secondary" className="text-[10px]" data-testid="badge-card-count">{myCards.length}</Badge>
+            {hasCards && <Badge variant="secondary" className="text-[10px]" data-testid="badge-card-count">{myCards.length}</Badge>}
           </div>
-          <Button variant="ghost" size="sm" className="text-xs text-amber-600 dark:text-amber-400" onClick={() => openCarousel(0)} data-testid="button-view-all-cards">
-            View All
-          </Button>
+          {hasCards && (
+            <Button variant="ghost" size="sm" className="text-xs text-amber-600 dark:text-amber-400" onClick={() => openCarousel(0)} data-testid="button-view-all-cards">
+              View All
+            </Button>
+          )}
         </div>
         <CardContent className="pt-3 pb-4 px-4">
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-            {sorted.map((card, index) => (
-              <div key={card.id} className="shrink-0">
-                <RecognitionCard3D card={card} compact onClick={() => openCarousel(index)} />
-              </div>
-            ))}
-          </div>
+          {hasCards ? (
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+              {sorted.map((card, index) => (
+                <div key={card.id} className="shrink-0">
+                  <RecognitionCard3D card={card} compact onClick={() => openCarousel(index)} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 space-y-2" data-testid="text-no-cards">
+              <Award className="h-10 w-10 mx-auto text-amber-400/40" />
+              <p className="text-sm text-muted-foreground">No recognition cards yet</p>
+              <p className="text-xs text-muted-foreground/70">Cards are awarded by admins to recognise character, leadership, and contribution</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <FullScreenCardCarousel
-        cards={sorted}
-        initialIndex={carouselIndex}
-        open={carouselOpen}
-        onClose={() => setCarouselOpen(false)}
-      />
+      {hasCards && (
+        <FullScreenCardCarousel
+          cards={sorted}
+          initialIndex={carouselIndex}
+          open={carouselOpen}
+          onClose={() => setCarouselOpen(false)}
+        />
+      )}
     </>
   );
 }

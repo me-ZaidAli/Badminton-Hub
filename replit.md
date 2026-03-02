@@ -12,7 +12,7 @@ Preferred communication style: Simple, everyday language.
 The application uses React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, and shadcn/ui for the frontend. The backend is built with Node.js, Express.js, and TypeScript, utilizing PostgreSQL as the database with Drizzle ORM.
 
 ### Plan & Billing System
-A 2-plan freemium model (Basic FREE, Premium) is implemented with a clear plan status flow and backend enforcement via `requirePremium` middleware on premium-only API routes. Frontend gating ensures premium features are only accessible to active premium clubs. Key features like rankings, analytics, and advanced management tools are exclusive to the Premium plan, while basic club operations remain free.
+A 2-plan freemium model (Basic FREE, Premium) is implemented with a clear plan status flow and backend enforcement via `requirePremium` middleware on 215+ premium-only API routes. Frontend gating ensures premium features are only accessible to active premium clubs. Key features like rankings, analytics, advanced management tools, internal messaging, helpdesk tickets, coach directory, league management, recognition cards, attendance analytics, and financial tools are exclusive to the Premium plan, while basic club operations (sessions, attendance, member list, basic dashboard, auth) remain free.
 
 ### Multi-Sport Support
 The platform supports multiple racket sports, allowing clubs to select one or more sport types, which are then reflected across the application for tailored experiences.

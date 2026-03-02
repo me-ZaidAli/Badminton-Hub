@@ -217,7 +217,7 @@ export async function processSessionPaymentReminders() {
           templateName = "PAYMENT_REMINDER_BEFORE";
           scheduleKey = `payment_${daysBefore}d_before`;
           title = "Payment Reminder";
-          message = `\ud83c\udff8 Hi ${firstName}, our records show your payment for the ${session.title} session on ${sessionDateStr} has not been received. Please pay ${amount} to ${bankDetails} to secure your spot.${profileConfirmText}`;
+          message = `\ud83d\udd14 Hi ${firstName}, our records show your payment for the ${session.title} session on ${sessionDateStr} has not been received. Please pay ${amount} to ${bankDetails} to secure your spot.${profileConfirmText}`;
         } else if (diffDays === 0) {
           templateName = "PAYMENT_REMINDER_DAY_OF";
           scheduleKey = "payment_day_of";
@@ -378,7 +378,7 @@ export async function processReferralExpirationReminders() {
       templateName = "REFERRAL_EXPIRY_2DAYS";
       scheduleKey = "referral_2d_before";
       title = "Referral Code Expiring Soon";
-      message = `\ud83c\udff8 Hi ${firstName}, your referral code for ${clubName} will expire in 2 days. Share it now to help friends join and earn rewards!`;
+      message = `\ud83d\udd14 Hi ${firstName}, your referral code for ${clubName} will expire in 2 days. Share it now to help friends join and earn rewards!`;
     } else if (diffDays === 0) {
       templateName = "REFERRAL_EXPIRY_TODAY";
       scheduleKey = "referral_day_of";
