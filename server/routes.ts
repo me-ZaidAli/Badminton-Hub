@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentTeams, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -13095,6 +13095,18 @@ export async function registerRoutes(
       await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId));
       await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId));
       await db.delete(chats).where(eq(chats.clubId, clubId));
+      const clubTournamentIds = await db.select({ id: tournaments.id }).from(tournaments).where(eq(tournaments.clubId, clubId));
+      const tournamentIdList = clubTournamentIds.map(t => t.id);
+      if (tournamentIdList.length > 0) {
+        const catIds = await db.select({ id: tournamentCategories.id }).from(tournamentCategories).where(inArray(tournamentCategories.tournamentId, tournamentIdList));
+        const catIdList = catIds.map(c => c.id);
+        if (catIdList.length > 0) {
+          await db.delete(tournamentStandings).where(inArray(tournamentStandings.categoryId, catIdList));
+          await db.delete(tournamentMatches).where(inArray(tournamentMatches.categoryId, catIdList));
+          await db.delete(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIdList));
+          await db.delete(tournamentCategories).where(inArray(tournamentCategories.tournamentId, tournamentIdList));
+        }
+      }
       await db.delete(tournaments).where(eq(tournaments.clubId, clubId));
       await db.delete(juniorVideos).where(eq(juniorVideos.clubId, clubId));
       await db.delete(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
@@ -13164,6 +13176,18 @@ export async function registerRoutes(
       await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId));
       await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId));
       await db.delete(chats).where(eq(chats.clubId, clubId));
+      const clubTournamentIds2 = await db.select({ id: tournaments.id }).from(tournaments).where(eq(tournaments.clubId, clubId));
+      const tournamentIdList2 = clubTournamentIds2.map(t => t.id);
+      if (tournamentIdList2.length > 0) {
+        const catIds2 = await db.select({ id: tournamentCategories.id }).from(tournamentCategories).where(inArray(tournamentCategories.tournamentId, tournamentIdList2));
+        const catIdList2 = catIds2.map(c => c.id);
+        if (catIdList2.length > 0) {
+          await db.delete(tournamentStandings).where(inArray(tournamentStandings.categoryId, catIdList2));
+          await db.delete(tournamentMatches).where(inArray(tournamentMatches.categoryId, catIdList2));
+          await db.delete(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIdList2));
+          await db.delete(tournamentCategories).where(inArray(tournamentCategories.tournamentId, tournamentIdList2));
+        }
+      }
       await db.delete(tournaments).where(eq(tournaments.clubId, clubId));
       await db.delete(juniorVideos).where(eq(juniorVideos.clubId, clubId));
       await db.delete(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
