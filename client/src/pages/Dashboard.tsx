@@ -4,6 +4,7 @@ import { useSessions } from "@/hooks/use-sessions";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
+import { SocialLinksDisplay } from "@/components/SocialLinks";
 import { useToast } from "@/hooks/use-toast";
 import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
@@ -718,6 +719,19 @@ function DashboardContent({
           </div>
         </div>
       )}
+
+      {(() => {
+        const activeClub = clubs.find((c: any) => c.id === effectiveClubId);
+        const socialLinks = activeClub?.socialLinks || [];
+        if (socialLinks.length === 0 || !socialLinks.some((l: any) => l.url?.trim())) return null;
+        return (
+          <Card data-testid="card-follow-us">
+            <CardContent className="py-4 px-5">
+              <SocialLinksDisplay links={socialLinks} />
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <PlayerStatsDialog
         profileId={statsPlayerId}

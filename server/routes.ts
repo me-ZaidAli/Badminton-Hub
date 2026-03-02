@@ -6415,6 +6415,10 @@ export async function registerRoutes(
           }
         }
       }
+
+      if (body.socialLinks !== undefined) {
+        updates.socialLinks = Array.isArray(body.socialLinks) ? body.socialLinks : [];
+      }
       
       const updatedClub = await storage.updateClub(clubId, updates);
       res.json(updatedClub);
@@ -10683,6 +10687,7 @@ export async function registerRoutes(
       if (ageGroups !== undefined) updateData.ageGroups = ageGroups;
       if (playerLevels !== undefined) updateData.playerLevels = playerLevels;
       if (sportTypes !== undefined) updateData.sportTypes = Array.isArray(sportTypes) ? sportTypes : null;
+      if (req.body.socialLinks !== undefined) updateData.socialLinks = Array.isArray(req.body.socialLinks) ? req.body.socialLinks : [];
 
       if (adminUserId) {
         const uid = parseInt(adminUserId);

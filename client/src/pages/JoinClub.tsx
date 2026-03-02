@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Users, Check, Loader2, MapPin, ScrollText, ShieldCheck, Gift, CheckCircle2, XCircle } from "lucide-react";
+import { SocialLinksDisplay } from "@/components/SocialLinks";
 
 export default function JoinClub() {
   const { id } = useParams<{ id: string }>();
@@ -159,6 +160,8 @@ export default function JoinClub() {
               <Badge variant="outline" data-testid="badge-training">Training Available</Badge>
             )}
           </div>
+
+          <SocialLinksDisplay links={(club as any).socialLinks || []} variant="buttons" />
         </CardContent>
       </Card>
 

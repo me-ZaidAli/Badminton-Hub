@@ -23,8 +23,10 @@ import {
   Users, MapPin, Search, Plus, ArrowRight, List, LayoutGrid, Map,
   CheckCircle, Clock, XCircle, Loader2, Building2, Pencil,
   Trash2, Archive, Pause, Mail, Key, Save, Send, User,
-  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus, Gift, CheckCircle2, Upload, Camera
+  ChevronDown, ChevronUp, Phone, Calendar, ShieldAlert, UserMinus, Gift, CheckCircle2, Upload, Camera,
+  Share2
 } from "lucide-react";
+import { SocialLinksEditor, SocialLinksDisplay, type SocialLink } from "@/components/SocialLinks";
 
 type Membership = {
   clubId: number;
@@ -102,6 +104,7 @@ interface ClubEditForm {
   clubPolicies: string;
   clubStandards: string;
   sportTypes: string[];
+  socialLinks: { platform: string; url: string }[];
 }
 
 interface MemberRecord {
@@ -1250,6 +1253,7 @@ function EditClubDialog({
     clubPolicies: "",
     clubStandards: "",
     sportTypes: ["badminton"],
+    socialLinks: [],
   });
 
   useEffect(() => {
@@ -1283,6 +1287,7 @@ function EditClubDialog({
         clubPolicies: club.clubPolicies || "",
         clubStandards: club.clubStandards || "",
         sportTypes: club.sportTypes || ["badminton"],
+        socialLinks: (club as any).socialLinks || [],
       });
     }
   }, [club]);
@@ -1317,6 +1322,7 @@ function EditClubDialog({
         clubPolicies: data.form.clubPolicies,
         clubStandards: data.form.clubStandards,
         sportTypes: data.form.sportTypes,
+        socialLinks: data.form.socialLinks,
       });
       return res.json();
     },
@@ -1655,6 +1661,17 @@ function EditClubDialog({
                 />
               </div>
             </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3 flex items-center gap-2">
+              <Share2 className="w-4 h-4" />
+              Social Media & Links
+            </div>
+            <SocialLinksEditor
+              links={editClubForm.socialLinks}
+              onChange={(links) => setEditClubForm(f => ({ ...f, socialLinks: links }))}
+            />
           </div>
 
           <div>
@@ -2283,6 +2300,8 @@ export default function Clubs() {
                     <span className="text-muted-foreground">{"\u00A3"}{(selectedClub.sessionFee / 100).toFixed(2)}</span>
                   </div>
                 )}
+
+                <SocialLinksDisplay links={selectedClub.socialLinks || []} />
 
                 {user && (
                   <div className="border-t pt-4 mt-4">

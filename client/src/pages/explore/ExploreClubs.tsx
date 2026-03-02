@@ -9,6 +9,7 @@ import { ClubMap } from "@/components/ui/club-map";
 import { useClubs } from "@/hooks/use-clubs";
 import { useUser } from "@/hooks/use-auth";
 import { ArrowRight, Users, MapPin, Search, List, Map as MapIcon, ExternalLink } from "lucide-react";
+import { SocialLinksDisplay } from "@/components/SocialLinks";
 
 export default function ExploreClubs() {
   const { data: clubs, isLoading } = useClubs();
@@ -120,6 +121,7 @@ export default function ExploreClubs() {
                                 Google Maps
                               </a>
                             )}
+                            <SocialLinksDisplay links={(club as any).socialLinks || []} variant="compact" showLabel={false} />
                           </div>
                           <Link href={user ? `/join-club/${club.id}` : "/login"}>
                             <Button size="sm" variant="outline" data-testid={`button-join-club-${club.id}`}>Join</Button>
@@ -198,6 +200,7 @@ export default function ExploreClubs() {
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {club.description || "A great place to play and meet fellow players."}
                       </p>
+                      <SocialLinksDisplay links={(club as any).socialLinks || []} variant="compact" showLabel={false} />
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-3">
                           {(club.googleMapsUrl || (club.latitude && club.longitude)) && (

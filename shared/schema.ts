@@ -154,6 +154,7 @@ export const clubs = pgTable("clubs", {
   premiumEndDate: timestamp("premium_end_date"),
   premiumPaymentReference: text("premium_payment_reference"),
   sportTypes: jsonb("sport_types").$type<string[]>().default(["badminton"]),
+  socialLinks: jsonb("social_links").$type<{ platform: string; url: string }[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
