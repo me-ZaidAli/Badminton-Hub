@@ -233,7 +233,6 @@ function EmblemOverlay({ cardId }: { cardId: number }) {
   const gStroke = `emb-stroke-${cardId}`;
   const gRing = `emb-ring-${cardId}`;
   const gBg = `emb-bg-${cardId}`;
-  const gInner = `emb-inner-${cardId}`;
   const [c1, c2, c3, c4] = colors;
 
   return (
@@ -271,11 +270,6 @@ function EmblemOverlay({ cardId }: { cardId: number }) {
           <stop offset="100%" stopColor={c3} stopOpacity="0" />
         </radialGradient>
 
-        <radialGradient id={gInner} cx="0.4" cy="0.35" r="0.6">
-          <stop offset="0%" stopColor={c3} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={c3} stopOpacity="0.4" />
-        </radialGradient>
-
         <filter id={fId} x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="shadow" />
           <feOffset in="shadow" dx="1.5" dy="2.5" result="shadowOff" />
@@ -303,15 +297,14 @@ function EmblemOverlay({ cardId }: { cardId: number }) {
 
       <g transform="translate(195,101)">
         <circle r="62" fill={`url(#${gBg})`} />
-        <circle r="54" fill={`url(#${gInner})`} />
 
-        <circle r="56" fill="none" stroke={`url(#${gRing})`} strokeWidth="2" opacity="0.35" filter={`url(#${fId})`} />
+        <circle r="56" fill="none" stroke={`url(#${gRing})`} strokeWidth="2" opacity="0.3" filter={`url(#${fId})`} />
         <circle r="52" fill="none" stroke={`url(#${gRing})`} strokeWidth="3.5" filter={`url(#${fId})`} />
-        <circle r="49" fill="none" stroke={`url(#${gRing})`} strokeWidth="1" opacity="0.45" />
+        <circle r="49" fill="none" stroke={`url(#${gRing})`} strokeWidth="1" opacity="0.4" />
 
         <g filter={`url(#${fId})`} transform="scale(1.05)">
-          <path d={emblem.filled} fill={`url(#${gFill})`} opacity="0.92" />
-          <path d={emblem.stroked} fill="none" stroke={`url(#${gStroke})`} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+          <path d={emblem.filled} fill="none" stroke={`url(#${gFill})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+          <path d={emblem.stroked} fill="none" stroke={`url(#${gStroke})`} strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
         </g>
       </g>
     </svg>
