@@ -59,17 +59,28 @@ function BackgroundTile({
       data-testid={`bg-option-${bg.id}`}
       disabled={isLocked}
     >
-      <div
-        className="absolute inset-0 transition-transform duration-500 group-hover:scale-110"
-        style={{
-          background: bg.id === "none" ? "hsl(var(--background))" : bg.preview,
-        }}
-      />
-      {bg.css && (
-        <div
-          className="absolute inset-0 transition-transform duration-500 group-hover:scale-110"
-          style={{ backgroundImage: bg.css }}
+      {bg.image ? (
+        <img
+          src={bg.image}
+          alt={bg.label}
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
+      ) : (
+        <>
+          <div
+            className="absolute inset-0 transition-transform duration-500 group-hover:scale-110"
+            style={{
+              background: bg.id === "none" ? "hsl(var(--background))" : bg.preview,
+            }}
+          />
+          {bg.css && (
+            <div
+              className="absolute inset-0 transition-transform duration-500 group-hover:scale-110"
+              style={{ backgroundImage: bg.css }}
+            />
+          )}
+        </>
       )}
 
       {isLocked && (
@@ -104,6 +115,14 @@ function BackgroundTile({
       {bg.id === "none" && !isSelected && !isLocked && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs text-muted-foreground font-medium">None</span>
+        </div>
+      )}
+
+      {bg.image && !isLocked && bg.tier !== "blackcard" && (
+        <div className="absolute top-1.5 left-1.5 z-20">
+          <div className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-sm">
+            <span className="text-[7px] font-bold text-white/80 uppercase tracking-wider">Photo</span>
+          </div>
         </div>
       )}
 
@@ -249,14 +268,24 @@ export default function Backgrounds() {
           <div className="relative rounded-xl overflow-hidden border border-border/50 aspect-video">
             {backgroundId !== "none" && currentBgOption && (
               <>
-                <div
-                  className="absolute inset-0"
-                  style={{ background: currentBgOption.preview }}
-                />
-                <div
-                  className="absolute inset-0"
-                  style={{ backgroundImage: currentBgOption.css }}
-                />
+                {currentBgOption.image ? (
+                  <img
+                    src={currentBgOption.image}
+                    alt={currentBgOption.label}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <>
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: currentBgOption.preview }}
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{ backgroundImage: currentBgOption.css }}
+                    />
+                  </>
+                )}
               </>
             )}
             {backgroundId === "none" && <div className="absolute inset-0 bg-background" />}

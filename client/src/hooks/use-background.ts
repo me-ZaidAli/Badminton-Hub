@@ -18,6 +18,7 @@ export interface BackgroundOption {
   label: string;
   preview: string;
   css: string;
+  image?: string;
   category: BackgroundCategory;
   tier: BackgroundTier;
 }
@@ -337,6 +338,97 @@ export const BACKGROUND_OPTIONS: BackgroundOption[] = [
     category: "blackcard",
     tier: "blackcard",
   },
+
+  {
+    id: "img-mountain-lake",
+    label: "Mountain Lake",
+    preview: "linear-gradient(135deg, #1a3a4a, #2a5a6a)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80&auto=format&fit=crop",
+    category: "nature",
+    tier: "free",
+  },
+  {
+    id: "img-sunset-clouds",
+    label: "Sunset Clouds",
+    preview: "linear-gradient(135deg, #f97316, #ec4899)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920&q=80&auto=format&fit=crop",
+    category: "nature",
+    tier: "free",
+  },
+  {
+    id: "img-starry-night",
+    label: "Starry Night",
+    preview: "linear-gradient(135deg, #0a0a2e, #1a1a4e)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920&q=80&auto=format&fit=crop",
+    category: "cosmic",
+    tier: "free",
+  },
+  {
+    id: "img-ocean-waves",
+    label: "Ocean Waves",
+    preview: "linear-gradient(135deg, #0e4166, #1a6e8e)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80&auto=format&fit=crop",
+    category: "nature",
+    tier: "free",
+  },
+  {
+    id: "img-forest-path",
+    label: "Forest Path",
+    preview: "linear-gradient(135deg, #1a3a1a, #2a5a2a)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80&auto=format&fit=crop",
+    category: "nature",
+    tier: "premium",
+  },
+  {
+    id: "img-city-lights",
+    label: "City Lights",
+    preview: "linear-gradient(135deg, #1a1a2e, #2a2a4e)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80&auto=format&fit=crop",
+    category: "luxury",
+    tier: "premium",
+  },
+  {
+    id: "img-northern-sky",
+    label: "Northern Sky",
+    preview: "linear-gradient(135deg, #0a2a3a, #1a4a5a)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1920&q=80&auto=format&fit=crop",
+    category: "cosmic",
+    tier: "premium",
+  },
+  {
+    id: "img-dark-mountains",
+    label: "Dark Mountains",
+    preview: "linear-gradient(135deg, #111, #222)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&q=80&auto=format&fit=crop",
+    category: "nature",
+    tier: "premium",
+  },
+  {
+    id: "img-abstract-smoke",
+    label: "Abstract Smoke",
+    preview: "linear-gradient(135deg, #0a0a0a, #1a1a2a)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1920&q=80&auto=format&fit=crop",
+    category: "luxury",
+    tier: "premium",
+  },
+  {
+    id: "img-galaxy-deep",
+    label: "Deep Galaxy",
+    preview: "linear-gradient(135deg, #0a0520, #150a30)",
+    css: "",
+    image: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=80&auto=format&fit=crop",
+    category: "cosmic",
+    tier: "blackcard",
+  },
 ];
 
 function getInitialBackground(): string {
@@ -358,9 +450,23 @@ function applyBackgroundToDOM(id: string) {
     document.head.appendChild(bgStyleEl);
   }
 
-  if (id === "none" || !option.css) {
+  if (id === "none" || (!option.css && !option.image)) {
     html.removeAttribute("data-bg");
     bgStyleEl.textContent = "";
+  } else if (option.image) {
+    html.setAttribute("data-bg", id);
+    bgStyleEl.textContent = `
+      html[data-bg],
+      html[data-bg].dark,
+      html[data-bg] body {
+        background: ${option.preview} !important;
+        background-image: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.5)), url('${option.image}') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-attachment: fixed !important;
+        background-repeat: no-repeat !important;
+      }
+    `;
   } else {
     html.setAttribute("data-bg", id);
     bgStyleEl.textContent = `

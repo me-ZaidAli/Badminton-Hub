@@ -958,8 +958,10 @@ export async function registerRoutes(
           "lunar-surface", "nebula-drift", "solar-flare",
           "cosmic-purple", "golden-hour", "ocean-depth", "rose-garden",
           "northern-lights", "steel-grid", "diamond-mesh",
+          "img-forest-path", "img-city-lights", "img-northern-sky",
+          "img-dark-mountains", "img-abstract-smoke",
         ];
-        const blackcardBackgrounds = ["black-diamond", "galaxy-prestige", "infinite-void"];
+        const blackcardBackgrounds = ["black-diamond", "galaxy-prestige", "infinite-void", "img-galaxy-deep"];
         if (blackcardBackgrounds.includes(bgId)) {
           const user = await storage.getUser(req.user!.id);
           if (!user?.blackCardAccess) {
