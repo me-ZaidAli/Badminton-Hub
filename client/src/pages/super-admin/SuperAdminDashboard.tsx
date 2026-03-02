@@ -189,6 +189,7 @@ const controlSections = [
     label: "Finance & Memberships",
     items: [
       { href: "/admin/financials", label: "Financials", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+      { href: "/super-admin/billing", label: "Club Billing", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
       { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
       { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     ],

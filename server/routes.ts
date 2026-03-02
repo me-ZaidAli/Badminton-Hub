@@ -13030,7 +13030,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/clubs/:clubId/delete-permanent", async (req, res) => {
+  app.delete("/api/admin/clubs/:clubId/permanent", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
