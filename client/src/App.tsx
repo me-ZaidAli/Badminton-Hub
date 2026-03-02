@@ -12,6 +12,7 @@ import { Loader2, Lock } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense, useEffect } from "react";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
+import { useBackground } from "@/hooks/use-background";
 
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -647,13 +648,14 @@ function Router() {
 function ThemeSync() {
   const { data: user } = useUser();
   const { syncFromUser } = useTheme();
+  const { syncFromUser: syncBg } = useBackground();
 
   useEffect(() => {
     if (user && user.displayMode) {
       syncFromUser(user.displayMode as any, user.reducedMotion ?? false, user.id);
     }
-    if (user?.dashboardBackground) {
-      localStorage.setItem("dashboardBackground", user.dashboardBackground);
+    if (user) {
+      syncBg(user.dashboardBackground);
     }
   }, [user?.id, user?.displayMode, user?.reducedMotion, user?.dashboardBackground]);
 

@@ -109,8 +109,27 @@ function getInitialBackground(): string {
   return "none";
 }
 
+function applyBackgroundToDOM(id: string) {
+  const option = BACKGROUND_OPTIONS.find(b => b.id === id) || BACKGROUND_OPTIONS[0];
+  const el = document.documentElement;
+  if (id === "none" || !option.css) {
+    el.removeAttribute("data-bg");
+    el.style.removeProperty("--app-bg-base");
+    el.style.removeProperty("--app-bg-overlay");
+  } else {
+    el.setAttribute("data-bg", id);
+    el.style.setProperty("--app-bg-base", option.preview);
+    el.style.setProperty("--app-bg-overlay", option.css);
+  }
+}
+
+const initialBg = getInitialBackground();
+if (typeof window !== "undefined" && initialBg !== "none") {
+  applyBackgroundToDOM(initialBg);
+}
+
 export function useBackground() {
-  const [backgroundId, setBackgroundIdState] = useState<string>(getInitialBackground);
+  const [backgroundId, setBackgroundIdState] = useState<string>(initialBg);
 
   const saveMutation = useMutation({
     mutationFn: async (bg: string) => {
@@ -121,16 +140,24 @@ export function useBackground() {
     },
   });
 
+  useEffect(() => {
+    applyBackgroundToDOM(backgroundId);
+  }, [backgroundId]);
+
   const setBackground = useCallback((id: string) => {
     setBackgroundIdState(id);
     localStorage.setItem("dashboardBackground", id);
+    applyBackgroundToDOM(id);
     saveMutation.mutate(id);
   }, []);
 
   const syncFromUser = useCallback((bg: string | null | undefined) => {
     const effective = bg || "none";
-    setBackgroundIdState(effective);
-    localStorage.setItem("dashboardBackground", effective);
+    if (effective !== localStorage.getItem("dashboardBackground")) {
+      setBackgroundIdState(effective);
+      localStorage.setItem("dashboardBackground", effective);
+      applyBackgroundToDOM(effective);
+    }
   }, []);
 
   const currentBackground = BACKGROUND_OPTIONS.find(b => b.id === backgroundId) || BACKGROUND_OPTIONS[0];

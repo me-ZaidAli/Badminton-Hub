@@ -23,7 +23,6 @@ import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useBackground } from "@/hooks/use-background";
 
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
@@ -262,27 +261,8 @@ function DashboardContent({
       .slice(0, 5);
   }, [mySessionsList]);
 
-  const { backgroundCss, currentBackground, syncFromUser: syncBg } = useBackground();
-
-  useEffect(() => {
-    if (user?.dashboardBackground) {
-      syncBg(user.dashboardBackground);
-    }
-  }, [user?.dashboardBackground]);
-
   return (
-    <div className="space-y-8 relative min-h-screen">
-      {backgroundCss && (
-        <div
-          className="absolute inset-0 pointer-events-none -z-[1] -mx-4 -mt-4 -mb-4 sm:-mx-6 sm:-mt-6 sm:-mb-6 rounded-xl"
-          style={{
-            background: currentBackground.preview,
-            backgroundImage: backgroundCss,
-          }}
-          aria-hidden="true"
-        />
-      )}
-
+    <div className="space-y-8">
       <PageHeader
         title={`Welcome back, ${user?.fullName.split(' ')[0]}!`}
         description="Your dashboard overview."

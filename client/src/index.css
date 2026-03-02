@@ -6223,6 +6223,25 @@ html, body {
 
 /* ===== End T002 ===== */
 
+/* ===== Global Background Wallpaper System ===== */
+html[data-bg] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--app-bg-base, transparent);
+}
+html[data-bg] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--app-bg-overlay, none);
+}
+/* ===== End Background System ===== */
+
 /* ═══════════════════════════════════════════════════════════════════
    THEME 3: Illustrative Organic Minimalism
    Applies to light nature-inspired themes (Signature + Royal Duty light themes)
