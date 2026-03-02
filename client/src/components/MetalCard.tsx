@@ -161,175 +161,80 @@ const DEFAULT_MATERIAL: MetalMaterial = {
   shimmerColor: "rgba(255,255,255,0.08)",
 };
 
-const IS_DARK_METAL: Record<number, boolean> = {
-  1: false, 2: false, 3: true, 4: false, 5: true,
-  6: true, 7: true, 8: true, 9: true, 10: false,
+const EMBLEM_GOLD: [string, string, string, string] = ["#d4af37", "#f5d76e", "#8a6d14", "#e8c84a"];
+const EMBLEM_SILVER: [string, string, string, string] = ["#b8b8b8", "#e8e8e8", "#707070", "#d0d0d0"];
+const EMBLEM_ROSEGOLD: [string, string, string, string] = ["#c98a94", "#f0c0c8", "#8e4955", "#daa0aa"];
+const EMBLEM_BRONZE: [string, string, string, string] = ["#cd7f32", "#e8a860", "#8b5a2b", "#d4944a"];
+const EMBLEM_EMERALD_GOLD: [string, string, string, string] = ["#c0a050", "#e0d080", "#806020", "#d0b868"];
+
+const EMBLEM_COLORS: Record<number, [string, string, string, string]> = {
+  1: EMBLEM_ROSEGOLD,
+  2: EMBLEM_GOLD,
+  3: EMBLEM_EMERALD_GOLD,
+  4: EMBLEM_SILVER,
+  5: EMBLEM_SILVER,
+  6: EMBLEM_GOLD,
+  7: EMBLEM_SILVER,
+  8: EMBLEM_GOLD,
+  9: EMBLEM_BRONZE,
+  10: EMBLEM_GOLD,
 };
 
-const GRAIN_ANGLE: Record<number, number> = {
-  1: 90, 2: 45, 3: 60, 4: 135, 5: 0,
-  6: 45, 7: 45, 8: 90, 9: 0, 10: 135,
+const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
+  1: {
+    filled: "M0,26 C-5,26 -7,22 -7,18 L-7,12 C-7,10 -5,9 -3,9 L3,9 C5,9 7,10 7,12 L7,18 C7,22 5,26 0,26Z M-3,9 C-16,1 -20,-12 -16,-24 C-11,-32 -5,-38 0,-42 C5,-38 11,-32 16,-24 C20,-12 16,1 3,9Z",
+    stroked: "M0,9 L0,-42 M-3,9 L-12,-14 M3,9 L12,-14 M-2,9 L-17,-3 M2,9 L17,-3 M-2,9 L-9,-28 M2,9 L9,-28 M-14,-6 C-16,-16 -10,-30 0,-40 M14,-6 C16,-16 10,-30 0,-40 M-10,2 C-13,-6 -8,-22 0,-36 M10,2 C13,-6 8,-22 0,-36",
+  },
+  2: {
+    filled: "M0,-38 C-4,-38 -6,-35 -6,-33 C-6,-31 -4,-28 0,-28 C4,-28 6,-31 6,-33 C6,-35 4,-38 0,-38Z M-1,-28 L-5,-14 L-8,0 L-3,0 L-10,16 L-12,26 L-8,26 L-4,14 L0,2 L6,14 L10,26 L14,26 L12,16 L8,0 L5,-14 L1,-28Z",
+    stroked: "M5,-22 L12,-28 L20,-36 L26,-42 L28,-46 C34,-52 38,-50 36,-46 C34,-42 28,-40 26,-44 M-5,-22 L-14,-16 L-20,-10 M22,-38 L28,-42 L30,-48 M-8,16 L-12,26 M10,16 L14,26",
+  },
+  3: {
+    filled: "M-12,-32 C-26,-32 -32,-18 -32,-2 C-32,14 -26,24 -12,24 C2,24 8,14 8,-2 C8,-18 2,-32 -12,-32Z M12,-32 C26,-32 32,-18 32,-2 C32,14 26,24 12,24 C-2,24 -8,14 -8,-2 C-8,-18 -2,-32 12,-32Z",
+    stroked: "M-30,-18 L6,-18 M-32,-8 L8,-8 M-32,2 L8,2 M-30,12 L6,12 M-26,20 L2,20 M-12,-32 L-12,24 M-22,0 L-22,22 M0,-28 L0,20 M8,-18 L30,-18 M8,-8 L32,-8 M8,2 L32,2 M8,12 L30,12 M12,-32 L12,24 M22,0 L22,22 M-12,24 L-14,38 M-10,24 L-8,38 M12,24 L14,38 M10,24 L8,38",
+  },
+  4: {
+    filled: "M0,-36 C-14,-36 -22,-22 -22,-6 C-22,10 -14,22 0,22 C14,22 22,10 22,-6 C22,-22 14,-36 0,-36Z",
+    stroked: "M-20,-24 L20,-24 M-22,-14 L22,-14 M-22,-4 L22,-4 M-22,6 L22,6 M-20,16 L20,16 M-10,-35 L-10,21 M0,-36 L0,22 M10,-35 L10,21 M-4,22 L-4,38 L4,38 L4,22 M-4,28 L4,28 M-4,34 L4,34 M0,-42 L2,-36 L8,-36 L3,-32 L5,-26 L0,-30 L-5,-26 L-3,-32 L-8,-36 L-2,-36Z",
+  },
+  5: {
+    filled: "M-22,-28 C-34,-28 -40,-16 -40,-2 C-40,12 -34,22 -22,22 C-10,22 -4,12 -4,-2 C-4,-16 -10,-28 -22,-28Z M18,26 C14,26 12,22 12,18 L12,12 C12,10 14,9 16,9 L24,9 C26,9 28,10 28,12 L28,18 C28,22 26,26 22,26Z",
+    stroked: "M-38,-16 L-6,-16 M-40,-6 L-4,-6 M-40,4 L-4,4 M-38,14 L-6,14 M-34,20 L-10,20 M-22,-28 L-22,22 M-32,-2 L-32,20 M-12,-24 L-12,20 M-22,22 L-24,34 M-20,22 L-18,34 M20,9 L20,-40 M16,9 L12,-14 M24,9 L28,-14 M14,-6 C12,-16 16,-30 20,-38 M26,-6 C28,-16 24,-30 20,-38",
+  },
+  6: {
+    filled: "M0,-36 L-22,-22 L-22,6 Q-22,28 0,38 Q22,28 22,6 L22,-22Z",
+    stroked: "M0,-28 L-16,-18 L-16,4 Q-16,22 0,30 Q16,22 16,4 L16,-18Z M-6,-18 C-12,-18 -16,-12 -16,-2 C-16,8 -12,14 -6,14 C2,14 6,8 6,-2 C6,-12 2,-18 -6,-18Z M-14,-10 L4,-10 M-16,-2 L6,-2 M-16,6 L6,6 M-6,-18 L-6,14 M-12,-2 L-12,12 M2,-16 L2,12 M-6,14 L-8,22 M-4,14 L-2,22",
+  },
+  7: {
+    filled: "M0,-36 C-14,-36 -22,-22 -22,-6 C-22,10 -14,22 0,22 C14,22 22,10 22,-6 C22,-22 14,-36 0,-36Z",
+    stroked: "M-20,-24 L20,-24 M-22,-14 L22,-14 M-22,-4 L22,-4 M-22,6 L22,6 M-20,16 L20,16 M-10,-35 L-10,21 M0,-36 L0,22 M10,-35 L10,21 M-4,22 L-4,38 L4,38 L4,22 M-4,28 L4,28 M-4,34 L4,34 M0,22 L0,42 M-3,38 L-8,38 M3,38 L8,38",
+  },
+  8: {
+    filled: "M0,-38 C-4,-38 -6,-35 -6,-33 C-6,-31 -4,-28 0,-28 C4,-28 6,-31 6,-33 C6,-35 4,-38 0,-38Z M-1,-28 L-5,-14 L-8,0 L-3,0 L-10,16 L-12,26 L-8,26 L-4,14 L0,2 L6,14 L10,26 L14,26 L12,16 L8,0 L5,-14 L1,-28Z",
+    stroked: "M5,-22 L12,-28 L20,-36 L26,-42 M-5,-22 L-14,-16 L-20,-10 M26,-42 L16,-28 L28,-26 L18,-14 L26,-12 M-22,8 L-30,-2 L-28,-12 L-34,-6 M28,-18 L32,-22 M28,-12 L34,-10",
+  },
+  9: {
+    filled: "M0,26 C-5,26 -7,22 -7,18 L-7,12 C-7,10 -5,9 -3,9 L3,9 C5,9 7,10 7,12 L7,18 C7,22 5,26 0,26Z M-3,9 C-16,1 -20,-12 -16,-24 C-11,-32 -5,-38 0,-42 C5,-38 11,-32 16,-24 C20,-12 16,1 3,9Z",
+    stroked: "M0,9 L0,-42 M-3,9 L-12,-14 M3,9 L12,-14 M-2,9 L-17,-3 M2,9 L17,-3 M-2,9 L-9,-28 M2,9 L9,-28 M-22,0 Q0,-16 22,0 Q0,16 -22,0Z M0,-8 A4,4 0 1,1 0,0 A4,4 0 1,1 0,-8Z",
+  },
+  10: {
+    filled: "M-18,6 L-12,-12 L-5,2 L0,-20 L5,2 L12,-12 L18,6 L18,12 L-18,12Z M0,14 C-10,14 -16,24 -16,34 C-16,44 -10,52 0,52 C10,52 16,44 16,34 C16,24 10,14 0,14Z",
+    stroked: "M-14,20 L14,20 M-16,28 L16,28 M-16,36 L16,36 M-14,46 L14,46 M-6,15 L-6,51 M0,14 L0,52 M6,15 L6,51 M-2,52 L-2,64 L2,64 L2,52 M-2,58 L2,58 M0,-14 A1.5,1.5 0 1,1 0,-11 A1.5,1.5 0 1,1 0,-14Z M-8,-6 A1,1 0 1,1 -8,-4 A1,1 0 1,1 -8,-6Z M8,-6 A1,1 0 1,1 8,-4 A1,1 0 1,1 8,-6Z",
+  },
 };
 
-const E = {
-  shuttleBody: "M-6,32 C-8,32 -9,28 -9,24 L-9,18 C-9,15 -7,14 -5,14 L5,14 C7,14 9,15 9,18 L9,24 C9,28 8,32 6,32Z",
-  shuttleCone: "M-5,14 C-22,4 -26,-16 -20,-30 C-14,-40 -6,-46 0,-50 C6,-46 14,-40 20,-30 C26,-16 22,4 5,14",
-  shuttleFeathers: "M0,14 L0,-50 M-5,14 L-16,-20 M5,14 L16,-20 M-4,14 L-22,-5 M4,14 L22,-5 M-3,14 L-12,-35 M3,14 L12,-35",
-  shuttleRibs: "M-18,-10 C-20,-20 -14,-36 0,-48 M18,-10 C20,-20 14,-36 0,-48 M-12,4 C-16,-8 -10,-28 0,-44 M12,4 C16,-8 10,-28 0,-44",
+function EmblemOverlay({ cardId }: { cardId: number }) {
+  const emblem = EMBLEM_PATHS[cardId];
+  const colors = EMBLEM_COLORS[cardId] || EMBLEM_GOLD;
+  if (!emblem) return null;
 
-  racketFrame: "M0,-44 C-20,-44 -30,-26 -30,-6 C-30,14 -20,28 0,28 C20,28 30,14 30,-6 C30,-26 20,-44 0,-44Z",
-  racketStrH: "M-28,-30 L28,-30 M-30,-18 L30,-18 M-30,-6 L30,-6 M-30,6 L30,6 M-28,18 L28,18",
-  racketStrV: "M-16,-43 L-16,27 M-6,-44 L-6,28 M6,-44 L6,28 M16,-43 L16,27",
-  racketGrip: "M-5,28 L-5,52 L5,52 L5,28 M-5,36 L5,36 M-5,42 L5,42 M-5,48 L5,48 M-7,52 L7,52 L7,58 L-7,58Z",
-
-  playerBody: "M0,-42 C-5,-42 -7,-39 -7,-36 C-7,-33 -5,-30 0,-30 C5,-30 7,-33 7,-36 C7,-39 5,-42 0,-42Z M-1,-30 L-6,-12 L-10,2 M1,-30 L6,-12 L10,2 M-10,2 L-6,2 L0,2 L6,2 L10,2",
-  playerSmashArm: "M6,-24 L14,-32 L22,-40 L28,-46 M28,-46 L30,-50 C36,-58 42,-56 40,-50 C38,-46 32,-44 30,-48",
-  playerBalanceArm: "M-6,-24 L-16,-18 L-22,-12",
-  playerLegs: "M-4,2 L-12,18 L-14,32 L-18,34 M4,2 L14,16 L16,30 L20,32",
-
-  playerSmashFill: "M0,-42 C-5,-42 -7,-39 -7,-36 C-7,-33 -4,-30 -1,-30 L-6,-12 L-10,2 L-4,2 L-12,18 L-14,32 L-18,34 L-14,34 L-10,30 L-6,18 L0,4 L8,18 L12,30 L16,34 L20,34 L16,30 L14,16 L10,2 L6,-12 L1,-30 C4,-30 7,-33 7,-36 C7,-39 5,-42 0,-42Z",
-
-  crossedRacketL: "M-12,-38 C-28,-38 -36,-22 -36,-4 C-36,14 -28,26 -12,26 C4,26 12,14 12,-4 C12,-22 4,-38 -12,-38Z M-14,26 L-16,44 M-10,26 L-8,44",
-  crossedRacketR: "M12,-38 C28,-38 36,-22 36,-4 C36,14 28,26 12,26 C-4,26 -12,14 -12,-4 C-12,-22 -4,-38 12,-38Z M14,26 L16,44 M10,26 L8,44",
-  crossedStrings: "M-34,-24 L10,-24 M-36,-12 L12,-12 M-36,0 L12,0 M-36,12 L12,12 M-28,24 L4,24 M-10,-38 L10,-38 M-12,26 L-12,-4 M-24,26 L-24,-6 M0,22 L0,-10 M10,-36 L36,-36 M12,-24 L34,-24 M12,-12 L36,-12 M12,0 L36,0 M12,12 L28,12 M12,-38 L12,26 M24,26 L24,-6 M0,-34 L0,-10",
-
-  courtLines: "M-55,-32 L55,-32 L55,32 L-55,32Z M-55,0 L55,0 M0,-32 L0,32 M-38,-32 L-38,32 M38,-32 L38,32 M-38,-16 L38,-16 M-38,16 L38,16",
-
-  smashArc: "M-55,38 Q-25,28 5,-2 Q25,-22 55,-38",
-  smashTrail: "M-50,40 Q-20,30 8,0 M-48,36 Q-18,26 3,-4",
-
-  trajectoryTL: "M-42,28 Q-28,12 -22,-8 Q-18,-22 -24,-38",
-  trajectoryBR: "M42,32 Q28,16 22,-4 Q18,-18 24,-34",
-
-  laurelL: "M0,38 Q-22,32 -38,18 Q-48,6 -50,-10 Q-52,-22 -46,-34 Q-40,-42 -30,-46 M-30,-46 Q-26,-38 -32,-30 Q-38,-34 -30,-46 M-38,-36 Q-34,-28 -40,-20 Q-44,-24 -38,-36 M-44,-22 Q-40,-14 -46,-6 Q-50,-10 -44,-22 M-48,-8 Q-44,0 -48,8 Q-52,4 -48,-8 M-48,10 Q-44,18 -48,24 Q-52,20 -48,10",
-  laurelR: "M0,38 Q22,32 38,18 Q48,6 50,-10 Q52,-22 46,-34 Q40,-42 30,-46 M30,-46 Q26,-38 32,-30 Q38,-34 30,-46 M38,-36 Q34,-28 40,-20 Q44,-24 38,-36 M44,-22 Q40,-14 46,-6 Q50,-10 44,-22 M48,-8 Q44,0 48,8 Q52,4 48,-8 M48,10 Q44,18 48,24 Q52,20 48,10",
-
-  shieldOuter: "M0,-42 L-28,-26 L-28,8 Q-28,36 0,48 Q28,36 28,8 L28,-26Z",
-  shieldInner: "M0,-34 L-20,-22 L-20,6 Q-20,28 0,38 Q20,28 20,6 L20,-22Z",
-
-  crownFull: "M-22,6 L-16,-14 L-8,2 L0,-22 L8,2 L16,-14 L22,6 L22,14 L-22,14Z",
-
-  featherV: "M-8,8 L0,-10 L8,8 M-5,5 L0,-4 L5,5",
-
-  starBurst: "M0,-16 L3,-6 L14,-6 L5,1 L8,12 L0,6 L-8,12 L-5,1 L-14,-6 L-3,-6Z",
-
-  diamond: "M0,-12 L10,0 L0,12 L-10,0Z",
-
-  sealRing: "M0,-28 A28,28 0 1,1 0,28 A28,28 0 1,1 0,-28Z M0,-22 A22,22 0 1,1 0,22 A22,22 0 1,1 0,-22Z",
-  sealDots: "M0,-25 L0,-24 M18,-18 L17,-17 M25,0 L24,0 M18,18 L17,17 M0,25 L0,24 M-18,18 L-17,17 M-25,0 L-24,0 M-18,-18 L-17,-17",
-};
-
-type EngPiece = {
-  paths: (keyof typeof E)[];
-  x: number;
-  y: number;
-  s?: number;
-  r?: number;
-  o?: number;
-  fill?: boolean;
-  sw?: number;
-};
-
-const CARD_ENGRAVINGS: Record<number, EngPiece[]> = {
-  1: [
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 255, y: 95, s: 1.1, o: 0.14 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 70, y: 100, s: 0.7, o: 0.13, fill: true },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 160, y: 155, s: 0.3, r: -30, o: 0.10 },
-    { paths: ['trajectoryTL'], x: 55, y: 50, s: 0.5, o: 0.06 },
-    { paths: ['sealRing', 'sealDots'], x: 270, y: 168, s: 0.3, o: 0.06 },
-  ],
-  2: [
-    { paths: ['playerSmashFill'], x: 80, y: 95, s: 1.0, o: 0.10, fill: true },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 80, y: 95, s: 1.0, o: 0.14 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers'], x: 250, y: 65, s: 0.55, r: 25, o: 0.12 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 250, y: 145, s: 0.35, o: 0.10 },
-    { paths: ['crownFull'], x: 160, y: 38, s: 0.5, o: 0.08, fill: true },
-    { paths: ['smashArc', 'smashTrail'], x: 160, y: 100, s: 1.0, r: -5, o: 0.06 },
-  ],
-  3: [
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 100, y: 88, s: 0.65, r: -12, o: 0.13 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 220, y: 88, s: 0.65, r: 12, o: 0.13 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV'], x: 160, y: 145, s: 0.3, o: 0.10 },
-    { paths: ['courtLines'], x: 160, y: 100, s: 1.2, o: 0.04 },
-    { paths: ['laurelL', 'laurelR'], x: 160, y: 108, s: 0.42, o: 0.07 },
-  ],
-  4: [
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 160, y: 90, s: 1.2, o: 0.14 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers'], x: 65, y: 75, s: 0.5, r: -20, o: 0.12 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 265, y: 135, s: 0.35, r: 15, o: 0.10 },
-    { paths: ['starBurst'], x: 265, y: 42, s: 1.2, o: 0.09 },
-    { paths: ['smashArc'], x: 160, y: 100, s: 1.3, r: -8, o: 0.06 },
-  ],
-  5: [
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 80, y: 85, s: 0.55, r: -15, o: 0.12 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 240, y: 80, s: 0.6, o: 0.12 },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 160, y: 130, s: 0.7, o: 0.10 },
-    { paths: ['laurelL', 'laurelR'], x: 160, y: 170, s: 0.3, o: 0.06 },
-    { paths: ['featherV'], x: 50, y: 165, s: 1.0, o: 0.06 },
-    { paths: ['featherV'], x: 270, y: 165, s: 1.0, o: 0.06 },
-  ],
-  6: [
-    { paths: ['crossedRacketL', 'crossedRacketR', 'crossedStrings'], x: 160, y: 85, s: 0.65, o: 0.14 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers'], x: 60, y: 55, s: 0.45, r: -25, o: 0.12 },
-    { paths: ['playerSmashFill'], x: 265, y: 90, s: 0.8, o: 0.08, fill: true },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 265, y: 90, s: 0.8, o: 0.13 },
-    { paths: ['diamond'], x: 55, y: 165, s: 1.2, o: 0.06 },
-    { paths: ['diamond'], x: 265, y: 165, s: 1.2, o: 0.06 },
-  ],
-  7: [
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 160, y: 80, s: 0.8, o: 0.13 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 65, y: 115, s: 0.4, r: -25, o: 0.11 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV', 'racketGrip'], x: 255, y: 115, s: 0.4, r: 25, o: 0.11 },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 160, y: 155, s: 0.5, o: 0.08 },
-    { paths: ['featherV'], x: 50, y: 40, s: 1.0, r: -15, o: 0.06 },
-    { paths: ['featherV'], x: 270, y: 40, s: 1.0, r: 15, o: 0.06 },
-  ],
-  8: [
-    { paths: ['playerSmashFill'], x: 160, y: 88, s: 1.3, o: 0.10, fill: true },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 160, y: 88, s: 1.3, o: 0.15 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers'], x: 60, y: 60, s: 0.5, r: -30, o: 0.12 },
-    { paths: ['racketFrame', 'racketStrH', 'racketStrV'], x: 275, y: 150, s: 0.32, r: 20, o: 0.10 },
-    { paths: ['smashArc', 'smashTrail'], x: 160, y: 100, s: 1.2, o: 0.07 },
-    { paths: ['starBurst'], x: 285, y: 38, s: 0.8, o: 0.07 },
-  ],
-  9: [
-    { paths: ['shieldOuter', 'shieldInner'], x: 160, y: 85, s: 0.85, o: 0.10 },
-    { paths: ['crossedRacketL', 'crossedRacketR'], x: 160, y: 78, s: 0.35, o: 0.12 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers'], x: 60, y: 155, s: 0.4, r: -15, o: 0.10 },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 272, y: 145, s: 0.6, o: 0.10 },
-    { paths: ['courtLines'], x: 160, y: 100, s: 1.0, o: 0.035 },
-    { paths: ['featherV'], x: 50, y: 40, s: 0.9, o: 0.06 },
-  ],
-  10: [
-    { paths: ['shieldOuter', 'shieldInner'], x: 160, y: 88, s: 0.9, o: 0.10 },
-    { paths: ['shuttleBody', 'shuttleCone', 'shuttleFeathers', 'shuttleRibs'], x: 160, y: 80, s: 0.4, o: 0.12 },
-    { paths: ['crossedRacketL', 'crossedRacketR', 'crossedStrings'], x: 160, y: 78, s: 0.25, o: 0.10 },
-    { paths: ['laurelL', 'laurelR'], x: 160, y: 95, s: 0.5, o: 0.08 },
-    { paths: ['crownFull'], x: 160, y: 38, s: 0.65, o: 0.09, fill: true },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 60, y: 145, s: 0.55, o: 0.09 },
-    { paths: ['playerBody', 'playerSmashArm', 'playerBalanceArm', 'playerLegs'], x: 260, y: 145, s: 0.55, r: -15, o: 0.09 },
-    { paths: ['sealRing', 'sealDots'], x: 160, y: 168, s: 0.25, o: 0.06 },
-  ],
-};
-
-function EngravingOverlay({ cardId }: { cardId: number }) {
-  const pieces = CARD_ENGRAVINGS[cardId];
-  if (!pieces) return null;
-
-  const isDark = IS_DARK_METAL[cardId] ?? false;
-  const grainAngle = GRAIN_ANGLE[cardId] ?? 0;
-  const fId = `eng-${cardId}`;
-  const nId = `noise-${cardId}`;
-  const gId = `grain-${cardId}`;
-
-  const grooveColor = isDark ? "white" : "black";
-  const grooveOp = isDark ? "0.12" : "0.18";
-  const hlColor = "white";
-  const hlOp = isDark ? "0.22" : "0.16";
-  const strokeCol = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
-  const fillCol = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
-
-  const hasEliteText = cardId === 2 || cardId === 10;
+  const fId = `emb-${cardId}`;
+  const gFill = `emb-fill-${cardId}`;
+  const gStroke = `emb-stroke-${cardId}`;
+  const gRing = `emb-ring-${cardId}`;
+  const gBg = `emb-bg-${cardId}`;
+  const gInner = `emb-inner-${cardId}`;
+  const [c1, c2, c3, c4] = colors;
 
   return (
     <svg
@@ -339,105 +244,76 @@ function EngravingOverlay({ cardId }: { cardId: number }) {
       style={{ borderRadius: 20 }}
     >
       <defs>
+        <linearGradient id={gFill} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={c2} />
+          <stop offset="30%" stopColor={c1} />
+          <stop offset="55%" stopColor={c4} />
+          <stop offset="80%" stopColor={c3} />
+          <stop offset="100%" stopColor={c1} />
+        </linearGradient>
+
+        <linearGradient id={gStroke} x1="0" y1="0" x2="0.5" y2="1">
+          <stop offset="0%" stopColor={c2} />
+          <stop offset="45%" stopColor={c1} />
+          <stop offset="100%" stopColor={c3} />
+        </linearGradient>
+
+        <linearGradient id={gRing} x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0%" stopColor={c2} />
+          <stop offset="30%" stopColor={c1} />
+          <stop offset="60%" stopColor={c4} />
+          <stop offset="100%" stopColor={c3} />
+        </linearGradient>
+
+        <radialGradient id={gBg} cx="0.45" cy="0.4" r="0.55">
+          <stop offset="0%" stopColor={c3} stopOpacity="0.3" />
+          <stop offset="50%" stopColor={c3} stopOpacity="0.12" />
+          <stop offset="100%" stopColor={c3} stopOpacity="0" />
+        </radialGradient>
+
+        <radialGradient id={gInner} cx="0.4" cy="0.35" r="0.6">
+          <stop offset="0%" stopColor={c3} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={c3} stopOpacity="0.4" />
+        </radialGradient>
+
         <filter id={fId} x="-20%" y="-20%" width="140%" height="140%">
-          <feOffset in="SourceAlpha" dx="1" dy="1" result="g1o" />
-          <feGaussianBlur in="g1o" stdDeviation="0.5" result="g1b" />
-          <feFlood floodColor={grooveColor} floodOpacity={grooveOp} result="g1c" />
-          <feComposite in="g1c" in2="g1b" operator="in" result="groove1" />
+          <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="shadow" />
+          <feOffset in="shadow" dx="1.5" dy="2.5" result="shadowOff" />
+          <feFlood floodColor="rgba(0,0,0,0.5)" result="shadowColor" />
+          <feComposite in="shadowColor" in2="shadowOff" operator="in" result="dropShadow" />
 
-          <feOffset in="SourceAlpha" dx="1.5" dy="1.5" result="g2o" />
-          <feGaussianBlur in="g2o" stdDeviation="1" result="g2b" />
-          <feFlood floodColor={grooveColor} floodOpacity={String(parseFloat(grooveOp) * 0.5)} result="g2c" />
-          <feComposite in="g2c" in2="g2b" operator="in" result="groove2" />
+          <feOffset in="SourceAlpha" dx="-1" dy="-1.2" result="hlOff" />
+          <feGaussianBlur in="hlOff" stdDeviation="0.8" result="hlBlur" />
+          <feFlood floodColor={c2} floodOpacity="0.6" result="hlColor" />
+          <feComposite in="hlColor" in2="hlBlur" operator="in" result="embossHL" />
 
-          <feOffset in="SourceAlpha" dx="-0.5" dy="-0.5" result="hlo" />
-          <feGaussianBlur in="hlo" stdDeviation="0.3" result="hlb" />
-          <feFlood floodColor={hlColor} floodOpacity={hlOp} result="hlc" />
-          <feComposite in="hlc" in2="hlb" operator="in" result="highlight" />
+          <feOffset in="SourceAlpha" dx="1.2" dy="1.5" result="shOff" />
+          <feGaussianBlur in="shOff" stdDeviation="1" result="shBlur" />
+          <feFlood floodColor="rgba(0,0,0,0.6)" result="shColor" />
+          <feComposite in="shColor" in2="shBlur" operator="in" result="embossSH" />
 
           <feMerge>
-            <feMergeNode in="groove2" />
-            <feMergeNode in="groove1" />
-            <feMergeNode in="highlight" />
+            <feMergeNode in="dropShadow" />
+            <feMergeNode in="embossSH" />
             <feMergeNode in="SourceGraphic" />
+            <feMergeNode in="embossHL" />
           </feMerge>
-        </filter>
-
-        <pattern
-          id={gId}
-          patternUnits="userSpaceOnUse"
-          width="5"
-          height="2.5"
-          patternTransform={`rotate(${grainAngle})`}
-        >
-          <line
-            x1="0" y1="1.25" x2="5" y2="1.25"
-            stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}
-            strokeWidth="0.4"
-          />
-        </pattern>
-
-        <filter id={nId} x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" seed={cardId * 7} result="turb" />
-          <feColorMatrix type="saturate" values="0" in="turb" result="gray" />
-          <feComposite in="gray" in2="SourceGraphic" operator="in" />
         </filter>
       </defs>
 
-      <rect
-        x="0" y="0" width="320" height="202" rx="20" ry="20"
-        fill={`url(#${gId})`}
-        opacity="0.5"
-      />
+      <g transform="translate(190,101)">
+        <circle r="58" fill={`url(#${gBg})`} />
+        <circle r="50" fill={`url(#${gInner})`} />
 
-      <rect
-        x="0" y="0" width="320" height="202" rx="20" ry="20"
-        filter={`url(#${nId})`}
-        opacity="0.035"
-      />
+        <circle r="50" fill="none" stroke={`url(#${gRing})`} strokeWidth="3.5" filter={`url(#${fId})`} />
+        <circle r="47" fill="none" stroke={`url(#${gRing})`} strokeWidth="1.2" opacity="0.5" />
+        <circle r="53" fill="none" stroke={c1} strokeWidth="0.5" opacity="0.3" />
 
-      {pieces.map((p, i) => {
-        const tf = [
-          `translate(${p.x},${p.y})`,
-          p.s != null ? `scale(${p.s})` : "",
-          p.r != null ? `rotate(${p.r})` : "",
-        ].filter(Boolean).join(" ");
-
-        return (
-          <g key={i} transform={tf} opacity={p.o ?? 0.07} filter={`url(#${fId})`}>
-            {p.paths.map((pk, j) => (
-              <path
-                key={j}
-                d={E[pk]}
-                fill={p.fill ? fillCol : "none"}
-                stroke={strokeCol}
-                strokeWidth={p.sw ?? 0.7}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-          </g>
-        );
-      })}
-
-      {hasEliteText && (
-        <g opacity="0.045" filter={`url(#${fId})`}>
-          <text
-            x="160"
-            y={cardId === 10 ? 188 : 192}
-            textAnchor="middle"
-            fill={strokeCol}
-            stroke={strokeCol}
-            strokeWidth="0.15"
-            fontFamily="'Georgia', 'Times New Roman', serif"
-            fontSize="7"
-            fontStyle="italic"
-            letterSpacing="4"
-          >
-            ELITE STANDARD
-          </text>
+        <g filter={`url(#${fId})`}>
+          <path d={emblem.filled} fill={`url(#${gFill})`} opacity="0.9" />
+          <path d={emblem.stroked} fill="none" stroke={`url(#${gStroke})`} strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
         </g>
-      )}
+      </g>
     </svg>
   );
 }
@@ -477,7 +353,7 @@ export function MetalCardFront({
     >
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.texture }} />
 
-      <EngravingOverlay cardId={cardId} />
+      <EmblemOverlay cardId={cardId} />
 
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.lighting }} />
 
@@ -619,7 +495,7 @@ export function MetalCardBack({
     >
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.texture }} />
 
-      <EngravingOverlay cardId={cardId} />
+      <EmblemOverlay cardId={cardId} />
 
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.lighting }} />
 
