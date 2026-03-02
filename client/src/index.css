@@ -5527,6 +5527,256 @@ html, body {
 .sunset-savannah ::-webkit-scrollbar-thumb { background: hsl(24 80% 72%); border-radius: 3px; }
 .sunset-savannah ::-webkit-scrollbar-thumb:hover { background: hsl(24 85% 62%); }
 
+/* ═══════════════════════════════════════════════════════════════════
+   T001: Global Dark Theme Glass Card System + Neo-Tactile Buttons
+   Applied to ALL dark themes via .dark class selector
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 1. True Transparent Glass Cards */
+.dark [data-slot="card"] {
+  background: hsl(var(--card) / 0.12) !important;
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* 2. Glass Card Internal Highlight Stroke */
+.dark [data-slot="card"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(0 0% 100% / 0.15), hsl(0 0% 100% / 0.02), hsl(0 0% 100% / 0.08));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 3. Glass Card Hover */
+.dark [data-slot="card"]:hover {
+  background: hsl(var(--card) / 0.18) !important;
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.1), 0 0 20px hsl(var(--primary) / 0.08);
+  transform: translateY(-2px) scale(1.005);
+  border-color: hsl(0 0% 100% / 0.14);
+}
+
+/* 4. Dark Body Background Enhancement */
+.dark body,
+.dark {
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(ellipse at 15% 80%, hsl(var(--primary) / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, hsl(var(--secondary) / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(var(--accent) / 0.02) 0%, transparent 40%);
+}
+
+/* 5. Neo-Tactile Buttons */
+.dark button,
+.dark [role="button"] {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark button:active,
+.dark [role="button"]:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 2px 4px hsl(0 0% 0% / 0.3);
+}
+
+/* 6. Premium CTA Gradient Buttons — scoped to actual buttons only */
+.dark button.bg-primary,
+.dark a.bg-primary,
+.dark [role="button"].bg-primary {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 50%, hsl(var(--primary)) 100%) !important;
+  box-shadow: 0 4px 15px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 7. CTA Reflective Streak */
+.dark button.bg-primary::after,
+.dark a.bg-primary::after,
+.dark [role="button"].bg-primary::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.15), transparent);
+  animation: glass-btn-streak 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* 8. Sport-Engraved Texture Overlay on Cards */
+.dark [data-slot="card"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  border-radius: inherit;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 18px, hsl(0 0% 100% / 0.3) 18px, hsl(0 0% 100% / 0.3) 19px),
+    repeating-linear-gradient(90deg, transparent, transparent 18px, hsl(0 0% 100% / 0.3) 18px, hsl(0 0% 100% / 0.3) 19px);
+}
+
+/* 9. Keyframe Animations */
+@keyframes glass-btn-streak {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+@keyframes glass-glow-pulse {
+  0%, 100% { box-shadow: 0 8px 32px hsl(0 0% 0% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.06); }
+  50% { box-shadow: 0 12px 40px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.1), 0 0 25px hsl(var(--primary) / 0.1); }
+}
+@keyframes glass-ambient-shift {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+}
+
+/* 10. Glass Popover/Dialog/Modal Styling */
+.dark [role="dialog"],
+.dark [data-radix-popper-content-wrapper] {
+  background: hsl(var(--popover) / 0.15) !important;
+  backdrop-filter: blur(35px) saturate(1.5);
+  -webkit-backdrop-filter: blur(35px) saturate(1.5);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  border-radius: 20px;
+  box-shadow: 0 16px 48px hsl(0 0% 0% / 0.5);
+}
+
+/* 11. Glass Sidebar */
+.dark [data-slot="sidebar"],
+.dark aside {
+  background: hsl(var(--sidebar-background) / 0.1) !important;
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-right: 1px solid hsl(0 0% 100% / 0.06);
+}
+
+/* 12. Enhanced Scrollbar */
+.dark * {
+  scrollbar-color: hsl(0 0% 30%) transparent;
+}
+
+/* 13. Input Glass Effect */
+.dark input,
+.dark textarea,
+.dark select {
+  background: hsl(var(--input) / 0.15) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  border-radius: 12px;
+}
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.15);
+}
+
+/* 14. Table Glass Effect */
+.dark table th {
+  background: hsl(var(--card) / 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.dark table tbody tr:hover {
+  background: hsl(var(--primary) / 0.05);
+}
+
+/* 15. Badge Glass Effect */
+.dark [data-slot="badge"] {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+}
+
+/* ===== End T001 ===== */
+
+/* ===== T002: High-Contrast Data Visualization + Performance Number Styling ===== */
+
+.dark [data-slot="card"] .text-3xl,
+.dark [data-slot="card"] .text-4xl,
+.dark [data-slot="card"] .text-5xl {
+  text-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dark .text-green-500,
+.dark .text-emerald-500 {
+  text-shadow: 0 0 8px currentColor;
+}
+
+.dark .text-red-500,
+.dark .text-destructive {
+  text-shadow: 0 0 8px currentColor;
+}
+
+.dark .recharts-cartesian-grid line {
+  stroke: hsl(0 0% 100% / 0.06);
+}
+
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: hsl(var(--popover) / 0.15) !important;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid hsl(0 0% 100% / 0.1) !important;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.4);
+}
+
+.dark [role="progressbar"] > div {
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
+  border-radius: 99px;
+}
+
+.glow-lime {
+  text-shadow: 0 0 10px #84CC16;
+}
+.glow-purple {
+  text-shadow: 0 0 10px #A855F7;
+}
+.glow-coral {
+  text-shadow: 0 0 10px #F97316;
+}
+.glow-cyan {
+  text-shadow: 0 0 10px #06B6D4;
+}
+.glow-amber {
+  text-shadow: 0 0 10px #F59E0B;
+}
+
+.dark [role="tablist"] {
+  background: hsl(var(--card) / 0.08);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 16px;
+  padding: 4px;
+}
+
+.dark [role="tablist"] [data-state="active"] {
+  background: hsl(var(--primary) / 0.15);
+  border-radius: 12px;
+}
+
+.dark hr,
+.dark [role="separator"] {
+  border-color: hsl(0 0% 100% / 0.06);
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.08), transparent);
+}
+
+/* ===== End T002 ===== */
+
 @keyframes metal-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
   100% { transform: translateX(200%) skewX(-15deg); }
