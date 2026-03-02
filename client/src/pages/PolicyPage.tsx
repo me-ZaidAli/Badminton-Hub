@@ -14,7 +14,7 @@ export default function PolicyPage() {
           </h1>
         </div>
         <p className="text-muted-foreground">
-          Club Master is operated by Dragon Badminton Club &ndash; BPG Ltd.
+          Club Master is operated by Club Master &ndash; BPG Ltd.
           Please review our policies below.
         </p>
       </div>

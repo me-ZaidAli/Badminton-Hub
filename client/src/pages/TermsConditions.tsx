@@ -24,7 +24,7 @@ export default function TermsConditions() {
         </div>
         <p className="text-sm text-muted-foreground">Club Master Platform &mdash; Version 2.1 &mdash; Effective 27 February 2026</p>
         <p className="text-sm text-muted-foreground">
-          Operated by Dragon Badminton Club &ndash; BPG Ltd (Company No.{" "}
+          Operated by Club Master &ndash; BPG Ltd (Company No.{" "}
           <a href="https://find-and-update.company-information.service.gov.uk/company/16964545" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1">
             16964545 <ExternalLink className="h-3 w-3" />
           </a>
@@ -39,7 +39,7 @@ export default function TermsConditions() {
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>In these Terms &amp; Conditions, the following definitions apply:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li><strong>&ldquo;The Company&rdquo;</strong> means Dragon Badminton Club &ndash; BPG Ltd, a company registered in England and Wales under company number 16964545.</li>
+            <li><strong>&ldquo;The Company&rdquo;</strong> means Club Master &ndash; BPG Ltd, a company registered in England and Wales under company number 16964545.</li>
             <li><strong>&ldquo;The Platform&rdquo;</strong> or <strong>&ldquo;The App&rdquo;</strong> means the Club Master web application, including all pages, features, APIs, and associated services.</li>
             <li><strong>&ldquo;User&rdquo;</strong> means any individual who registers for, accesses, or uses the Platform in any capacity, including Players, Admins, and Owners.</li>
             <li><strong>&ldquo;Player&rdquo;</strong> means a registered member who uses the Platform to attend sessions, view rankings, and engage with club activities.</li>
@@ -206,7 +206,7 @@ export default function TermsConditions() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p className="font-medium text-foreground">7.1 Data Controller</p>
-          <p>Dragon Badminton Club &ndash; BPG Ltd (Company No. 16964545) is the Data Controller for all Personal Data processed through the Platform, as defined under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
+          <p>Club Master &ndash; BPG Ltd (Company No. 16964545) is the Data Controller for all Personal Data processed through the Platform, as defined under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
 
           <p className="font-medium text-foreground mt-3">7.2 Lawful Basis for Processing</p>
           <p>We process your Personal Data under the following lawful bases:</p>
@@ -334,7 +334,7 @@ export default function TermsConditions() {
             <div><span className="font-medium text-foreground">Policy Wording Reference:</span> PTRA150525</div>
             <div><span className="font-medium text-foreground">Period of Insurance:</span> 19/02/2026 &ndash; 18/02/2027</div>
             <div><span className="font-medium text-foreground">Broker:</span> Exchequer Risk Management Ltd</div>
-            <div><span className="font-medium text-foreground">Insured:</span> Dragon Badminton Club &ndash; BPG Ltd</div>
+            <div><span className="font-medium text-foreground">Insured:</span> Club Master &ndash; BPG Ltd</div>
             <div><span className="font-medium text-foreground">Business Description:</span> Sports &amp; Personal Trainer</div>
           </div>
           <div className="mt-2 space-y-1">
@@ -348,7 +348,7 @@ export default function TermsConditions() {
           </div>
           <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
             <p className="text-sm font-medium text-foreground">Important Notice</p>
-            <p>Players are <strong>NOT</strong> covered for personal injuries under the club&apos;s insurance policy. Members are strongly recommended to obtain <strong>Badminton England personal membership</strong> for individual personal injury insurance coverage. Participation in sessions is entirely at your own risk.</p>
+            <p>Players are <strong>NOT</strong> covered for personal injuries under the club&apos;s insurance policy. Members are strongly recommended to obtain relevant governing body membership (e.g. Badminton England) for individual personal injury insurance coverage. Participation in sessions is entirely at your own risk.</p>
           </div>
         </CardContent>
       </Card>
@@ -462,7 +462,7 @@ export default function TermsConditions() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-            <div><span className="font-medium text-foreground">Company Name:</span> Dragon Badminton Club &ndash; BPG Ltd</div>
+            <div><span className="font-medium text-foreground">Company Name:</span> Club Master &ndash; BPG Ltd</div>
             <div><span className="font-medium text-foreground">Company Number:</span> 16964545</div>
             <div className="sm:col-span-2">
               <span className="font-medium text-foreground">Companies House:</span>{" "}
@@ -500,7 +500,7 @@ export default function TermsConditions() {
           These Terms &amp; Conditions were last updated on 27 February 2026.
         </p>
         <p className="text-xs text-muted-foreground">
-          Dragon Badminton Club &ndash; BPG Ltd &mdash; Company No. 16964545
+          Club Master &ndash; BPG Ltd &mdash; Company No. 16964545
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link href="/privacy-policy">

@@ -41,6 +41,7 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **Internal Messaging System**: Chat interface with message categories (General, Payment, System) and filtering.
 - **AI-Powered Reporting**: AI-generated reports for coaches (junior skill analytics, personalized progress reports), parents (junior progress reports with PDF download), and admins (financial, match, attendance summaries).
 - **Enhanced Badge Count System**: Sidebar badges for notifications, tickets, messages, announcements, upcoming sessions, pending memberships, outstanding payments, and rewards.
+- **Premium Recognition Cards System**: Admin-gifted recognition cards celebrating character, leadership, and contribution. 10 card types (Heart of the Club, Captain's Spirit, Fair Play Champion, Rising Star, Community Builder, Ironclad Commitment, Mentor's Touch, Trailblazer, Silent Guardian, Golden Racket) with 5 rarity levels (Standard, Rare, Epic, Legendary, Mythic). Features 3D flippable cards with unique gradients, a Premium Wallet display on Profile, and full-screen carousel viewer. Schema: `cards` and `user_cards` tables.
 
 ## External Dependencies
 

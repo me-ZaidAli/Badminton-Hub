@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -657,7 +657,7 @@ export async function registerRoutes(
       // Validate conditional fields
       const isRegisteredWithBEBool = Boolean(isRegisteredWithBE);
       if (isRegisteredWithBEBool && (!beRegistrationNumber || typeof beRegistrationNumber !== 'string' || !beRegistrationNumber.trim())) {
-        return res.status(400).json({ message: "Badminton England registration number is required when registered" });
+        return res.status(400).json({ message: "Registration number is required when registered with a governing body" });
       }
 
       const hasSocialGamesBool = Boolean(hasSocialGames);
@@ -22187,6 +22187,181 @@ Keep it to about 300 words. Be encouraging but honest.`;
       res.send(csvContent);
     } catch (err: any) {
       console.error("Error exporting CSV:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === PREMIUM RECOGNITION CARDS ROUTES ===
+
+  app.get("/api/cards", async (req, res) => {
+    try {
+      const allCards = await db.select().from(cards).where(eq(cards.isActive, true));
+      res.json(allCards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/cards", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+      const allCards = await db.select().from(cards);
+      res.json(allCards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/cards/seed", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+      const existing = await db.select({ id: cards.id }).from(cards).limit(1);
+      if (existing.length > 0) {
+        return res.status(400).json({ message: "Cards already seeded" });
+      }
+
+      const cardSeedData = [
+        { name: "Heart of the Club", description: "Awarded to members who consistently go above and beyond for the club community — helping newcomers, volunteering, and spreading positivity.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-rose-500 via-pink-500 to-fuchsia-500", textColor: "text-white", accentColor: "#ec4899", pattern: "hearts" }, isActive: true },
+        { name: "Captain's Spirit", description: "Recognises natural leadership on and off the court — someone who inspires teammates, organises play, and leads by example.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-amber-500 via-orange-500 to-red-500", textColor: "text-white", accentColor: "#f59e0b", pattern: "shield" }, isActive: true },
+        { name: "Fair Play Champion", description: "For those who exemplify sportsmanship — always respectful, honest in line calls, and gracious in both victory and defeat.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-emerald-500 via-green-500 to-teal-500", textColor: "text-white", accentColor: "#10b981", pattern: "scales" }, isActive: true },
+        { name: "Rising Star", description: "Awarded to players showing exceptional improvement and dedication to their development, regardless of current skill level.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-violet-500 via-purple-500 to-indigo-500", textColor: "text-white", accentColor: "#8b5cf6", pattern: "stars" }, isActive: true },
+        { name: "Community Builder", description: "For members who bring people together — organising social events, welcoming new members, and strengthening club bonds.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-sky-500 via-blue-500 to-indigo-500", textColor: "text-white", accentColor: "#3b82f6", pattern: "network" }, isActive: true },
+        { name: "Ironclad Commitment", description: "Recognises unwavering dedication — consistent attendance, reliable availability, and a never-miss attitude through rain or shine.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-slate-600 via-zinc-500 to-stone-600", textColor: "text-white", accentColor: "#71717a", pattern: "iron" }, isActive: true },
+        { name: "Mentor's Touch", description: "For experienced players who generously share their knowledge, coach newer members, and help others reach their potential.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-cyan-500 via-teal-500 to-emerald-500", textColor: "text-white", accentColor: "#14b8a6", pattern: "compass" }, isActive: true },
+        { name: "Trailblazer", description: "Awarded to those who bring fresh ideas, innovative suggestions, or new energy that moves the club forward.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-orange-500 via-amber-500 to-yellow-500", textColor: "text-white", accentColor: "#f97316", pattern: "lightning" }, isActive: true },
+        { name: "Silent Guardian", description: "For the unsung heroes who quietly keep things running — setting up courts, managing equipment, handling logistics without being asked.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-gray-700 via-slate-600 to-gray-800", textColor: "text-white", accentColor: "#64748b", pattern: "shield-dark" }, isActive: true },
+        { name: "Golden Racket", description: "The highest honour — awarded for extraordinary contribution, exceptional character, and lasting positive impact on the club.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-yellow-400 via-amber-400 to-orange-400", textColor: "text-black", accentColor: "#eab308", pattern: "crown" }, isActive: true },
+      ];
+
+      const inserted = await db.insert(cards).values(cardSeedData).returning();
+      res.json({ message: `${inserted.length} recognition cards seeded successfully`, cards: inserted });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/my-cards", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).id;
+      const myCards = await db
+        .select({
+          id: userCards.id,
+          cardId: userCards.cardId,
+          customReason: userCards.customReason,
+          rarityLevel: userCards.rarityLevel,
+          serialNumber: userCards.serialNumber,
+          issuedAt: userCards.issuedAt,
+          revokedAt: userCards.revokedAt,
+          cardName: cards.name,
+          cardDescription: cards.description,
+          cardCategory: cards.cardCategory,
+          designConfig: cards.designConfig,
+          issuerName: users.fullName,
+        })
+        .from(userCards)
+        .innerJoin(cards, eq(userCards.cardId, cards.id))
+        .leftJoin(users, eq(userCards.issuedBy, users.id))
+        .where(and(eq(userCards.userId, userId), sql`${userCards.revokedAt} IS NULL`))
+        .orderBy(desc(userCards.issuedAt));
+      res.json(myCards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/user-cards/:userId", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+      const result = await db
+        .select({
+          id: userCards.id,
+          cardId: userCards.cardId,
+          customReason: userCards.customReason,
+          rarityLevel: userCards.rarityLevel,
+          serialNumber: userCards.serialNumber,
+          issuedAt: userCards.issuedAt,
+          revokedAt: userCards.revokedAt,
+          cardName: cards.name,
+          cardDescription: cards.description,
+          cardCategory: cards.cardCategory,
+          designConfig: cards.designConfig,
+          issuerName: users.fullName,
+        })
+        .from(userCards)
+        .innerJoin(cards, eq(userCards.cardId, cards.id))
+        .leftJoin(users, eq(userCards.issuedBy, users.id))
+        .where(eq(userCards.userId, userId))
+        .orderBy(desc(userCards.issuedAt));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/user-cards", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const issueSchema = z.object({
+        userId: z.number().int().positive(),
+        cardId: z.number().int().positive(),
+        customReason: z.string().max(500).optional(),
+        rarityLevel: z.enum(["standard", "rare", "epic", "legendary", "mythic"]).optional(),
+      });
+      const parsed = issueSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
+      const { userId, cardId, customReason, rarityLevel } = parsed.data;
+
+      const targetUser = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, userId)).limit(1);
+      if (targetUser.length === 0) return res.status(404).json({ message: "User not found" });
+
+      const cardRecord = await db.select().from(cards).where(eq(cards.id, cardId)).limit(1);
+      if (cardRecord.length === 0) return res.status(404).json({ message: "Card not found" });
+
+      const existingCount = await db.select({ count: sql<number>`count(*)` }).from(userCards).where(eq(userCards.cardId, cardId));
+      const nextSerial = (existingCount[0]?.count || 0) + 1;
+      const serialNumber = `CM-${String(cardId).padStart(3, "0")}-${String(nextSerial).padStart(5, "0")}`;
+
+      const issuerId = (req.user as any).id;
+      const [issued] = await db.insert(userCards).values({
+        userId,
+        cardId,
+        issuedBy: issuerId,
+        customReason: customReason || null,
+        rarityLevel: rarityLevel || "standard",
+        serialNumber,
+      }).returning();
+
+      await db.insert(notifications).values({
+        userId,
+        type: "GENERAL",
+        title: "New Recognition Card Awarded!",
+        message: `You've been awarded the "${cardRecord[0].name}" card. Check your profile to view it!`,
+      });
+
+      res.json(issued);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/user-cards/:id/revoke", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid card ID" });
+
+      const [updated] = await db
+        .update(userCards)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(userCards.id, id), sql`${userCards.revokedAt} IS NULL`))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "Active card not found" });
+      res.json(updated);
+    } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });

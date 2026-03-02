@@ -31,7 +31,7 @@ export default function PrivacyPolicy() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            Club Master is operated by Dragon Badminton Club &ndash; BPG Ltd, a company registered in England and Wales (Company No.{" "}
+            Club Master is operated by Club Master &ndash; BPG Ltd, a company registered in England and Wales (Company No.{" "}
             <a href="https://find-and-update.company-information.service.gov.uk/company/16964545" target="_blank" rel="noopener noreferrer" className="text-primary underline">16964545</a>
             ). This app is used to book sports sessions, manage attendance, process payments, and communicate club information.
           </p>
@@ -170,7 +170,7 @@ export default function PrivacyPolicy() {
             <li><span className="text-foreground font-medium">Complaint</span> &ndash; Lodge a complaint with the Information Commissioner&apos;s Office (ICO) if you believe your data rights have been breached</li>
           </ul>
           <p>
-            To exercise any of these rights, please contact Dragon Badminton Club &ndash; BPG Ltd through the Contact page or by emailing the club directly.
+            To exercise any of these rights, please contact Club Master &ndash; BPG Ltd through the Contact page or by emailing us directly.
           </p>
         </CardContent>
       </Card>
@@ -189,7 +189,7 @@ export default function PrivacyPolicy() {
 
       <div className="text-center space-y-3 pb-8">
         <p className="text-xs text-muted-foreground">
-          If you have questions about this Privacy Policy, please contact Dragon Badminton Club &ndash; BPG Ltd.
+          If you have questions about this Privacy Policy, please contact Club Master &ndash; BPG Ltd.
         </p>
         <Link href="/contact">
           <Button variant="outline" size="sm" data-testid="button-contact-from-privacy">

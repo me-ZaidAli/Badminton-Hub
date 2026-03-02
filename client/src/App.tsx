@@ -101,6 +101,7 @@ const JuniorConsentPolicy = lazy(() => import("@/pages/JuniorConsentPolicy"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
 const ThemeGallery = lazy(() => import("@/pages/ThemeGallery"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
+const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -602,6 +603,9 @@ function Router() {
       </Route>
       <Route path="/admin/black-card">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><BlackCardManagement /></Suspense>} />
+      </Route>
+      <Route path="/admin/recognition-cards">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><RecognitionCards /></Suspense>} />
       </Route>
 
       {/* Super Admin Routes - OWNER only */}

@@ -34,6 +34,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import PremiumWallet from "@/components/PremiumWallet";
 
 const MODE_ICONS: Record<string, typeof Sun> = {
   light: Sun, dark: Moon, "premium-gold": Crown, "ultra-premium": Gem, "green-glow": Leaf, sepia: Palette, migraine: Eye,
@@ -2114,6 +2115,9 @@ export default function Profile() {
 
       {/* My Rewards */}
       <ProfileRewardsSection />
+
+      {/* Recognition Cards */}
+      <PremiumWallet />
 
       {/* Performance, Rankings & Activity */}
       <CollapsibleSection title="Performance & Activity" icon={BarChart3} testId="card-performance-activity">

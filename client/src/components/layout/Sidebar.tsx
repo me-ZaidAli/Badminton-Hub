@@ -122,11 +122,13 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
     items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
+    items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
   }
 
   const showPremium = isPremium || isSuperAdmin;

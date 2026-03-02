@@ -1970,3 +1970,52 @@ export const generatedReportsRelations = relations(generatedReports, ({ one }) =
 export const insertGeneratedReportSchema = createInsertSchema(generatedReports).omit({ id: true, createdAt: true });
 export type GeneratedReport = typeof generatedReports.$inferSelect;
 export type InsertGeneratedReport = z.infer<typeof insertGeneratedReportSchema>;
+
+// === PREMIUM RECOGNITION CARDS ===
+export const cardCategoryEnum = pgEnum("card_category", ["milestone", "admin_gifted"]);
+export const cardRarityEnum = pgEnum("card_rarity", ["standard", "rare", "epic", "legendary", "mythic"]);
+
+export const cards = pgTable("cards", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  cardCategory: cardCategoryEnum("card_category").default("milestone").notNull(),
+  designConfig: jsonb("design_config").$type<{
+    gradient: string;
+    textColor: string;
+    accentColor: string;
+    pattern?: string;
+  }>(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userCards = pgTable("user_cards", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  cardId: integer("card_id").references(() => cards.id).notNull(),
+  issuedBy: integer("issued_by").references(() => users.id),
+  customReason: text("custom_reason"),
+  rarityLevel: cardRarityEnum("rarity_level").default("standard").notNull(),
+  serialNumber: text("serial_number").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  issuedAt: timestamp("issued_at").defaultNow().notNull(),
+});
+
+export const cardsRelations = relations(cards, ({ many }) => ({
+  userCards: many(userCards),
+}));
+
+export const userCardsRelations = relations(userCards, ({ one }) => ({
+  user: one(users, { fields: [userCards.userId], references: [users.id] }),
+  card: one(cards, { fields: [userCards.cardId], references: [cards.id] }),
+  issuer: one(users, { fields: [userCards.issuedBy], references: [users.id] }),
+}));
+
+export const insertCardSchema = createInsertSchema(cards).omit({ id: true, createdAt: true });
+export type CardRecord = typeof cards.$inferSelect;
+export type InsertCard = z.infer<typeof insertCardSchema>;
+
+export const insertUserCardSchema = createInsertSchema(userCards).omit({ id: true, issuedAt: true });
+export type UserCardRecord = typeof userCards.$inferSelect;
+export type InsertUserCard = z.infer<typeof insertUserCardSchema>;

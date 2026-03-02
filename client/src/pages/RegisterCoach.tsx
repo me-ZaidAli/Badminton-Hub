@@ -412,7 +412,7 @@ export default function RegisterCoach() {
                 <FormField control={form.control} name="coachingCertifications" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Coaching Certifications</FormLabel>
-                    <FormDescription>e.g. Badminton England Level 1/2/3, BWF Certification</FormDescription>
+                    <FormDescription>e.g. National Governing Body Level 1/2/3, BWF Certification, LTA Accredited</FormDescription>
                     <FormControl>
                       <Textarea placeholder="List your coaching certifications..." className="resize-none" rows={3} data-testid="input-coaching-certifications" {...field} />
                     </FormControl>
