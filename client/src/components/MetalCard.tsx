@@ -223,17 +223,23 @@ const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
   },
 };
 
-function EmblemOverlay({ cardId }: { cardId: number }) {
+function EmblemOverlay({ cardId, side = "front" }: { cardId: number; side?: "front" | "back" }) {
   const emblem = EMBLEM_PATHS[cardId];
   const colors = EMBLEM_COLORS[cardId] || EMBLEM_GOLD;
   if (!emblem) return null;
 
-  const fId = `emb-${cardId}`;
-  const gFill = `emb-fill-${cardId}`;
-  const gStroke = `emb-stroke-${cardId}`;
-  const gRing = `emb-ring-${cardId}`;
-  const gBg = `emb-bg-${cardId}`;
+  const uid = `emb-${side}-${cardId}`;
+  const gFill = `${uid}-fill`;
+  const gStroke = `${uid}-stroke`;
+  const gRing = `${uid}-ring`;
+  const gBg = `${uid}-bg`;
+  const fId = `${uid}-f`;
   const [c1, c2, c3, c4] = colors;
+
+  const isBack = side === "back";
+  const cx = isBack ? 285 : 195;
+  const cy = isBack ? 40 : 101;
+  const scale = isBack ? 0.38 : 1;
 
   return (
     <svg
@@ -271,18 +277,18 @@ function EmblemOverlay({ cardId }: { cardId: number }) {
         </radialGradient>
 
         <filter id={fId} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="shadow" />
-          <feOffset in="shadow" dx="1.5" dy="2.5" result="shadowOff" />
+          <feGaussianBlur in="SourceAlpha" stdDeviation={isBack ? 1.5 : 3} result="shadow" />
+          <feOffset in="shadow" dx={isBack ? 0.8 : 1.5} dy={isBack ? 1 : 2.5} result="shadowOff" />
           <feFlood floodColor="rgba(0,0,0,0.5)" result="shadowColor" />
           <feComposite in="shadowColor" in2="shadowOff" operator="in" result="dropShadow" />
 
-          <feOffset in="SourceAlpha" dx="-1" dy="-1.2" result="hlOff" />
-          <feGaussianBlur in="hlOff" stdDeviation="0.8" result="hlBlur" />
+          <feOffset in="SourceAlpha" dx={isBack ? -0.5 : -1} dy={isBack ? -0.5 : -1.2} result="hlOff" />
+          <feGaussianBlur in="hlOff" stdDeviation={isBack ? 0.4 : 0.8} result="hlBlur" />
           <feFlood floodColor={c2} floodOpacity="0.6" result="hlColor" />
           <feComposite in="hlColor" in2="hlBlur" operator="in" result="embossHL" />
 
-          <feOffset in="SourceAlpha" dx="1.2" dy="1.5" result="shOff" />
-          <feGaussianBlur in="shOff" stdDeviation="1" result="shBlur" />
+          <feOffset in="SourceAlpha" dx={isBack ? 0.6 : 1.2} dy={isBack ? 0.8 : 1.5} result="shOff" />
+          <feGaussianBlur in="shOff" stdDeviation={isBack ? 0.5 : 1} result="shBlur" />
           <feFlood floodColor="rgba(0,0,0,0.6)" result="shColor" />
           <feComposite in="shColor" in2="shBlur" operator="in" result="embossSH" />
 
@@ -295,7 +301,7 @@ function EmblemOverlay({ cardId }: { cardId: number }) {
         </filter>
       </defs>
 
-      <g transform="translate(195,101)">
+      <g transform={`translate(${cx},${cy}) scale(${scale})`}>
         <circle r="62" fill={`url(#${gBg})`} />
 
         <circle r="56" fill="none" stroke={`url(#${gRing})`} strokeWidth="2" opacity="0.3" filter={`url(#${fId})`} />
@@ -474,7 +480,7 @@ export function MetalCardBack({
     >
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.texture }} />
 
-      <EmblemOverlay cardId={cardId} />
+      <EmblemOverlay cardId={cardId} side="back" />
 
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.lighting }} />
 
