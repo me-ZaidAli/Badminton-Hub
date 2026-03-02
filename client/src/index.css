@@ -3509,6 +3509,21 @@ html, body {
 .phantom-luxe * {
   scrollbar-color: hsl(0 0% 12%) hsl(240 10% 2%);
 }
+
+@keyframes metal-shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+@keyframes metal-glow-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+.metal-card-shimmer {
+  animation: metal-shimmer 4s ease-in-out infinite;
+}
+.metal-glow-aura {
+  animation: metal-glow-pulse 3s ease-in-out infinite;
+}
 .phantom-luxe ::-webkit-scrollbar { width: 5px; }
 .phantom-luxe ::-webkit-scrollbar-track { background: hsl(240 10% 2%); }
 .phantom-luxe ::-webkit-scrollbar-thumb { background: hsl(0 0% 16%); border-radius: 3px; }
