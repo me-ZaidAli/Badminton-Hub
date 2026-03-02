@@ -383,20 +383,6 @@ export function MetalCardFront({
       </div>
 
       <div className="relative z-10 flex flex-col items-center space-y-1.5">
-        <div
-          className={`${sizeConfig.chip} rounded-md`}
-          style={{
-            background: mat.chip,
-            boxShadow: `inset 0 1px 2px rgba(255,255,255,0.15), inset 0 -1px 2px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.3)`,
-          }}
-        >
-          <div className="w-full h-full rounded-md" style={{
-            background: "repeating-linear-gradient(90deg, transparent 0px, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 4px)",
-          }} />
-        </div>
-
-        <div className={sizeConfig.divW} style={{ height: "1px", background: mat.divider }} />
-
         <h3
           className={`${sizeConfig.title} font-bold uppercase tracking-wide text-center leading-tight`}
           style={{
