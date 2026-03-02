@@ -949,7 +949,35 @@ export async function registerRoutes(
         updates.reducedMotion = !!req.body.reducedMotion;
       }
       if (req.body.dashboardBackground !== undefined) {
-        updates.dashboardBackground = String(req.body.dashboardBackground).slice(0, 50);
+        const bgId = String(req.body.dashboardBackground).slice(0, 50);
+        const premiumBackgrounds = [
+          "court-lines", "smash-velocity", "feather-impact",
+          "tropical-calm", "forest-mist", "savanna-gold",
+          "midnight-marble", "royal-emerald", "obsidian-silk",
+          "neon-grid", "holographic-mesh", "quantum-pulse",
+          "lunar-surface", "nebula-drift", "solar-flare",
+          "cosmic-purple", "golden-hour", "ocean-depth", "rose-garden",
+          "northern-lights", "steel-grid", "diamond-mesh",
+        ];
+        const blackcardBackgrounds = ["black-diamond", "galaxy-prestige", "infinite-void"];
+        if (blackcardBackgrounds.includes(bgId)) {
+          const user = await storage.getUser(req.user!.id);
+          if (!user?.blackCardAccess) {
+            return res.status(403).json({ message: "Black Card access required for this background" });
+          }
+        } else if (premiumBackgrounds.includes(bgId)) {
+          const user = await storage.getUser(req.user!.id);
+          if (!user?.blackCardAccess) {
+            const premClubs = await db.select({ id: clubs.id }).from(clubs)
+              .innerJoin(clubMemberships, eq(clubMemberships.clubId, clubs.id))
+              .where(and(eq(clubMemberships.userId, req.user!.id), eq(clubs.planStatus, "ACTIVE_PREMIUM")))
+              .limit(1);
+            if (premClubs.length === 0) {
+              return res.status(403).json({ message: "Premium plan required for this background" });
+            }
+          }
+        }
+        updates.dashboardBackground = bgId;
       }
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid preferences to update" });
