@@ -64,6 +64,11 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "misty-bamboo": TreePine,
   "tropical-lagoon": Waves,
   "sunset-savannah": CloudSun,
+  "obsidian-frost": GlassWater,
+  "neon-apex": Zap,
+  "sage-horizon": Leaf,
+  "prism-forge": Flame,
+  "vector-legacy": Grid3x3,
 };
 
 const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty", "Accessibility"] as const;

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, Lock, Search, Crown, Sparkles, Shield, Diamond, Star } from "lucide-react";
+import { ThemeSwitcher } from "@/components/premium/ThemeSwitcher";
 
 const GRADE_FILTERS = ["All", "Standard", "Accessibility", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty"] as const;
 
@@ -64,7 +65,7 @@ function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet, hasRoyalD
       subtitle: "Gold Tier Member",
       requirement: "Available to all members",
       unlocked: true,
-      themeCount: 11,
+      themeCount: 16,
       bg: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
       border: "#b8860b",
       accent: "#c5a044",
@@ -471,7 +472,7 @@ export default function ThemeGallery() {
       <div className="space-y-1">
         <h1 className="text-2xl font-bold" data-testid="text-theme-gallery-title">Theme Gallery</h1>
         <p className="text-sm text-muted-foreground">
-          Personalise your experience with {DISPLAY_MODES.length} unique themes
+          Personalise your experience with {DISPLAY_MODES.length} unique themes across curated collections
         </p>
       </div>
 
@@ -534,6 +535,8 @@ export default function ThemeGallery() {
           ))}
         </div>
       )}
+
+      <ThemeSwitcher />
 
       <TierShowcaseCards
         userRank={availableThemes?.userRank}

@@ -3,3 +3,4 @@ export { DataCard } from "./DataCard";
 export { GradientButton } from "./GradientButton";
 export { ClayButton } from "./ClayButton";
 export { ChartCard } from "./ChartCard";
+export { ThemeSwitcher } from "./ThemeSwitcher";

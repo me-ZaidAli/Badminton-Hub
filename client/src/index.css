@@ -5528,6 +5528,451 @@ html, body {
 .sunset-savannah ::-webkit-scrollbar-thumb:hover { background: hsl(24 85% 62%); }
 
 /* ═══════════════════════════════════════════════════════════════════
+   BRANDED COLLECTION: Obsidian Frost™ (Glass & Depth Collection)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.obsidian-frost {
+  --background: 220 20% 7%;
+  --foreground: 210 25% 92%;
+  --primary: 200 80% 60%;
+  --primary-foreground: 220 20% 5%;
+  --secondary: 220 15% 15%;
+  --secondary-foreground: 210 20% 80%;
+  --muted: 220 15% 13%;
+  --muted-foreground: 210 15% 55%;
+  --accent: 200 80% 60%;
+  --accent-foreground: 220 20% 5%;
+  --destructive: 0 60% 45%;
+  --destructive-foreground: 210 25% 92%;
+  --card: 220 18% 10%;
+  --card-foreground: 210 25% 92%;
+  --card-border: 220 15% 16%;
+  --popover: 220 18% 11%;
+  --popover-foreground: 210 25% 92%;
+  --popover-border: 220 15% 16%;
+  --sidebar-background: 220 20% 6%;
+  --border: 220 15% 16%;
+  --input: 220 15% 16%;
+  --ring: 200 80% 60%;
+  --chart-1: 200 80% 60%;
+  --chart-2: 190 70% 50%;
+  --chart-3: 210 60% 45%;
+  --chart-4: 180 65% 55%;
+  --chart-5: 220 50% 40%;
+}
+
+.obsidian-frost body,
+.obsidian-frost {
+  background-color: hsl(220 20% 7%);
+  background-image:
+    radial-gradient(ellipse at 20% 80%, hsl(200 80% 60% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, hsl(190 70% 50% / 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(210 60% 45% / 0.02) 0%, transparent 40%);
+}
+
+.obsidian-frost [data-slot="card"] {
+  background: hsl(220 18% 10% / 0.1) !important;
+  backdrop-filter: blur(35px) saturate(1.5);
+  -webkit-backdrop-filter: blur(35px) saturate(1.5);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  border-radius: 24px;
+}
+
+.obsidian-frost [data-slot="card"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(0 0% 100% / 0.18), hsl(0 0% 100% / 0.02), hsl(0 0% 100% / 0.1));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.obsidian-frost [data-slot="card"]:hover {
+  background: hsl(220 18% 10% / 0.18) !important;
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.12), 0 0 25px hsl(200 80% 60% / 0.08);
+  transform: translateY(-2px) scale(1.005);
+}
+
+.obsidian-frost button,
+.obsidian-frost [role="button"] {
+  border-radius: 16px;
+}
+
+.obsidian-frost * {
+  scrollbar-color: hsl(200 40% 30%) transparent;
+}
+.obsidian-frost ::-webkit-scrollbar { width: 5px; }
+.obsidian-frost ::-webkit-scrollbar-track { background: transparent; }
+.obsidian-frost ::-webkit-scrollbar-thumb { background: hsl(200 40% 30%); border-radius: 3px; }
+.obsidian-frost ::-webkit-scrollbar-thumb:hover { background: hsl(200 50% 40%); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BRANDED COLLECTION: Neon Apex™ (Performance & Data Collection)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.neon-apex {
+  --background: 228 15% 6%;
+  --foreground: 0 0% 93%;
+  --primary: 82 85% 55%;
+  --primary-foreground: 228 15% 5%;
+  --secondary: 228 12% 14%;
+  --secondary-foreground: 82 40% 75%;
+  --muted: 228 10% 12%;
+  --muted-foreground: 0 0% 50%;
+  --accent: 280 70% 60%;
+  --accent-foreground: 0 0% 93%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 93%;
+  --card: 228 13% 9%;
+  --card-foreground: 0 0% 93%;
+  --card-border: 228 10% 15%;
+  --popover: 228 13% 10%;
+  --popover-foreground: 0 0% 93%;
+  --popover-border: 228 10% 15%;
+  --sidebar-background: 228 15% 5%;
+  --border: 228 10% 15%;
+  --input: 228 10% 15%;
+  --ring: 82 85% 55%;
+  --chart-1: 82 85% 55%;
+  --chart-2: 280 70% 60%;
+  --chart-3: 187 90% 52%;
+  --chart-4: 16 85% 60%;
+  --chart-5: 45 96% 64%;
+}
+
+.neon-apex body,
+.neon-apex {
+  background-color: hsl(228 15% 6%);
+  background-image:
+    radial-gradient(ellipse at 15% 85%, hsl(82 85% 55% / 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 85% 15%, hsl(280 70% 60% / 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(187 90% 52% / 0.015) 0%, transparent 40%);
+}
+
+.neon-apex::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.neon-apex [data-slot="card"] {
+  background: hsl(0 0% 100% / 0.04) !important;
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid hsl(0 0% 100% / 0.06);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.5);
+  border-radius: 20px;
+}
+
+.neon-apex [data-slot="card"]:hover {
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.6), 0 0 20px hsl(82 85% 55% / 0.06);
+  transform: translateY(-1px) scale(1.01);
+}
+
+.neon-apex [data-slot="card"] .text-3xl,
+.neon-apex [data-slot="card"] .text-4xl,
+.neon-apex [data-slot="card"] .text-5xl {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  text-shadow: 0 0 25px hsl(82 85% 55% / 0.4);
+  line-height: 1;
+}
+
+.neon-apex .text-green-500,
+.neon-apex .text-emerald-500 {
+  text-shadow: 0 0 12px currentColor;
+}
+
+.neon-apex .text-red-500,
+.neon-apex .text-destructive {
+  text-shadow: 0 0 12px currentColor;
+}
+
+.neon-apex * {
+  scrollbar-color: hsl(82 50% 35%) transparent;
+}
+.neon-apex ::-webkit-scrollbar { width: 5px; }
+.neon-apex ::-webkit-scrollbar-track { background: transparent; }
+.neon-apex ::-webkit-scrollbar-thumb { background: hsl(82 50% 35%); border-radius: 3px; }
+.neon-apex ::-webkit-scrollbar-thumb:hover { background: hsl(82 60% 45%); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BRANDED COLLECTION: Sage Horizon™ (Lifestyle & Calm Collection)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sage-horizon {
+  --background: 90 12% 95%;
+  --foreground: 220 20% 18%;
+  --primary: 145 30% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 350 25% 80%;
+  --secondary-foreground: 220 20% 18%;
+  --muted: 90 10% 90%;
+  --muted-foreground: 220 10% 45%;
+  --accent: 145 30% 42%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 55% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 90 15% 97%;
+  --card-foreground: 220 20% 18%;
+  --card-border: 90 10% 85%;
+  --popover: 90 15% 97%;
+  --popover-foreground: 220 20% 18%;
+  --popover-border: 90 10% 85%;
+  --sidebar-background: 90 12% 94%;
+  --border: 90 10% 85%;
+  --input: 90 10% 85%;
+  --ring: 145 30% 42%;
+  --chart-1: 145 30% 42%;
+  --chart-2: 350 25% 65%;
+  --chart-3: 35 40% 55%;
+  --chart-4: 210 20% 55%;
+  --chart-5: 145 20% 55%;
+}
+
+.sage-horizon body,
+.sage-horizon {
+  background-color: hsl(90 12% 95%);
+  background-image:
+    radial-gradient(ellipse at 15% 75%, hsl(145 30% 42% / 0.06) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 20%, hsl(350 25% 80% / 0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(35 40% 75% / 0.04) 0%, transparent 40%);
+}
+
+.sage-horizon {
+  font-weight: 300;
+}
+
+.sage-horizon h1, .sage-horizon h2, .sage-horizon h3, .sage-horizon h4 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.sage-horizon [data-slot="card"] {
+  background: hsl(90 15% 97% / 0.8);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid hsl(90 10% 85% / 0.5);
+  box-shadow: 0 4px 24px hsl(0 0% 0% / 0.05), 0 1px 3px hsl(0 0% 0% / 0.03);
+  border-radius: 20px;
+  padding: 32px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sage-horizon [data-slot="card"]:hover {
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.07), 0 2px 8px hsl(0 0% 0% / 0.03);
+  transform: translateY(-1px);
+}
+
+.sage-horizon [data-slot="card"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.02;
+  border-radius: inherit;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 22px, hsl(145 30% 42% / 0.15) 22px, hsl(145 30% 42% / 0.15) 23px),
+    repeating-linear-gradient(90deg, transparent, transparent 22px, hsl(145 30% 42% / 0.15) 22px, hsl(145 30% 42% / 0.15) 23px);
+}
+
+.sage-horizon * {
+  scrollbar-color: hsl(145 20% 72%) hsl(90 12% 95%);
+}
+.sage-horizon ::-webkit-scrollbar { width: 6px; }
+.sage-horizon ::-webkit-scrollbar-track { background: hsl(90 12% 95%); }
+.sage-horizon ::-webkit-scrollbar-thumb { background: hsl(145 20% 72%); border-radius: 3px; }
+.sage-horizon ::-webkit-scrollbar-thumb:hover { background: hsl(145 25% 60%); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BRANDED COLLECTION: Prism Forge™ (Energy & Gradient Collection)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.prism-forge {
+  --background: 270 15% 7%;
+  --foreground: 0 0% 93%;
+  --primary: 280 75% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 270 12% 15%;
+  --secondary-foreground: 280 40% 80%;
+  --muted: 270 10% 13%;
+  --muted-foreground: 0 0% 52%;
+  --accent: 25 90% 55%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 48%;
+  --destructive-foreground: 0 0% 93%;
+  --card: 270 13% 10%;
+  --card-foreground: 0 0% 93%;
+  --card-border: 270 10% 18%;
+  --popover: 270 13% 11%;
+  --popover-foreground: 0 0% 93%;
+  --popover-border: 270 10% 18%;
+  --sidebar-background: 270 15% 6%;
+  --border: 270 10% 18%;
+  --input: 270 10% 18%;
+  --ring: 280 75% 60%;
+  --chart-1: 280 75% 60%;
+  --chart-2: 330 80% 55%;
+  --chart-3: 25 90% 55%;
+  --chart-4: 180 70% 50%;
+  --chart-5: 200 80% 55%;
+}
+
+.prism-forge body,
+.prism-forge {
+  background-color: hsl(270 15% 7%);
+  background-image:
+    radial-gradient(ellipse at 25% 80%, hsl(280 75% 60% / 0.06) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 20%, hsl(330 80% 55% / 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, hsl(25 90% 55% / 0.02) 0%, transparent 40%);
+}
+
+.prism-forge [data-slot="card"] {
+  background: hsl(270 13% 10% / 0.15) !important;
+  backdrop-filter: blur(25px) saturate(1.4);
+  -webkit-backdrop-filter: blur(25px) saturate(1.4);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  box-shadow:
+    0 10px 35px hsl(0 0% 0% / 0.4),
+    0 0 0 1px hsl(280 75% 60% / 0.08),
+    inset 0 1px 0 hsl(0 0% 100% / 0.08),
+    inset 0 -1px 0 hsl(0 0% 0% / 0.1);
+  border-radius: 20px;
+}
+
+.prism-forge [data-slot="card"]:hover {
+  box-shadow:
+    0 14px 45px hsl(0 0% 0% / 0.5),
+    0 0 25px hsl(280 75% 60% / 0.12),
+    inset 0 1px 0 hsl(0 0% 100% / 0.12);
+  transform: translateY(-3px) perspective(500px) rotateX(1deg) rotateY(-1deg);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes prism-glow-pulse {
+  0%, 100% { box-shadow: 0 10px 35px hsl(0 0% 0% / 0.4), 0 0 0 1px hsl(280 75% 60% / 0.08); }
+  50% { box-shadow: 0 10px 35px hsl(0 0% 0% / 0.4), 0 0 15px hsl(280 75% 60% / 0.1); }
+}
+
+.prism-forge button.bg-primary,
+.prism-forge a.bg-primary,
+.prism-forge [role="button"].bg-primary {
+  background: linear-gradient(135deg, hsl(280 75% 60%) 0%, hsl(330 80% 55%) 50%, hsl(25 90% 55%) 100%) !important;
+  box-shadow: 0 6px 20px hsl(280 75% 60% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.2);
+}
+
+.prism-forge * {
+  scrollbar-color: hsl(280 40% 35%) transparent;
+}
+.prism-forge ::-webkit-scrollbar { width: 5px; }
+.prism-forge ::-webkit-scrollbar-track { background: transparent; }
+.prism-forge ::-webkit-scrollbar-thumb { background: hsl(280 40% 35%); border-radius: 3px; }
+.prism-forge ::-webkit-scrollbar-thumb:hover { background: hsl(280 50% 45%); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BRANDED COLLECTION: Vector Legacy™ (Classic & Structured Collection)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.vector-legacy {
+  --background: 0 0% 96%;
+  --foreground: 210 25% 15%;
+  --primary: 175 65% 38%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 10% 90%;
+  --secondary-foreground: 210 25% 15%;
+  --muted: 210 10% 92%;
+  --muted-foreground: 210 10% 42%;
+  --accent: 175 65% 38%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 60% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 0 0% 99%;
+  --card-foreground: 210 25% 15%;
+  --card-border: 210 10% 85%;
+  --popover: 0 0% 99%;
+  --popover-foreground: 210 25% 15%;
+  --popover-border: 210 10% 85%;
+  --sidebar-background: 0 0% 95%;
+  --border: 210 10% 85%;
+  --input: 210 10% 85%;
+  --ring: 175 65% 38%;
+  --chart-1: 175 65% 38%;
+  --chart-2: 210 25% 30%;
+  --chart-3: 175 50% 50%;
+  --chart-4: 210 15% 50%;
+  --chart-5: 175 35% 60%;
+}
+
+.vector-legacy {
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.vector-legacy h1, .vector-legacy h2, .vector-legacy h3 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.vector-legacy .text-3xl,
+.vector-legacy .text-4xl,
+.vector-legacy .text-5xl {
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.vector-legacy [data-slot="card"] {
+  border-radius: 12px;
+  border: 2px solid hsl(210 10% 85%);
+  box-shadow: 3px 3px 0 hsl(210 10% 85% / 0.5);
+  background: hsl(0 0% 99%);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vector-legacy [data-slot="card"]:hover {
+  box-shadow: 5px 5px 0 hsl(210 10% 85% / 0.6);
+  transform: translate(-1px, -1px);
+}
+
+.vector-legacy hr,
+.vector-legacy [role="separator"] {
+  border-width: 2px;
+  border-color: hsl(210 10% 85%);
+}
+
+.vector-legacy [data-slot="card"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  border-radius: inherit;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 18px, hsl(175 65% 38% / 0.2) 18px, hsl(175 65% 38% / 0.2) 19px),
+    repeating-linear-gradient(90deg, transparent, transparent 18px, hsl(175 65% 38% / 0.2) 18px, hsl(175 65% 38% / 0.2) 19px);
+}
+
+.vector-legacy * {
+  scrollbar-color: hsl(175 30% 60%) hsl(0 0% 96%);
+}
+.vector-legacy ::-webkit-scrollbar { width: 6px; }
+.vector-legacy ::-webkit-scrollbar-track { background: hsl(0 0% 96%); }
+.vector-legacy ::-webkit-scrollbar-thumb { background: hsl(175 30% 60%); border-radius: 3px; }
+.vector-legacy ::-webkit-scrollbar-thumb:hover { background: hsl(175 40% 50%); }
+
+/* ═══════════════════════════════════════════════════════════════════
    T001: Global Dark Theme Glass Card System + Neo-Tactile Buttons
    Applied to ALL dark themes via .dark class selector
    ═══════════════════════════════════════════════════════════════════ */

@@ -72,6 +72,11 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "misty-bamboo", label: "Misty Bamboo", description: "Mint and ivory with bamboo-textured frosted cards", grade: "Signature", colorFamily: "Mint", isRankLocked: true, requiredRank: "champion", accentHex: "#00A86B", gradientStart: "#F0FFF0", gradientEnd: "#00A86B", chartColors: ["#00A86B", "#98D8A8", "#2E8B57", "#7BC8A4", "#228B22"] },
   { value: "tropical-lagoon", label: "Tropical Lagoon", description: "Turquoise and aqua with curved glass boxes and ripple effects", grade: "Signature", colorFamily: "Blue", isRankLocked: true, requiredRank: "champion", accentHex: "#00BCD4", gradientStart: "#E0F7FA", gradientEnd: "#00BCD4", chartColors: ["#00BCD4", "#4DD0E1", "#0097A7", "#80DEEA", "#00838F"] },
   { value: "sunset-savannah", label: "Sunset Savannah", description: "Pale peach and apricot with layered translucent boxes and warm glow", grade: "Signature", colorFamily: "Copper", isRankLocked: true, requiredRank: "champion", accentHex: "#FF8C69", gradientStart: "#FFECD2", gradientEnd: "#FF8C69", chartColors: ["#FF8C69", "#FFCBA4", "#E6E0F8", "#DDA0DD", "#FF7F50"] },
+  { value: "obsidian-frost", label: "Obsidian Frost™", description: "True transparent glass boxes with 35px blur, icy blue accents and neo-tactile clay buttons", grade: "Premium", colorFamily: "Blue", accentHex: "#4DB8E8", gradientStart: "#0F1420", gradientEnd: "#4DB8E8", chartColors: ["#4DB8E8", "#3DA0C0", "#2D7A96", "#67D0F0", "#1F5570"] },
+  { value: "neon-apex", label: "Neon Apex™", description: "AMOLED fintech dashboard with neon lime, purple, cyan accents and bold 56px metrics", grade: "Premium", colorFamily: "Neon", isAmoled: true, accentHex: "#84CC16", gradientStart: "#0F1115", gradientEnd: "#84CC16", chartColors: ["#84CC16", "#A855F7", "#06B6D4", "#F97316", "#F59E0B"] },
+  { value: "sage-horizon", label: "Sage Horizon™", description: "Calm editorial aesthetic with sage, dusty rose, warm sand and floating glass panels", grade: "Premium", colorFamily: "Emerald", accentHex: "#5A9A6E", gradientStart: "#EFF2ED", gradientEnd: "#5A9A6E", chartColors: ["#5A9A6E", "#C48B8B", "#C6A050", "#6B8898", "#7AB88A"] },
+  { value: "prism-forge", label: "Prism Forge™", description: "Luminous multi-stop gradients with skeuomorphic depth, glow pulse and parallax tilt", grade: "Premium", colorFamily: "Amethyst", accentHex: "#9B5DE5", gradientStart: "#14091C", gradientEnd: "#F97316", chartColors: ["#9B5DE5", "#E84393", "#F97316", "#00BCD4", "#3B82F6"] },
+  { value: "vector-legacy", label: "Vector Legacy™", description: "Bold teal and charcoal flat structure with strong grid, large counters and clean icons", grade: "Premium", colorFamily: "Blue", accentHex: "#0D9488", gradientStart: "#F5F5F5", gradientEnd: "#0D9488", chartColors: ["#0D9488", "#334155", "#14B8A6", "#64748B", "#5EEAD4"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -130,6 +135,11 @@ const THEME_CLASSES: Record<string, string[]> = {
   "misty-bamboo": ["misty-bamboo"],
   "tropical-lagoon": ["tropical-lagoon"],
   "sunset-savannah": ["sunset-savannah"],
+  "obsidian-frost": ["dark", "obsidian-frost"],
+  "neon-apex": ["dark", "neon-apex"],
+  "sage-horizon": ["sage-horizon"],
+  "prism-forge": ["dark", "prism-forge"],
+  "vector-legacy": ["vector-legacy"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -148,6 +158,7 @@ const ALL_THEME_CLASSES = [
   "retro-cream-tech", "lavender-opulence", "champagne-mint",
   "tropical-dawn", "savanna-breeze", "rainforest-canopy",
   "misty-bamboo", "tropical-lagoon", "sunset-savannah",
+  "obsidian-frost", "neon-apex", "sage-horizon", "prism-forge", "vector-legacy",
 ];
 
 const DARK_THEMES = new Set([
@@ -161,6 +172,7 @@ const DARK_THEMES = new Set([
   "circuit-court", "cosmic-elite", "phantom-luxe",
   "obsidian-gold-ultra", "crystal-court",
   "phosphor-elite", "adaptive-pro", "royal-indigo",
+  "obsidian-frost", "neon-apex", "prism-forge",
 ]);
 
 function getInitialMode(): DisplayMode {
