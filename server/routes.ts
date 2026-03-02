@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentTeams, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -13051,10 +13051,28 @@ export async function registerRoutes(
       }
       const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
       if (!club) return res.status(404).json({ message: "Club not found" });
-      const sessionIds = db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
-      await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIds));
-      await db.delete(matches).where(inArray(matches.sessionId, sessionIds));
+      const clubSessionIds = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+      const sessionIdList = clubSessionIds.map(s => s.id);
+      if (sessionIdList.length > 0) {
+        await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIdList));
+        await db.delete(matches).where(inArray(matches.sessionId, sessionIdList));
+      }
       await db.delete(sessions).where(eq(sessions.clubId, clubId));
+
+      const clubLeagueMatchIds = await db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId));
+      const leagueMatchIdList = clubLeagueMatchIds.map(m => m.id);
+      if (leagueMatchIdList.length > 0) {
+        await db.delete(leagueGameScores).where(inArray(leagueGameScores.matchId, leagueMatchIdList));
+        await db.delete(leagueMatchResults).where(inArray(leagueMatchResults.matchId, leagueMatchIdList));
+        await db.delete(leagueMatchPlayers).where(inArray(leagueMatchPlayers.matchId, leagueMatchIdList));
+      }
+      await db.delete(leagueMatches).where(eq(leagueMatches.clubId, clubId));
+      await db.delete(leagueTeams).where(eq(leagueTeams.clubId, clubId));
+      await db.delete(leagueOpponents).where(eq(leagueOpponents.clubId, clubId));
+      await db.delete(clubHomeVenues).where(eq(clubHomeVenues.clubId, clubId));
+      await db.delete(leagues).where(eq(leagues.clubId, clubId));
+
+      await db.delete(creditLedger).where(eq(creditLedger.clubId, clubId));
       await db.delete(clubMemberships).where(eq(clubMemberships.clubId, clubId));
       await db.delete(membershipRequests).where(eq(membershipRequests.clubId, clubId));
       await db.delete(membershipPlans).where(eq(membershipPlans.clubId, clubId));
@@ -13069,21 +13087,16 @@ export async function registerRoutes(
       await db.delete(recurringEvents).where(eq(recurringEvents.clubId, clubId));
       await db.delete(clubReferralSettings).where(eq(clubReferralSettings.clubId, clubId));
       await db.delete(referralPrograms).where(eq(referralPrograms.clubId, clubId));
+      await db.delete(referrals).where(eq(referrals.clubId, clubId));
       await db.delete(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.clubId, clubId));
       await db.delete(playerRewardLedger).where(eq(playerRewardLedger.clubId, clubId));
       await db.delete(clubAnniversarySettings).where(eq(clubAnniversarySettings.clubId, clubId));
       await db.delete(clubBirthdaySettings).where(eq(clubBirthdaySettings.clubId, clubId));
       await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId));
       await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId));
-      const leagueIds = db.select({ id: leagues.id }).from(leagues).where(eq(leagues.clubId, clubId));
-      await db.delete(leagueGameScores).where(inArray(leagueGameScores.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
-      await db.delete(leagueMatchResults).where(inArray(leagueMatchResults.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
-      await db.delete(leagueMatchPlayers).where(inArray(leagueMatchPlayers.matchId, db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId))));
-      await db.delete(leagueMatches).where(eq(leagueMatches.clubId, clubId));
-      await db.delete(leagueTeams).where(eq(leagueTeams.clubId, clubId));
-      await db.delete(leagueOpponents).where(eq(leagueOpponents.clubId, clubId));
-      await db.delete(clubHomeVenues).where(eq(clubHomeVenues.clubId, clubId));
-      await db.delete(leagues).where(eq(leagues.clubId, clubId));
+      await db.delete(chats).where(eq(chats.clubId, clubId));
+      await db.delete(tournaments).where(eq(tournaments.clubId, clubId));
+      await db.delete(juniorVideos).where(eq(juniorVideos.clubId, clubId));
       await db.delete(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
       await db.delete(juniorRankings).where(eq(juniorRankings.clubId, clubId));
       await db.delete(generatedReports).where(eq(generatedReports.clubId, clubId));
@@ -13107,16 +13120,59 @@ export async function registerRoutes(
     if (user.role !== "OWNER") return res.status(403).json({ message: "Not authorized" });
     try {
       const clubId = Number(req.params.id);
-      await db.delete(sessionSignups).where(
-        inArray(sessionSignups.sessionId, db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId)))
-      );
-      await db.delete(matches).where(
-        inArray(matches.sessionId, db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId)))
-      );
+      const clubSessionIds = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.clubId, clubId));
+      const sessionIdList = clubSessionIds.map(s => s.id);
+      if (sessionIdList.length > 0) {
+        await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, sessionIdList));
+        await db.delete(matches).where(inArray(matches.sessionId, sessionIdList));
+      }
       await db.delete(sessions).where(eq(sessions.clubId, clubId));
-      await db.delete(playerProfiles).where(eq(playerProfiles.clubId, clubId));
+
+      const clubLeagueMatchIds = await db.select({ id: leagueMatches.id }).from(leagueMatches).where(eq(leagueMatches.clubId, clubId));
+      const leagueMatchIdList = clubLeagueMatchIds.map(m => m.id);
+      if (leagueMatchIdList.length > 0) {
+        await db.delete(leagueGameScores).where(inArray(leagueGameScores.matchId, leagueMatchIdList));
+        await db.delete(leagueMatchResults).where(inArray(leagueMatchResults.matchId, leagueMatchIdList));
+        await db.delete(leagueMatchPlayers).where(inArray(leagueMatchPlayers.matchId, leagueMatchIdList));
+      }
+      await db.delete(leagueMatches).where(eq(leagueMatches.clubId, clubId));
+      await db.delete(leagueTeams).where(eq(leagueTeams.clubId, clubId));
+      await db.delete(leagueOpponents).where(eq(leagueOpponents.clubId, clubId));
+      await db.delete(clubHomeVenues).where(eq(clubHomeVenues.clubId, clubId));
+      await db.delete(leagues).where(eq(leagues.clubId, clubId));
+
+      await db.delete(creditLedger).where(eq(creditLedger.clubId, clubId));
       await db.delete(clubMemberships).where(eq(clubMemberships.clubId, clubId));
       await db.delete(membershipRequests).where(eq(membershipRequests.clubId, clubId));
+      await db.delete(membershipPlans).where(eq(membershipPlans.clubId, clubId));
+      await db.delete(merchandiseOrders).where(eq(merchandiseOrders.clubId, clubId));
+      await db.delete(merchandise).where(eq(merchandise.clubId, clubId));
+      await db.delete(inventoryMovements).where(eq(inventoryMovements.clubId, clubId));
+      await db.delete(inventoryItems).where(eq(inventoryItems.clubId, clubId));
+      await db.delete(expenses).where(eq(expenses.clubId, clubId));
+      await db.delete(venues).where(eq(venues.clubId, clubId));
+      await db.delete(announcements).where(eq(announcements.clubId, clubId));
+      await db.delete(discountCodes).where(eq(discountCodes.clubId, clubId));
+      await db.delete(recurringEvents).where(eq(recurringEvents.clubId, clubId));
+      await db.delete(clubReferralSettings).where(eq(clubReferralSettings.clubId, clubId));
+      await db.delete(referralPrograms).where(eq(referralPrograms.clubId, clubId));
+      await db.delete(referrals).where(eq(referrals.clubId, clubId));
+      await db.delete(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.clubId, clubId));
+      await db.delete(playerRewardLedger).where(eq(playerRewardLedger.clubId, clubId));
+      await db.delete(clubAnniversarySettings).where(eq(clubAnniversarySettings.clubId, clubId));
+      await db.delete(clubBirthdaySettings).where(eq(clubBirthdaySettings.clubId, clubId));
+      await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.clubId, clubId));
+      await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.clubId, clubId));
+      await db.delete(chats).where(eq(chats.clubId, clubId));
+      await db.delete(tournaments).where(eq(tournaments.clubId, clubId));
+      await db.delete(juniorVideos).where(eq(juniorVideos.clubId, clubId));
+      await db.delete(juniorProfiles).where(eq(juniorProfiles.clubId, clubId));
+      await db.delete(juniorRankings).where(eq(juniorRankings.clubId, clubId));
+      await db.delete(generatedReports).where(eq(generatedReports.clubId, clubId));
+      await db.delete(notificationScheduleSettings).where(eq(notificationScheduleSettings.clubId, clubId));
+      await db.delete(notificationLogs).where(eq(notificationLogs.clubId, clubId));
+      await db.delete(adminAuditLogs).where(eq(adminAuditLogs.clubId, clubId));
+      await db.delete(playerProfiles).where(eq(playerProfiles.clubId, clubId));
       await db.delete(clubs).where(eq(clubs.id, clubId));
       res.json({ success: true });
     } catch (err: any) {
