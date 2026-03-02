@@ -100,6 +100,7 @@ const TermsConditions = lazy(() => import("@/pages/TermsConditions"));
 const JuniorConsentPolicy = lazy(() => import("@/pages/JuniorConsentPolicy"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
 const ThemeGallery = lazy(() => import("@/pages/ThemeGallery"));
+const Backgrounds = lazy(() => import("@/pages/Backgrounds"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 
@@ -492,6 +493,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         <PrivateRoute component={Profile} />
+      </Route>
+      <Route path="/backgrounds">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Backgrounds /></Suspense>} />
       </Route>
       <Route path="/themes">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><ThemeGallery /></Suspense>} />

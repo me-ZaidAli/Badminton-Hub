@@ -23,8 +23,7 @@ import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useBackground, BACKGROUND_OPTIONS } from "@/hooks/use-background";
-import { BackgroundPicker } from "@/components/BackgroundPicker";
+import { useBackground } from "@/hooks/use-background";
 
 function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
@@ -271,16 +270,15 @@ function DashboardContent({
     }
   }, [user?.dashboardBackground]);
 
-  const fullBgStyle = backgroundCss
-    ? { backgroundImage: `${currentBackground.preview}, ${backgroundCss}` }
-    : undefined;
-
   return (
     <div className="space-y-8 relative min-h-screen">
       {backgroundCss && (
         <div
           className="absolute inset-0 pointer-events-none -z-[1] -mx-4 -mt-4 -mb-4 sm:-mx-6 sm:-mt-6 sm:-mb-6 rounded-xl"
-          style={fullBgStyle}
+          style={{
+            background: currentBackground.preview,
+            backgroundImage: backgroundCss,
+          }}
           aria-hidden="true"
         />
       )}
@@ -785,11 +783,6 @@ function DashboardContent({
         </DialogContent>
       </Dialog>
 
-      <Card data-testid="card-background-picker">
-        <CardContent className="p-4">
-          <BackgroundPicker />
-        </CardContent>
-      </Card>
     </div>
   );
 }

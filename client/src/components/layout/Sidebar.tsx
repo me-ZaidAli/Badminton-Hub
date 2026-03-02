@@ -37,6 +37,7 @@ import {
   Palette,
   Lock,
   CreditCard,
+  ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -115,6 +116,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets" },
 
+    { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon, group: "info" },
     { href: "/themes", label: "Themes", icon: Palette, group: "info", premiumOnly: true },
     { href: "/guide", label: "User Guide", icon: BookOpen, group: "info" },
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
