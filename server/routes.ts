@@ -948,11 +948,14 @@ export async function registerRoutes(
       if (req.body.reducedMotion !== undefined) {
         updates.reducedMotion = !!req.body.reducedMotion;
       }
+      if (req.body.dashboardBackground !== undefined) {
+        updates.dashboardBackground = String(req.body.dashboardBackground).slice(0, 50);
+      }
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid preferences to update" });
       }
       const updated = await storage.updateUser(req.user!.id, updates);
-      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion });
+      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion, dashboardBackground: updated.dashboardBackground });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to update display preferences" });
     }

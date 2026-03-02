@@ -260,17 +260,8 @@ export default function BlackCardManagement() {
   ];
 
   return (
-    <div className="space-y-6 relative">
-      <div className="pointer-events-none absolute inset-0 -top-10 -left-10 -right-10 overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full opacity-[0.07]"
-          style={{ background: "radial-gradient(circle, hsl(var(--primary)), transparent 70%)" }} />
-        <div className="absolute top-1/3 -left-32 w-[350px] h-[350px] rounded-full opacity-[0.05]"
-          style={{ background: "radial-gradient(circle, hsl(var(--primary)), transparent 70%)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full opacity-[0.04]"
-          style={{ background: "radial-gradient(circle, hsl(var(--accent)), transparent 70%)" }} />
-      </div>
-
-      <div className="flex items-center gap-3 relative">
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
         <Link href="/admin">
           <Button variant="ghost" size="icon" data-testid="button-back-admin">
             <ChevronLeft className="h-5 w-5" />

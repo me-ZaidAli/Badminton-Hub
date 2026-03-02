@@ -648,7 +648,10 @@ function ThemeSync() {
     if (user && user.displayMode) {
       syncFromUser(user.displayMode as any, user.reducedMotion ?? false, user.id);
     }
-  }, [user?.id, user?.displayMode, user?.reducedMotion]);
+    if (user?.dashboardBackground) {
+      localStorage.setItem("dashboardBackground", user.dashboardBackground);
+    }
+  }, [user?.id, user?.displayMode, user?.reducedMotion, user?.dashboardBackground]);
 
   return null;
 }
