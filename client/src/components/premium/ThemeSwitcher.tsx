@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, DISPLAY_MODES, type ThemeModeInfo } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
-import { Check, GlassWater, BarChart3, Leaf, Sparkles, Layout } from "lucide-react";
+import { Check, GlassWater, BarChart3, Leaf, Sparkles, Layout, Crown } from "lucide-react";
 
 interface ThemeCategory {
   id: string;
@@ -53,6 +53,14 @@ const THEME_CATEGORIES: ThemeCategory[] = [
     description: "Bold flat structure with strong grid alignment",
     themeValues: ["vector-legacy"],
     accentColor: "#0D9488",
+  },
+  {
+    id: "premium-collections",
+    label: "Premium Collections",
+    icon: Crown,
+    description: "Five exclusive standalone themes with unique design systems",
+    themeValues: ["frosted-titanium", "midnight-voltage", "solstice-calm", "aurora-pulse", "atlas-grid"],
+    accentColor: "#D4AF37",
   },
 ];
 

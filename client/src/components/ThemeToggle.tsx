@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost, Codesandbox, Flower2, GlassWater, Terminal, RefreshCw, CircleDot, TreeDeciduous, CloudSun } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost, Codesandbox, Flower2, GlassWater, Terminal, RefreshCw, CircleDot, TreeDeciduous, CloudSun, Layers, BatteryCharging, Wind, Disc, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
 import {
@@ -69,6 +69,11 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "sage-horizon": Leaf,
   "prism-forge": Flame,
   "vector-legacy": Grid3x3,
+  "frosted-titanium": Layers,
+  "midnight-voltage": BatteryCharging,
+  "solstice-calm": Wind,
+  "aurora-pulse": Disc,
+  "atlas-grid": LayoutGrid,
 };
 
 const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty", "Accessibility"] as const;

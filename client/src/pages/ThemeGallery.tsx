@@ -65,7 +65,7 @@ function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet, hasRoyalD
       subtitle: "Gold Tier Member",
       requirement: "Available to all members",
       unlocked: true,
-      themeCount: 16,
+      themeCount: 21,
       bg: "linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 30%, #1e1e1e 50%, #252525 70%, #1a1a1a 100%)",
       border: "#b8860b",
       accent: "#c5a044",

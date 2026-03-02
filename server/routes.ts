@@ -975,6 +975,7 @@ export async function registerRoutes(
         "neon-circuit", "hologram-matrix", "cyber-pulse", "titanium-noir",
         "rose-gold-elite", "diamond-graphite",
         "obsidian-frost", "neon-apex", "sage-horizon", "prism-forge", "vector-legacy",
+        "frosted-titanium", "midnight-voltage", "solstice-calm", "aurora-pulse", "atlas-grid",
       ];
       const eliteThemes = [
         "sapphire-velocity", "crimson-prestige", "arctic-blue",

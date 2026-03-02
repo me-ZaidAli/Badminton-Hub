@@ -77,6 +77,11 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "sage-horizon", label: "Sage Horizon™", description: "Calm editorial aesthetic with sage, dusty rose, warm sand and floating glass panels", grade: "Premium", colorFamily: "Emerald", accentHex: "#5A9A6E", gradientStart: "#EFF2ED", gradientEnd: "#5A9A6E", chartColors: ["#5A9A6E", "#C48B8B", "#C6A050", "#6B8898", "#7AB88A"] },
   { value: "prism-forge", label: "Prism Forge™", description: "Luminous multi-stop gradients with skeuomorphic depth, glow pulse and parallax tilt", grade: "Premium", colorFamily: "Amethyst", accentHex: "#9B5DE5", gradientStart: "#14091C", gradientEnd: "#F97316", chartColors: ["#9B5DE5", "#E84393", "#F97316", "#00BCD4", "#3B82F6"] },
   { value: "vector-legacy", label: "Vector Legacy™", description: "Bold teal and charcoal flat structure with strong grid, large counters and clean icons", grade: "Premium", colorFamily: "Blue", accentHex: "#0D9488", gradientStart: "#F5F5F5", gradientEnd: "#0D9488", chartColors: ["#0D9488", "#334155", "#14B8A6", "#64748B", "#5EEAD4"] },
+  { value: "frosted-titanium", label: "Frosted Titanium", description: "True glassmorphism with 36px blur, transparent cards, inner highlight strokes and deep charcoal gradients", grade: "Premium", colorFamily: "Platinum", accentHex: "#4A9EC5", gradientStart: "#141A22", gradientEnd: "#4A9EC5", chartColors: ["#4A9EC5", "#3D8BA8", "#2E6A80", "#5CB8E0", "#1F5060"] },
+  { value: "midnight-voltage", label: "Midnight Voltage", description: "AMOLED performance dashboard with neon lime, cyan, violet and coral accents on ultra-dark base", grade: "Premium", colorFamily: "Neon", isAmoled: true, accentHex: "#84CC16", gradientStart: "#0F1115", gradientEnd: "#84CC16", chartColors: ["#84CC16", "#06B6D4", "#8B5CF6", "#F97316", "#F59E0B"] },
+  { value: "solstice-calm", label: "Solstice Calm", description: "Muted sage, sand, rose and slate with floating panels and calm editorial typography", grade: "Premium", colorFamily: "Emerald", accentHex: "#5A9A6E", gradientStart: "#EFF2ED", gradientEnd: "#5A9A6E", chartColors: ["#5A9A6E", "#C48B6B", "#B87878", "#5A7A8A", "#6B9A50"] },
+  { value: "aurora-pulse", label: "Aurora Pulse", description: "Energetic purple-magenta-orange gradients with glow pulse hover effects and lifted glass cards", grade: "Premium", colorFamily: "Amethyst", accentHex: "#9B5DE5", gradientStart: "#140E1C", gradientEnd: "#E84393", chartColors: ["#9B5DE5", "#E84393", "#F97316", "#06B6D4", "#3B82F6"] },
+  { value: "atlas-grid", label: "Atlas Grid", description: "Structured flat retro-modern with bold teal, charcoal, crisp strokes and large numeric counters", grade: "Premium", colorFamily: "Blue", accentHex: "#0D9488", gradientStart: "#F5F5F5", gradientEnd: "#0D9488", chartColors: ["#0D9488", "#334155", "#14B8A6", "#64748B", "#5EEAD4"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -140,6 +145,11 @@ const THEME_CLASSES: Record<string, string[]> = {
   "sage-horizon": ["sage-horizon"],
   "prism-forge": ["dark", "prism-forge"],
   "vector-legacy": ["vector-legacy"],
+  "frosted-titanium": ["dark", "frosted-titanium"],
+  "midnight-voltage": ["dark", "midnight-voltage"],
+  "solstice-calm": ["solstice-calm"],
+  "aurora-pulse": ["dark", "aurora-pulse"],
+  "atlas-grid": ["atlas-grid"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -159,6 +169,7 @@ const ALL_THEME_CLASSES = [
   "tropical-dawn", "savanna-breeze", "rainforest-canopy",
   "misty-bamboo", "tropical-lagoon", "sunset-savannah",
   "obsidian-frost", "neon-apex", "sage-horizon", "prism-forge", "vector-legacy",
+  "frosted-titanium", "midnight-voltage", "solstice-calm", "aurora-pulse", "atlas-grid",
 ];
 
 const DARK_THEMES = new Set([
@@ -173,6 +184,7 @@ const DARK_THEMES = new Set([
   "obsidian-gold-ultra", "crystal-court",
   "phosphor-elite", "adaptive-pro", "royal-indigo",
   "obsidian-frost", "neon-apex", "prism-forge",
+  "frosted-titanium", "midnight-voltage", "aurora-pulse",
 ]);
 
 function getInitialMode(): DisplayMode {

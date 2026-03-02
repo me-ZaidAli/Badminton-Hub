@@ -6489,6 +6489,417 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   PREMIUM COLLECTION: Frosted Titanium (Glassmorphism)
+   Deep charcoal gradient with transparent glass cards, 30-40px blur
+   ═══════════════════════════════════════════════════════════════════ */
+
+.frosted-titanium {
+  --background: 220 18% 8%;
+  --foreground: 210 20% 92%;
+  --primary: 200 65% 55%;
+  --primary-foreground: 220 20% 5%;
+  --secondary: 220 12% 14%;
+  --secondary-foreground: 210 15% 85%;
+  --accent: 215 25% 18%;
+  --accent-foreground: 210 20% 90%;
+  --muted: 220 14% 12%;
+  --muted-foreground: 215 12% 55%;
+  --card: 220 16% 11%;
+  --card-foreground: 210 20% 92%;
+  --popover: 220 18% 10%;
+  --popover-foreground: 210 20% 92%;
+  --border: 220 12% 16%;
+  --input: 220 14% 14%;
+  --ring: 200 65% 55%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar-background: 220 18% 7%;
+  --sidebar-foreground: 210 20% 90%;
+  --sidebar-primary: 200 65% 55%;
+  --sidebar-primary-foreground: 220 20% 5%;
+  --sidebar-accent: 215 20% 14%;
+  --sidebar-accent-foreground: 210 20% 90%;
+  --sidebar-border: 220 12% 14%;
+  --sidebar-ring: 200 65% 55%;
+  --radius: 1.5rem;
+  --chart-1: 200 65% 55%;
+  --chart-2: 185 50% 48%;
+  --chart-3: 220 30% 40%;
+  --chart-4: 210 45% 60%;
+  --chart-5: 195 55% 50%;
+}
+
+.frosted-titanium [data-slot="card"] {
+  background: hsl(var(--card) / 0.10) !important;
+  backdrop-filter: blur(36px) saturate(1.5);
+  -webkit-backdrop-filter: blur(36px) saturate(1.5);
+  border: 1px solid hsl(0 0% 100% / 0.10);
+  box-shadow:
+    0 10px 40px hsl(0 0% 0% / 0.4),
+    0 2px 8px hsl(0 0% 0% / 0.2),
+    inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  border-radius: 24px;
+}
+
+.frosted-titanium [data-slot="card"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(145deg, hsl(0 0% 100% / 0.18), hsl(0 0% 100% / 0.01), hsl(0 0% 100% / 0.10));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.frosted-titanium [data-slot="card"]:hover {
+  background: hsl(var(--card) / 0.16) !important;
+  box-shadow:
+    0 16px 48px hsl(0 0% 0% / 0.5),
+    0 4px 12px hsl(0 0% 0% / 0.25),
+    inset 0 1px 0 hsl(0 0% 100% / 0.12),
+    0 0 24px hsl(var(--primary) / 0.10);
+  border-color: hsl(0 0% 100% / 0.16);
+}
+
+.frosted-titanium [role="dialog"],
+.frosted-titanium [data-radix-popper-content-wrapper] {
+  background: hsl(var(--popover) / 0.12) !important;
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 1px solid hsl(0 0% 100% / 0.10);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px hsl(0 0% 0% / 0.5);
+}
+
+.frosted-titanium input,
+.frosted-titanium textarea,
+.frosted-titanium select {
+  background: hsl(var(--input) / 0.12) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  border-radius: 14px;
+}
+
+.frosted-titanium * {
+  scrollbar-color: hsl(200 40% 40%) transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM COLLECTION: Midnight Voltage (AMOLED Performance Dashboard)
+   Ultra-dark #0F1115 with neon lime/cyan/violet/coral accents
+   ═══════════════════════════════════════════════════════════════════ */
+
+.midnight-voltage {
+  --background: 225 20% 5%;
+  --foreground: 0 0% 95%;
+  --primary: 84 80% 45%;
+  --primary-foreground: 225 20% 5%;
+  --secondary: 225 15% 10%;
+  --secondary-foreground: 0 0% 85%;
+  --accent: 270 70% 55%;
+  --accent-foreground: 0 0% 95%;
+  --muted: 225 12% 9%;
+  --muted-foreground: 220 10% 50%;
+  --card: 225 18% 7%;
+  --card-foreground: 0 0% 95%;
+  --popover: 225 20% 6%;
+  --popover-foreground: 0 0% 95%;
+  --border: 225 12% 12%;
+  --input: 225 15% 10%;
+  --ring: 84 80% 45%;
+  --destructive: 0 85% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar-background: 225 20% 4%;
+  --sidebar-foreground: 0 0% 92%;
+  --sidebar-primary: 84 80% 45%;
+  --sidebar-primary-foreground: 225 20% 5%;
+  --sidebar-accent: 225 15% 10%;
+  --sidebar-accent-foreground: 0 0% 90%;
+  --sidebar-border: 225 12% 10%;
+  --sidebar-ring: 84 80% 45%;
+  --radius: 0.75rem;
+  --chart-1: 84 80% 45%;
+  --chart-2: 190 90% 50%;
+  --chart-3: 270 70% 55%;
+  --chart-4: 16 90% 55%;
+  --chart-5: 45 90% 55%;
+}
+
+.midnight-voltage [data-slot="card"] {
+  background: hsl(var(--card) / 0.15) !important;
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid hsl(84 80% 45% / 0.08);
+  box-shadow: 0 6px 24px hsl(0 0% 0% / 0.5);
+}
+
+.midnight-voltage [data-slot="card"] .text-3xl,
+.midnight-voltage [data-slot="card"] .text-4xl,
+.midnight-voltage [data-slot="card"] .text-5xl {
+  text-shadow: 0 0 24px hsl(84 80% 45% / 0.4);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.midnight-voltage .recharts-cartesian-grid line {
+  stroke: hsl(84 80% 45% / 0.06);
+}
+
+.midnight-voltage .text-green-500,
+.midnight-voltage .text-emerald-500 {
+  text-shadow: 0 0 12px hsl(84 80% 50% / 0.5);
+}
+
+.midnight-voltage * {
+  scrollbar-color: hsl(84 50% 30%) hsl(225 20% 5%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM COLLECTION: Solstice Calm (Organic Earth Tones)
+   Sage, sand, rose, slate — calm editorial aesthetic
+   ═══════════════════════════════════════════════════════════════════ */
+
+.solstice-calm {
+  --background: 80 10% 95%;
+  --foreground: 220 15% 20%;
+  --primary: 150 30% 40%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 35 25% 88%;
+  --secondary-foreground: 220 15% 25%;
+  --accent: 350 20% 75%;
+  --accent-foreground: 220 15% 20%;
+  --muted: 80 8% 90%;
+  --muted-foreground: 220 10% 45%;
+  --card: 45 20% 96%;
+  --card-foreground: 220 15% 20%;
+  --popover: 45 20% 97%;
+  --popover-foreground: 220 15% 20%;
+  --border: 80 10% 85%;
+  --input: 80 8% 92%;
+  --ring: 150 30% 40%;
+  --destructive: 0 55% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar-background: 80 10% 93%;
+  --sidebar-foreground: 220 15% 22%;
+  --sidebar-primary: 150 30% 40%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 35 20% 88%;
+  --sidebar-accent-foreground: 220 15% 22%;
+  --sidebar-border: 80 10% 85%;
+  --sidebar-ring: 150 30% 40%;
+  --radius: 1.25rem;
+  --chart-1: 150 30% 40%;
+  --chart-2: 35 30% 55%;
+  --chart-3: 350 20% 60%;
+  --chart-4: 200 20% 50%;
+  --chart-5: 80 20% 50%;
+}
+
+.solstice-calm [data-slot="card"] {
+  background: hsl(var(--card) / 0.80);
+  border: 1px solid hsl(80 10% 80% / 0.6);
+  box-shadow: 0 4px 16px hsl(80 10% 50% / 0.08);
+  border-radius: 20px;
+}
+
+.solstice-calm [data-slot="card"]:hover {
+  box-shadow: 0 6px 24px hsl(80 10% 50% / 0.12);
+}
+
+.solstice-calm input,
+.solstice-calm textarea,
+.solstice-calm select {
+  border: 1px solid hsl(80 10% 80%);
+  border-radius: 12px;
+  background: hsl(var(--input) / 0.9);
+}
+
+.solstice-calm * {
+  scrollbar-color: hsl(150 20% 65%) hsl(80 10% 92%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM COLLECTION: Aurora Pulse (Energetic Gradient-Forward)
+   Vibrant purple→magenta→orange gradients, glow pulse hover
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aurora-pulse {
+  --background: 270 25% 6%;
+  --foreground: 0 0% 95%;
+  --primary: 280 75% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 270 20% 14%;
+  --secondary-foreground: 0 0% 88%;
+  --accent: 330 75% 55%;
+  --accent-foreground: 0 0% 100%;
+  --muted: 270 15% 11%;
+  --muted-foreground: 270 10% 50%;
+  --card: 270 22% 10%;
+  --card-foreground: 0 0% 95%;
+  --popover: 270 25% 8%;
+  --popover-foreground: 0 0% 95%;
+  --border: 270 15% 16%;
+  --input: 270 18% 13%;
+  --ring: 280 75% 60%;
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar-background: 270 25% 5%;
+  --sidebar-foreground: 0 0% 92%;
+  --sidebar-primary: 280 75% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 270 20% 13%;
+  --sidebar-accent-foreground: 0 0% 90%;
+  --sidebar-border: 270 15% 14%;
+  --sidebar-ring: 280 75% 60%;
+  --radius: 1rem;
+  --chart-1: 280 75% 60%;
+  --chart-2: 330 75% 55%;
+  --chart-3: 25 90% 55%;
+  --chart-4: 190 80% 50%;
+  --chart-5: 220 70% 55%;
+}
+
+.aurora-pulse [data-slot="card"] {
+  background: hsl(var(--card) / 0.18) !important;
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid hsl(280 75% 60% / 0.10);
+  box-shadow:
+    0 8px 28px hsl(0 0% 0% / 0.4),
+    0 0 0 1px hsl(280 75% 60% / 0.05);
+  border-radius: 16px;
+}
+
+.aurora-pulse [data-slot="card"]:hover {
+  background: hsl(var(--card) / 0.24) !important;
+  box-shadow:
+    0 12px 36px hsl(0 0% 0% / 0.5),
+    0 0 20px hsl(280 75% 60% / 0.15),
+    0 0 40px hsl(330 75% 55% / 0.08);
+  border-color: hsl(280 75% 60% / 0.18);
+  animation: aurora-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes aurora-glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 12px 36px hsl(0 0% 0% / 0.5),
+      0 0 20px hsl(280 75% 60% / 0.15),
+      0 0 40px hsl(330 75% 55% / 0.08);
+  }
+  50% {
+    box-shadow:
+      0 12px 36px hsl(0 0% 0% / 0.5),
+      0 0 28px hsl(280 75% 60% / 0.22),
+      0 0 50px hsl(330 75% 55% / 0.12);
+  }
+}
+
+.aurora-pulse button.bg-primary,
+.aurora-pulse a.bg-primary,
+.aurora-pulse [role="button"].bg-primary {
+  background: linear-gradient(135deg, hsl(280 75% 60%) 0%, hsl(330 75% 55%) 50%, hsl(25 90% 55%) 100%) !important;
+}
+
+.aurora-pulse * {
+  scrollbar-color: hsl(280 50% 40%) hsl(270 25% 6%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM COLLECTION: Atlas Grid (Flat Retro-Modern)
+   Bold teal, charcoal, off-white — strong grid, minimal shadow
+   ═══════════════════════════════════════════════════════════════════ */
+
+.atlas-grid {
+  --background: 200 5% 96%;
+  --foreground: 210 20% 15%;
+  --primary: 174 65% 35%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 10% 88%;
+  --secondary-foreground: 210 20% 18%;
+  --accent: 210 15% 25%;
+  --accent-foreground: 0 0% 95%;
+  --muted: 200 5% 92%;
+  --muted-foreground: 210 10% 45%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 20% 15%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 20% 15%;
+  --border: 210 10% 85%;
+  --input: 200 5% 94%;
+  --ring: 174 65% 35%;
+  --destructive: 0 65% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar-background: 200 5% 94%;
+  --sidebar-foreground: 210 20% 18%;
+  --sidebar-primary: 174 65% 35%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 210 8% 88%;
+  --sidebar-accent-foreground: 210 20% 18%;
+  --sidebar-border: 210 10% 85%;
+  --sidebar-ring: 174 65% 35%;
+  --radius: 0.5rem;
+  --chart-1: 174 65% 35%;
+  --chart-2: 210 20% 30%;
+  --chart-3: 174 50% 45%;
+  --chart-4: 210 12% 50%;
+  --chart-5: 174 40% 55%;
+}
+
+.atlas-grid [data-slot="card"] {
+  background: hsl(var(--card));
+  border: 2px solid hsl(210 10% 82%);
+  box-shadow: none;
+  border-radius: 8px;
+}
+
+.atlas-grid [data-slot="card"]:hover {
+  border-color: hsl(174 65% 35%);
+}
+
+.atlas-grid [data-slot="card"] .text-3xl,
+.atlas-grid [data-slot="card"] .text-4xl,
+.atlas-grid [data-slot="card"] .text-5xl {
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: hsl(210 20% 15%);
+}
+
+.atlas-grid button.bg-primary,
+.atlas-grid a.bg-primary,
+.atlas-grid [role="button"].bg-primary {
+  border-radius: 6px;
+  box-shadow: none;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.atlas-grid input,
+.atlas-grid textarea,
+.atlas-grid select {
+  border: 2px solid hsl(210 10% 82%);
+  border-radius: 6px;
+  background: hsl(var(--input));
+}
+
+.atlas-grid input:focus,
+.atlas-grid textarea:focus,
+.atlas-grid select:focus {
+  border-color: hsl(174 65% 35%);
+  box-shadow: none;
+}
+
+.atlas-grid * {
+  scrollbar-color: hsl(174 40% 50%) hsl(200 5% 94%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Theme Transition Crossfade
    ═══════════════════════════════════════════════════════════════════ */
 
