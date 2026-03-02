@@ -987,11 +987,20 @@ export async function registerRoutes(
         }
         updates.dashboardBackground = bgId;
       }
+      if (req.body.fontFamily !== undefined) {
+        updates.fontFamily = String(req.body.fontFamily).slice(0, 50);
+      }
+      if (req.body.fontMode !== undefined) {
+        const fm = String(req.body.fontMode);
+        if (fm === "all" || fm === "headings") {
+          updates.fontMode = fm;
+        }
+      }
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid preferences to update" });
       }
       const updated = await storage.updateUser(req.user!.id, updates);
-      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion, dashboardBackground: updated.dashboardBackground });
+      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion, dashboardBackground: updated.dashboardBackground, fontFamily: updated.fontFamily, fontMode: updated.fontMode });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to update display preferences" });
     }
