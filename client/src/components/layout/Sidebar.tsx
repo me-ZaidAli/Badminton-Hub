@@ -44,6 +44,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,6 +126,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/themes", label: "Themes", icon: Palette, group: "design", premiumOnly: true },
     { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon, group: "design" },
     { href: "/typography", label: "Typography", icon: Type, group: "design" },
+    { href: "/social-media", label: "Social Media", icon: Share2, group: "design" },
     { href: "/guide", label: "User Guide", icon: BookOpen, group: "info" },
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];

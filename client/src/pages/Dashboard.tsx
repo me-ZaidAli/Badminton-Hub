@@ -18,7 +18,7 @@ import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords, CreditCard, Crown
+  MapPin, Swords, CreditCard, Crown, Share2
 } from "lucide-react";
 import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
@@ -721,13 +721,35 @@ function DashboardContent({
       )}
 
       {(() => {
-        const activeClub = clubs.find((c: any) => c.id === effectiveClubId);
+        const clubsWithSocials = clubs.filter((c: any) => {
+          const links = c.socialLinks || [];
+          return links.some((l: any) => l.url?.trim());
+        });
+        if (clubsWithSocials.length === 0) return null;
+        const activeClub = clubsWithSocials.find((c: any) => c.id === effectiveClubId) || clubsWithSocials[0];
         const socialLinks = activeClub?.socialLinks || [];
-        if (socialLinks.length === 0 || !socialLinks.some((l: any) => l.url?.trim())) return null;
         return (
           <Card data-testid="card-follow-us">
             <CardContent className="py-4 px-5">
-              <SocialLinksDisplay links={socialLinks} />
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Share2 className="w-4 h-4 text-primary" />
+                  Follow {activeClub?.name || "Us"}
+                </div>
+                {clubsWithSocials.length > 1 && (
+                  <Select value={String(activeClub?.id)} onValueChange={(v) => onClubChange(v)}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs" data-testid="select-social-club-dashboard">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clubsWithSocials.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <SocialLinksDisplay links={socialLinks} showLabel={false} />
             </CardContent>
           </Card>
         );

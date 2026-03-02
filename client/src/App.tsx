@@ -104,6 +104,7 @@ const UserGuide = lazy(() => import("@/pages/UserGuide"));
 const ThemeGallery = lazy(() => import("@/pages/ThemeGallery"));
 const Backgrounds = lazy(() => import("@/pages/Backgrounds"));
 const TypographyStudio = lazy(() => import("@/pages/TypographyStudio"));
+const SocialMedia = lazy(() => import("@/pages/SocialMedia"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 
@@ -472,6 +473,9 @@ function Router() {
       </Route>
       <Route path="/typography">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TypographyStudio /></Suspense>} />
+      </Route>
+      <Route path="/social-media">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><SocialMedia /></Suspense>} />
       </Route>
       <Route path="/guide">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><UserGuide /></Suspense>} />
