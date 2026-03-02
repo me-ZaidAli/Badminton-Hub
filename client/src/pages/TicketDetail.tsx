@@ -376,15 +376,25 @@ function TicketHeader({
               disabled={assignMutation.isPending || unassignMutation.isPending}
             >
               <SelectTrigger className="w-[200px]" data-testid="select-assign-ticket">
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue placeholder="Unassigned">
+                  {ticket.assignedToUserId
+                    ? (() => {
+                        const found = assignableUsers.find((m: any) => m.userId === ticket.assignedToUserId);
+                        return found?.user?.fullName || found?.fullName || assigneeName || `User #${ticket.assignedToUserId}`;
+                      })()
+                    : "Unassigned"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
-                {assignableUsers.map((member: any) => (
-                  <SelectItem key={member.userId} value={member.userId.toString()}>
-                    {member.user?.fullName || member.user?.nickname || member.fullName || `User #${member.userId}`}
-                  </SelectItem>
-                ))}
+                {assignableUsers.map((member: any) => {
+                  const name = member.user?.fullName || member.user?.nickname || member.fullName || `User #${member.userId}`;
+                  return (
+                    <SelectItem key={member.userId} value={member.userId.toString()}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {(assignMutation.isPending || unassignMutation.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
