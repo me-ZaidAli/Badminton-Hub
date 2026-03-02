@@ -960,8 +960,14 @@ export async function registerRoutes(
           "northern-lights", "steel-grid", "diamond-mesh",
           "img-forest-path", "img-city-lights", "img-northern-sky",
           "img-dark-mountains", "img-abstract-smoke",
+          "img-racket-strings", "img-stadium-lights", "img-sport-arena",
+          "img-neon-tunnel", "img-cyber-city", "img-digital-waves",
+          "img-circuit-board", "img-milky-way", "img-earth-space",
+          "img-aurora-sky", "img-marble-gold", "img-dark-silk",
+          "img-golden-gate", "img-cherry-blossom", "img-waterfall",
         ];
-        const blackcardBackgrounds = ["black-diamond", "galaxy-prestige", "infinite-void", "img-galaxy-deep"];
+        const blackcardBackgrounds = ["black-diamond", "galaxy-prestige", "infinite-void",
+          "img-galaxy-deep", "img-laser-show", "img-lightning-storm"];
         if (blackcardBackgrounds.includes(bgId)) {
           const user = await storage.getUser(req.user!.id);
           if (!user?.blackCardAccess) {
