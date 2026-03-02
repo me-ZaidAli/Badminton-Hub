@@ -109,17 +109,32 @@ function getInitialBackground(): string {
   return "none";
 }
 
+let bgStyleEl: HTMLStyleElement | null = null;
+
 function applyBackgroundToDOM(id: string) {
   const option = BACKGROUND_OPTIONS.find(b => b.id === id) || BACKGROUND_OPTIONS[0];
-  const el = document.documentElement;
+  const html = document.documentElement;
+
+  if (!bgStyleEl) {
+    bgStyleEl = document.createElement("style");
+    bgStyleEl.id = "app-bg-override";
+    document.head.appendChild(bgStyleEl);
+  }
+
   if (id === "none" || !option.css) {
-    el.removeAttribute("data-bg");
-    el.style.removeProperty("--app-bg-base");
-    el.style.removeProperty("--app-bg-overlay");
+    html.removeAttribute("data-bg");
+    bgStyleEl.textContent = "";
   } else {
-    el.setAttribute("data-bg", id);
-    el.style.setProperty("--app-bg-base", option.preview);
-    el.style.setProperty("--app-bg-overlay", option.css);
+    html.setAttribute("data-bg", id);
+    bgStyleEl.textContent = `
+      html[data-bg],
+      html[data-bg].dark,
+      html[data-bg] body {
+        background: ${option.preview} !important;
+        background-image: ${option.css}, ${option.preview} !important;
+        background-attachment: fixed !important;
+      }
+    `;
   }
 }
 
