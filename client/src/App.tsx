@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense, useEffect } from "react";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 import { useBackground } from "@/hooks/use-background";
+import { useTypography } from "@/hooks/use-typography";
 
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -102,6 +103,7 @@ const JuniorConsentPolicy = lazy(() => import("@/pages/JuniorConsentPolicy"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
 const ThemeGallery = lazy(() => import("@/pages/ThemeGallery"));
 const Backgrounds = lazy(() => import("@/pages/Backgrounds"));
+const TypographyStudio = lazy(() => import("@/pages/TypographyStudio"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 
@@ -501,6 +503,9 @@ function Router() {
       <Route path="/themes">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><ThemeGallery /></Suspense>} />
       </Route>
+      <Route path="/typography">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TypographyStudio /></Suspense>} />
+      </Route>
       <Route path="/guide">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><UserGuide /></Suspense>} />
       </Route>
@@ -649,6 +654,7 @@ function ThemeSync() {
   const { data: user } = useUser();
   const { syncFromUser } = useTheme();
   const { syncFromUser: syncBg } = useBackground();
+  const { syncFromUser: syncFont } = useTypography();
 
   useEffect(() => {
     if (user && user.displayMode) {
@@ -656,8 +662,9 @@ function ThemeSync() {
     }
     if (user) {
       syncBg(user.dashboardBackground);
+      syncFont(user.fontFamily, user.fontMode);
     }
-  }, [user?.id, user?.displayMode, user?.reducedMotion, user?.dashboardBackground]);
+  }, [user?.id, user?.displayMode, user?.reducedMotion, user?.dashboardBackground, user?.fontFamily, user?.fontMode]);
 
   return null;
 }

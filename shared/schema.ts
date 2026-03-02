@@ -79,6 +79,8 @@ export const users = pgTable("users", {
   displayMode: text("display_mode").default("light").notNull(),
   reducedMotion: boolean("reduced_motion").default(false).notNull(),
   dashboardBackground: text("dashboard_background").default("none"),
+  fontFamily: text("font_family").default("inter"),
+  fontMode: text("font_mode").default("all"),
   acquisitionSource: acquisitionSourceEnum("acquisition_source"),
   acquisitionSourceOther: text("acquisition_source_other"),
   lastActivityAt: timestamp("last_activity_at"),
