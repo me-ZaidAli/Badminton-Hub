@@ -879,6 +879,8 @@ export async function registerRoutes(
         "circuit-court", "cosmic-elite", "phantom-luxe",
         "obsidian-gold-ultra", "mint-prestige", "crystal-court",
         "phosphor-elite", "adaptive-pro", "royal-indigo",
+        "champagne-pearl", "coral-luxe", "arctic-frost",
+        "retro-cream-tech", "lavender-opulence", "champagne-mint",
       ];
       const lockedThemes: Record<string, string> = {
         "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",
@@ -890,6 +892,9 @@ export async function registerRoutes(
         "obsidian-gold-ultra": "metallic-comet", "mint-prestige": "metallic-comet",
         "crystal-court": "metallic-comet", "phosphor-elite": "metallic-comet",
         "adaptive-pro": "metallic-comet", "royal-indigo": "metallic-comet",
+        "champagne-pearl": "royal-duty", "coral-luxe": "royal-duty",
+        "arctic-frost": "royal-duty", "retro-cream-tech": "royal-duty",
+        "lavender-opulence": "royal-duty", "champagne-mint": "royal-duty",
       };
       const updates: any = {};
       if (req.body.displayMode && validModes.includes(req.body.displayMode)) {
@@ -904,6 +909,12 @@ export async function registerRoutes(
             const hasCard = await db.select({ id: userCards.id }).from(userCards).innerJoin(cards, eq(cards.id, userCards.cardId)).where(and(eq(userCards.userId, req.user!.id), eq(cards.name, "Metallic Comet"))).limit(1);
             if (hasCard.length === 0) {
               return res.status(403).json({ message: "Metallic Comet Card required for this theme" });
+            }
+          }
+          if (lockRequirement === "royal-duty") {
+            const hasCard = await db.select({ id: userCards.id }).from(userCards).innerJoin(cards, eq(cards.id, userCards.cardId)).where(and(eq(userCards.userId, req.user!.id), eq(cards.name, "Royal Duty"))).limit(1);
+            if (hasCard.length === 0) {
+              return res.status(403).json({ message: "Royal Duty Card required for this theme" });
             }
           }
           if (lockRequirement === "top10" || lockRequirement === "champion") {
@@ -1008,7 +1019,14 @@ export async function registerRoutes(
         unlockedThemes.push(...metallicCometThemes);
       }
 
-      res.json({ unlockedThemes, userRank, hasBlackCard, hasMetallicComet });
+      const royalDutyThemes = ["champagne-pearl", "coral-luxe", "arctic-frost", "retro-cream-tech", "lavender-opulence", "champagne-mint"];
+      const royalDutyCheck = await db.select({ id: userCards.id }).from(userCards).innerJoin(cards, eq(cards.id, userCards.cardId)).where(and(eq(userCards.userId, userId), eq(cards.name, "Royal Duty"))).limit(1);
+      const hasRoyalDuty = royalDutyCheck.length > 0;
+      if (hasRoyalDuty) {
+        unlockedThemes.push(...royalDutyThemes);
+      }
+
+      res.json({ unlockedThemes, userRank, hasBlackCard, hasMetallicComet, hasRoyalDuty });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to get available themes" });
     }
@@ -22250,6 +22268,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         { name: "Silent Guardian", description: "For the unsung heroes who quietly keep things running — setting up courts, managing equipment, handling logistics without being asked.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-gray-700 via-slate-600 to-gray-800", textColor: "text-white", accentColor: "#64748b", pattern: "shield-dark" }, isActive: true },
         { name: "Golden Racket", description: "The highest honour — awarded for extraordinary contribution, exceptional character, and lasting positive impact on the club.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-yellow-400 via-amber-400 to-orange-400", textColor: "text-black", accentColor: "#eab308", pattern: "crown" }, isActive: true },
         { name: "Metallic Comet", description: "The rarest recognition — blazing across the sky like a comet. Awarded to those who have demonstrated extraordinary dedication, skill, and unwavering passion for the sport.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-yellow-300 via-amber-400 to-yellow-600", textColor: "text-black", accentColor: "#D4AF37", pattern: "comet" }, isActive: true },
+        { name: "Royal Duty", description: "A mark of true distinction — bestowed upon those whose unwavering commitment, selfless leadership, and graceful conduct embody the highest standards of sporting excellence.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-slate-200 via-gray-300 to-zinc-400", textColor: "text-gray-900", accentColor: "#94A3B8", pattern: "crown" }, isActive: true },
       ];
 
       const inserted = await db.insert(cards).values(cardSeedData).returning();

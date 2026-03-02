@@ -4122,6 +4122,596 @@ html, body {
 .royal-indigo ::-webkit-scrollbar-thumb { background: hsl(260 35% 22%); border-radius: 3px; }
 .royal-indigo ::-webkit-scrollbar-thumb:hover { background: hsl(260 40% 30%); }
 
+/* ===== ROYAL DUTY 1. Champagne Pearl Theme (LIGHT) ===== */
+.champagne-pearl {
+  --background: 30 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 38 45% 61%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 35 28% 86%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 35 30% 92%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 38 45% 61%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 60 100% 97%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 35 28% 82%;
+  --popover: 60 100% 97%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 35 28% 82%;
+  --sidebar-background: 30 80% 96%;
+  --border: 35 28% 82%;
+  --input: 35 28% 82%;
+  --ring: 38 45% 61%;
+  --chart-1: 38 45% 61%;
+  --chart-2: 35 38% 72%;
+  --chart-3: 30 35% 48%;
+  --chart-4: 40 30% 78%;
+  --chart-5: 32 40% 38%;
+  --theme-accent: 38 45% 61%;
+  --theme-accent-glow: 38 50% 70%;
+  --theme-card-surface: 60 100% 97%;
+  --theme-gradient-start: 30 100% 97%;
+  --theme-gradient-end: 38 45% 61%;
+}
+
+.champagne-pearl body,
+.champagne-pearl {
+  background-color: hsl(30 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(38 45% 61% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(35 28% 86% / 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(60 100% 97% / 0.5) 0%, transparent 70%);
+}
+
+.champagne-pearl h1,
+.champagne-pearl h2,
+.champagne-pearl h3,
+.champagne-pearl h4 {
+  letter-spacing: 0.03em;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(38 45% 42%);
+  text-shadow: 0 1px 2px hsl(38 45% 61% / 0.15);
+  animation: champagne-pearl-glow 5s ease-in-out infinite;
+}
+
+@keyframes champagne-pearl-glow {
+  0%, 100% { text-shadow: 0 1px 2px hsl(38 45% 61% / 0.15); }
+  50% { text-shadow: 0 1px 6px hsl(38 50% 65% / 0.3), 0 0 12px hsl(38 45% 61% / 0.1); }
+}
+
+@keyframes champagne-pearl-iridescent {
+  0%, 100% { box-shadow: 0 2px 12px hsl(38 45% 61% / 0.08), 0 0 0 1px hsl(35 28% 86% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.6); }
+  50% { box-shadow: 0 2px 20px hsl(38 50% 65% / 0.15), 0 0 0 1px hsl(35 30% 82% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.8), 0 0 30px hsl(300 20% 80% / 0.05); }
+}
+
+.champagne-pearl .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.champagne-pearl .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(38 45% 61% / 0.12), 0 4px 16px hsl(0 0% 0% / 0.06), 0 0 30px hsl(300 20% 80% / 0.06);
+  transform: translateY(-2px);
+}
+
+.champagne-pearl [data-slot="card"] {
+  background: hsl(60 100% 97%);
+  border: 1px solid hsl(35 28% 86% / 0.6);
+  box-shadow: 0 2px 12px hsl(38 45% 61% / 0.08), 0 0 0 1px hsl(35 28% 86% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.6);
+  animation: champagne-pearl-iridescent 8s ease-in-out infinite;
+}
+
+.champagne-pearl * {
+  scrollbar-color: hsl(35 28% 82%) hsl(30 100% 97%);
+}
+.champagne-pearl ::-webkit-scrollbar { width: 6px; }
+.champagne-pearl ::-webkit-scrollbar-track { background: hsl(30 100% 97%); }
+.champagne-pearl ::-webkit-scrollbar-thumb { background: hsl(35 28% 82%); border-radius: 3px; }
+.champagne-pearl ::-webkit-scrollbar-thumb:hover { background: hsl(35 30% 72%); }
+
+/* ===== ROYAL DUTY 2. Coral Luxe Theme (LIGHT) ===== */
+.coral-luxe {
+  --background: 25 100% 92%;
+  --foreground: 222 47% 11%;
+  --primary: 350 35% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 18 100% 88%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 20 60% 92%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 350 35% 58%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 18 60% 85%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 18 60% 85%;
+  --sidebar-background: 25 80% 93%;
+  --border: 18 60% 85%;
+  --input: 18 60% 85%;
+  --ring: 350 35% 58%;
+  --chart-1: 350 35% 58%;
+  --chart-2: 24 80% 60%;
+  --chart-3: 18 60% 52%;
+  --chart-4: 350 30% 68%;
+  --chart-5: 10 45% 48%;
+  --theme-accent: 350 35% 58%;
+  --theme-accent-glow: 350 40% 66%;
+  --theme-card-surface: 0 0% 100%;
+  --theme-gradient-start: 25 100% 92%;
+  --theme-gradient-end: 350 35% 58%;
+}
+
+.coral-luxe body,
+.coral-luxe {
+  background-color: hsl(25 100% 92%);
+  background-image:
+    linear-gradient(135deg, hsl(25 100% 92%) 0%, hsl(18 100% 88%) 50%, hsl(25 100% 92%) 100%);
+}
+
+.coral-luxe h1,
+.coral-luxe h2,
+.coral-luxe h3,
+.coral-luxe h4 {
+  letter-spacing: 0.04em;
+  font-family: Georgia, 'Times New Roman', serif;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(350 35% 42%);
+}
+
+@keyframes coral-luxe-shimmer {
+  0%, 100% { border-color: hsl(350 35% 58% / 0.2); }
+  50% { border-color: hsl(350 40% 65% / 0.5); }
+}
+
+.coral-luxe .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.coral-luxe .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(350 35% 58% / 0.1), 0 4px 16px hsl(0 0% 0% / 0.06);
+  transform: translateY(-2px);
+}
+
+.coral-luxe [data-slot="card"] {
+  background: hsl(0 0% 100% / 0.7);
+  backdrop-filter: blur(16px);
+  border-radius: 1rem;
+  border: 1px solid hsl(350 35% 58% / 0.15);
+  box-shadow: 0 2px 12px hsl(350 35% 58% / 0.06);
+  animation: coral-luxe-shimmer 6s ease-in-out infinite;
+}
+
+.coral-luxe * {
+  scrollbar-color: hsl(18 60% 82%) hsl(25 100% 92%);
+}
+.coral-luxe ::-webkit-scrollbar { width: 6px; }
+.coral-luxe ::-webkit-scrollbar-track { background: hsl(25 100% 92%); }
+.coral-luxe ::-webkit-scrollbar-thumb { background: hsl(18 60% 82%); border-radius: 3px; }
+.coral-luxe ::-webkit-scrollbar-thumb:hover { background: hsl(18 50% 72%); }
+
+/* ===== ROYAL DUTY 3. Arctic Frost Theme (LIGHT) ===== */
+.arctic-frost {
+  --background: 213 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 215 16% 65%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 199 89% 86%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 94%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 215 16% 65%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 210 40% 98%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 210 30% 88%;
+  --popover: 210 40% 98%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 210 30% 88%;
+  --sidebar-background: 213 80% 96%;
+  --border: 210 30% 88%;
+  --input: 210 30% 88%;
+  --ring: 215 16% 65%;
+  --chart-1: 215 16% 65%;
+  --chart-2: 217 91% 60%;
+  --chart-3: 221 83% 53%;
+  --chart-4: 199 89% 86%;
+  --chart-5: 224 76% 48%;
+  --theme-accent: 215 16% 65%;
+  --theme-accent-glow: 215 20% 75%;
+  --theme-card-surface: 210 40% 98%;
+  --theme-gradient-start: 213 100% 97%;
+  --theme-gradient-end: 215 16% 65%;
+}
+
+.arctic-frost body,
+.arctic-frost {
+  background-color: hsl(213 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 15% 10%, hsl(199 89% 86% / 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 90%, hsl(215 16% 65% / 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(210 40% 98% / 0.5) 0%, transparent 70%);
+}
+
+.arctic-frost h1,
+.arctic-frost h2,
+.arctic-frost h3,
+.arctic-frost h4 {
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  background: linear-gradient(
+    135deg,
+    hsl(215 20% 55%) 0%,
+    hsl(210 30% 65%) 40%,
+    hsl(199 50% 70%) 70%,
+    hsl(215 20% 55%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: arctic-frost-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes arctic-frost-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes arctic-frost-snow {
+  0% { transform: translateY(-10px) translateX(0); opacity: 0; }
+  20% { opacity: 0.6; }
+  100% { transform: translateY(100vh) translateX(20px); opacity: 0; }
+}
+
+@keyframes arctic-frost-icon-shimmer {
+  0%, 100% { filter: drop-shadow(0 0 2px hsl(215 16% 65% / 0.1)); }
+  50% { filter: drop-shadow(0 0 6px hsl(215 20% 75% / 0.3)); }
+}
+
+.arctic-frost .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.arctic-frost .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(215 16% 65% / 0.1), 0 4px 16px hsl(0 0% 0% / 0.04);
+  transform: translateY(-2px);
+}
+
+.arctic-frost [data-slot="card"] {
+  background: hsl(210 40% 98% / 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(210 30% 88% / 0.6);
+  box-shadow: 0 2px 12px hsl(215 16% 65% / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.8);
+}
+
+.arctic-frost .lucide,
+.arctic-frost [data-lucide],
+.arctic-frost svg.w-4,
+.arctic-frost svg.w-5,
+.arctic-frost svg.w-6 {
+  animation: arctic-frost-icon-shimmer 4s ease-in-out infinite;
+}
+
+.arctic-frost * {
+  scrollbar-color: hsl(210 30% 85%) hsl(213 100% 97%);
+}
+.arctic-frost ::-webkit-scrollbar { width: 6px; }
+.arctic-frost ::-webkit-scrollbar-track { background: hsl(213 100% 97%); }
+.arctic-frost ::-webkit-scrollbar-thumb { background: hsl(210 30% 85%); border-radius: 3px; }
+.arctic-frost ::-webkit-scrollbar-thumb:hover { background: hsl(210 30% 75%); }
+
+/* ===== ROYAL DUTY 4. Retro Cream-Tech Theme (LIGHT) ===== */
+.retro-cream-tech {
+  --background: 42 100% 95%;
+  --foreground: 222 47% 11%;
+  --primary: 24 100% 63%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 122 38% 57%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 35 50% 90%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 24 100% 63%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 35 67% 88%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 35 40% 78%;
+  --popover: 35 67% 88%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 35 40% 78%;
+  --sidebar-background: 42 80% 94%;
+  --border: 35 40% 78%;
+  --input: 35 40% 78%;
+  --ring: 24 100% 63%;
+  --chart-1: 24 100% 63%;
+  --chart-2: 122 38% 57%;
+  --chart-3: 33 100% 65%;
+  --chart-4: 123 35% 47%;
+  --chart-5: 16 100% 45%;
+  --theme-accent: 24 100% 63%;
+  --theme-accent-glow: 24 100% 72%;
+  --theme-card-surface: 35 67% 88%;
+  --theme-gradient-start: 42 100% 95%;
+  --theme-gradient-end: 24 100% 63%;
+}
+
+.retro-cream-tech body,
+.retro-cream-tech {
+  background-color: hsl(42 100% 95%);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      hsl(24 100% 63% / 0.04) 39px,
+      hsl(24 100% 63% / 0.04) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      hsl(24 100% 63% / 0.04) 39px,
+      hsl(24 100% 63% / 0.04) 40px
+    );
+}
+
+.retro-cream-tech h1,
+.retro-cream-tech h2,
+.retro-cream-tech h3,
+.retro-cream-tech h4 {
+  letter-spacing: 0.06em;
+  font-family: 'Courier New', monospace;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(24 80% 40%);
+  text-transform: uppercase;
+}
+
+@keyframes retro-data-pulse {
+  0%, 100% { box-shadow: 0 2px 8px hsl(24 100% 63% / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.4), inset 0 -1px 0 hsl(0 0% 0% / 0.05); }
+  50% { box-shadow: 0 2px 16px hsl(24 100% 63% / 0.12), inset 0 1px 0 hsl(0 0% 100% / 0.5), inset 0 -1px 0 hsl(0 0% 0% / 0.08), 0 0 20px hsl(42 100% 70% / 0.06); }
+}
+
+.retro-cream-tech .hover-card-effect {
+  transition: all 0.3s ease;
+}
+.retro-cream-tech .hover-card-effect:hover {
+  box-shadow: 0 0 16px hsl(24 100% 63% / 0.1), 0 4px 12px hsl(0 0% 0% / 0.06);
+  transform: translateY(-1px);
+}
+
+.retro-cream-tech [data-slot="card"] {
+  background: hsl(35 67% 88%);
+  border-radius: 4px;
+  border: 1px solid hsl(35 40% 78%);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.4), inset 0 -1px 0 hsl(0 0% 0% / 0.05), 0 2px 8px hsl(24 100% 63% / 0.06);
+  animation: retro-data-pulse 6s ease-in-out infinite;
+}
+
+.retro-cream-tech * {
+  scrollbar-color: hsl(35 40% 75%) hsl(42 100% 95%);
+}
+.retro-cream-tech ::-webkit-scrollbar { width: 6px; }
+.retro-cream-tech ::-webkit-scrollbar-track { background: hsl(42 100% 95%); }
+.retro-cream-tech ::-webkit-scrollbar-thumb { background: hsl(35 40% 75%); border-radius: 2px; }
+.retro-cream-tech ::-webkit-scrollbar-thumb:hover { background: hsl(35 42% 65%); }
+
+/* ===== ROYAL DUTY 5. Lavender Opulence Theme (LIGHT) ===== */
+.lavender-opulence {
+  --background: 250 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 258 90% 66%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 85%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 252 60% 94%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 258 90% 66%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 252 94% 96%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 252 50% 88%;
+  --popover: 252 94% 96%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 252 50% 88%;
+  --sidebar-background: 250 80% 96%;
+  --border: 252 50% 88%;
+  --input: 252 50% 88%;
+  --ring: 258 90% 66%;
+  --chart-1: 258 90% 66%;
+  --chart-2: 263 70% 70%;
+  --chart-3: 271 81% 56%;
+  --chart-4: 255 92% 76%;
+  --chart-5: 268 78% 48%;
+  --theme-accent: 258 90% 66%;
+  --theme-accent-glow: 258 90% 75%;
+  --theme-card-surface: 252 94% 96%;
+  --theme-gradient-start: 250 100% 97%;
+  --theme-gradient-end: 258 90% 66%;
+}
+
+.lavender-opulence body,
+.lavender-opulence {
+  background-color: hsl(250 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(258 90% 66% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(240 6% 85% / 0.1) 0%, transparent 50%);
+}
+
+.lavender-opulence h1,
+.lavender-opulence h2,
+.lavender-opulence h3,
+.lavender-opulence h4 {
+  letter-spacing: 0.03em;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  background: linear-gradient(
+    135deg,
+    hsl(258 60% 55%) 0%,
+    hsl(240 10% 70%) 40%,
+    hsl(258 80% 60%) 70%,
+    hsl(258 60% 55%) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: lavender-platinum-shimmer 7s ease-in-out infinite;
+}
+
+@keyframes lavender-platinum-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes lavender-glow {
+  0%, 100% { box-shadow: 0 2px 12px hsl(258 90% 66% / 0.06), 0 0 0 1px hsl(252 50% 88% / 0.4); }
+  50% { box-shadow: 0 2px 20px hsl(258 90% 66% / 0.12), 0 0 0 1px hsl(252 55% 85% / 0.6), 0 0 30px hsl(258 90% 66% / 0.05); }
+}
+
+.lavender-opulence .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.lavender-opulence .hover-card-effect:hover {
+  box-shadow: 0 0 20px hsl(258 90% 66% / 0.12), 0 4px 16px hsl(0 0% 0% / 0.06);
+  transform: translateY(-2px);
+}
+
+.lavender-opulence [data-slot="card"] {
+  background: hsl(252 94% 96% / 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid hsl(252 50% 88% / 0.6);
+  box-shadow: 0 2px 12px hsl(258 90% 66% / 0.06), 0 0 0 1px hsl(252 50% 88% / 0.3);
+  animation: lavender-glow 8s ease-in-out infinite;
+}
+
+.lavender-opulence * {
+  scrollbar-color: hsl(252 50% 85%) hsl(250 100% 97%);
+}
+.lavender-opulence ::-webkit-scrollbar { width: 6px; }
+.lavender-opulence ::-webkit-scrollbar-track { background: hsl(250 100% 97%); }
+.lavender-opulence ::-webkit-scrollbar-thumb { background: hsl(252 50% 85%); border-radius: 3px; }
+.lavender-opulence ::-webkit-scrollbar-thumb:hover { background: hsl(252 55% 75%); }
+
+/* ===== ROYAL DUTY 6. Champagne Mint Modern Theme (LIGHT) ===== */
+.champagne-mint {
+  --background: 138 100% 97%;
+  --foreground: 222 47% 11%;
+  --primary: 162 94% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 38 45% 61%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 140 40% 93%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 162 94% 50%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 65% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 48 100% 96%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 140 30% 84%;
+  --popover: 48 100% 96%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 140 30% 84%;
+  --sidebar-background: 138 80% 96%;
+  --border: 140 30% 84%;
+  --input: 140 30% 84%;
+  --ring: 162 94% 50%;
+  --chart-1: 162 94% 50%;
+  --chart-2: 38 45% 61%;
+  --chart-3: 160 82% 58%;
+  --chart-4: 35 38% 72%;
+  --chart-5: 161 94% 37%;
+  --theme-accent: 162 94% 50%;
+  --theme-accent-glow: 162 94% 60%;
+  --theme-card-surface: 48 100% 96%;
+  --theme-gradient-start: 138 100% 97%;
+  --theme-gradient-end: 162 94% 50%;
+}
+
+.champagne-mint body,
+.champagne-mint {
+  background-color: hsl(138 100% 97%);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, hsl(162 94% 50% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, hsl(38 45% 61% / 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(48 100% 96% / 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+  animation: champagne-mint-bg-shift 20s ease-in-out infinite;
+}
+
+@keyframes champagne-mint-bg-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.champagne-mint h1,
+.champagne-mint h2,
+.champagne-mint h3,
+.champagne-mint h4 {
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  border-bottom: 1px solid hsl(0 0% 75% / 0.3);
+  padding-bottom: 0.15em;
+  color: hsl(162 60% 35%);
+}
+
+.champagne-mint h1 + p,
+.champagne-mint h2 + p,
+.champagne-mint h3 + p,
+.champagne-mint h4 + p {
+  font-weight: 300;
+}
+
+@keyframes champagne-mint-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes champagne-mint-emboss {
+  0%, 100% { box-shadow: 0 4px 16px hsl(162 94% 50% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.04), inset 0 2px 0 hsl(0 0% 100% / 0.6), inset 0 -2px 0 hsl(0 0% 0% / 0.03); }
+  50% { box-shadow: 0 6px 24px hsl(162 94% 50% / 0.1), 0 4px 8px hsl(0 0% 0% / 0.06), inset 0 2px 0 hsl(0 0% 100% / 0.7), inset 0 -2px 0 hsl(0 0% 0% / 0.04), 0 0 30px hsl(38 45% 61% / 0.04); }
+}
+
+.champagne-mint .hover-card-effect {
+  transition: all 0.35s ease;
+}
+.champagne-mint .hover-card-effect:hover {
+  box-shadow: 0 6px 24px hsl(162 94% 50% / 0.1), 0 0 30px hsl(38 45% 61% / 0.05), 0 8px 20px hsl(0 0% 0% / 0.06);
+  transform: translateY(-2px);
+}
+
+.champagne-mint [data-slot="card"] {
+  background: hsl(48 100% 96%);
+  border: 1px solid hsl(140 30% 84% / 0.6);
+  box-shadow: 0 4px 16px hsl(162 94% 50% / 0.06), 0 2px 4px hsl(0 0% 0% / 0.04), inset 0 2px 0 hsl(0 0% 100% / 0.6), inset 0 -2px 0 hsl(0 0% 0% / 0.03);
+  animation: champagne-mint-emboss 8s ease-in-out infinite;
+}
+
+.champagne-mint * {
+  scrollbar-color: hsl(140 30% 82%) hsl(138 100% 97%);
+}
+.champagne-mint ::-webkit-scrollbar { width: 6px; }
+.champagne-mint ::-webkit-scrollbar-track { background: hsl(138 100% 97%); }
+.champagne-mint ::-webkit-scrollbar-thumb { background: hsl(140 30% 82%); border-radius: 3px; }
+.champagne-mint ::-webkit-scrollbar-thumb:hover { background: hsl(140 32% 72%); }
+
 @keyframes metal-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
   100% { transform: translateX(200%) skewX(-15deg); }

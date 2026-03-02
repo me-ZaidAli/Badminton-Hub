@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, Lock, Search, Crown, Sparkles, Shield, Diamond, Star } from "lucide-react";
 
-const GRADE_FILTERS = ["All", "Standard", "Accessibility", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet"] as const;
+const GRADE_FILTERS = ["All", "Standard", "Accessibility", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty"] as const;
 
 const GRADE_COLORS: Record<string, string> = {
   Standard: "bg-slate-500/20 text-slate-300 border-slate-500/30",
@@ -17,6 +17,7 @@ const GRADE_COLORS: Record<string, string> = {
   Signature: "bg-purple-500/20 text-purple-300 border-purple-500/30",
   "Ultra Exclusive": "bg-rose-500/20 text-rose-300 border-rose-500/30",
   "Metallic Comet": "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  "Royal Duty": "bg-slate-400/20 text-slate-300 border-slate-400/30",
 };
 
 const GRADE_ICONS: Record<string, typeof Crown> = {
@@ -27,6 +28,7 @@ const GRADE_ICONS: Record<string, typeof Crown> = {
   Signature: Sparkles,
   "Ultra Exclusive": Crown,
   "Metallic Comet": Sparkles,
+  "Royal Duty": Crown,
 };
 
 const RANK_LABELS: Record<string, string> = {
@@ -39,9 +41,10 @@ interface TierCardProps {
   userRank?: string;
   hasBlackCard?: boolean;
   hasMetallicComet?: boolean;
+  hasRoyalDuty?: boolean;
 }
 
-function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet }: TierCardProps) {
+function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet, hasRoyalDuty }: TierCardProps) {
   const tiers = [
     {
       name: "STANDARD",
@@ -121,6 +124,19 @@ function TierShowcaseCards({ userRank, hasBlackCard, hasMetallicComet }: TierCar
       accentDark: "#B8860B",
       textureOpacity: 0.03,
       iconBg: "linear-gradient(135deg, #FFD700, #B8860B)",
+    },
+    {
+      name: "ROYAL DUTY",
+      subtitle: "Royal Duty Card Holder",
+      requirement: "Awarded Royal Duty Card",
+      unlocked: !!hasRoyalDuty,
+      themeCount: 6,
+      bg: "linear-gradient(135deg, #e8e0d4 0%, #d4ccc0 30%, #ddd5c8 50%, #c8c0b4 70%, #e0d8cc 100%)",
+      border: "#94A3B8",
+      accent: "#B0BEC5",
+      accentDark: "#78909C",
+      textureOpacity: 0.04,
+      iconBg: "linear-gradient(135deg, #B0BEC5, #78909C)",
     },
   ];
 
@@ -396,6 +412,7 @@ export default function ThemeGallery() {
     userRank: string;
     hasBlackCard: boolean;
     hasMetallicComet: boolean;
+    hasRoyalDuty: boolean;
   }>({
     queryKey: ["/api/user/available-themes"],
     enabled: !!user,
@@ -425,6 +442,10 @@ export default function ThemeGallery() {
   }, [gradeFilter, colorFilter, searchQuery]);
 
   const isThemeLocked = (mode: ThemeModeInfo): boolean => {
+    if (mode.grade === "Royal Duty") {
+      if (!availableThemes) return true;
+      return !availableThemes.unlockedThemes.includes(mode.value);
+    }
     if (mode.grade === "Metallic Comet") {
       if (!availableThemes) return true;
       return !availableThemes.unlockedThemes.includes(mode.value);
@@ -437,6 +458,7 @@ export default function ThemeGallery() {
   };
 
   const getLockReason = (mode: ThemeModeInfo): string => {
+    if (mode.grade === "Royal Duty") return "Royal Duty Card required";
     if (mode.grade === "Metallic Comet") return "Metallic Comet Card required";
     if (mode.isBlackCard) return "Black Card access required";
     if (mode.requiredRank === "champion") return "Reach #1 in any club to unlock";
@@ -517,6 +539,7 @@ export default function ThemeGallery() {
         userRank={availableThemes?.userRank}
         hasBlackCard={availableThemes?.hasBlackCard}
         hasMetallicComet={availableThemes?.hasMetallicComet}
+        hasRoyalDuty={availableThemes?.hasRoyalDuty}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-theme-cards">

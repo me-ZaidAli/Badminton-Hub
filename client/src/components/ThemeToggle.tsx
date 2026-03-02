@@ -52,9 +52,15 @@ const MODE_ICONS: Record<string, typeof Sun> = {
   "phosphor-elite": Terminal,
   "adaptive-pro": RefreshCw,
   "royal-indigo": CircleDot,
+  "champagne-pearl": Gem,
+  "coral-luxe": Heart,
+  "arctic-frost": Snowflake,
+  "retro-cream-tech": Monitor,
+  "lavender-opulence": Flower2,
+  "champagne-mint": Leaf,
 };
 
-const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Accessibility"] as const;
+const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty", "Accessibility"] as const;
 
 export function ThemeToggle() {
   const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();

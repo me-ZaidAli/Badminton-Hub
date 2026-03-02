@@ -6,7 +6,7 @@ export interface ThemeModeInfo {
   value: string;
   label: string;
   description: string;
-  grade?: "Standard" | "Accessibility" | "Premium" | "Elite" | "Signature" | "Ultra Exclusive" | "Metallic Comet";
+  grade?: "Standard" | "Accessibility" | "Premium" | "Elite" | "Signature" | "Ultra Exclusive" | "Metallic Comet" | "Royal Duty";
   colorFamily?: string;
   isAmoled?: boolean;
   isRankLocked?: boolean;
@@ -60,6 +60,12 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "phosphor-elite", label: "Phosphor Elite", description: "Retro-tech terminal with neon green UI and digital flicker effects", grade: "Metallic Comet", colorFamily: "Emerald", isAmoled: true, accentHex: "#00FF41", gradientStart: "#0a0a0a", gradientEnd: "#00FF41", chartColors: ["#00FF41", "#FFB000", "#00CC33", "#FF8C00", "#33FF66"] },
   { value: "adaptive-pro", label: "Adaptive Pro", description: "Dynamic shifting gradients that flow between warm and cool palettes", grade: "Metallic Comet", colorFamily: "Neon", accentHex: "#FF6B35", gradientStart: "#004E92", gradientEnd: "#FF6B35", chartColors: ["#FF6B35", "#004E92", "#00B4D8", "#FF8C42", "#0077B6"] },
   { value: "royal-indigo", label: "Royal Indigo", description: "Deep indigo and navy with embossed icons and soft purple glow", grade: "Metallic Comet", colorFamily: "Amethyst", accentHex: "#6366F1", gradientStart: "#1a1040", gradientEnd: "#6366F1", chartColors: ["#6366F1", "#818CF8", "#4F46E5", "#A78BFA", "#312E81"] },
+  { value: "champagne-pearl", label: "Champagne Pearl", description: "Creamy off-white with pearl-reflective cards and script typography", grade: "Royal Duty", colorFamily: "Gold", accentHex: "#C9A96E", gradientStart: "#FFF8F0", gradientEnd: "#C9A96E", chartColors: ["#C9A96E", "#D4B88C", "#A8875A", "#E6D5B8", "#8B7348"] },
+  { value: "coral-luxe", label: "Coral Luxe", description: "Warm peach and blush with rose-gold metallic accents", grade: "Royal Duty", colorFamily: "Copper", accentHex: "#B76E79", gradientStart: "#FFE8D6", gradientEnd: "#B76E79", chartColors: ["#B76E79", "#E8A87C", "#D4956B", "#C08090", "#A05A68"] },
+  { value: "arctic-frost", label: "Arctic Frost", description: "Icy pastel blues with frosted glass panels and silver shimmer", grade: "Royal Duty", colorFamily: "Blue", accentHex: "#94A3B8", gradientStart: "#EFF6FF", gradientEnd: "#94A3B8", chartColors: ["#94A3B8", "#60A5FA", "#3B82F6", "#BAE6FD", "#2563EB"] },
+  { value: "retro-cream-tech", label: "Retro Cream-Tech", description: "Vintage cream with warm grid overlays and retro pixel accents", grade: "Royal Duty", colorFamily: "Gold", accentHex: "#FF8C42", gradientStart: "#FFF8E7", gradientEnd: "#FF8C42", chartColors: ["#FF8C42", "#66BB6A", "#FFA726", "#43A047", "#E65100"] },
+  { value: "lavender-opulence", label: "Lavender Opulence", description: "Soft lavender with frosted glass and platinum highlights", grade: "Royal Duty", colorFamily: "Amethyst", accentHex: "#8B5CF6", gradientStart: "#F3F0FF", gradientEnd: "#8B5CF6", chartColors: ["#8B5CF6", "#A78BFA", "#7C3AED", "#C4B5FD", "#6D28D9"] },
+  { value: "champagne-mint", label: "Champagne Mint Modern", description: "Mint and champagne cream with embossed metallic icons", grade: "Royal Duty", colorFamily: "Mint", accentHex: "#34D399", gradientStart: "#F0FFF4", gradientEnd: "#34D399", chartColors: ["#34D399", "#C9A96E", "#6EE7B7", "#D4B88C", "#10B981"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -106,6 +112,12 @@ const THEME_CLASSES: Record<string, string[]> = {
   "phosphor-elite": ["dark", "phosphor-elite"],
   "adaptive-pro": ["dark", "adaptive-pro"],
   "royal-indigo": ["dark", "royal-indigo"],
+  "champagne-pearl": ["champagne-pearl"],
+  "coral-luxe": ["coral-luxe"],
+  "arctic-frost": ["arctic-frost"],
+  "retro-cream-tech": ["retro-cream-tech"],
+  "lavender-opulence": ["lavender-opulence"],
+  "champagne-mint": ["champagne-mint"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -120,6 +132,8 @@ const ALL_THEME_CLASSES = [
   "circuit-court", "cosmic-elite", "phantom-luxe",
   "obsidian-gold-ultra", "mint-prestige", "crystal-court",
   "phosphor-elite", "adaptive-pro", "royal-indigo",
+  "champagne-pearl", "coral-luxe", "arctic-frost",
+  "retro-cream-tech", "lavender-opulence", "champagne-mint",
 ];
 
 const DARK_THEMES = new Set([

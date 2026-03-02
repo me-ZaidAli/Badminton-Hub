@@ -160,6 +160,17 @@ const METAL_MATERIALS: Record<number, MetalMaterial> = {
     shimmerColor: "rgba(255,240,180,0.25)",
     hasGlow: true,
   },
+  12: {
+    base: "linear-gradient(145deg, #c0c0c0 0%, #a8a8a8 12%, #d8d8d8 22%, #9a9a9a 35%, #c8c8c8 48%, #b0b0b0 58%, #d0d0d0 70%, #a0a0a0 82%, #c4c4c4 92%, #b8b8b8 100%)",
+    lighting: "linear-gradient(155deg, rgba(255,255,255,0.3) 0%, transparent 30%, rgba(200,220,240,0.1) 55%, transparent 100%)",
+    texture: "repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0px, transparent 2px, transparent 5px)",
+    chip: "linear-gradient(135deg, #d8d8d8, #808080, #c0c0c0, #a0a0a0)",
+    textMain: "#1a1a2e",
+    textSub: "rgba(26,26,46,0.65)",
+    divider: "rgba(100,100,120,0.3)",
+    edgeHighlight: "inset 0 0 0 1.5px rgba(255,255,255,0.25)",
+    shimmerColor: "rgba(255,255,255,0.3)",
+  },
 };
 
 const DEFAULT_MATERIAL: MetalMaterial = {
@@ -192,6 +203,7 @@ const EMBLEM_COLORS: Record<number, [string, string, string, string]> = {
   9: EMBLEM_BRONZE,
   10: EMBLEM_GOLD,
   11: EMBLEM_GOLD,
+  12: EMBLEM_SILVER,
 };
 
 const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
@@ -238,6 +250,10 @@ const EMBLEM_PATHS: Record<number, { filled: string; stroked: string }> = {
   11: {
     filled: "M12,-20 A8,8 0 1,1 12,-19.99Z M12,-20 Q4,-10 -8,0 Q-20,10 -32,14 Q-24,10 -16,4 Q-8,-2 0,-10 Q6,-16 12,-20Z",
     stroked: "M-32,14 Q-36,16 -40,16 M-32,14 Q-34,18 -34,22 M-24,10 Q-30,12 -34,10 M-16,4 Q-22,8 -26,4 M-8,0 Q-6,6 -10,10 M6,-14 Q2,-8 -4,0 M16,-22 Q22,-26 26,-24 M18,-16 Q22,-12 28,-12 M14,-26 Q18,-30 16,-34 M10,-14 Q14,-10 18,-10 M20,-28 Q16,-32 18,-36 M-20,18 Q-16,22 -18,26 M-28,22 Q-24,26 -26,30 M4,-6 A1.5,1.5 0 1,1 4,-4.5 A1.5,1.5 0 1,1 4,-6 M-12,6 A1,1 0 1,1 -12,7 A1,1 0 1,1 -12,6 M-24,14 A1,1 0 1,1 -24,15 A1,1 0 1,1 -24,14",
+  },
+  12: {
+    filled: "M0,-32 L-6,-20 L-18,-16 L-10,-6 L-14,8 L0,2 L14,8 L10,-6 L18,-16 L6,-20Z M-24,14 Q-28,20 -24,26 Q-18,30 -12,28 Q-6,26 -4,20 M24,14 Q28,20 24,26 Q18,30 12,28 Q6,26 4,20",
+    stroked: "M0,-38 L0,-32 M-18,-16 L-24,-18 M18,-16 L24,-18 M-14,8 L-18,12 M14,8 L18,12 M-24,26 Q-26,32 -22,36 M24,26 Q26,32 22,36 M-12,28 Q-10,34 -14,38 M12,28 Q10,34 14,38 M-4,20 Q-2,26 -6,30 M4,20 Q2,26 6,30 M0,2 L0,10 M-28,18 Q-32,14 -34,18 Q-32,22 -28,20 M28,18 Q32,14 34,18 Q32,22 28,20 M-30,24 Q-34,22 -36,26 Q-34,30 -30,28 M30,24 Q34,22 36,26 Q34,30 30,28",
   },
 };
 
