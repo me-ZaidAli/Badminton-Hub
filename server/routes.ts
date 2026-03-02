@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards } from "@shared/schema";
-import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -22265,6 +22265,40 @@ Keep it to about 300 words. Be encouraging but honest.`;
         .where(and(eq(userCards.userId, userId), sql`${userCards.revokedAt} IS NULL`))
         .orderBy(desc(userCards.issuedAt));
       res.json(myCards);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/all-issued-cards", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const recipientUsers = aliasedTable(users, "recipientUsers");
+      const issuerUsers = aliasedTable(users, "issuerUsers");
+      const result = await db
+        .select({
+          id: userCards.id,
+          userId: userCards.userId,
+          cardId: userCards.cardId,
+          customReason: userCards.customReason,
+          rarityLevel: userCards.rarityLevel,
+          serialNumber: userCards.serialNumber,
+          issuedAt: userCards.issuedAt,
+          revokedAt: userCards.revokedAt,
+          cardName: cards.name,
+          cardDescription: cards.description,
+          cardCategory: cards.cardCategory,
+          designConfig: cards.designConfig,
+          recipientName: recipientUsers.fullName,
+          recipientEmail: recipientUsers.email,
+          issuerName: issuerUsers.fullName,
+        })
+        .from(userCards)
+        .innerJoin(cards, eq(userCards.cardId, cards.id))
+        .innerJoin(recipientUsers, eq(userCards.userId, recipientUsers.id))
+        .leftJoin(issuerUsers, eq(userCards.issuedBy, issuerUsers.id))
+        .orderBy(desc(userCards.issuedAt));
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
