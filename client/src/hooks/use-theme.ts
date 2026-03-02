@@ -194,10 +194,12 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 function applyThemeClasses(mode: DisplayMode, reducedMotion: boolean) {
   const root = document.documentElement;
+  root.classList.add("theme-transitioning");
   ALL_THEME_CLASSES.forEach(cls => root.classList.remove(cls));
   const themeClasses = THEME_CLASSES[mode] || [];
   themeClasses.forEach(cls => root.classList.add(cls));
   if (reducedMotion || mode === "migraine") root.classList.add("reduced-motion");
+  setTimeout(() => root.classList.remove("theme-transitioning"), 350);
 }
 
 export { ThemeContext, THEME_CLASSES, ALL_THEME_CLASSES, DARK_THEMES };

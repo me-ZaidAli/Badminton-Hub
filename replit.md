@@ -56,6 +56,14 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **@tanstack/react-query**: Server state management.
 - **date-fns**: Date manipulation.
 - **recharts**: For charts and data visualizations.
+- **framer-motion**: Animation library for premium UI components.
+
+### Premium UI Components (`client/src/components/premium/`)
+- **GlassCard**: Glassmorphism card with Framer Motion hover lift, variant prop (default/elevated/subtle/frosted), optional glow color.
+- **DataCard**: Data visualization card with headline metric, trend indicator, glow accent classes.
+- **GradientButton**: Multi-gradient CTA button with reflective streak animation and press compression.
+- **ClayButton**: Neo-tactile clay button with extruded depth shadows and press inversion.
+- **ChartCard**: Glass-styled chart container with title/subtitle header.
 
 ### Build & Development Tools
 - **Vite**: Frontend build tool.

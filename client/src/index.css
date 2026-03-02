@@ -5777,6 +5777,290 @@ html, body {
 
 /* ===== End T002 ===== */
 
+/* ═══════════════════════════════════════════════════════════════════
+   THEME 3: Illustrative Organic Minimalism
+   Applies to light nature-inspired themes (Signature + Royal Duty light themes)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.tropical-dawn [data-slot="card"],
+.savanna-breeze [data-slot="card"],
+.rainforest-canopy [data-slot="card"],
+.misty-bamboo [data-slot="card"],
+.tropical-lagoon [data-slot="card"],
+.sunset-savannah [data-slot="card"],
+.champagne-pearl [data-slot="card"],
+.coral-luxe [data-slot="card"],
+.arctic-frost [data-slot="card"],
+.lavender-opulence [data-slot="card"],
+.champagne-mint [data-slot="card"] {
+  background: hsl(var(--card) / 0.85);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: 0 4px 24px hsl(0 0% 0% / 0.06), 0 1px 3px hsl(0 0% 0% / 0.04);
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.tropical-dawn [data-slot="card"]:hover,
+.savanna-breeze [data-slot="card"]:hover,
+.rainforest-canopy [data-slot="card"]:hover,
+.misty-bamboo [data-slot="card"]:hover,
+.tropical-lagoon [data-slot="card"]:hover,
+.sunset-savannah [data-slot="card"]:hover,
+.champagne-pearl [data-slot="card"]:hover,
+.coral-luxe [data-slot="card"]:hover,
+.arctic-frost [data-slot="card"]:hover,
+.lavender-opulence [data-slot="card"]:hover,
+.champagne-mint [data-slot="card"]:hover {
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.08), 0 2px 8px hsl(0 0% 0% / 0.04);
+  transform: translateY(-1px);
+}
+
+.tropical-dawn,
+.savanna-breeze,
+.rainforest-canopy,
+.misty-bamboo,
+.tropical-lagoon,
+.sunset-savannah {
+  font-weight: 300;
+}
+
+.tropical-dawn h1, .tropical-dawn h2, .tropical-dawn h3,
+.savanna-breeze h1, .savanna-breeze h2, .savanna-breeze h3,
+.rainforest-canopy h1, .rainforest-canopy h2, .rainforest-canopy h3,
+.misty-bamboo h1, .misty-bamboo h2, .misty-bamboo h3,
+.tropical-lagoon h1, .tropical-lagoon h2, .tropical-lagoon h3,
+.sunset-savannah h1, .sunset-savannah h2, .sunset-savannah h3 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tropical-dawn [data-slot="card"]::after,
+.savanna-breeze [data-slot="card"]::after,
+.rainforest-canopy [data-slot="card"]::after,
+.misty-bamboo [data-slot="card"]::after,
+.tropical-lagoon [data-slot="card"]::after,
+.sunset-savannah [data-slot="card"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.02;
+  border-radius: inherit;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 20px, hsl(var(--primary) / 0.2) 20px, hsl(var(--primary) / 0.2) 21px),
+    repeating-linear-gradient(90deg, transparent, transparent 20px, hsl(var(--primary) / 0.2) 20px, hsl(var(--primary) / 0.2) 21px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME 4: Vibrant Gradient Skeuomorphism
+   Applies to bold-colored dark themes (Elite tier energy themes)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.midnight-neon [data-slot="card"],
+.aurora-borealis [data-slot="card"],
+.volcanic-ember [data-slot="card"],
+.adrenaline-rush [data-slot="card"],
+.cosmic-elite [data-slot="card"] {
+  box-shadow:
+    0 8px 32px hsl(0 0% 0% / 0.4),
+    0 0 0 1px hsl(var(--primary) / 0.1),
+    inset 0 1px 0 hsl(0 0% 100% / 0.08);
+}
+
+.midnight-neon [data-slot="card"]:hover,
+.aurora-borealis [data-slot="card"]:hover,
+.volcanic-ember [data-slot="card"]:hover,
+.adrenaline-rush [data-slot="card"]:hover,
+.cosmic-elite [data-slot="card"]:hover {
+  box-shadow:
+    0 12px 40px hsl(0 0% 0% / 0.5),
+    0 0 20px hsl(var(--primary) / 0.15),
+    inset 0 1px 0 hsl(0 0% 100% / 0.12);
+  transform: translateY(-3px) scale(1.008);
+}
+
+.midnight-neon button.bg-primary,
+.midnight-neon a.bg-primary,
+.midnight-neon [role="button"].bg-primary,
+.aurora-borealis button.bg-primary,
+.aurora-borealis a.bg-primary,
+.aurora-borealis [role="button"].bg-primary,
+.volcanic-ember button.bg-primary,
+.volcanic-ember a.bg-primary,
+.volcanic-ember [role="button"].bg-primary,
+.adrenaline-rush button.bg-primary,
+.adrenaline-rush a.bg-primary,
+.adrenaline-rush [role="button"].bg-primary,
+.cosmic-elite button.bg-primary,
+.cosmic-elite a.bg-primary,
+.cosmic-elite [role="button"].bg-primary {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 40%, hsl(var(--accent)) 100%) !important;
+  box-shadow: 0 6px 20px hsl(var(--primary) / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME 5: Flat Retro-Modern
+   Applies to retro and industrial themes
+   ═══════════════════════════════════════════════════════════════════ */
+
+.retro-cream-tech [data-slot="card"],
+.carbon-titanium [data-slot="card"] {
+  border-radius: 12px;
+  border: 2px solid hsl(var(--border));
+  box-shadow: 4px 4px 0 hsl(var(--border) / 0.3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.retro-cream-tech [data-slot="card"]:hover,
+.carbon-titanium [data-slot="card"]:hover {
+  box-shadow: 6px 6px 0 hsl(var(--border) / 0.4);
+  transform: translate(-1px, -1px);
+}
+
+.retro-cream-tech {
+  font-family: "Courier New", ui-monospace, monospace;
+}
+
+.retro-cream-tech .text-3xl,
+.retro-cream-tech .text-4xl,
+.retro-cream-tech .text-5xl {
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.retro-cream-tech hr,
+.retro-cream-tech [role="separator"] {
+  border-width: 2px;
+  border-style: dashed;
+}
+
+.carbon-titanium [data-slot="card"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(45deg, hsl(0 0% 50%) 25%, transparent 25%),
+    linear-gradient(-45deg, hsl(0 0% 50%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, hsl(0 0% 50%) 75%),
+    linear-gradient(-45deg, transparent 75%, hsl(0 0% 50%) 75%);
+  background-size: 4px 4px;
+  background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Clay Button Styles (Neo-Tactile Component)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.clay-button {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.clay-btn-default {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow:
+    0 6px 12px hsl(var(--primary) / 0.25),
+    inset 0 2px 4px hsl(0 0% 100% / 0.15),
+    inset 0 -2px 4px hsl(0 0% 0% / 0.1);
+}
+
+.clay-btn-muted {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  box-shadow:
+    0 6px 12px hsl(0 0% 0% / 0.08),
+    inset 0 2px 4px hsl(0 0% 100% / 0.3),
+    inset 0 -2px 4px hsl(0 0% 0% / 0.05);
+}
+
+.clay-btn-warm {
+  background: linear-gradient(135deg, hsl(25 80% 55%), hsl(15 85% 50%));
+  color: white;
+  box-shadow:
+    0 6px 12px hsl(20 80% 50% / 0.3),
+    inset 0 2px 4px hsl(0 0% 100% / 0.2),
+    inset 0 -2px 4px hsl(0 0% 0% / 0.1);
+}
+
+.clay-btn-cool {
+  background: linear-gradient(135deg, hsl(210 70% 55%), hsl(230 65% 50%));
+  color: white;
+  box-shadow:
+    0 6px 12px hsl(220 70% 50% / 0.3),
+    inset 0 2px 4px hsl(0 0% 100% / 0.2),
+    inset 0 -2px 4px hsl(0 0% 0% / 0.1);
+}
+
+.clay-button:hover {
+  box-shadow:
+    0 8px 16px hsl(var(--primary) / 0.3),
+    inset 0 2px 4px hsl(0 0% 100% / 0.2),
+    inset 0 -2px 4px hsl(0 0% 0% / 0.12);
+}
+
+.clay-button:active {
+  transform: scale(0.98) translateY(1px);
+  box-shadow:
+    inset 0 2px 6px hsl(0 0% 0% / 0.2),
+    inset 0 -1px 2px hsl(0 0% 100% / 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Glass Card Variant Styles
+   ═══════════════════════════════════════════════════════════════════ */
+
+.glass-card {
+  background: hsl(var(--card) / 0.12);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+}
+
+.glass-card-elevated {
+  background: hsl(var(--card) / 0.18);
+  box-shadow: 0 16px 48px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.1);
+}
+
+.glass-card-subtle {
+  background: hsl(var(--card) / 0.06);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: 0 4px 16px hsl(0 0% 0% / 0.2);
+}
+
+.glass-card-frosted {
+  background: hsl(var(--card) / 0.25);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Theme Transition Crossfade
+   ═══════════════════════════════════════════════════════════════════ */
+
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html * {
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: 0s;
+}
+
+html.theme-transitioning * {
+  transition-duration: 0.3s !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
 @keyframes metal-shimmer {
   0% { transform: translateX(-100%) skewX(-15deg); }
   100% { transform: translateX(200%) skewX(-15deg); }
