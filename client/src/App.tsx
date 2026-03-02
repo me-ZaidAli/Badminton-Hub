@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Sidebar, MobileTopNav } from "@/components/layout/Sidebar";
+import { Sidebar, MobileTopNav, useSidebarHidden } from "@/components/layout/Sidebar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
@@ -107,6 +107,21 @@ const TypographyStudio = lazy(() => import("@/pages/TypographyStudio"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 
+function AuthenticatedShell({ children }: { children: React.ReactNode }) {
+  const { hidden } = useSidebarHidden();
+  return (
+    <div className="flex flex-col min-h-screen">
+      <MobileTopNav />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className={`flex-1 ${hidden ? "" : "md:ml-64"} px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full transition-[margin] duration-300`}>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
   const [, setLocation] = useLocation();
@@ -121,19 +136,13 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -161,19 +170,13 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -202,19 +205,13 @@ function NonOrganiserAdminRoute({ component: Component }: { component: React.Com
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -237,19 +234,13 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -272,19 +263,13 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -315,47 +300,35 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
 
   if (!isPremium && !isSuperAdmin) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <MobileTopNav />
-        <div className="flex flex-1">
-          <Sidebar />
-          <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                <Lock className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h2 className="text-2xl font-bold">Premium Feature</h2>
-              <p className="text-muted-foreground max-w-md">
-                This feature is available on the Premium plan. Upgrade your club to unlock advanced analytics, rankings, league management, and more.
-              </p>
-              <button
-                onClick={() => setLocation("/admin/billing")}
-                className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                data-testid="button-upgrade-from-premium-gate"
-              >
-                View Upgrade Options
-              </button>
-            </div>
-          </main>
+      <AuthenticatedShell>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-2xl font-bold">Premium Feature</h2>
+          <p className="text-muted-foreground max-w-md">
+            This feature is available on the Premium plan. Upgrade your club to unlock advanced analytics, rankings, league management, and more.
+          </p>
+          <button
+            onClick={() => setLocation("/admin/billing")}
+            className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            data-testid="button-upgrade-from-premium-gate"
+          >
+            View Upgrade Options
+          </button>
         </div>
-      </div>
+      </AuthenticatedShell>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 md:ml-64 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<LazyFallback />}>
-              <Component />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <AuthenticatedShell>
+      <ErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component />
+        </Suspense>
+      </ErrorBoundary>
+    </AuthenticatedShell>
   );
 }
 
@@ -364,19 +337,13 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
   
   if (user) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <MobileTopNav />
-        <div className="flex flex-1">
-          <Sidebar />
-          <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-7xl mx-auto w-full">
-            <ErrorBoundary>
-              <Suspense fallback={<LazyFallback />}>
-                <Component />
-              </Suspense>
-            </ErrorBoundary>
-          </main>
-        </div>
-      </div>
+      <AuthenticatedShell>
+        <ErrorBoundary>
+          <Suspense fallback={<LazyFallback />}>
+            <Component />
+          </Suspense>
+        </ErrorBoundary>
+      </AuthenticatedShell>
     );
   }
 

@@ -8,7 +8,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { PwaInstallBanner, PwaInstallButton } from "@/components/PwaInstallPrompt";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Calendar, 
   CalendarCheck,
@@ -39,6 +39,11 @@ import {
   CreditCard,
   ImageIcon,
   Type,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -463,17 +468,243 @@ function BadgeCount({ count }: { count: number }) {
   );
 }
 
+function SidebarPinSetup({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
+  const { toast } = useToast();
+
+  const saveMutation = useMutation({
+    mutationFn: async (pinValue: string | null) => {
+      await apiRequest("PUT", "/api/user/sidebar-pin", { pin: pinValue });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/sidebar-pin/status"] });
+      toast({ title: "Menu PIN Updated", description: pin ? "Your menu PIN has been set." : "Menu PIN removed." });
+      onOpenChange(false);
+      setPin("");
+      setConfirmPin("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update PIN", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Menu Lock PIN
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Set a PIN to protect your menu. When hidden, this PIN will be required to show it again.
+          </p>
+          <div className="space-y-2">
+            <Label>PIN (4-20 characters)</Label>
+            <div className="relative">
+              <Input
+                type={showPin ? "text" : "password"}
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="Enter PIN"
+                maxLength={20}
+                data-testid="input-sidebar-pin"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPin(!showPin)}
+              >
+                {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Confirm PIN</Label>
+            <Input
+              type={showPin ? "text" : "password"}
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value)}
+              placeholder="Confirm PIN"
+              maxLength={20}
+              data-testid="input-sidebar-pin-confirm"
+            />
+          </div>
+          {pin && confirmPin && pin !== confirmPin && (
+            <p className="text-xs text-destructive">PINs do not match</p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => saveMutation.mutate(null)}
+              disabled={saveMutation.isPending}
+              data-testid="button-remove-pin"
+            >
+              Remove PIN
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => saveMutation.mutate(pin)}
+              disabled={saveMutation.isPending || pin.length < 4 || pin !== confirmPin}
+              data-testid="button-save-pin"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save PIN"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SidebarPinUnlock({ onUnlock }: { onUnlock: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const { toast } = useToast();
+
+  const verifyMutation = useMutation({
+    mutationFn: async (pinValue: string) => {
+      const res = await apiRequest("POST", "/api/user/sidebar-pin/verify", { pin: pinValue });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.valid) {
+        onUnlock();
+        setPin("");
+        setError(false);
+      } else {
+        setError(true);
+        setPin("");
+      }
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to verify PIN", variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="fixed left-0 top-0 h-screen z-50 flex items-center" data-testid="sidebar-unlock-panel">
+      <div className="bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl rounded-r-2xl p-4 w-64 space-y-4">
+        <div className="flex items-center gap-2">
+          <Lock className="h-5 w-5 text-primary" />
+          <span className="text-sm font-semibold">Menu Locked</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Enter your PIN to show the menu.</p>
+        <div className="space-y-2">
+          <Input
+            type="password"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value); setError(false); }}
+            placeholder="Enter PIN"
+            maxLength={20}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && pin.length >= 4) verifyMutation.mutate(pin);
+            }}
+            autoFocus
+            data-testid="input-unlock-pin"
+          />
+          {error && <p className="text-xs text-destructive">Incorrect PIN</p>}
+        </div>
+        <Button
+          className="w-full"
+          size="sm"
+          onClick={() => verifyMutation.mutate(pin)}
+          disabled={verifyMutation.isPending || pin.length < 4}
+          data-testid="button-unlock-sidebar"
+        >
+          {verifyMutation.isPending ? "Checking..." : "Unlock"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function SidebarRevealArrow({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="fixed left-0 top-1/2 -translate-y-1/2 z-40 hidden md:flex items-center justify-center w-6 h-16 bg-card/80 backdrop-blur-sm border border-l-0 border-border rounded-r-xl shadow-lg hover:bg-primary/10 hover:w-8 transition-all duration-200 group"
+      data-testid="button-reveal-sidebar"
+    >
+      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+    </button>
+  );
+}
+
+const sidebarListeners = new Set<(v: boolean) => void>();
+let sidebarHiddenGlobal = typeof window !== "undefined" ? localStorage.getItem("sidebarHidden") === "true" : false;
+
+function setSidebarHiddenGlobal(v: boolean) {
+  sidebarHiddenGlobal = v;
+  localStorage.setItem("sidebarHidden", String(v));
+  sidebarListeners.forEach((fn) => fn(v));
+}
+
+export function useSidebarHidden() {
+  const [hidden, setHidden] = useState(sidebarHiddenGlobal);
+
+  useEffect(() => {
+    const listener = (v: boolean) => setHidden(v);
+    sidebarListeners.add(listener);
+    return () => { sidebarListeners.delete(listener); };
+  }, []);
+
+  const hide = useCallback(() => setSidebarHiddenGlobal(true), []);
+  const show = useCallback(() => setSidebarHiddenGlobal(false), []);
+
+  return { hidden, hide, show };
+}
+
 export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
   const { groups: navGroups, isPremium, planStatus } = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
+  const { hidden, hide, show } = useSidebarHidden();
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [unlockPanelOpen, setUnlockPanelOpen] = useState(false);
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
+
+  const { data: pinStatus, isLoading: pinStatusLoading } = useQuery<{ hasPin: boolean }>({
+    queryKey: ["/api/user/sidebar-pin/status"],
+    enabled: !!user,
+  });
+
+  const handleReveal = useCallback(() => {
+    if (pinStatusLoading) return;
+    if (pinStatus?.hasPin) {
+      setUnlockPanelOpen(true);
+    } else {
+      show();
+    }
+  }, [pinStatus, pinStatusLoading, show]);
+
+  const handleUnlock = useCallback(() => {
+    setUnlockPanelOpen(false);
+    show();
+  }, [show]);
 
   const planBadgeLabel = planStatus === "ACTIVE_PREMIUM" ? "Premium" : planStatus === "PENDING_ACTIVATION" ? "Pending" : planStatus === "SUSPENDED" ? "Suspended" : "Free Plan";
   const planBadgeColor = planStatus === "ACTIVE_PREMIUM" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : planStatus === "PENDING_ACTIVATION" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : planStatus === "SUSPENDED" ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-muted text-muted-foreground border-border";
 
+  if (hidden) {
+    return (
+      <>
+        <SidebarRevealArrow onClick={handleReveal} />
+        {unlockPanelOpen && <SidebarPinUnlock onUnlock={handleUnlock} />}
+      </>
+    );
+  }
+
   return (
+    <>
+    <SidebarPinSetup open={pinDialogOpen} onOpenChange={setPinDialogOpen} />
     <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
       <div className="p-5 border-b border-border/50">
         <div className="flex items-center gap-3">
@@ -644,8 +875,33 @@ export function Sidebar() {
           </Button>
           <ThemeToggle />
         </div>
+        <div className="flex items-center gap-1 mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 justify-start text-muted-foreground h-7 text-xs"
+            onClick={hide}
+            data-testid="button-hide-sidebar"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1.5" />
+            Hide Menu
+          </Button>
+          {isAdminOrOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground"
+              onClick={() => setPinDialogOpen(true)}
+              title={pinStatus?.hasPin ? "Menu PIN is set" : "Set Menu PIN"}
+              data-testid="button-sidebar-pin-settings"
+            >
+              <KeyRound className={cn("h-3.5 w-3.5", pinStatus?.hasPin && "text-primary")} />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
+    </>
   );
 }
 

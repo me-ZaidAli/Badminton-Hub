@@ -1006,6 +1006,52 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/user/sidebar-pin", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const { pin } = req.body;
+      if (pin !== null && pin !== undefined) {
+        const pinStr = String(pin).trim();
+        if (pinStr.length < 4 || pinStr.length > 20) {
+          return res.status(400).json({ message: "PIN must be 4-20 characters" });
+        }
+        await storage.updateUser(req.user!.id, { sidebarPin: pinStr });
+        res.json({ message: "Sidebar PIN set successfully", hasPin: true });
+      } else {
+        await storage.updateUser(req.user!.id, { sidebarPin: null });
+        res.json({ message: "Sidebar PIN removed", hasPin: false });
+      }
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update sidebar PIN" });
+    }
+  });
+
+  app.post("/api/user/sidebar-pin/verify", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user?.sidebarPin) {
+        return res.json({ valid: true });
+      }
+      const { pin } = req.body;
+      const valid = String(pin).trim() === user.sidebarPin;
+      res.json({ valid });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to verify PIN" });
+    }
+  });
+
+  app.get("/api/user/sidebar-pin/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = await storage.getUser(req.user!.id);
+      res.json({ hasPin: !!user?.sidebarPin });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to check PIN status" });
+    }
+  });
+
   app.get("/api/user/available-themes", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
