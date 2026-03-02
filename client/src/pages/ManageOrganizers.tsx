@@ -215,7 +215,7 @@ export default function ManageOrganizers() {
             <li>• Start and complete matches</li>
             <li>• Swap players in matches</li>
             <li>• Edit match scores</li>
-            <li>• Track shuttle tube usage</li>
+            <li>• Track equipment usage</li>
           </ul>
         </CardContent>
       </Card>

@@ -685,7 +685,7 @@ export default function Inventory() {
             )}
             <div>
               <Label>Item Name</Label>
-              <Input value={itemForm.name} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Shuttle Tubes" data-testid="input-item-name" />
+              <Input value={itemForm.name} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Equipment, Balls, Shuttles" data-testid="input-item-name" />
             </div>
             <div>
               <Label>Supplier / Source</Label>

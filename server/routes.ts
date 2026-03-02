@@ -251,12 +251,12 @@ function isClubPremium(planStatus: string): boolean {
   return planStatus === "ACTIVE_PREMIUM";
 }
 
-function requirePremium(getClubId: (req: any) => number | null) {
+function requirePremium(getClubId: (req: any) => number | null | Promise<number | null>) {
   return async (req: any, res: any, next: any) => {
     if (!req.isAuthenticated?.()) return res.status(401).json({ message: "Not authenticated" });
     const user = req.user as any;
     if (user.role === "OWNER") return next();
-    const clubId = getClubId(req);
+    const clubId = await Promise.resolve(getClubId(req));
     if (!clubId) return res.status(400).json({ message: "Club context required" });
     const plan = await getClubPlanStatus(clubId);
     if (isClubPremium(plan.planStatus)) return next();
@@ -274,11 +274,20 @@ function clubIdFromQuery(req: any): number | null {
   return isNaN(id) ? null : id;
 }
 
+function clubIdFromBody(req: any): number | null {
+  const id = parseInt(req.body?.clubId);
+  return isNaN(id) ? null : id;
+}
+
 async function clubIdFromSession(req: any): Promise<number | null> {
   if (!req.user) return null;
   const userId = (req.user as any).id;
   const profiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
   return profiles[0]?.clubId || null;
+}
+
+function clubIdFromParamOrQuery(req: any): number | null {
+  return clubIdFromParam(req) || clubIdFromQuery(req);
 }
 
 export async function registerRoutes(
@@ -922,7 +931,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/available-themes", async (req, res) => {
+  app.get("/api/user/available-themes", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -1075,7 +1084,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/player-profiles/:profileId/grading-stats", async (req, res) => {
+  app.get("/api/player-profiles/:profileId/grading-stats", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const profileId = Number(req.params.profileId);
@@ -1090,7 +1099,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/player-profiles/:profileId/grade", async (req, res) => {
+  app.patch("/api/admin/player-profiles/:profileId/grade", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -1136,7 +1145,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/clubs/:clubId/auto-grading", async (req, res) => {
+  app.patch("/api/admin/clubs/:clubId/auto-grading", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -1157,7 +1166,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/clubs/:clubId/evaluate-grades", async (req, res) => {
+  app.post("/api/admin/clubs/:clubId/evaluate-grades", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -1642,7 +1651,7 @@ export async function registerRoutes(
   });
 
   // === Personal Match History (requires auth) ===
-  app.get("/api/personal-ranking/:clubId", async (req, res) => {
+  app.get("/api/personal-ranking/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
     
@@ -2397,7 +2406,7 @@ export async function registerRoutes(
   });
 
   // === JUNIOR ACCOUNTS ===
-  app.get("/api/juniors", async (req, res) => {
+  app.get("/api/juniors", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -2437,7 +2446,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/juniors", async (req, res) => {
+  app.post("/api/juniors", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const { fullName, dateOfBirth, gender, emergencyContact, medicalNotes } = req.body;
@@ -2457,7 +2466,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/juniors/:id", async (req, res) => {
+  app.patch("/api/juniors/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const juniorId = Number(req.params.id);
@@ -2491,7 +2500,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/juniors/:id", async (req, res) => {
+  app.delete("/api/juniors/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const juniorId = Number(req.params.id);
@@ -2520,7 +2529,7 @@ export async function registerRoutes(
   });
 
   // Add junior to a club (create player profile for junior in parent's club)
-  app.post("/api/juniors/:id/clubs/:clubId", async (req, res) => {
+  app.post("/api/juniors/:id/clubs/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const juniorId = Number(req.params.id);
@@ -4432,7 +4441,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/sessions/:sessionId/matches/auto-generate", async (req, res) => {
+  app.post("/api/sessions/:sessionId/matches/auto-generate", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
@@ -4575,7 +4584,7 @@ export async function registerRoutes(
   });
 
   // === Smart Match Generation ===
-  app.post("/api/sessions/:sessionId/matches/smart-generate", async (req, res) => {
+  app.post("/api/sessions/:sessionId/matches/smart-generate", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
@@ -6954,7 +6963,7 @@ export async function registerRoutes(
 
   // ===================== MEMBER IMPORT =====================
 
-  app.post("/api/admin/clubs/:clubId/import-members", async (req, res) => {
+  app.post("/api/admin/clubs/:clubId/import-members", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     const user = req.user as any;
@@ -7255,7 +7264,7 @@ export async function registerRoutes(
 
   // ===================== CSV EXPORTS =====================
 
-  app.get("/api/admin/export/users", async (req, res) => {
+  app.get("/api/admin/export/users", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
 
@@ -7333,7 +7342,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/export/attendance", async (req, res) => {
+  app.get("/api/admin/export/attendance", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if ((req.user as any).role !== "OWNER") return res.sendStatus(403);
 
@@ -7796,7 +7805,7 @@ export async function registerRoutes(
   });
 
   // === ADMIN: Analytics summary ===
-  app.get("/api/admin/analytics", async (req, res) => {
+  app.get("/api/admin/analytics", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
 
@@ -7865,7 +7874,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/financial-summary", async (req, res) => {
+  app.get("/api/admin/financial-summary", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const isOwner = user.role === "OWNER";
@@ -7969,7 +7978,7 @@ export async function registerRoutes(
   // === CREDIT LEDGER ENDPOINTS ===
 
   // Get credit balance for a user in a club
-  app.get("/api/credits/balance", async (req, res) => {
+  app.get("/api/credits/balance", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const userId = req.query.userId ? Number(req.query.userId) : user.id;
@@ -8002,7 +8011,7 @@ export async function registerRoutes(
   });
 
   // Get credit ledger entries for a user
-  app.get("/api/credits/history", async (req, res) => {
+  app.get("/api/credits/history", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const userId = req.query.userId ? Number(req.query.userId) : user.id;
@@ -8054,7 +8063,7 @@ export async function registerRoutes(
   });
 
   // Create a credit ledger entry (admin action)
-  app.post("/api/credits", async (req, res) => {
+  app.post("/api/credits", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const admin = req.user!;
 
@@ -8126,7 +8135,7 @@ export async function registerRoutes(
   });
 
   // PATCH /api/credits/:id - Edit a credit ledger entry (amount and/or reason)
-  app.patch("/api/credits/:id", async (req, res) => {
+  app.patch("/api/credits/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const admin = req.user!;
     const creditId = Number(req.params.id);
@@ -8162,7 +8171,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/credits/:id - Delete a credit ledger entry
-  app.delete("/api/credits/:id", async (req, res) => {
+  app.delete("/api/credits/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const admin = req.user!;
     const creditId = Number(req.params.id);
@@ -8185,7 +8194,7 @@ export async function registerRoutes(
   });
 
   // GET /api/credits/:id/session-fee - Get the linked session's current fee for recalculating
-  app.get("/api/credits/:id/session-fee", async (req, res) => {
+  app.get("/api/credits/:id/session-fee", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const creditId = Number(req.params.id);
     if (!creditId) return res.status(400).json({ message: "Invalid credit ID" });
@@ -8205,7 +8214,7 @@ export async function registerRoutes(
   });
 
   // Get credit balances for all users in a club (admin view)
-  app.get("/api/credits/club/:clubId/balances", async (req, res) => {
+  app.get("/api/credits/club/:clubId/balances", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const clubId = Number(req.params.clubId);
@@ -8230,7 +8239,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/credit-history", async (req, res) => {
+  app.get("/api/admin/credit-history", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
@@ -8323,7 +8332,7 @@ export async function registerRoutes(
   });
 
   // Apply credit from session (deduct credit when player signs up / uses credit)
-  app.post("/api/credits/use", async (req, res) => {
+  app.post("/api/credits/use", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const admin = req.user!;
 
@@ -8375,7 +8384,7 @@ export async function registerRoutes(
   });
 
   // Get all credit balances the current user has across clubs (for profile view)
-  app.get("/api/my-credits", async (req, res) => {
+  app.get("/api/my-credits", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
 
@@ -8544,7 +8553,7 @@ export async function registerRoutes(
   });
 
   // Player requests credit to be applied to their next session
-  app.post("/api/my-credit-request", async (req, res) => {
+  app.post("/api/my-credit-request", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const { clubId, sessionId, sessionDescription, amount } = req.body;
@@ -8961,7 +8970,7 @@ export async function registerRoutes(
   });
 
   // Get credit history for current user (for profile view)
-  app.get("/api/my-credits/history", async (req, res) => {
+  app.get("/api/my-credits/history", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
@@ -9241,7 +9250,7 @@ export async function registerRoutes(
   });
 
   // === ADMIN: Global rankings (OWNER and ADMIN only) ===
-  app.get("/api/admin/rankings", async (req, res) => {
+  app.get("/api/admin/rankings", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     const user = req.user!;
@@ -9720,7 +9729,7 @@ export async function registerRoutes(
   // === ADMIN COACH ROUTES (OWNER only) ===
 
   // Get all coaches for admin
-  app.get("/api/admin/coaches", async (req, res) => {
+  app.get("/api/admin/coaches", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const allCoaches = await storage.getCoaches();
@@ -9732,7 +9741,7 @@ export async function registerRoutes(
   });
 
   // Admin update coach (any field including status)
-  app.patch("/api/admin/coaches/:id", async (req, res) => {
+  app.patch("/api/admin/coaches/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const coachId = Number(req.params.id);
@@ -9747,7 +9756,7 @@ export async function registerRoutes(
   });
 
   // Admin delete coach
-  app.delete("/api/admin/coaches/:id", async (req, res) => {
+  app.delete("/api/admin/coaches/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       await storage.deleteCoach(Number(req.params.id));
@@ -9759,7 +9768,7 @@ export async function registerRoutes(
   });
 
   // Admin bulk approve/reject coaches
-  app.post("/api/admin/coaches/bulk-action", async (req, res) => {
+  app.post("/api/admin/coaches/bulk-action", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const { ids, action } = req.body as { ids: number[]; action: "APPROVED" | "REJECTED" | "SUSPENDED" };
@@ -9778,7 +9787,7 @@ export async function registerRoutes(
   });
 
   // Admin create coach (super admin can add coaches directly)
-  app.post("/api/admin/coaches", async (req, res) => {
+  app.post("/api/admin/coaches", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const input = insertCoachSchema.parse({
@@ -9797,7 +9806,7 @@ export async function registerRoutes(
   });
 
   // Admin bulk delete coaches
-  app.post("/api/admin/coaches/bulk-delete", async (req, res) => {
+  app.post("/api/admin/coaches/bulk-delete", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const { ids } = req.body as { ids: number[] };
@@ -9813,7 +9822,7 @@ export async function registerRoutes(
   });
 
   // Admin get all coach seeker memberships
-  app.get("/api/admin/coach-seekers", async (req, res) => {
+  app.get("/api/admin/coach-seekers", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const memberships = await storage.getAllCoachSeekerMemberships();
@@ -9825,7 +9834,7 @@ export async function registerRoutes(
   });
 
   // Admin update coach seeker membership (confirm payment, suspend, edit fields)
-  app.patch("/api/admin/coach-seekers/:id", async (req, res) => {
+  app.patch("/api/admin/coach-seekers/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const membershipId = Number(req.params.id);
@@ -9847,7 +9856,7 @@ export async function registerRoutes(
   });
 
   // Admin bulk action on coach seekers
-  app.post("/api/admin/coach-seekers/bulk-action", async (req, res) => {
+  app.post("/api/admin/coach-seekers/bulk-action", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
     try {
       const { ids, action } = req.body as { ids: number[]; action: "ACTIVE" | "SUSPENDED" | "CANCELLED" };
@@ -11548,7 +11557,7 @@ export async function registerRoutes(
   // === INVENTORY & EXPENSE ENDPOINTS ===
 
   // GET /api/inventory/items?clubId=
-  app.get("/api/inventory/items", async (req, res) => {
+  app.get("/api/inventory/items", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = req.query.clubId ? Number(req.query.clubId) : null;
@@ -11585,7 +11594,7 @@ export async function registerRoutes(
   });
 
   // POST /api/inventory/items
-  app.post("/api/inventory/items", async (req, res) => {
+  app.post("/api/inventory/items", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const body = z.object({
@@ -11635,7 +11644,7 @@ export async function registerRoutes(
   });
 
   // PATCH /api/inventory/items/:id
-  app.patch("/api/inventory/items/:id", async (req, res) => {
+  app.patch("/api/inventory/items/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const itemId = Number(req.params.id);
@@ -11666,7 +11675,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/inventory/items/:id - Delete an inventory item and its movements
-  app.delete("/api/inventory/items/:id", async (req, res) => {
+  app.delete("/api/inventory/items/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const itemId = Number(req.params.id);
@@ -11686,7 +11695,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/inventory/movements/:id - Delete a single stock movement
-  app.delete("/api/inventory/movements/:id", async (req, res) => {
+  app.delete("/api/inventory/movements/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const movementId = Number(req.params.id);
@@ -11711,7 +11720,7 @@ export async function registerRoutes(
   });
 
   // POST /api/inventory/items/:id/receive - Add stock
-  app.post("/api/inventory/items/:id/receive", async (req, res) => {
+  app.post("/api/inventory/items/:id/receive", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const itemId = Number(req.params.id);
@@ -11755,7 +11764,7 @@ export async function registerRoutes(
   });
 
   // POST /api/inventory/items/:id/adjust - Manual adjustment
-  app.post("/api/inventory/items/:id/adjust", async (req, res) => {
+  app.post("/api/inventory/items/:id/adjust", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const itemId = Number(req.params.id);
@@ -11793,7 +11802,7 @@ export async function registerRoutes(
   });
 
   // POST /api/inventory/items/:id/sell - Sell item
-  app.post("/api/inventory/items/:id/sell", async (req, res) => {
+  app.post("/api/inventory/items/:id/sell", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const itemId = Number(req.params.id);
@@ -11839,7 +11848,7 @@ export async function registerRoutes(
   });
 
   // POST /api/inventory/session-usage - Link usage to session
-  app.post("/api/inventory/session-usage", async (req, res) => {
+  app.post("/api/inventory/session-usage", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const body = z.object({
@@ -11893,7 +11902,7 @@ export async function registerRoutes(
   });
 
   // GET /api/inventory/movements?clubId&itemId&dateFrom&dateTo&type
-  app.get("/api/inventory/movements", async (req, res) => {
+  app.get("/api/inventory/movements", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -11967,7 +11976,7 @@ export async function registerRoutes(
   // === EXPENSES ENDPOINTS ===
 
   // GET /api/expenses?clubId&dateFrom&dateTo
-  app.get("/api/expenses", async (req, res) => {
+  app.get("/api/expenses", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -12026,7 +12035,7 @@ export async function registerRoutes(
   });
 
   // POST /api/expenses
-  app.post("/api/expenses", async (req, res) => {
+  app.post("/api/expenses", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const body = z.object({
@@ -12056,7 +12065,7 @@ export async function registerRoutes(
   });
 
   // PATCH /api/expenses/:id
-  app.patch("/api/expenses/:id", async (req, res) => {
+  app.patch("/api/expenses/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const expenseId = Number(req.params.id);
@@ -12082,7 +12091,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/expenses/:id
-  app.delete("/api/expenses/:id", async (req, res) => {
+  app.delete("/api/expenses/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const expenseId = Number(req.params.id);
@@ -12101,7 +12110,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/financial-dashboard - Aggregated financial data with inventory & expenses
-  app.get("/api/admin/financial-dashboard", async (req, res) => {
+  app.get("/api/admin/financial-dashboard", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14297,7 +14306,7 @@ export async function registerRoutes(
   }
 
   // GET /api/clubs/:clubId/referral-settings - Get referral settings for a club
-  app.get("/api/clubs/:clubId/referral-settings", async (req, res) => {
+  app.get("/api/clubs/:clubId/referral-settings", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const clubId = Number(req.params.clubId);
@@ -14310,7 +14319,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/clubs/:clubId/referral-settings - Update referral settings for a club (admin only)
-  app.put("/api/clubs/:clubId/referral-settings", async (req, res) => {
+  app.put("/api/clubs/:clubId/referral-settings", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14559,7 +14568,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-referrals - Get current user's referral codes and stats (grouped by club)
-  app.get("/api/my-referrals", async (req, res) => {
+  app.get("/api/my-referrals", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -14641,7 +14650,7 @@ export async function registerRoutes(
   });
 
   // POST /api/referrals/generate - Generate a new referral code (clubId required)
-  app.post("/api/referrals/generate", async (req, res) => {
+  app.post("/api/referrals/generate", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
@@ -14831,7 +14840,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/referrals - Admin view of all referrals (filtered by club)
-  app.get("/api/admin/referrals", async (req, res) => {
+  app.get("/api/admin/referrals", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14905,7 +14914,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/referrals/analytics - Per-club referral analytics
-  app.get("/api/admin/referrals/analytics", async (req, res) => {
+  app.get("/api/admin/referrals/analytics", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -14957,7 +14966,7 @@ export async function registerRoutes(
   });
 
   // POST /api/admin/referrals/:id/approve - Approve a referral
-  app.post("/api/admin/referrals/:id/approve", async (req, res) => {
+  app.post("/api/admin/referrals/:id/approve", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const refId = Number(req.params.id);
@@ -15057,7 +15066,7 @@ export async function registerRoutes(
   });
 
   // POST /api/admin/referrals/:id/reject - Reject a referral
-  app.post("/api/admin/referrals/:id/reject", async (req, res) => {
+  app.post("/api/admin/referrals/:id/reject", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const refId = Number(req.params.id);
@@ -15112,7 +15121,7 @@ export async function registerRoutes(
   // === ACQUISITION & KPI ANALYTICS ===
 
   // GET /api/admin/analytics/acquisition - Full acquisition and KPI analytics
-  app.get("/api/admin/analytics/acquisition", async (req, res) => {
+  app.get("/api/admin/analytics/acquisition", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
@@ -15373,7 +15382,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/analytics/acquisition/csv - Export analytics as CSV
-  app.get("/api/admin/analytics/acquisition/csv", async (req, res) => {
+  app.get("/api/admin/analytics/acquisition/csv", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
@@ -15405,7 +15414,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/analytics/monthly-report - Get or generate monthly summary report
-  app.get("/api/admin/analytics/monthly-report", async (req, res) => {
+  app.get("/api/admin/analytics/monthly-report", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
@@ -15533,7 +15542,7 @@ export async function registerRoutes(
   // === REWARDS SYSTEM ROUTES ===
 
   // GET /api/clubs/:clubId/referral-programs - List referral programs for a club
-  app.get("/api/clubs/:clubId/referral-programs", async (req, res) => {
+  app.get("/api/clubs/:clubId/referral-programs", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15545,7 +15554,7 @@ export async function registerRoutes(
   });
 
   // POST /api/clubs/:clubId/referral-programs - Create referral program (admin/owner only)
-  app.post("/api/clubs/:clubId/referral-programs", async (req, res) => {
+  app.post("/api/clubs/:clubId/referral-programs", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15573,7 +15582,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/referral-programs/:id - Update referral program
-  app.put("/api/referral-programs/:id", async (req, res) => {
+  app.put("/api/referral-programs/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15644,7 +15653,7 @@ export async function registerRoutes(
   });
 
   // GET /api/clubs/:clubId/attendance-rewards - List attendance rewards for a club
-  app.get("/api/clubs/:clubId/attendance-rewards", async (req, res) => {
+  app.get("/api/clubs/:clubId/attendance-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15656,7 +15665,7 @@ export async function registerRoutes(
   });
 
   // POST /api/clubs/:clubId/attendance-rewards - Create attendance reward (admin only)
-  app.post("/api/clubs/:clubId/attendance-rewards", async (req, res) => {
+  app.post("/api/clubs/:clubId/attendance-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15684,7 +15693,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/attendance-rewards/:id - Update attendance reward
-  app.put("/api/attendance-rewards/:id", async (req, res) => {
+  app.put("/api/attendance-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15713,7 +15722,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/attendance-rewards/:id - Delete attendance reward
-  app.delete("/api/attendance-rewards/:id", async (req, res) => {
+  app.delete("/api/attendance-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15738,7 +15747,7 @@ export async function registerRoutes(
   // === POINTS MILESTONE REWARDS CRUD ===
 
   // GET /api/clubs/:clubId/points-rewards - List points milestone rewards for a club
-  app.get("/api/clubs/:clubId/points-rewards", async (req, res) => {
+  app.get("/api/clubs/:clubId/points-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15750,7 +15759,7 @@ export async function registerRoutes(
   });
 
   // POST /api/clubs/:clubId/points-rewards - Create points milestone reward (admin only)
-  app.post("/api/clubs/:clubId/points-rewards", async (req, res) => {
+  app.post("/api/clubs/:clubId/points-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15781,7 +15790,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/points-rewards/:id - Update points milestone reward
-  app.put("/api/points-rewards/:id", async (req, res) => {
+  app.put("/api/points-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15812,7 +15821,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/points-rewards/:id - Delete points milestone reward
-  app.delete("/api/points-rewards/:id", async (req, res) => {
+  app.delete("/api/points-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15837,7 +15846,7 @@ export async function registerRoutes(
   // === BADGE ACHIEVEMENT REWARDS CRUD ===
 
   // GET /api/clubs/:clubId/badge-rewards - List badge achievement rewards for a club
-  app.get("/api/clubs/:clubId/badge-rewards", async (req, res) => {
+  app.get("/api/clubs/:clubId/badge-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15849,7 +15858,7 @@ export async function registerRoutes(
   });
 
   // POST /api/clubs/:clubId/badge-rewards - Create badge achievement reward (admin only)
-  app.post("/api/clubs/:clubId/badge-rewards", async (req, res) => {
+  app.post("/api/clubs/:clubId/badge-rewards", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = Number(req.params.clubId);
@@ -15877,7 +15886,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/badge-rewards/:id - Update badge achievement reward
-  app.put("/api/badge-rewards/:id", async (req, res) => {
+  app.put("/api/badge-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15906,7 +15915,7 @@ export async function registerRoutes(
   });
 
   // DELETE /api/badge-rewards/:id - Delete badge achievement reward
-  app.delete("/api/badge-rewards/:id", async (req, res) => {
+  app.delete("/api/badge-rewards/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -15929,7 +15938,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/rewards-dashboard - Get all claimed rewards for admin dashboard
-  app.get("/api/admin/rewards-dashboard", async (req, res) => {
+  app.get("/api/admin/rewards-dashboard", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -15994,7 +16003,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-rewards - Get current user's reward ledger
-  app.get("/api/my-rewards", async (req, res) => {
+  app.get("/api/my-rewards", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16012,7 +16021,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-rewards/summary - Get aggregated reward summary
-  app.get("/api/my-rewards/summary", async (req, res) => {
+  app.get("/api/my-rewards/summary", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16167,7 +16176,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-badge-reward-progress - Get badge achievement reward progress per club
-  app.get("/api/my-badge-reward-progress", async (req, res) => {
+  app.get("/api/my-badge-reward-progress", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16339,7 +16348,7 @@ export async function registerRoutes(
   });
 
   // POST /api/rewards/:id/request - Request/redeem a reward
-  app.post("/api/rewards/:id/request", async (req, res) => {
+  app.post("/api/rewards/:id/request", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -16380,7 +16389,7 @@ export async function registerRoutes(
   });
 
   // POST /api/rewards/bulk-request - Bulk request multiple available rewards
-  app.post("/api/rewards/bulk-request", async (req, res) => {
+  app.post("/api/rewards/bulk-request", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16430,7 +16439,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/rewards/pending-tasks - Get pending reward requests for admin
-  app.get("/api/admin/rewards/pending-tasks", async (req, res) => {
+  app.get("/api/admin/rewards/pending-tasks", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16474,7 +16483,7 @@ export async function registerRoutes(
   });
 
   // PUT /api/admin/rewards/:id/status - Admin update reward status
-  app.put("/api/admin/rewards/:id/status", async (req, res) => {
+  app.put("/api/admin/rewards/:id/status", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -16519,7 +16528,7 @@ export async function registerRoutes(
   });
 
   // POST /api/admin/rewards/:id/approve - Approve a requested reward and credit player account
-  app.post("/api/admin/rewards/:id/approve", async (req, res) => {
+  app.post("/api/admin/rewards/:id/approve", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -16604,7 +16613,7 @@ export async function registerRoutes(
   });
 
   // POST /api/admin/rewards/bulk-approve - Bulk approve multiple requested rewards
-  app.post("/api/admin/rewards/bulk-approve", async (req, res) => {
+  app.post("/api/admin/rewards/bulk-approve", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16697,7 +16706,7 @@ export async function registerRoutes(
   });
 
   // POST /api/admin/rewards/issue - Admin manually issue a reward to a player
-  app.post("/api/admin/rewards/issue", async (req, res) => {
+  app.post("/api/admin/rewards/issue", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -16869,7 +16878,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-birthday-reward-info - Get birthday reward info for current user
-  app.get("/api/my-birthday-reward-info", async (req, res) => {
+  app.get("/api/my-birthday-reward-info", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const sessionUser = req.user as any;
@@ -17075,7 +17084,7 @@ export async function registerRoutes(
   });
 
   // GET /api/admin/player-rewards/:userId - Get all rewards data for a specific user (ADMIN/OWNER only)
-  app.get("/api/admin/player-rewards/:userId", async (req, res) => {
+  app.get("/api/admin/player-rewards/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
     const isOwner = currentUser.role === "OWNER";
@@ -18593,7 +18602,7 @@ export async function registerRoutes(
   // === LEAGUE MANAGEMENT ROUTES ===
 
   // Get leagues for a club
-  app.get("/api/leagues", async (req, res) => {
+  app.get("/api/leagues", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
@@ -18609,7 +18618,7 @@ export async function registerRoutes(
   });
 
   // Create league (admin only)
-  app.post("/api/leagues", async (req, res) => {
+  app.post("/api/leagues", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { clubId, name, season } = req.body;
@@ -18624,7 +18633,7 @@ export async function registerRoutes(
   });
 
   // Update league
-  app.patch("/api/leagues/:id", async (req, res) => {
+  app.patch("/api/leagues/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const leagueId = Number(req.params.id);
@@ -18644,7 +18653,7 @@ export async function registerRoutes(
   });
 
   // Delete league
-  app.delete("/api/leagues/:id", async (req, res) => {
+  app.delete("/api/leagues/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const leagueId = Number(req.params.id);
@@ -18661,7 +18670,7 @@ export async function registerRoutes(
   });
 
   // Get league teams for a club
-  app.get("/api/league/teams", async (req, res) => {
+  app.get("/api/league/teams", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
@@ -18677,7 +18686,7 @@ export async function registerRoutes(
   });
 
   // Create league team (admin only)
-  app.post("/api/league/teams", async (req, res) => {
+  app.post("/api/league/teams", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { clubId, name, division, season } = req.body;
@@ -18692,7 +18701,7 @@ export async function registerRoutes(
   });
 
   // Update league team
-  app.patch("/api/league/teams/:id", async (req, res) => {
+  app.patch("/api/league/teams/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const teamId = Number(req.params.id);
@@ -18714,7 +18723,7 @@ export async function registerRoutes(
   });
 
   // Delete league team
-  app.delete("/api/league/teams/:id", async (req, res) => {
+  app.delete("/api/league/teams/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const teamId = Number(req.params.id);
@@ -18730,7 +18739,7 @@ export async function registerRoutes(
   });
 
   // Get league matches (with optional view filter: upcoming/results)
-  app.get("/api/league/matches", async (req, res) => {
+  app.get("/api/league/matches", requirePremium(clubIdFromQuery), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user!;
@@ -18839,7 +18848,7 @@ export async function registerRoutes(
   });
 
   // Create league match (admin only)
-  app.post("/api/league/matches", async (req, res) => {
+  app.post("/api/league/matches", requirePremium(clubIdFromBody), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { clubId, leagueId: bodyLeagueId, leagueTeamId, division, category, venue, venueAddress, googleMapsUrl, location, matchDatetime, opponentClub, pairsCount, setsPerPair } = req.body;
@@ -18877,7 +18886,7 @@ export async function registerRoutes(
   });
 
   // Update league match (admin only)
-  app.patch("/api/league/matches/:id", async (req, res) => {
+  app.patch("/api/league/matches/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const matchId = Number(req.params.id);
@@ -18914,7 +18923,7 @@ export async function registerRoutes(
   });
 
   // Delete league match
-  app.delete("/api/league/matches/:id", async (req, res) => {
+  app.delete("/api/league/matches/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const matchId = Number(req.params.id);
@@ -18930,7 +18939,7 @@ export async function registerRoutes(
   });
 
   // Assign players to a league match
-  app.post("/api/league/matches/:id/players", async (req, res) => {
+  app.post("/api/league/matches/:id/players", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const matchId = Number(req.params.id);
@@ -18968,7 +18977,7 @@ export async function registerRoutes(
   });
 
   // Remove a player from a league match
-  app.delete("/api/league/matches/:id/players/:playerId", async (req, res) => {
+  app.delete("/api/league/matches/:id/players/:playerId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const matchId = Number(req.params.id);
@@ -18987,7 +18996,7 @@ export async function registerRoutes(
   });
 
   // Submit match result
-  app.post("/api/league/matches/:id/result", async (req, res) => {
+  app.post("/api/league/matches/:id/result", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const matchId = Number(req.params.id);
@@ -19280,7 +19289,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/junior-skills/categories", async (req, res) => {
+  app.post("/api/admin/junior-skills/categories", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19296,7 +19305,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/junior-skills/categories/:id", async (req, res) => {
+  app.patch("/api/admin/junior-skills/categories/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19314,7 +19323,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/junior-skills/categories/:id", async (req, res) => {
+  app.delete("/api/admin/junior-skills/categories/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19332,7 +19341,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/junior-skills", async (req, res) => {
+  app.post("/api/admin/junior-skills", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19350,7 +19359,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/junior-skills/:id", async (req, res) => {
+  app.patch("/api/admin/junior-skills/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19366,7 +19375,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/junior-skills/:id", async (req, res) => {
+  app.delete("/api/admin/junior-skills/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const role = req.user!.role;
     if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
@@ -19456,7 +19465,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/junior-skills/progress/:userId", async (req, res) => {
+  app.get("/api/junior-skills/progress/:userId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = Number(req.params.userId);
@@ -19475,7 +19484,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/junior-skills/progress/:userId/:skillId", async (req, res) => {
+  app.patch("/api/junior-skills/progress/:userId/:skillId", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = Number(req.params.userId);
@@ -19541,7 +19550,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/junior-skills/progress/:userId/bulk", async (req, res) => {
+  app.patch("/api/junior-skills/progress/:userId/bulk", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const userId = Number(req.params.userId);
@@ -20434,7 +20443,7 @@ export async function registerRoutes(
 
   // === JUNIOR EXERCISE & CHALLENGE ROUTES ===
 
-  app.get("/api/junior-exercises", async (req, res) => {
+  app.get("/api/junior-exercises", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
       let exercises;
@@ -20447,7 +20456,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/junior-exercises", async (req, res) => {
+  app.post("/api/junior-exercises", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
     try {
@@ -20456,7 +20465,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/junior-exercises/:id", async (req, res) => {
+  app.patch("/api/junior-exercises/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
       const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
@@ -20468,7 +20477,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/junior-exercises/:id", async (req, res) => {
+  app.delete("/api/junior-exercises/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
     try {
@@ -20477,7 +20486,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-weekly-challenges", async (req, res) => {
+  app.get("/api/junior-weekly-challenges", requirePremium(clubIdFromSession), async (req, res) => {
     try {
       const challenges = await db.select().from(juniorWeeklyChallenges).orderBy(juniorWeeklyChallenges.weekNumber);
       const allDays = await db.select().from(juniorChallengeDays).orderBy(juniorChallengeDays.dayOfWeek, juniorChallengeDays.displayOrder);
@@ -20508,7 +20517,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/junior-weekly-challenges", async (req, res) => {
+  app.post("/api/junior-weekly-challenges", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") return res.status(403).json({ message: "Admin only" });
     try {
@@ -20523,7 +20532,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/junior-weekly-challenges/:id", async (req, res) => {
+  app.patch("/api/junior-weekly-challenges/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
       const adminProfiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user.id), or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))));
@@ -21168,7 +21177,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/coach/juniors/reports/generate", async (req, res) => {
+  app.post("/api/coach/juniors/reports/generate", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const bodySchema = z.object({ clubId: z.number(), squadLevel: z.string().optional() });
@@ -21265,7 +21274,7 @@ Provide:
 
   // === AI REPORT ENDPOINTS: FINANCES, MATCHES, ATTENDANCE ===
 
-  app.post("/api/admin/ai-report/finances", async (req, res) => {
+  app.post("/api/admin/ai-report/finances", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -21353,7 +21362,7 @@ Provide a concise report (200-250 words) covering:
     }
   });
 
-  app.post("/api/admin/ai-report/matches", async (req, res) => {
+  app.post("/api/admin/ai-report/matches", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -21450,7 +21459,7 @@ Provide a concise report (200-250 words) covering:
     }
   });
 
-  app.post("/api/admin/ai-report/attendance", async (req, res) => {
+  app.post("/api/admin/ai-report/attendance", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
@@ -21539,7 +21548,7 @@ Provide a concise report (200-250 words) covering:
 
   // === PARENT CHILD AI REPORT & PDF ===
 
-  app.post("/api/juniors/:childId/report/generate", async (req, res) => {
+  app.post("/api/juniors/:childId/report/generate", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const childId = Number(req.params.childId);

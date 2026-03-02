@@ -493,7 +493,7 @@ export default function SessionDetail() {
                         />
                       </div>
                       <div>
-                        <Label>Shuttle Tubes Used</Label>
+                        <Label>Equipment Used</Label>
                         <Input 
                           type="number" 
                           min={0}
@@ -835,7 +835,7 @@ export default function SessionDetail() {
           <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
           <p className="text-xl text-muted-foreground">
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
-            {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Shuttle Tubes`}
+            {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Equipment Used`}
           </p>
           {session.liveStreamUrl && (
             <a href={session.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">

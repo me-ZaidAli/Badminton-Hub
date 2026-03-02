@@ -2411,7 +2411,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
               />
             </div>
             <div>
-              <Label>Shuttle Tubes Used</Label>
+              <Label>Equipment Used</Label>
               <Input
                 type="number"
                 min={0}

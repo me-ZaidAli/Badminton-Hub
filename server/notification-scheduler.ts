@@ -530,7 +530,7 @@ export async function processAnniversaryNotifications() {
 
     const yearLabel = yearsCompleted === 1 ? "1 year" : `${yearsCompleted} years`;
     const title = `Happy ${yearsCompleted}-Year Anniversary!`;
-    const message = `Congratulations ${firstName}! Today marks ${yearLabel} since you joined ${club.name}. Thank you for being part of our badminton community! As a token of our appreciation, we have added GBP 16.00 credit to your account.`;
+    const message = `Congratulations ${firstName}! Today marks ${yearLabel} since you joined ${club.name}. Thank you for being part of our sports community! As a token of our appreciation, we have added GBP 16.00 credit to your account.`;
 
     await sendMultiChannel(
       u.id, u.email, firstName, club.id,
