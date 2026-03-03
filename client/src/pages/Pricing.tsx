@@ -172,7 +172,7 @@ export default function Pricing() {
             <CardContent className="space-y-4">
               <Link href={user ? "/admin/billing" : "/register"}>
                 <Button className="w-full" size="lg" data-testid="button-upgrade-premium">
-                  {user ? "Upgrade Now" : "Start Free Trial"}
+                  {user ? "Upgrade Now" : "Get Started"}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
@@ -263,7 +263,7 @@ export default function Pricing() {
 
           <div className="space-y-3">
             <h3 className="text-2xl font-bold" data-testid="text-cta-title">Ready to elevate your club?</h3>
-            <p className="text-muted-foreground">Join hundreds of clubs already using Club Master.</p>
+            <p className="text-muted-foreground">Take your club to the next level with Club Master.</p>
             <div className="flex items-center justify-center gap-3 pt-2">
               <Link href={user ? "/dashboard" : "/register"}>
                 <Button size="lg" data-testid="button-cta-get-started">
