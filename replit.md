@@ -80,3 +80,10 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
 - **Badminton England**: Player insurance information.
+
+### Mobile Bottom Navigation System
+- **Bottom Navigation Bar**: Mobile-only (md:hidden) fixed bottom bar replacing the old MobileTopNav. Shows up to 4 customizable shortcut icons + a "More" button that opens the full menu via a bottom Sheet.
+- **Customizable Items**: Users choose up to 4 nav items from 20 options. Stored as JSON string in `bottom_nav_items` column on users table. Defaults: Dashboard, Sessions, Notifications, Profile.
+- **Full Menu Sheet**: "More" button opens a bottom sheet with all navigation groups, badges, profile link, sign out, and a link to the customization settings page.
+- **Settings Page**: `/bottom-nav-settings` route with preview, item picker (max 4), and reset-to-defaults. Component: `client/src/components/layout/BottomNavBar.tsx` (exports `BottomNavBar` and `BottomNavSettings`).
+- **API**: Preferences saved via `PATCH /api/user/display-preferences` with `bottomNavItems` field.

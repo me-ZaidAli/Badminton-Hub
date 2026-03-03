@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileTopNav, useSidebarHidden } from "@/components/layout/Sidebar";
+import { BottomNavBar, BottomNavSettings } from "@/components/layout/BottomNavBar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
@@ -112,13 +113,13 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
   return (
     <div className="flex flex-col min-h-screen">
-      <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
         <main className={`flex-1 ${hidden ? "" : "md:ml-64"} px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full transition-[margin] duration-300`}>
           {children}
         </main>
       </div>
+      <BottomNavBar />
     </div>
   );
 }
@@ -476,6 +477,9 @@ function Router() {
       </Route>
       <Route path="/social-media">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><SocialMedia /></Suspense>} />
+      </Route>
+      <Route path="/bottom-nav-settings">
+        <PrivateRoute component={BottomNavSettings} />
       </Route>
       <Route path="/guide">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><UserGuide /></Suspense>} />

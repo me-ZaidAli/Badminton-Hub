@@ -997,11 +997,20 @@ export async function registerRoutes(
           updates.fontMode = fm;
         }
       }
+      if (req.body.bottomNavItems !== undefined) {
+        if (req.body.bottomNavItems === null || req.body.bottomNavItems === "") {
+          updates.bottomNavItems = null;
+        } else if (typeof req.body.bottomNavItems === "string") {
+          updates.bottomNavItems = req.body.bottomNavItems.slice(0, 500);
+        } else if (Array.isArray(req.body.bottomNavItems)) {
+          updates.bottomNavItems = JSON.stringify(req.body.bottomNavItems.slice(0, 5));
+        }
+      }
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid preferences to update" });
       }
       const updated = await storage.updateUser(req.user!.id, updates);
-      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion, dashboardBackground: updated.dashboardBackground, fontFamily: updated.fontFamily, fontMode: updated.fontMode });
+      res.json({ displayMode: updated.displayMode, reducedMotion: updated.reducedMotion, dashboardBackground: updated.dashboardBackground, fontFamily: updated.fontFamily, fontMode: updated.fontMode, bottomNavItems: updated.bottomNavItems });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to update display preferences" });
     }
