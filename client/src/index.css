@@ -6928,6 +6928,7 @@ html.theme-transitioning * {
 /* ============================================
    ULTRA-PREMIUM TRANSPARENT GLASS UI SYSTEM
    Applies to ALL dark themes via .dark selector
+   True glassmorphism with backdrop-filter blur
    ============================================ */
 
 /* T001-4: Dark Body Ambient Lighting Background */
@@ -6971,16 +6972,22 @@ html.theme-transitioning * {
 .dark [data-slot="card"]:hover {
   background: hsl(var(--card) / 0.18) !important;
   box-shadow: 0 12px 40px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.1), 0 0 20px hsl(var(--primary) / 0.08);
+  transform: translateY(-2px) scale(1.005);
   border-color: hsl(0 0% 100% / 0.14);
 }
 
-/* T001-5: Neo-Tactile Button Press (scoped to button elements only) */
-.dark button:active {
+/* T001-5: Neo-Tactile Button Press */
+.dark button,
+.dark [role="button"] {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark button:active,
+.dark [role="button"]:active {
   transform: scale(0.98);
   box-shadow: inset 0 2px 4px hsl(0 0% 0% / 0.3);
 }
 
-/* T001-6: Premium CTA Gradient Buttons (scoped to actual buttons) */
+/* T001-6: Premium CTA Gradient Buttons */
 .dark button.bg-primary,
 .dark a.bg-primary {
   background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 50%, hsl(var(--primary)) 100%) !important;
