@@ -302,6 +302,7 @@ export async function registerRoutes(
   // Serve uploaded files
   const express = await import("express");
   app.use("/uploads", express.default.static(path.join(process.cwd(), "public", "uploads")));
+  app.use("/backgrounds", express.default.static(path.join(process.cwd(), "client", "public", "backgrounds")));
 
   // === SEED DATA ===
   const existingUsers = await storage.getAllUsers();
