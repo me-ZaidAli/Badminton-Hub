@@ -8,6 +8,7 @@ import { createServer } from "http";
 import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
+import { syncParentChildLinks } from "./parentLinkSync";
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,6 +71,7 @@ app.use((req, res, next) => {
   await seedJuniorSkills();
   await seedExercises();
   await seedRecognitionCards();
+  await syncParentChildLinks();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
