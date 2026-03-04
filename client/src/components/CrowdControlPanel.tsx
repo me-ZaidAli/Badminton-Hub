@@ -588,6 +588,16 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
               <span className="text-[10px]" style={{ color: PGS.muted }}>Player Intelligence</span>
             </div>
           </div>
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+            className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/10 cursor-pointer transition-colors"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+            data-testid="close-side-panel-x"
+          >
+            <X className="w-5 h-5" style={{ color: PGS.secondary }} />
+          </button>
         </div>
 
         <div className="p-4 space-y-4">
