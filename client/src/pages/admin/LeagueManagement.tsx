@@ -499,6 +499,53 @@ function FixturesTable({ matches, loading, onEdit, onAssign, onResult, onDelete 
                 </Button>
               </div>
             </div>
+            {m.players && m.players.length > 0 && (() => {
+              const pairGroups: Record<string, any[]> = {};
+              const reserves: any[] = [];
+              for (const p of m.players) {
+                if (!p.position || p.position === "") {
+                  // skip unassigned
+                } else if (p.position === "Reserve") {
+                  reserves.push(p);
+                } else {
+                  if (!pairGroups[p.position]) pairGroups[p.position] = [];
+                  pairGroups[p.position].push(p);
+                }
+              }
+              const sortedPairs = Object.entries(pairGroups).sort(([a], [b]) => a.localeCompare(b));
+              if (sortedPairs.length === 0 && reserves.length === 0) return null;
+              return (
+                <div className="mt-3 pt-3 border-t border-border/50" data-testid={`pairs-display-${m.id}`}>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                    <Users className="h-3 w-3" /> Selected Pairs
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {sortedPairs.map(([label, players]) => (
+                      <div key={label} className="bg-primary/5 border border-primary/10 rounded-lg px-2.5 py-1.5 text-xs" data-testid={`pair-group-${label.replace(/\s/g, "-")}-${m.id}`}>
+                        <span className="font-semibold text-primary">{label}:</span>{" "}
+                        {players.map((p: any, i: number) => (
+                          <span key={p.userId}>
+                            {i > 0 && " & "}
+                            <span className="text-foreground">{p.userName || "Unknown"}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                    {reserves.length > 0 && (
+                      <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg px-2.5 py-1.5 text-xs" data-testid={`pair-group-Reserve-${m.id}`}>
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">Reserve:</span>{" "}
+                        {reserves.map((p: any, i: number) => (
+                          <span key={p.userId}>
+                            {i > 0 && ", "}
+                            <span className="text-foreground">{p.userName || "Unknown"}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       ))}

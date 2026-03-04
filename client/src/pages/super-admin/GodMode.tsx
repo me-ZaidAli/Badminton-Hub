@@ -53,6 +53,12 @@ const controlSections = [
     ],
   },
   {
+    label: "Competitions",
+    items: [
+      { href: "/admin/league", label: "League Match Teams", desc: "Manage league pairs for all clubs", icon: Trophy, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    ],
+  },
+  {
     label: "Analytics & Insights",
     items: [
       { href: "/admin/acquisition-analytics", label: "Acquisition & KPI", desc: "Growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" },
