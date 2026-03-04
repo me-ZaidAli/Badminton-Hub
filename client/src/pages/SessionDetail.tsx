@@ -2553,12 +2553,30 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           open={crowdControlOpen}
           onOpenChange={setCrowdControlOpen}
           sessionMatchCounts={sessionMatchCounts}
-          players={attendingSignups.map(s => ({
-            id: s.player?.id || s.playerId,
-            fullName: s.player?.user?.fullName || "",
-            category: s.player?.category || null,
-            isPaused: s.isPaused || false,
-          }))}
+          players={(() => {
+            const signupPlayers = confirmedSignups.map(s => ({
+              id: s.player?.id || s.playerId,
+              fullName: s.player?.user?.fullName || "",
+              category: s.player?.category || null,
+              isPaused: s.isPaused || false,
+            }));
+            const knownIds = new Set(signupPlayers.map(p => p.id));
+            const matchOnlyPlayers: typeof signupPlayers = [];
+            for (const m of typedMatches) {
+              for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+                if (p && p.id && !knownIds.has(p.id)) {
+                  knownIds.add(p.id);
+                  matchOnlyPlayers.push({
+                    id: p.id,
+                    fullName: p.user?.fullName || `Player ${p.id}`,
+                    category: p.category || null,
+                    isPaused: false,
+                  });
+                }
+              }
+            }
+            return [...signupPlayers, ...matchOnlyPlayers];
+          })()}
           liveCount={liveMatches.length}
           queuedCount={queuedMatches.length}
           completedCount={completedCount}
