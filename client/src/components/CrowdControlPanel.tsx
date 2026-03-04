@@ -557,50 +557,35 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
   const DONUT_COLORS = [PGS.green, PGS.blue, PGS.purple, PGS.cyan, PGS.amber];
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex justify-end"
-      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
-      onPointerDown={(e) => { e.stopPropagation(); }}
-      onClick={(e) => { e.stopPropagation(); onClose(); }}
-      data-testid="player-side-panel-overlay"
-    >
-      <div
-        className="w-[95vw] max-w-[520px] h-full overflow-y-auto"
-        style={{ background: PGS.bg, animation: "pgs-slide-in 0.3s cubic-bezier(0.4,0,0.2,1)" }}
-        onClick={e => e.stopPropagation()}
-        onPointerDown={e => e.stopPropagation()}
-        data-testid="player-side-panel"
-      >
-        <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 border-b" style={{ background: PGS.bg, borderColor: PGS.cardBorder }}>
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-            className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 cursor-pointer"
-            data-testid="close-side-panel"
-          >
-            <ChevronLeft className="w-5 h-5" style={{ color: PGS.secondary }} />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold truncate" style={{ color: PGS.heading }} data-testid="panel-player-name">{player.name}</h3>
-            <div className="flex items-center gap-2">
-              {player.grade && <Badge className="text-[9px] px-1.5 h-4 border-0" style={{ background: `${player.challengeColor}20`, color: player.challengeColor }}>{player.grade}</Badge>}
-              <span className="text-[10px]" style={{ color: PGS.muted }}>Player Intelligence</span>
-            </div>
+    <>
+      <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 border-b" style={{ background: PGS.bg, borderColor: PGS.cardBorder }}>
+        <button
+          type="button"
+          onClick={() => onClose()}
+          className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 cursor-pointer"
+          data-testid="close-side-panel"
+        >
+          <ChevronLeft className="w-5 h-5" style={{ color: PGS.secondary }} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold truncate" style={{ color: PGS.heading }} data-testid="panel-player-name">{player.name}</h3>
+          <div className="flex items-center gap-2">
+            {player.grade && <Badge className="text-[9px] px-1.5 h-4 border-0" style={{ background: `${player.challengeColor}20`, color: player.challengeColor }}>{player.grade}</Badge>}
+            <span className="text-[10px]" style={{ color: PGS.muted }}>Player Intelligence</span>
           </div>
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-            className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/10 cursor-pointer transition-colors"
-            style={{ background: "rgba(255,255,255,0.04)" }}
-            data-testid="close-side-panel-x"
-          >
-            <X className="w-5 h-5" style={{ color: PGS.secondary }} />
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => onClose()}
+          className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/10 cursor-pointer transition-colors"
+          style={{ background: "rgba(255,255,255,0.04)" }}
+          data-testid="close-side-panel-x"
+        >
+          <X className="w-5 h-5" style={{ color: PGS.secondary }} />
+        </button>
+      </div>
 
-        <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-2xl p-3 text-center" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}` }}>
               <p className="text-2xl font-extrabold" style={{ color: PGS.heading }}>{player.totalMatches}</p>
@@ -858,8 +843,7 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -1362,13 +1346,26 @@ export function CrowdControlPanel({
               <p className="text-[10px]" style={{ color: PGS.muted }}>PGS Engine auto-refreshing every 5 seconds</p>
             </div>
           </div>
+          {selectedPlayer && (
+            <div
+              className="fixed inset-0 z-[100] flex justify-end"
+              style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+              onClick={() => setSelectedPlayerId(null)}
+              onPointerDown={(e) => e.stopPropagation()}
+              data-testid="player-side-panel-overlay"
+            >
+              <div
+                className="w-[95vw] max-w-[520px] h-full overflow-y-auto"
+                style={{ background: PGS.bg, animation: "pgs-slide-in 0.3s cubic-bezier(0.4,0,0.2,1)" }}
+                onClick={e => e.stopPropagation()}
+                data-testid="player-side-panel"
+              >
+                <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
-
-      {selectedPlayer && createPortal(
-        <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />,
-        document.body
-      )}
 
       <PGSInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
 
