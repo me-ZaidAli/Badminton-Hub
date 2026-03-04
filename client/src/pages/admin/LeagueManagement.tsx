@@ -249,40 +249,38 @@ export default function LeagueManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="relative flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 shrink-0"
+        <div className="relative flex items-center">
+          <button
+            type="button"
+            className="absolute left-0 z-10 h-full w-7 flex items-center justify-center bg-gradient-to-r from-background via-background/90 to-transparent"
             onClick={() => {
               const el = document.getElementById("league-tabs-scroll");
               if (el) el.scrollBy({ left: -150, behavior: "smooth" });
             }}
             data-testid="button-tabs-scroll-left"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <TabsList id="league-tabs-scroll" className="flex flex-1 overflow-x-auto no-scrollbar scroll-smooth" data-testid="admin-league-tabs">
-            <TabsTrigger value="fixtures" className="flex-shrink-0">Fixtures</TabsTrigger>
-            <TabsTrigger value="results" className="flex-shrink-0">Results</TabsTrigger>
-            <TabsTrigger value="squad" className="flex-shrink-0">Squad</TabsTrigger>
-            <TabsTrigger value="teams" className="flex-shrink-0">Teams</TabsTrigger>
-            <TabsTrigger value="leagues" className="flex-shrink-0">Leagues</TabsTrigger>
-            <TabsTrigger value="opponents" className="flex-shrink-0">Opponents</TabsTrigger>
-            <TabsTrigger value="homevenue" className="flex-shrink-0 whitespace-nowrap">Home Venue</TabsTrigger>
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <TabsList id="league-tabs-scroll" className="flex w-full overflow-x-auto no-scrollbar scroll-smooth px-7" data-testid="admin-league-tabs">
+            <TabsTrigger value="fixtures" className="flex-shrink-0 text-xs px-2.5">Fixtures</TabsTrigger>
+            <TabsTrigger value="results" className="flex-shrink-0 text-xs px-2.5">Results</TabsTrigger>
+            <TabsTrigger value="squad" className="flex-shrink-0 text-xs px-2.5">Squad</TabsTrigger>
+            <TabsTrigger value="teams" className="flex-shrink-0 text-xs px-2.5">Teams</TabsTrigger>
+            <TabsTrigger value="leagues" className="flex-shrink-0 text-xs px-2.5">Leagues</TabsTrigger>
+            <TabsTrigger value="opponents" className="flex-shrink-0 text-xs px-2.5">Opponents</TabsTrigger>
+            <TabsTrigger value="homevenue" className="flex-shrink-0 text-xs px-2.5 whitespace-nowrap">Home Venue</TabsTrigger>
           </TabsList>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 shrink-0"
+          <button
+            type="button"
+            className="absolute right-0 z-10 h-full w-7 flex items-center justify-center bg-gradient-to-l from-background via-background/90 to-transparent"
             onClick={() => {
               const el = document.getElementById("league-tabs-scroll");
               if (el) el.scrollBy({ left: 150, behavior: "smooth" });
             }}
             data-testid="button-tabs-scroll-right"
           >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
         </div>
 
         <TabsContent value="fixtures" className="mt-4">
