@@ -535,6 +535,10 @@ function PGSInfoModal({ open, onClose }: { open: boolean; onClose: () => void })
 function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; onClose: () => void }) {
   const [showMatchTable, setShowMatchTable] = useState(false);
 
+  useEffect(() => {
+    setShowMatchTable(false);
+  }, [player?.id]);
+
   if (!player) return null;
 
   const courtData = Object.entries(player.courtBreakdown).map(([court, count]) => ({
@@ -545,19 +549,27 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex justify-end"
+      className="fixed inset-0 z-[9999] flex justify-end"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
       data-testid="player-side-panel-overlay"
     >
       <div
         className="w-[95vw] max-w-[520px] h-full overflow-y-auto"
         style={{ background: PGS.bg, animation: "pgs-slide-in 0.3s cubic-bezier(0.4,0,0.2,1)" }}
         onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
         data-testid="player-side-panel"
       >
         <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 border-b" style={{ background: PGS.bg, borderColor: PGS.cardBorder }}>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5" data-testid="close-side-panel">
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+            className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 cursor-pointer"
+            data-testid="close-side-panel"
+          >
             <ChevronLeft className="w-5 h-5" style={{ color: PGS.secondary }} />
           </button>
           <div className="flex-1 min-w-0">
@@ -663,8 +675,9 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
             <div className="rounded-2xl overflow-hidden" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}` }}>
               <button
                 type="button"
-                className="w-full px-4 py-3 flex items-center gap-2 text-left min-h-[44px]"
-                onClick={() => setShowMatchTable(!showMatchTable)}
+                className="w-full px-4 py-3 flex items-center gap-2 text-left min-h-[44px] cursor-pointer"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowMatchTable(!showMatchTable); }}
                 data-testid="toggle-match-table"
               >
                 <BarChart3 className="h-3.5 w-3.5" style={{ color: PGS.muted }} />
@@ -820,7 +833,7 @@ export function CrowdControlPanel({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-0 border-0"
+          className="max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-0 border-0 relative"
           style={{ background: PGS.bg, borderRadius: 20, boxShadow: `0 24px 80px rgba(0,0,0,0.6)` }}
           data-testid="crowd-control-dialog"
         >
@@ -1133,12 +1146,11 @@ export function CrowdControlPanel({
               <p className="text-[10px]" style={{ color: PGS.muted }}>PGS Engine auto-refreshing every 5 seconds</p>
             </div>
           </div>
+          {selectedPlayer && (
+            <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />
+          )}
         </DialogContent>
       </Dialog>
-
-      {selectedPlayer && (
-        <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />
-      )}
 
       <PGSInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
 
