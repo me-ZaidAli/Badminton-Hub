@@ -406,86 +406,101 @@ function DashboardContent({
             return (
               <Link key={sel.id} href="/league">
                 <div
-                  className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
+                  className="relative overflow-hidden rounded-2xl cursor-pointer group"
                   data-testid={`league-selection-${sel.id}`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/90 via-emerald-800/80 to-teal-900/90" />
-                  <div className="absolute inset-0 animate-[sweep_4s_linear_infinite] bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.03)_45%,rgba(255,255,255,0.06)_50%,rgba(255,255,255,0.03)_55%,transparent_100%)]" />
-                  <div className="relative z-10 p-4">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-emerald-400/20 rounded-lg">
-                          <Star className="h-4 w-4 text-emerald-300 fill-emerald-300" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950" />
+                  <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.4) 20px, rgba(255,255,255,0.4) 21px), repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,255,255,0.4) 20px, rgba(255,255,255,0.4) 21px)" }} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400" />
+
+                  <div className="relative z-10 p-5">
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/40">
+                            <Trophy className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center shadow-sm">
+                            <Star className="h-2.5 w-2.5 text-amber-900 fill-amber-900" />
+                          </div>
                         </div>
                         <div>
-                          <p className="text-xs sm:text-sm font-bold text-emerald-200 uppercase tracking-wider">
+                          <p className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
                             You've Been Selected!
                           </p>
-                          <p className="text-[10px] text-emerald-300/70">
+                          <p className="text-[10px] sm:text-xs text-emerald-300/70 font-medium">
                             {sel.leagueName || "League Match"}
                           </p>
                         </div>
                       </div>
                       {sel.myPosition && (
-                        <Badge className={`text-[10px] border-0 shrink-0 ${isMyReserve ? "bg-amber-500/30 text-amber-300" : "bg-emerald-400/25 text-emerald-200"}`}>
+                        <Badge className={`text-[10px] sm:text-xs border-0 shrink-0 font-bold px-3 py-1 ${isMyReserve ? "bg-amber-500/30 text-amber-200 shadow-amber-500/20 shadow-sm" : "bg-emerald-400/25 text-emerald-100 shadow-emerald-500/20 shadow-sm"}`}>
                           {sel.myPosition}
                         </Badge>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1 text-center bg-black/30 rounded-lg p-2 border border-emerald-500/20">
-                        <p className="text-white font-bold text-xs sm:text-sm truncate">{sel.clubName || "Your Club"}</p>
-                        {sel.teamName && <p className="text-emerald-300/60 text-[9px] truncate">{sel.teamName}</p>}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="flex-1 text-center bg-black/40 backdrop-blur-sm rounded-xl p-3 border border-emerald-500/20">
+                        <p className="text-white font-bold text-sm sm:text-base truncate">{sel.clubName || "Your Club"}</p>
+                        {sel.teamName && <p className="text-emerald-300/60 text-[10px] truncate mt-0.5">{sel.teamName}</p>}
                       </div>
-                      <div className="shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                        <span className="text-white font-black text-[10px]">VS</span>
+                      <div className="shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 ring-2 ring-amber-400/30">
+                        <span className="text-white font-black text-xs">VS</span>
                       </div>
-                      <div className="flex-1 text-center bg-black/30 rounded-lg p-2 border border-emerald-500/20">
-                        <p className="text-white font-bold text-xs sm:text-sm truncate">{sel.opponentClub}</p>
-                        {sel.category && <p className="text-emerald-300/60 text-[9px] truncate">{sel.category}</p>}
+                      <div className="flex-1 text-center bg-black/40 backdrop-blur-sm rounded-xl p-3 border border-emerald-500/20">
+                        <p className="text-white font-bold text-sm sm:text-base truncate">{sel.opponentClub}</p>
+                        {sel.category && <p className="text-emerald-300/60 text-[10px] truncate mt-0.5">{sel.category}</p>}
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-center gap-3 text-[10px] sm:text-xs text-emerald-200/80 mb-3 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-emerald-400" />
-                        <span>{format(new Date(sel.matchDatetime), "EEE, MMM d, yyyy")}</span>
+                    <div className="flex items-center justify-center gap-4 text-[10px] sm:text-xs text-emerald-200/90 mb-4 flex-wrap">
+                      <div className="flex items-center gap-1.5 bg-emerald-500/10 rounded-full px-3 py-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="font-medium">{format(new Date(sel.matchDatetime), "EEE, MMM d, yyyy")}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-emerald-400" />
-                        <span>{format(new Date(sel.matchDatetime), "h:mm a")}</span>
+                      <div className="flex items-center gap-1.5 bg-emerald-500/10 rounded-full px-3 py-1.5">
+                        <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="font-medium">{format(new Date(sel.matchDatetime), "h:mm a")}</span>
                       </div>
                       {sel.venue && (
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-emerald-400" />
-                          <span className="truncate max-w-[150px]">{sel.venue}</span>
+                        <div className="flex items-center gap-1.5 bg-emerald-500/10 rounded-full px-3 py-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="truncate max-w-[150px] font-medium">{sel.venue}</span>
                         </div>
                       )}
                     </div>
 
                     {myPartner && (
-                      <div className="bg-emerald-400/10 rounded-lg p-2 border border-emerald-400/20 mb-3 flex items-center gap-2" data-testid="partner-info">
-                        <Users className="h-4 w-4 text-emerald-300 shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-emerald-300/70 uppercase font-semibold">Your Partner ({sel.myPosition})</p>
-                          <p className="text-sm font-bold text-white">{myPartner}</p>
+                      <div className="bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-xl p-3.5 border border-emerald-400/25 mb-4" data-testid="partner-info">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-400/30">
+                            <Users className="h-5 w-5 text-emerald-300" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[10px] text-emerald-300/80 uppercase font-bold tracking-wider">Your Partner ({sel.myPosition})</p>
+                            <p className="text-base font-bold text-white mt-0.5">{myPartner}</p>
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center">
+                            <Star className="h-4 w-4 text-emerald-300 fill-emerald-300/50" />
+                          </div>
                         </div>
                       </div>
                     )}
 
                     {Object.keys(pairGroups).length > 0 && (
-                      <div className="bg-black/25 rounded-lg p-2.5 border border-emerald-500/15">
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Shield className="h-3 w-3 text-emerald-400" />
-                          <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Team Lineup</span>
+                      <div className="bg-black/30 backdrop-blur-sm rounded-xl p-3.5 border border-emerald-500/15">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Shield className="h-4 w-4 text-emerald-400" />
+                          <span className="text-[10px] sm:text-xs font-bold text-emerald-300 uppercase tracking-wider">Full Team Lineup</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           {Object.entries(pairGroups).sort(([a], [b]) => a.localeCompare(b)).map(([position, names]) => (
-                            <div key={position} className="bg-black/20 rounded-md p-2">
-                              <p className="text-[9px] font-bold text-emerald-400/80 uppercase mb-1">{position}</p>
+                            <div key={position} className="bg-emerald-500/5 rounded-lg p-2.5 border border-emerald-500/10">
+                              <p className="text-[9px] font-bold text-emerald-400 uppercase mb-1.5 tracking-wide">{position}</p>
                               {names.map((name, i) => (
-                                <p key={i} className={`text-[11px] truncate ${
+                                <p key={i} className={`text-[11px] sm:text-xs truncate ${
                                   name === user?.fullName ? "text-emerald-200 font-bold" : "text-white/70"
                                 }`}>
                                   {name === user?.fullName ? `${name} (You)` : name}
@@ -495,24 +510,31 @@ function DashboardContent({
                           ))}
                         </div>
                         {unassigned.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-emerald-500/10">
-                            <p className="text-[9px] text-emerald-300/50">Also selected: {unassigned.join(", ")}</p>
+                          <div className="mt-2.5 pt-2.5 border-t border-emerald-500/10">
+                            <p className="text-[10px] text-emerald-300/50">Also selected: {unassigned.join(", ")}</p>
                           </div>
                         )}
                       </div>
                     )}
 
                     {Object.keys(pairGroups).length === 0 && sel.players && sel.players.length > 0 && (
-                      <div className="bg-black/25 rounded-lg p-2.5 border border-emerald-500/15">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <Users className="h-3 w-3 text-emerald-400" />
-                          <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Selected Players</span>
+                      <div className="bg-black/30 backdrop-blur-sm rounded-xl p-3.5 border border-emerald-500/15">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users className="h-4 w-4 text-emerald-400" />
+                          <span className="text-[10px] sm:text-xs font-bold text-emerald-300 uppercase tracking-wider">Selected Players</span>
                         </div>
-                        <p className="text-[11px] text-white/70">
+                        <p className="text-[11px] sm:text-xs text-white/70">
                           {sel.players.map((p: any) => p.userName === user?.fullName ? `${p.userName} (You)` : p.userName).join(", ")}
                         </p>
                       </div>
                     )}
+
+                    <div className="mt-4 flex items-center justify-center">
+                      <div className="flex items-center gap-2 text-[10px] sm:text-xs text-emerald-300/60 group-hover:text-emerald-200 transition-colors">
+                        <span className="font-medium">View League Details</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Link>
