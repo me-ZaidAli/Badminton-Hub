@@ -103,7 +103,7 @@ export function CrowdControlPanel({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="bg-zinc-900/80 rounded-xl p-3 border border-zinc-800/50" data-testid="stat-total-matches">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Total Matches</p>
-              <p className="text-2xl font-bold text-white tabular-nums">{stats.totalGames}</p>
+              <p className="text-2xl font-bold text-white tabular-nums">{liveCount + completedCount}</p>
               <p className="text-[10px] text-zinc-600">{liveCount} live · {queuedCount} queued</p>
             </div>
             <div className="bg-zinc-900/80 rounded-xl p-3 border border-zinc-800/50" data-testid="stat-avg-games">
