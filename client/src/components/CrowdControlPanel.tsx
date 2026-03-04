@@ -420,7 +420,7 @@ function PGSRadialGauge({ value, size = 160, label, sublabel, color }: {
           {label}
         </text>
       </svg>
-      {sublabel && <span className="text-[10px] font-medium mt-0.5" style={{ color: PGS.muted }}>{sublabel}</span>}
+      {sublabel && <span className="text-[10px] font-medium mt-0.5" style={{ color: PGS.secondary }}>{sublabel}</span>}
     </div>
   );
 }
@@ -513,7 +513,7 @@ function PGSInfoModal({ open, onClose }: { open: boolean; onClose: () => void })
                 <circle cx="50" cy="50" r="35" fill="none" stroke={PGS.blue} strokeWidth="12"
                   strokeDasharray="66 220" strokeDashoffset="-209" strokeLinecap="round" />
                 <text x="50" y="48" textAnchor="middle" fill={PGS.heading} fontSize="14" fontWeight="800">PGS</text>
-                <text x="50" y="60" textAnchor="middle" fill={PGS.muted} fontSize="8">Fairness</text>
+                <text x="50" y="60" textAnchor="middle" fill={PGS.secondary} fontSize="8">Fairness</text>
               </svg>
             </div>
           </div>
@@ -664,9 +664,9 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
               <div style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={player.difficultyTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                    <XAxis dataKey="match" tick={{ fontSize: 10, fill: PGS.muted }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: PGS.muted }} axisLine={false} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="match" tick={{ fontSize: 10, fill: PGS.secondary }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: PGS.secondary }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, borderRadius: 12, fontSize: 11, color: PGS.heading }} />
                     <Line type="monotone" dataKey="difficulty" stroke={PGS.blue} strokeWidth={2} dot={{ fill: PGS.blue, r: 3 }} />
                   </LineChart>
@@ -1224,7 +1224,7 @@ export function CrowdControlPanel({
                           {pgs.gradeDistribution.map((g, i) => (
                             <div key={g.name} className="flex items-center gap-1">
                               <div className="w-2 h-2 rounded-full" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
-                              <span className="text-[9px]" style={{ color: PGS.muted }}>{g.name} ({g.value})</span>
+                              <span className="text-[9px]" style={{ color: PGS.secondary }}>{g.name} ({g.value})</span>
                             </div>
                           ))}
                         </div>
@@ -1236,8 +1236,8 @@ export function CrowdControlPanel({
                       <div className="h-[160px] sm:h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={matchCountChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                            <XAxis dataKey="name" tick={{ fontSize: 8, fill: PGS.muted }} axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={50} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: PGS.muted }} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 8, fill: PGS.secondary }} axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={50} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: PGS.secondary }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, borderRadius: 12, fontSize: 11, color: PGS.heading }} />
                             <Bar dataKey="matches" radius={[4, 4, 0, 0]} animationDuration={300}>
                               {matchCountChartData.map((e, i) => <Cell key={i} fill={e.color} fillOpacity={0.8} />)}
@@ -1253,8 +1253,8 @@ export function CrowdControlPanel({
                         <div className="h-[160px] sm:h-[200px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={challengeSpreadData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                              <XAxis dataKey="name" tick={{ fontSize: 8, fill: PGS.muted }} axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={50} />
-                              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: PGS.muted }} axisLine={false} tickLine={false} />
+                              <XAxis dataKey="name" tick={{ fontSize: 8, fill: PGS.secondary }} axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={50} />
+                              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: PGS.secondary }} axisLine={false} tickLine={false} />
                               <Tooltip contentStyle={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, borderRadius: 12, fontSize: 11, color: PGS.heading }} />
                               <Bar dataKey="challenge" radius={[4, 4, 0, 0]} animationDuration={300}>
                                 {challengeSpreadData.map((e, i) => <Cell key={i} fill={e.color} fillOpacity={0.8} />)}
