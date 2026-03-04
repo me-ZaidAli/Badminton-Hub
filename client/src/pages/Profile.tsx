@@ -1900,6 +1900,23 @@ export default function Profile() {
                 </Badge>
               )}
             </div>
+            {mySquadStatus && mySquadStatus.length > 0 && (
+              <div className="flex flex-col items-center justify-center shrink-0" data-testid="league-player-emblem">
+                <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-teal-500/20 animate-pulse" />
+                  <div className="absolute inset-1 rounded-full border-2 border-emerald-500/40 border-dashed" style={{ animation: "spin 12s linear infinite" }} />
+                  <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <svg viewBox="0 0 40 40" className="w-8 h-8 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" fill="currentColor" opacity="0.3" />
+                      <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" />
+                      <circle cx="20" cy="19" r="5" fill="currentColor" opacity="0.5" />
+                      <path d="M17 19L19 21L23 17" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mt-1">League Player</span>
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-profile">
                 <Pencil className="h-4 w-4 mr-1" />
