@@ -923,16 +923,28 @@ export function CrowdControlPanel({
                   <span className="text-[10px] align-top" style={{ color: PGS.muted }}>™</span>
                 </div>
               </DialogTitle>
-              <button
-                type="button"
-                onClick={() => setShowInfo(true)}
-                className="p-2.5 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
-                style={{ background: "rgba(255,255,255,0.04)" }}
-                data-testid="pgs-info-button"
-                title="What is the PGS Engine?"
-              >
-                <Info className="w-5 h-5" style={{ color: PGS.secondary }} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInfo(true)}
+                  className="p-2.5 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                  data-testid="pgs-info-button"
+                  title="What is the PGS Engine?"
+                >
+                  <Info className="w-5 h-5" style={{ color: PGS.secondary }} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  className="p-2.5 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors hover:bg-white/10"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                  data-testid="pgs-close-button"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" style={{ color: PGS.secondary }} />
+                </button>
+              </div>
             </div>
             <DialogDescription className="text-xs mt-1" style={{ color: PGS.muted }}>
               Badminton Performance Group · Real-time session fairness &amp; player intelligence
