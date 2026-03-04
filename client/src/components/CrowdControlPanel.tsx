@@ -630,6 +630,28 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
             <div className="flex items-center justify-center">
               <MiniRadialGauge value={player.challengeIndex} size={100} color={player.challengeColor} />
             </div>
+            <div className="rounded-lg px-3 py-2 mt-3" style={{ background: `${player.challengeColor}08`, border: `1px solid ${player.challengeColor}20` }}>
+              <p className="text-[10px] leading-relaxed" style={{ color: PGS.secondary }} data-testid="challenge-explanation">
+                {(() => {
+                  const ci = player.challengeIndex;
+                  const cat = player.challengeCategory;
+                  const grade = player.grade || "Ungraded";
+                  const avgOpp = player.avgOpponentGrade > 0 ? gradeLabel(player.avgOpponentGrade) : null;
+                  const winPct = (player.winRate * 100).toFixed(0);
+                  const matches = player.totalMatches;
+
+                  if (ci <= 40) {
+                    return `${grade} player averaging ${ci.toFixed(0)} challenge across ${matches} match${matches !== 1 ? "es" : ""}. ${avgOpp ? `Mostly facing ${avgOpp}-level opponents which are below their level.` : ""} With a ${winPct}% win rate, they need tougher opponents to be properly tested.`;
+                  } else if (ci <= 60) {
+                    return `${grade} player averaging ${ci.toFixed(0)} challenge across ${matches} match${matches !== 1 ? "es" : ""}. ${avgOpp ? `Facing ${avgOpp}-level opponents — well-matched to their skill.` : ""} ${winPct}% win rate suggests competitive, balanced pairings ideal for development.`;
+                  } else if (ci <= 75) {
+                    return `${grade} player averaging ${ci.toFixed(0)} challenge across ${matches} match${matches !== 1 ? "es" : ""}. ${avgOpp ? `Regularly facing ${avgOpp}-level opponents who are above their grade.` : ""} A ${winPct}% win rate against stronger competition shows ${parseInt(winPct) >= 40 ? "resilience" : "room to grow"}.`;
+                  } else {
+                    return `${grade} player averaging ${ci.toFixed(0)} challenge across ${matches} match${matches !== 1 ? "es" : ""}. ${avgOpp ? `Consistently matched against ${avgOpp}-level opponents — significantly above their grade.` : ""} This level of challenge ${parseInt(winPct) >= 30 ? "is building resilience fast" : "may be too steep for consistent improvement"}.`;
+                  }
+                })()}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -764,6 +786,27 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
                               </div>
                               <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                                 <div className="h-full rounded-full transition-all" style={{ width: `${md.adjustedDifficulty}%`, background: diffColor }} />
+                              </div>
+                              <div className="rounded-lg px-3 py-2 mt-1" style={{ background: `${diffColor}08`, border: `1px solid ${diffColor}20` }}>
+                                <p className="text-[10px] leading-relaxed" style={{ color: PGS.secondary }}>
+                                  {(() => {
+                                    const playerGradeLabel = md.playerCategory || "Ungraded";
+                                    const oppLabels = md.opponentCategories.join(" & ") || "Ungraded";
+                                    const diff = md.gradeDiff;
+                                    if (md.adjustedDifficulty <= 40) {
+                                      return `${playerGradeLabel} faced weaker opponent${md.opponentCategories.length > 1 ? "s" : ""} (${oppLabels}). Grade gap of ${Math.abs(diff).toFixed(1)} means this match offered limited competitive challenge.`;
+                                    } else if (md.adjustedDifficulty <= 60) {
+                                      return `${playerGradeLabel} vs ${oppLabels} — grades are closely matched${Math.abs(diff) < 0.5 ? " (near-identical level)" : ""}. This is an ideal competitive pairing for growth.`;
+                                    } else if (md.adjustedDifficulty <= 75) {
+                                      return `${playerGradeLabel} faced stronger opponent${md.opponentCategories.length > 1 ? "s" : ""} (${oppLabels}). Grade gap of ${Math.abs(diff).toFixed(1)} pushed ${md.won ? "but they won — impressive" : "them harder than usual"}.`;
+                                    } else {
+                                      return `${playerGradeLabel} was significantly outranked by ${oppLabels}. Grade gap of ${Math.abs(diff).toFixed(1)} made this a very tough match${md.won ? " — remarkable win!" : ""}.`;
+                                    }
+                                  })()}
+                                  {md.pressureFactor ? " Close scoreline added extra pressure." : ""}
+                                  {md.strengthFactor ? " Multiple strong opponents amplified difficulty." : ""}
+                                  {md.supportAdjustment ? " A stronger partner offset some challenge." : ""}
+                                </p>
                               </div>
                               <div className="grid grid-cols-2 gap-2 pt-1">
                                 <div className="flex justify-between">
@@ -921,6 +964,8 @@ export function CrowdControlPanel({
           className="max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-0 border-0"
           style={{ background: PGS.bg, borderRadius: 20, boxShadow: `0 24px 80px rgba(0,0,0,0.6)` }}
           data-testid="crowd-control-dialog"
+          onInteractOutside={(e) => { if (selectedPlayerId) e.preventDefault(); }}
+          onPointerDownOutside={(e) => { if (selectedPlayerId) e.preventDefault(); }}
         >
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-0">
             <div className="flex items-center justify-between">

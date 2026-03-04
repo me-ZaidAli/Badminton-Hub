@@ -25,7 +25,7 @@ import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
+function SessionMiniLeaderboard({ sessionId, completedMatchCount, liveMatchCount }: { sessionId: number; completedMatchCount?: number; liveMatchCount?: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
 
   if (isLoading) {
@@ -45,12 +45,21 @@ function SessionMiniLeaderboard({ sessionId }: { sessionId: number }) {
   }
 
   const top3 = leaderboard.slice(0, 3);
+  const totalSessionMatches = (completedMatchCount || 0) + (liveMatchCount || 0);
 
   return (
     <div className="space-y-1.5" data-testid={`session-mini-leaderboard-${sessionId}`}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <Trophy className="w-3.5 h-3.5 text-amber-500" />
-        <span className="text-xs font-semibold text-muted-foreground">Session Rankings</span>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1.5">
+          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+          <span className="text-xs font-semibold text-muted-foreground">Session Rankings</span>
+        </div>
+        {totalSessionMatches > 0 && (
+          <Badge variant="outline" className="text-[10px] px-1.5 h-5 gap-1" data-testid={`text-match-count-${sessionId}`}>
+            <Swords className="w-3 h-3" />
+            {totalSessionMatches} {totalSessionMatches === 1 ? "match" : "matches"}
+          </Badge>
+        )}
       </div>
       {top3.map((player, index) => (
         <div
@@ -876,7 +885,7 @@ function DashboardContent({
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="border-t border-border/50 pt-3 mt-1">
-                    <SessionMiniLeaderboard sessionId={session.id} />
+                    <SessionMiniLeaderboard sessionId={session.id} completedMatchCount={session.completedMatchCount} liveMatchCount={session.liveMatchCount} />
                   </div>
                   <Link href={`/sessions/${session.id}`}>
                     <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" data-testid={`button-view-session-${session.id}`}>
