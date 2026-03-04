@@ -165,6 +165,20 @@ export default function LeagueManagement() {
     return { total: matches.length, upcoming: upcomingMatches.length, wins, losses, draws, completed: completedMatches.length };
   }, [matches, upcomingMatches, completedMatches]);
 
+  const [sendingPollId, setSendingPollId] = useState<number | null>(null);
+  const handleSendPoll = async (matchId: number) => {
+    setSendingPollId(matchId);
+    try {
+      await apiRequest("POST", `/api/league/match-availability/${matchId}/send-poll`, {});
+      queryClient.invalidateQueries({ queryKey: ["/api/league/match-availability"] });
+      toast({ title: "Availability poll sent to all squad players" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSendingPollId(null);
+    }
+  };
+
   if (clubsLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
@@ -290,6 +304,8 @@ export default function LeagueManagement() {
             onEdit={(m: any) => { setEditingMatch(m); setMatchDialogOpen(true); }}
             onAssign={(id: number) => { setAssignMatchId(id); setAssignDialogOpen(true); }}
             onResult={(id: number) => { setResultMatchId(id); setResultDialogOpen(true); }}
+            onSendPoll={handleSendPoll}
+            sendingPollId={sendingPollId}
             onDelete={async (id: number) => {
               try {
                 await apiRequest("DELETE", `/api/league/matches/${id}`);
@@ -391,7 +407,7 @@ export default function LeagueManagement() {
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}
         matchId={assignMatchId}
-        members={clubMembers || []}
+        squadPlayers={squadPlayers || []}
         matches={matches}
       />
 
@@ -426,13 +442,15 @@ export default function LeagueManagement() {
   );
 }
 
-function FixturesTable({ matches, loading, onEdit, onAssign, onResult, onDelete }: {
+function FixturesTable({ matches, loading, onEdit, onAssign, onResult, onDelete, onSendPoll, sendingPollId }: {
   matches: any[];
   loading: boolean;
   onEdit: (m: any) => void;
   onAssign: (id: number) => void;
   onResult: (id: number) => void;
   onDelete: (id: number) => void;
+  onSendPoll?: (id: number) => void;
+  sendingPollId?: number | null;
 }) {
   if (loading) return <div className="flex justify-center h-32"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -483,6 +501,18 @@ function FixturesTable({ matches, loading, onEdit, onAssign, onResult, onDelete 
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
+                {onSendPoll && (m.status === "UPCOMING" || m.status === "LIVE") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onSendPoll(m.id)}
+                    disabled={sendingPollId === m.id}
+                    data-testid={`button-send-poll-fixture-${m.id}`}
+                  >
+                    {sendingPollId === m.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                    Poll
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => onAssign(m.id)} data-testid={`button-assign-${m.id}`}>
                   <Users className="h-3.5 w-3.5 mr-1" /> Assign
                 </Button>
@@ -1574,11 +1604,11 @@ function SquadTab({ clubId, squadPlayers, clubMembers, matches }: {
   );
 }
 
-function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: {
+function AssignPlayersDialog({ open, onOpenChange, matchId, squadPlayers, matches }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   matchId: number | null;
-  members: any[];
+  squadPlayers: any[];
   matches: any[];
 }) {
   const { toast } = useToast();
@@ -1587,6 +1617,18 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
   const [pairCount, setPairCount] = useState(4);
 
   const match = matches.find(m => m.id === matchId);
+
+  const eligibleMembers = useMemo(() => {
+    if (!squadPlayers || !match) return squadPlayers || [];
+    const category = match.category;
+    if (category === "MENS") {
+      return squadPlayers.filter((p: any) => p.gender === "MALE");
+    }
+    if (category === "LADIES") {
+      return squadPlayers.filter((p: any) => p.gender === "FEMALE");
+    }
+    return squadPlayers;
+  }, [squadPlayers, match]);
 
   const pairLabels = useMemo(() => {
     const labels: string[] = [];
@@ -1598,7 +1640,7 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
   }, [pairCount]);
 
   const handleOpen = () => {
-    if (match?.players) {
+    if (match?.players && match.players.length > 0) {
       const existing = match.players.map((p: any) => ({
         userId: p.userId,
         position: p.position || "",
@@ -1623,10 +1665,14 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
   };
 
   const filteredMembers = useMemo(() => {
-    if (!searchTerm) return members;
+    if (!searchTerm) return eligibleMembers;
     const term = searchTerm.toLowerCase();
-    return members.filter(m => m.fullName.toLowerCase().includes(term) || m.email.toLowerCase().includes(term));
-  }, [members, searchTerm]);
+    return eligibleMembers.filter((m: any) => {
+      const name = m.fullName || "";
+      const email = m.email || "";
+      return name.toLowerCase().includes(term) || email.toLowerCase().includes(term);
+    });
+  }, [eligibleMembers, searchTerm]);
 
   const addPlayer = (member: any) => {
     if (selectedPlayers.find(p => p.userId === member.userId)) return;
@@ -1767,7 +1813,14 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
           )}
 
           <div className="space-y-2 pt-2 border-t">
-            <Label className="text-xs font-semibold">Add Players</Label>
+            <Label className="text-xs font-semibold">
+            Add Players from League Squad
+            {match?.category && (
+              <span className="ml-1.5 font-normal text-muted-foreground">
+                ({match.category === "MENS" ? "Males only" : match.category === "LADIES" ? "Females only" : "All players"})
+              </span>
+            )}
+          </Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -1780,7 +1833,13 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
             </div>
             <div className="max-h-40 overflow-y-auto space-y-1 border rounded-md p-2">
               {filteredMembers.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No members found</p>
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  {(squadPlayers || []).length === 0
+                    ? "No league squad players. Add players to the Squad tab first."
+                    : eligibleMembers.length === 0
+                    ? `No eligible ${match?.category === "MENS" ? "male" : match?.category === "LADIES" ? "female" : ""} squad players found`
+                    : "No matching players found"}
+                </p>
               ) : (
                 filteredMembers.map(m => {
                   const isSelected = selectedPlayers.some(p => p.userId === m.userId);
@@ -1790,9 +1849,14 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
                       className={`flex items-center justify-between gap-2 p-2 rounded text-sm hover:bg-muted/50 ${isSelected ? "opacity-50" : "cursor-pointer"}`}
                       data-testid={`member-option-${m.userId}`}
                     >
-                      <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-medium">{m.fullName}</span>
-                        {m.grade && <Badge variant="outline" className="ml-1.5 text-[10px]">{m.grade}</Badge>}
+                        {m.gender && (
+                          <Badge variant="outline" className={`text-[10px] ${m.gender === "MALE" ? "border-blue-300 text-blue-600 dark:text-blue-400" : "border-pink-300 text-pink-600 dark:text-pink-400"}`}>
+                            {m.gender === "MALE" ? "M" : "F"}
+                          </Badge>
+                        )}
+                        {m.grade && <Badge variant="outline" className="text-[10px]">{m.grade}</Badge>}
                       </div>
                       {isSelected ? (
                         <Badge variant="secondary" className="text-[10px]">Added</Badge>

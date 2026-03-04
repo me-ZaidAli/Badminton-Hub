@@ -19293,6 +19293,17 @@ export async function registerRoutes(
       const { players } = req.body;
       if (!Array.isArray(players)) return res.status(400).json({ message: "players array is required" });
 
+      if (players.length > 0) {
+        const squadMembers = await db.select({ userId: leagueSquadPlayers.userId })
+          .from(leagueSquadPlayers)
+          .where(eq(leagueSquadPlayers.clubId, match.clubId));
+        const squadUserIds = new Set(squadMembers.map(s => s.userId));
+        const nonSquadPlayers = players.filter((p: any) => !squadUserIds.has(Number(p.userId)));
+        if (nonSquadPlayers.length > 0) {
+          return res.status(400).json({ message: "All assigned players must be in the league squad" });
+        }
+      }
+
       await db.delete(leagueMatchPlayers).where(eq(leagueMatchPlayers.matchId, matchId));
 
       if (players.length > 0) {
