@@ -1094,6 +1094,80 @@ export function CrowdControlPanel({
               </div>
             </div>
 
+            {(() => {
+              const promotionCandidates = pgs.playerStats.filter(p => p.totalMatches >= 3 && p.winRate >= 0.65 && p.performanceScore >= 55 && p.hasGradeData);
+              const struggling = pgs.playerStats.filter(p => p.totalMatches >= 3 && p.winRate < 0.3 && p.hasGradeData);
+              const underChallengedPlayers = pgs.playerStats.filter(p => p.totalMatches >= 2 && p.challengeIndex <= 40 && p.hasGradeData);
+              const hasFlags = promotionCandidates.length > 0 || struggling.length > 0 || underChallengedPlayers.length > 0;
+              if (!hasFlags) return null;
+              return (
+                <div className="rounded-2xl p-4 space-y-3" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="promotion-watch">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" style={{ color: PGS.green }} />
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: PGS.heading }}>Promotion Watch</span>
+                  </div>
+                  {promotionCandidates.length > 0 && (
+                    <div className="rounded-xl p-3 space-y-2" style={{ background: `${PGS.green}08`, border: `1px solid ${PGS.green}20` }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PGS.green }}>
+                        Ready for Promotion ({promotionCandidates.length})
+                      </p>
+                      <p className="text-[9px]" style={{ color: PGS.muted }}>High win rate + strong performance — consider moving up a grade</p>
+                      <div className="space-y-1.5">
+                        {promotionCandidates.map(p => (
+                          <div key={p.id} className="flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors" onClick={() => setSelectedPlayerId(p.id)} data-testid={`promo-player-${p.id}`}>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: PGS.green }} />
+                            <span className="text-[11px] font-medium flex-1 truncate" style={{ color: PGS.heading }}>{p.shortName}</span>
+                            <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: PGS.muted }}>{p.grade}</Badge>
+                            <span className="text-[10px] font-bold tabular-nums" style={{ color: PGS.green }}>{(p.winRate * 100).toFixed(0)}% W</span>
+                            <span className="text-[10px] tabular-nums" style={{ color: PGS.muted }}>{p.totalMatches}M</span>
+                            <span className="text-[10px] font-bold tabular-nums" style={{ color: PGS.heading }}>Perf {p.performanceScore.toFixed(0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {struggling.length > 0 && (
+                    <div className="rounded-xl p-3 space-y-2" style={{ background: `${PGS.red}08`, border: `1px solid ${PGS.red}20` }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PGS.red }}>
+                        Struggling ({struggling.length})
+                      </p>
+                      <p className="text-[9px]" style={{ color: PGS.muted }}>Low win rate — may need grade reassessment or easier opponents</p>
+                      <div className="space-y-1.5">
+                        {struggling.map(p => (
+                          <div key={p.id} className="flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors" onClick={() => setSelectedPlayerId(p.id)} data-testid={`struggling-player-${p.id}`}>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: PGS.red }} />
+                            <span className="text-[11px] font-medium flex-1 truncate" style={{ color: PGS.heading }}>{p.shortName}</span>
+                            <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: PGS.muted }}>{p.grade}</Badge>
+                            <span className="text-[10px] font-bold tabular-nums" style={{ color: PGS.red }}>{(p.winRate * 100).toFixed(0)}% W</span>
+                            <span className="text-[10px] tabular-nums" style={{ color: PGS.muted }}>{p.totalMatches}M</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {underChallengedPlayers.length > 0 && (
+                    <div className="rounded-xl p-3 space-y-2" style={{ background: `${PGS.amber}08`, border: `1px solid ${PGS.amber}20` }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PGS.amber }}>
+                        Under-Challenged ({underChallengedPlayers.length})
+                      </p>
+                      <p className="text-[9px]" style={{ color: PGS.muted }}>Challenge index below 40 — need tougher opponents to grow</p>
+                      <div className="space-y-1.5">
+                        {underChallengedPlayers.map(p => (
+                          <div key={p.id} className="flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors" onClick={() => setSelectedPlayerId(p.id)} data-testid={`under-player-${p.id}`}>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: PGS.amber }} />
+                            <span className="text-[11px] font-medium flex-1 truncate" style={{ color: PGS.heading }}>{p.shortName}</span>
+                            <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: PGS.muted }}>{p.grade}</Badge>
+                            <span className="text-[10px] font-bold tabular-nums" style={{ color: PGS.amber }}>CI {p.challengeIndex.toFixed(0)}</span>
+                            <span className="text-[10px] tabular-nums" style={{ color: PGS.muted }}>{p.totalMatches}M</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="rounded-2xl overflow-hidden" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
               <button
                 type="button"
