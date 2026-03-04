@@ -40,6 +40,7 @@ const controlSections = [
       { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
       { href: "/admin/membership-board", label: "Membership Board", desc: "Plans, requests, and status", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
       { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+      { href: "/super-admin/billing", label: "Platform Billing", desc: "Manage club plans: Free or Premium", icon: CreditCard, color: "text-yellow-500", bg: "bg-yellow-500/10" },
     ],
   },
   {
