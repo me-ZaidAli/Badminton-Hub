@@ -836,19 +836,17 @@ export default function LeaguePage() {
 
       {nextMatch && <NextMatchSpotlight match={nextMatch} />}
 
-      {isSquadPlayer && myAvailability && myAvailability.length > 0 && (
+      {isSquadPlayer && pendingPolls.length > 0 && (
         <div className="px-4 sm:px-6 lg:px-8 pt-4">
           <Card data-testid="availability-poll-section">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-bold uppercase tracking-wider">Match Availability</h3>
-                {pendingPolls.length > 0 && (
-                  <Badge className="bg-amber-500 text-white text-[10px]">{pendingPolls.length} pending</Badge>
-                )}
+                <Badge className="bg-amber-500 text-white text-[10px]">{pendingPolls.length} pending</Badge>
               </div>
               <div className="space-y-2">
-                {myAvailability.map((poll: any) => (
+                {pendingPolls.map((poll: any) => (
                   <div key={poll.id} className="bg-muted/50 rounded-lg p-3 border" data-testid={`availability-poll-${poll.matchId}`}>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
@@ -858,20 +856,12 @@ export default function LeaguePage() {
                           {poll.category && ` · ${poll.category}`}
                         </p>
                       </div>
-                      <Badge variant="outline" className={`text-[10px] shrink-0 ${
-                        poll.status === "AVAILABLE" ? "border-green-300 text-green-600 dark:text-green-400" :
-                        poll.status === "UNAVAILABLE" ? "border-red-300 text-red-600 dark:text-red-400" :
-                        poll.status === "MAYBE" ? "border-yellow-300 text-yellow-600 dark:text-yellow-400" :
-                        ""
-                      }`}>
-                        {poll.status}
-                      </Badge>
                     </div>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
-                        variant={poll.status === "AVAILABLE" ? "default" : "outline"}
-                        className={`h-7 text-xs flex-1 ${poll.status === "AVAILABLE" ? "bg-green-600 hover:bg-green-700 text-white" : ""}`}
+                        variant="outline"
+                        className="h-7 text-xs flex-1"
                         onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "AVAILABLE" })}
                         disabled={respondMutation.isPending}
                         data-testid={`button-available-${poll.matchId}`}
@@ -880,8 +870,8 @@ export default function LeaguePage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={poll.status === "MAYBE" ? "default" : "outline"}
-                        className={`h-7 text-xs flex-1 ${poll.status === "MAYBE" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : ""}`}
+                        variant="outline"
+                        className="h-7 text-xs flex-1"
                         onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "MAYBE" })}
                         disabled={respondMutation.isPending}
                         data-testid={`button-maybe-${poll.matchId}`}
@@ -890,8 +880,8 @@ export default function LeaguePage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={poll.status === "UNAVAILABLE" ? "default" : "outline"}
-                        className={`h-7 text-xs flex-1 ${poll.status === "UNAVAILABLE" ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                        variant="outline"
+                        className="h-7 text-xs flex-1"
                         onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "UNAVAILABLE" })}
                         disabled={respondMutation.isPending}
                         data-testid={`button-unavailable-${poll.matchId}`}

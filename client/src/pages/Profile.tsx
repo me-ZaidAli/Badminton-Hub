@@ -1967,15 +1967,8 @@ export default function Profile() {
             </div>
             {(() => {
               const allPolls = myAvailability || [];
-              if (allPolls.length === 0) return null;
               const pendingPolls = allPolls.filter((a: any) => a.status === "PENDING");
-              const respondedPolls = allPolls.filter((a: any) => a.status !== "PENDING");
-              const statusConfig: Record<string, { bg: string; text: string; label: string; icon: string }> = {
-                PENDING: { bg: "bg-amber-500/20", text: "text-amber-600 dark:text-amber-300", label: "Awaiting Response", icon: "⏳" },
-                AVAILABLE: { bg: "bg-emerald-500/20", text: "text-emerald-600 dark:text-emerald-300", label: "Available", icon: "✅" },
-                MAYBE: { bg: "bg-blue-500/20", text: "text-blue-600 dark:text-blue-300", label: "Maybe", icon: "❓" },
-                UNAVAILABLE: { bg: "bg-red-500/20", text: "text-red-600 dark:text-red-300", label: "Can't Play", icon: "❌" },
-              };
+              if (pendingPolls.length === 0) return null;
               return (
                 <div className="mt-4 pt-3 border-t border-emerald-500/15" data-testid="league-polls-section">
                   <div className="flex items-center gap-2 mb-3">
@@ -1984,81 +1977,49 @@ export default function Profile() {
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-bold">Match Availability Polls</p>
-                      <p className="text-[10px] text-muted-foreground">{allPolls.length} poll{allPolls.length !== 1 ? "s" : ""} · {pendingPolls.length} awaiting response</p>
+                      <p className="text-[10px] text-muted-foreground">{pendingPolls.length} awaiting response</p>
                     </div>
                   </div>
 
-                  {pendingPolls.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <AlertCircle className="h-3 w-3" /> Action Required
-                      </p>
-                      <div className="space-y-2">
-                        {pendingPolls.map((poll: any) => (
-                          <Link key={poll.id} href="/league">
-                            <div className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 cursor-pointer hover:bg-amber-500/10 transition-colors" data-testid={`pending-poll-${poll.matchId}`}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold truncate">
-                                  {poll.clubName} vs {poll.opponentClub}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground flex-wrap">
+                  <div>
+                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <AlertCircle className="h-3 w-3" /> Action Required
+                    </p>
+                    <div className="space-y-2">
+                      {pendingPolls.map((poll: any) => (
+                        <Link key={poll.id} href="/league">
+                          <div className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 cursor-pointer hover:bg-amber-500/10 transition-colors" data-testid={`pending-poll-${poll.matchId}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">
+                                {poll.clubName} vs {poll.opponentClub}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground flex-wrap">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(poll.matchDatetime), "EEE, MMM d")}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {format(new Date(poll.matchDatetime), "h:mm a")}
+                                </span>
+                                {poll.venue && (
                                   <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {format(new Date(poll.matchDatetime), "EEE, MMM d")}
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="truncate max-w-[100px]">{poll.venue}</span>
                                   </span>
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    {format(new Date(poll.matchDatetime), "h:mm a")}
-                                  </span>
-                                  {poll.venue && (
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      <span className="truncate max-w-[100px]">{poll.venue}</span>
-                                    </span>
-                                  )}
-                                </div>
-                                {poll.leagueName && <p className="text-[9px] text-muted-foreground mt-0.5">{poll.leagueName}</p>}
+                                )}
                               </div>
-                              <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-300 border-0 text-[10px] shrink-0 animate-pulse">
-                                Respond
-                              </Badge>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                              {poll.leagueName && <p className="text-[9px] text-muted-foreground mt-0.5">{poll.leagueName}</p>}
                             </div>
-                          </Link>
-                        ))}
-                      </div>
+                            <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-300 border-0 text-[10px] shrink-0 animate-pulse">
+                              Respond
+                            </Badge>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </div>
+                        </Link>
+                      ))}
                     </div>
-                  )}
-
-                  {respondedPolls.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <CheckCircle className="h-3 w-3" /> Your Responses
-                      </p>
-                      <div className="space-y-1.5">
-                        {respondedPolls.map((poll: any) => {
-                          const cfg = statusConfig[poll.status] || statusConfig.PENDING;
-                          return (
-                            <Link key={poll.id} href="/league">
-                              <div className="flex items-center gap-3 bg-muted/30 border border-border/50 rounded-lg p-2.5 cursor-pointer hover:bg-muted/50 transition-colors" data-testid={`responded-poll-${poll.matchId}`}>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold truncate">
-                                    {poll.clubName} vs {poll.opponentClub}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                                    <span>{format(new Date(poll.matchDatetime), "EEE, MMM d · h:mm a")}</span>
-                                  </div>
-                                </div>
-                                <Badge className={`${cfg.bg} ${cfg.text} border-0 text-[10px] shrink-0`}>
-                                  {cfg.icon} {cfg.label}
-                                </Badge>
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
             })()}
