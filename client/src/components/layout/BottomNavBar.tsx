@@ -227,8 +227,11 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
       { href: "/admin", label: "Admin Panel", icon: ShieldCheck, badge: (badgeCounts?.pendingMemberships || 0) + (badgeCounts?.outstandingPayments || 0) },
       { href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award },
     ];
-    if (user.role === "ADMIN") {
+    if (user.role === "ADMIN" || user.role === "OWNER") {
       adminItems.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard });
+    }
+    if (user.role === "OWNER") {
+      adminItems.push({ href: "/super-admin/billing", label: "Platform Billing", icon: CreditCard });
     }
     sections.push({ label: "Management", items: adminItems });
 
