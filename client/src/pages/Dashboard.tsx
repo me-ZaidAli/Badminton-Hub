@@ -18,7 +18,7 @@ import { format, isPast, isFuture } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords, CreditCard, Crown, Share2
+  MapPin, Swords, CreditCard, Crown, Share2, Shield, Star
 } from "lucide-react";
 import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
@@ -204,6 +204,15 @@ function DashboardContent({
     },
   });
 
+  const { data: myLeagueSelections } = useQuery<any[]>({
+    queryKey: ["/api/league/my-selections"],
+    queryFn: async () => {
+      const res = await fetch("/api/league/my-selections", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   const nextLeagueMatch = useMemo(() => {
     if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
     const now = new Date();
@@ -372,6 +381,129 @@ function DashboardContent({
           </Link>
         </CardContent>
       </Card>
+
+      {myLeagueSelections && myLeagueSelections.length > 0 && (
+        <div className="space-y-3" data-testid="league-selections-banner">
+          {myLeagueSelections.map((sel: any) => {
+            const pairGroups: Record<string, string[]> = {};
+            const unassigned: string[] = [];
+            (sel.players || []).forEach((p: any) => {
+              if (p.position) {
+                if (!pairGroups[p.position]) pairGroups[p.position] = [];
+                pairGroups[p.position].push(p.userName || "Unknown");
+              } else {
+                unassigned.push(p.userName || "Unknown");
+              }
+            });
+            const isMyReserve = sel.myPosition === "Reserve";
+
+            return (
+              <Link key={sel.id} href="/league">
+                <div
+                  className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
+                  data-testid={`league-selection-${sel.id}`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/90 via-emerald-800/80 to-teal-900/90" />
+                  <div className="absolute inset-0 animate-[sweep_4s_linear_infinite] bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.03)_45%,rgba(255,255,255,0.06)_50%,rgba(255,255,255,0.03)_55%,transparent_100%)]" />
+                  <div className="relative z-10 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-emerald-400/20 rounded-lg">
+                          <Star className="h-4 w-4 text-emerald-300 fill-emerald-300" />
+                        </div>
+                        <div>
+                          <p className="text-xs sm:text-sm font-bold text-emerald-200 uppercase tracking-wider">
+                            You've Been Selected!
+                          </p>
+                          <p className="text-[10px] text-emerald-300/70">
+                            {sel.leagueName || "League Match"}
+                          </p>
+                        </div>
+                      </div>
+                      {sel.myPosition && (
+                        <Badge className={`text-[10px] border-0 shrink-0 ${isMyReserve ? "bg-amber-500/30 text-amber-300" : "bg-emerald-400/25 text-emerald-200"}`}>
+                          {sel.myPosition}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 text-center bg-black/30 rounded-lg p-2 border border-emerald-500/20">
+                        <p className="text-white font-bold text-xs sm:text-sm truncate">{sel.clubName || "Your Club"}</p>
+                        {sel.teamName && <p className="text-emerald-300/60 text-[9px] truncate">{sel.teamName}</p>}
+                      </div>
+                      <div className="shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                        <span className="text-white font-black text-[10px]">VS</span>
+                      </div>
+                      <div className="flex-1 text-center bg-black/30 rounded-lg p-2 border border-emerald-500/20">
+                        <p className="text-white font-bold text-xs sm:text-sm truncate">{sel.opponentClub}</p>
+                        {sel.category && <p className="text-emerald-300/60 text-[9px] truncate">{sel.category}</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 text-[10px] sm:text-xs text-emerald-200/80 mb-3 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-emerald-400" />
+                        <span>{format(new Date(sel.matchDatetime), "EEE, MMM d, yyyy")}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-emerald-400" />
+                        <span>{format(new Date(sel.matchDatetime), "h:mm a")}</span>
+                      </div>
+                      {sel.venue && (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-emerald-400" />
+                          <span className="truncate max-w-[150px]">{sel.venue}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {Object.keys(pairGroups).length > 0 && (
+                      <div className="bg-black/25 rounded-lg p-2.5 border border-emerald-500/15">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Shield className="h-3 w-3 text-emerald-400" />
+                          <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Team Lineup</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(pairGroups).sort(([a], [b]) => a.localeCompare(b)).map(([position, names]) => (
+                            <div key={position} className="bg-black/20 rounded-md p-2">
+                              <p className="text-[9px] font-bold text-emerald-400/80 uppercase mb-1">{position}</p>
+                              {names.map((name, i) => (
+                                <p key={i} className={`text-[11px] truncate ${
+                                  name === user?.fullName ? "text-emerald-200 font-bold" : "text-white/70"
+                                }`}>
+                                  {name === user?.fullName ? `${name} (You)` : name}
+                                </p>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                        {unassigned.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-emerald-500/10">
+                            <p className="text-[9px] text-emerald-300/50">Also selected: {unassigned.join(", ")}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {Object.keys(pairGroups).length === 0 && sel.players && sel.players.length > 0 && (
+                      <div className="bg-black/25 rounded-lg p-2.5 border border-emerald-500/15">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Users className="h-3 w-3 text-emerald-400" />
+                          <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Selected Players</span>
+                        </div>
+                        <p className="text-[11px] text-white/70">
+                          {sel.players.map((p: any) => p.userName === user?.fullName ? `${p.userName} (You)` : p.userName).join(", ")}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {nextLeagueMatch && (
         <Link href="/league" className="mt-4 block">

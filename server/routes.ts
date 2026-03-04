@@ -19413,6 +19413,64 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/league/my-selections", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const now = new Date();
+
+      const myAssignments = await db.select({
+        mp: leagueMatchPlayers,
+        match: leagueMatches,
+        clubName: clubs.name,
+        teamName: leagueTeams.name,
+        leagueName: leagues.name,
+      })
+        .from(leagueMatchPlayers)
+        .innerJoin(leagueMatches, eq(leagueMatchPlayers.matchId, leagueMatches.id))
+        .leftJoin(clubs, eq(leagueMatches.clubId, clubs.id))
+        .leftJoin(leagueTeams, eq(leagueMatches.leagueTeamId, leagueTeams.id))
+        .leftJoin(leagues, eq(leagueMatches.leagueId, leagues.id))
+        .where(and(
+          eq(leagueMatchPlayers.userId, userId),
+          or(eq(leagueMatches.status, "UPCOMING"), eq(leagueMatches.status, "LIVE")),
+          gte(leagueMatches.matchDatetime, now)
+        ))
+        .orderBy(leagueMatches.matchDatetime);
+
+      const matchIds = myAssignments.map(a => a.match.id);
+      let allPlayersMap: Record<number, { userId: number; position: string | null; userName: string | null }[]> = {};
+      if (matchIds.length > 0) {
+        const allPlayers = await db.select({
+          mp: leagueMatchPlayers,
+          userName: users.fullName,
+        })
+          .from(leagueMatchPlayers)
+          .leftJoin(users, eq(leagueMatchPlayers.userId, users.id))
+          .where(inArray(leagueMatchPlayers.matchId, matchIds));
+
+        for (const row of allPlayers) {
+          const mId = row.mp.matchId;
+          if (!allPlayersMap[mId]) allPlayersMap[mId] = [];
+          allPlayersMap[mId].push({ userId: row.mp.userId, position: row.mp.position, userName: row.userName });
+        }
+      }
+
+      const result = myAssignments.map(a => ({
+        ...a.match,
+        clubName: a.clubName,
+        teamName: a.teamName,
+        leagueName: a.leagueName,
+        myPosition: a.mp.position,
+        players: allPlayersMap[a.match.id] || [],
+      }));
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Auto-update match statuses (system endpoint)
   app.patch("/api/system/update-league-match-status", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

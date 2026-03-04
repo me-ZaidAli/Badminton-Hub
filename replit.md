@@ -86,4 +86,10 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **Customizable Items**: Users choose up to 4 nav items from 20 options. Stored as JSON string in `bottom_nav_items` column on users table. Defaults: Dashboard, Sessions, Notifications, Profile.
 - **Full Menu Sheet**: "More" button opens a bottom sheet with all navigation groups, badges, profile link, sign out, and a link to the customization settings page.
 - **Settings Page**: `/bottom-nav-settings` route with preview, item picker (max 4), and reset-to-defaults. Component: `client/src/components/layout/BottomNavBar.tsx` (exports `BottomNavBar` and `BottomNavSettings`).
+
+### League Match Selection Banner
+- **Player Selection Notification**: When admins assign players to league matches via the `AssignPlayersDialog` in `LeagueManagement.tsx`, selected players see a prominent "You've Been Selected!" banner on their Dashboard.
+- **API**: `GET /api/league/my-selections` returns upcoming league matches where the current user is assigned as a player (via `league_match_players` table). Includes match details, pair positions, team lineup, and all assigned players.
+- **Dashboard Banner**: Emerald-themed card showing opponent, date/time, venue, player's assigned position (Pair A/B/C/Reserve), and full team lineup grouped by pairs. Highlights the current user with "(You)" marker. Only visible to selected players.
+- **Pair System**: Players can be assigned to Pair A, Pair B, Pair C, or Reserve via the admin league management page.
 - **API**: Preferences saved via `PATCH /api/user/display-preferences` with `bottomNavItems` field.
