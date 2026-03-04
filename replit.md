@@ -12,13 +12,13 @@ Preferred communication style: Simple, everyday language.
 The application uses React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, and shadcn/ui for the frontend. The backend is built with Node.js, Express.js, and TypeScript, utilizing PostgreSQL as the database with Drizzle ORM.
 
 ### Plan & Billing System
-A 2-plan freemium model (Basic FREE, Premium) is implemented with a clear plan status flow and backend enforcement via `requirePremium` middleware on 215+ premium-only API routes. Frontend gating ensures premium features are only accessible to active premium clubs. Key features like rankings, analytics, advanced management tools, internal messaging, helpdesk tickets, coach directory, league management, recognition cards, attendance analytics, and financial tools are exclusive to the Premium plan, while basic club operations (sessions, attendance, member list, basic dashboard, auth) remain free.
+A 2-plan freemium model (Basic FREE, Premium) is implemented with backend enforcement via `requirePremium` middleware and frontend gating for premium features. Key features like rankings, analytics, advanced management tools, internal messaging, helpdesk tickets, coach directory, league management, recognition cards, attendance analytics, and financial tools are exclusive to the Premium plan.
 
 ### Multi-Sport Support
-The platform supports multiple racket sports, allowing clubs to select one or more sport types, which are then reflected across the application for tailored experiences.
+The platform supports multiple racket sports, allowing clubs to select one or more sport types for tailored experiences.
 
 ### UI/UX Decisions
-The UI features a modern design with a privacy-enhanced public view, comprehensive player profiles, and an animated anniversary countdown. A sophisticated Premium Theme System offers 63 themes across 7 tiers plus 5 Branded Collections plus a Premium Collections category (Standard, Accessibility, Premium, Elite, Signature, Ultra Exclusive, Metallic Comet, Royal Duty), many optimized for AMOLED displays with unique animations and design tokens. Theme access can be unlocked via club ranking, special Black Card access, Metallic Comet Card ownership, or Royal Duty Card ownership. The Metallic Comet tier includes 6 ultra-premium themes (Obsidian Gold Ultra, Mint Prestige, Crystal Court, Phosphor Elite, Adaptive Pro, Royal Indigo) unlocked exclusively by receiving the admin-gifted Metallic Comet recognition card. The Royal Duty tier includes 6 ultra-premium light-background themes (Champagne Pearl, Coral Luxe, Arctic Frost, Retro Cream-Tech, Lavender Opulence, Champagne Mint Modern) unlocked exclusively by receiving the admin-gifted Royal Duty recognition card, featuring hyper-realistic textures, frosted glass effects, custom typography, and premium micro-interactions. The Signature tier includes 6 nature-inspired light themes (Tropical Dawn, Savanna Breeze, Rainforest Canopy, Misty Bamboo, Tropical Lagoon, Sunset Savannah) unlocked by achieving top-10 club ranking. All dark themes feature enhanced visual variety with ambient lighting, radial gradient overlays, reflective card surfaces, and textured elements. A global Ultra-Premium Transparent Glass UI system applies to all dark themes: true glassmorphism cards with backdrop-filter blur(30px), neo-tactile button press animations, premium CTA gradient buttons with reflective streak, sport-engraved racket string texture overlays, glass-treated dialogs/sidebars/inputs/tables, high-contrast data visualization with glow effects, and accent glow utility classes.
+The UI features a modern design with privacy-enhanced public views and comprehensive player profiles. A sophisticated Premium Theme System offers 63 themes across 7 tiers plus 5 Branded Collections and a Premium Collections category, many optimized for AMOLED displays with unique animations and design tokens. Theme access is tier-gated by club ranking, special Black Card access, Metallic Comet Card ownership, or Royal Duty Card ownership. All dark themes feature enhanced visual variety with ambient lighting, radial gradient overlays, reflective card surfaces, and textured elements. A global Ultra-Premium Transparent Glass UI system applies to all dark themes, providing true glassmorphism cards with backdrop-filter blur, neo-tactile button animations, premium CTA gradient buttons, sport-engraved racket string texture overlays, and glass-treated dialogs/sidebars/inputs/tables. Typography Studio allows font customization with 20 fonts across 5 categories, with access tiered by plan and card ownership.
 
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform and club levels.
@@ -31,20 +31,20 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.
 - **Coach Directory & Marketplace**: Manages and lists public coach profiles.
-- **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts across the platform with a 5-step wizard for data consolidation.
+- **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts.
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC.
 - **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.
 - **Club-Scoped Referral System**: Independent referral programs per club.
 - **Junior Management**: Comprehensive features for managing junior players, including skill tracking, exercise challenges, and parent-facing dashboards.
-- **League Management System**: Full league fixture and results management, supporting multiple named leagues per club.
+- **League Management System**: Full league fixture and results management, supporting multiple named leagues per club. This includes a Player Selection Notification banner for assigned players on their Dashboard, a League Squad Management System for admins to manage players, their format preferences, and send match availability polls.
 - **Payment & Credit Request System**: Players can confirm payments and request credits in-app, triggering admin notifications and support tickets.
-- **Internal Messaging System**: Chat interface with message categories (General, Payment, System) and filtering.
-- **AI-Powered Reporting**: AI-generated reports for coaches (junior skill analytics, personalized progress reports), parents (junior progress reports with PDF download), and admins (financial, match, attendance summaries).
-- **Enhanced Badge Count System**: Sidebar badges for notifications, tickets, messages, announcements, upcoming sessions, pending memberships, outstanding payments, and rewards.
-- **Typography Studio**: Font customization system with 20 fonts across 5 categories (Free, Sport, Modern, Luxury, Black Card Exclusive). Tier-gated: free fonts for all, sport/modern/luxury for premium, black card exclusive for black card holders. Supports "entire app" or "headings only" application modes. Preferences saved to user profile via `font_family` and `font_mode` columns. Google Fonts loaded dynamically. Hook: `client/src/hooks/use-typography.ts`, Page: `client/src/pages/TypographyStudio.tsx`.
-- **Social Media Links System**: Clubs can add social media links (11 platforms: Website, Facebook, Twitter, Instagram, Telegram, TikTok, YouTube, LinkedIn, WhatsApp, Discord, Other) stored as `social_links` JSONB column on clubs table. Components: `SocialLinksEditor` + `SocialLinksDisplay` (3 variants: default/compact/buttons) in `client/src/components/SocialLinks.tsx`. Displayed on Dashboard (with club selector dropdown), dedicated Social Media page (`/social-media`), Club detail dialog, JoinClub page, and ExploreClubs page. Sidebar entry under "design" group.
-- **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection. "Hide Menu" button in sidebar footer collapses sidebar, a floating arrow tab on the left edge reveals it. Admin/Owner can set a 4-20 char PIN via key icon in sidebar footer; when set, the PIN is required to unhide the sidebar. Hidden state stored in localStorage, shared globally via module-level pub/sub pattern. PIN stored in `sidebar_pin` column on users table. APIs: `PUT /api/user/sidebar-pin`, `POST /api/user/sidebar-pin/verify`, `GET /api/user/sidebar-pin/status`. Main content area (`AuthenticatedShell` in `App.tsx`) smoothly expands/collapses via `transition-[margin]`.
-- **Premium Recognition Cards System**: Admin-gifted recognition cards celebrating character, leadership, and contribution. 12 card types (Heart of the Club, Captain's Spirit, Fair Play Champion, Rising Star, Community Builder, Ironclad Commitment, Mentor's Touch, Trailblazer, Silent Guardian, Golden Racket, Metallic Comet, Royal Duty) with 5 rarity levels (Standard, Rare, Epic, Legendary, Mythic). Features 3D flippable cards with unique gradients, a Premium Wallet display on Profile, and full-screen carousel viewer. The Metallic Comet card unlocks the exclusive Metallic Comet theme tier. The Royal Duty card unlocks the exclusive Royal Duty theme tier. Schema: `cards` and `user_cards` tables.
+- **Internal Messaging System**: Chat interface with message categories and filtering.
+- **AI-Powered Reporting**: AI-generated reports for coaches, parents, and admins.
+- **Enhanced Badge Count System**: Sidebar badges for various notifications and pending items.
+- **Social Media Links System**: Clubs can add and display social media links for 11 platforms.
+- **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection for unhiding.
+- **Premium Recognition Cards System**: Admin-gifted recognition cards (12 types, 5 rarity levels) with 3D flippable cards, Premium Wallet display, and full-screen carousel viewer. Specific cards unlock exclusive theme tiers.
+- **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with up to 4 customizable shortcut icons and a "More" button opening a full menu sheet.
 
 ## External Dependencies
 
@@ -61,13 +61,6 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **recharts**: For charts and data visualizations.
 - **framer-motion**: Animation library for premium UI components.
 
-### Premium UI Components (`client/src/components/premium/`)
-- **GlassCard**: Glassmorphism card with Framer Motion hover lift, variant prop (default/elevated/subtle/frosted), optional glow color.
-- **DataCard**: Data visualization card with headline metric, trend indicator, glow accent classes.
-- **GradientButton**: Multi-gradient CTA button with reflective streak animation and press compression.
-- **ClayButton**: Neo-tactile clay button with extruded depth shadows and press inversion.
-- **ChartCard**: Glass-styled chart container with title/subtitle header.
-
 ### Build & Development Tools
 - **Vite**: Frontend build tool.
 - **esbuild**: Backend bundling.
@@ -80,24 +73,3 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
 - **Badminton England**: Player insurance information.
-
-### Mobile Bottom Navigation System
-- **Bottom Navigation Bar**: Mobile-only (md:hidden) fixed bottom bar replacing the old MobileTopNav. Shows up to 4 customizable shortcut icons + a "More" button that opens the full menu via a bottom Sheet.
-- **Customizable Items**: Users choose up to 4 nav items from 20 options. Stored as JSON string in `bottom_nav_items` column on users table. Defaults: Dashboard, Sessions, Notifications, Profile.
-- **Full Menu Sheet**: "More" button opens a bottom sheet with all navigation groups, badges, profile link, sign out, and a link to the customization settings page.
-- **Settings Page**: `/bottom-nav-settings` route with preview, item picker (max 4), and reset-to-defaults. Component: `client/src/components/layout/BottomNavBar.tsx` (exports `BottomNavBar` and `BottomNavSettings`).
-
-### League Match Selection Banner
-- **Player Selection Notification**: When admins assign players to league matches via the `AssignPlayersDialog` in `LeagueManagement.tsx`, selected players see a prominent "You've Been Selected!" banner on their Dashboard.
-- **API**: `GET /api/league/my-selections` returns upcoming league matches where the current user is assigned as a player (via `league_match_players` table). Includes match details, pair positions, team lineup, and all assigned players.
-- **Dashboard Banner**: Emerald-themed card showing opponent, date/time, venue, player's assigned position (Pair A/B/C/Reserve), partner name, and full team lineup grouped by pairs. Highlights the current user with "(You)" marker. Only visible to selected players.
-- **Pair System**: Dynamic pair creation (default 4, add up to 8, remove down to 1). Players assigned to removed pairs auto-move to Unassigned. Admin assigns pairs via visual slots in AssignPlayersDialog.
-
-### League Squad Management System
-- **Schema**: `league_squad_players` table (clubId, userId, formatPreference, addedBy) with unique constraint on (club_id, user_id). `league_match_availability` table (matchId, userId, status: PENDING/AVAILABLE/UNAVAILABLE/MAYBE) with unique constraint on (match_id, user_id).
-- **Admin Squad Tab**: New "Squad" tab in LeagueManagement with left/right scroll arrows on tabs. Lists league players categorized by gender (Male/Female/Unset filter buttons). Each player shows format preference selector (Mens Doubles, Ladies Doubles, Mixed Doubles, Any). Add/remove players from club members.
-- **Match Availability Polls**: Admin can send polls to all squad players for each upcoming match. Poll responses (Available/Maybe/Can't Play) visible in admin Squad tab. Players respond via League page availability section.
-- **Profile Badge**: League players see emerald "League Player" badge next to their role badge, plus a "League Squad Player" card showing which clubs they represent.
-- **Player-Facing**: League page shows "Match Availability" section for squad players to respond to polls with Available/Maybe/Can't Play buttons per match.
-- **APIs**: `GET/POST/PATCH/DELETE /api/league/squad/:clubId`, `GET /api/league/match-availability/:matchId`, `POST /api/league/match-availability/:matchId/respond`, `POST /api/league/match-availability/:matchId/send-poll`, `GET /api/league/my-availability`, `GET /api/league/my-squad-status`. All admin endpoints require hasAdminAccess. Respond requires existing poll row.
-- **API**: Preferences saved via `PATCH /api/user/display-preferences` with `bottomNavItems` field.

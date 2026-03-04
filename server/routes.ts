@@ -19545,6 +19545,9 @@ export async function registerRoutes(
       let created = 0;
       const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, match.clubId));
       const matchDate = match.matchDatetime ? new Date(match.matchDatetime).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "TBD";
+      const matchTime = match.matchDatetime ? new Date(match.matchDatetime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+      const systemUser = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
+      const systemSenderId = systemUser.length > 0 ? systemUser[0].id : req.user!.id;
       for (const sp of squadPlayers) {
         const existing = await db.select().from(leagueMatchAvailability).where(and(eq(leagueMatchAvailability.matchId, matchId), eq(leagueMatchAvailability.userId, sp.userId)));
         if (existing.length === 0) {
@@ -19556,6 +19559,14 @@ export async function registerRoutes(
             message: `Your club ${club?.name || "team"} needs to know if you're available for the match vs ${match.opponentClub || "opponent"} on ${matchDate}. Please confirm your availability.`,
             linkUrl: "/league",
             status: "in_progress",
+          });
+          await db.insert(internalMessages).values({
+            senderId: systemSenderId,
+            recipientId: sp.userId,
+            subject: "League Availability Poll",
+            body: `📋 LEAGUE AVAILABILITY POLL\n\n${club?.name || "Your club"} vs ${match.opponentClub || "Opponent"}\n📅 ${matchDate}${matchTime ? ` at ${matchTime}` : ""}${match.venue ? `\n📍 ${match.venue}` : ""}${match.category ? `\n🏸 ${match.category}` : ""}\n\nPlease confirm your availability for this match. Go to the League page to respond:\n✅ Available\n❓ Maybe\n❌ Can't Play\n\nRespond as soon as possible so the team can be finalised.`,
+            clubId: match.clubId,
+            messageCategory: "SYSTEM",
           });
           created++;
         }
