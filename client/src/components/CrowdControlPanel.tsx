@@ -1031,6 +1031,52 @@ export function CrowdControlPanel({
               </div>
             </div>
 
+            {(() => {
+              const active = pgs.playerStats.filter(p => !p.isPaused);
+              const totalM = active.reduce((s, p) => s + p.totalMatches, 0);
+              const avg = active.length > 0 ? totalM / active.length : 0;
+              const sorted = [...active].sort((a, b) => b.totalMatches - a.totalMatches);
+              const maxM = sorted.length > 0 ? sorted[0].totalMatches : 1;
+              return (
+                <div className="rounded-2xl overflow-hidden" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="pgs-match-distribution">
+                  <div className="px-4 py-3 flex items-center gap-2 border-b" style={{ borderColor: PGS.cardBorder }}>
+                    <BarChart3 className="h-4 w-4" style={{ color: PGS.blue }} />
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: PGS.heading }}>Match Distribution</span>
+                    <span className="text-[10px] tabular-nums ml-auto" style={{ color: PGS.muted }}>
+                      Avg {avg.toFixed(1)} per player
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 space-y-1.5 max-h-[280px] overflow-y-auto">
+                    {sorted.map((p) => {
+                      const diff = p.totalMatches - avg;
+                      const barWidth = maxM > 0 ? Math.max((p.totalMatches / maxM) * 100, 2) : 2;
+                      const barColor = p.totalMatches === 0 ? PGS.muted : diff > 1 ? PGS.green : diff < -1 ? PGS.amber : PGS.blue;
+                      const label = p.totalMatches === 0 ? "No matches" : diff > 1 ? `+${diff.toFixed(1)} above avg` : diff < -1 ? `${diff.toFixed(1)} below avg` : "Near average";
+                      return (
+                        <div key={p.id} className="flex items-center gap-2" data-testid={`match-dist-${p.id}`}>
+                          <span className="text-[10px] font-medium truncate w-[80px] shrink-0" style={{ color: PGS.secondary }}>{p.shortName}</span>
+                          {p.grade && <span className="text-[9px] px-1.5 rounded shrink-0" style={{ background: `${barColor}15`, color: barColor }}>{p.grade}</span>}
+                          <div className="flex-1 h-5 rounded-full overflow-hidden relative" style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${barWidth}%`, background: barColor, opacity: 0.7 }}
+                            />
+                            <div className="absolute inset-0 flex items-center pl-2">
+                              <span className="text-[9px] font-bold tabular-nums" style={{ color: p.totalMatches > 0 ? PGS.heading : PGS.muted }}>{p.totalMatches}</span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] shrink-0 w-[90px] text-right" style={{ color: barColor }}>{label}</span>
+                        </div>
+                      );
+                    })}
+                    {sorted.length === 0 && (
+                      <p className="text-[10px] text-center py-4" style={{ color: PGS.muted }}>No active players to display</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="rounded-2xl overflow-hidden" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="pgs-player-table">
               <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b" style={{ borderColor: PGS.cardBorder }}>
                 <Users className="h-4 w-4" style={{ color: PGS.green }} />
