@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -833,7 +834,7 @@ export function CrowdControlPanel({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-0 border-0 relative"
+          className="max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-0 border-0"
           style={{ background: PGS.bg, borderRadius: 20, boxShadow: `0 24px 80px rgba(0,0,0,0.6)` }}
           data-testid="crowd-control-dialog"
         >
@@ -1146,11 +1147,13 @@ export function CrowdControlPanel({
               <p className="text-[10px]" style={{ color: PGS.muted }}>PGS Engine auto-refreshing every 5 seconds</p>
             </div>
           </div>
-          {selectedPlayer && (
-            <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />
-          )}
         </DialogContent>
       </Dialog>
+
+      {selectedPlayer && createPortal(
+        <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />,
+        document.body
+      )}
 
       <PGSInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
 
