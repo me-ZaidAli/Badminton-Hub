@@ -59,7 +59,7 @@ export default function ForgotPassword() {
             </div>
             <CardTitle className="text-2xl font-bold" data-testid="text-reset-submitted">Reset Request Sent</CardTitle>
             <CardDescription>
-              If an account with that email exists, a password reset has been initiated. Your club administrator will provide you with a reset link.
+              If an account with that email exists, a password reset link has been sent to your email. Please check your inbox (and spam folder) for the reset link.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -84,7 +84,7 @@ export default function ForgotPassword() {
           </div>
           <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll initiate a password reset. Your club administrator will provide you with a reset link.
+            Enter your email address and we'll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <CardContent>

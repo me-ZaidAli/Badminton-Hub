@@ -9,6 +9,7 @@ import { User, users } from "@shared/schema";
 import { eq, isNotNull, gt, and } from "drizzle-orm";
 import { db } from "./db";
 import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
+import { sendEmail } from "./email";
 
 const scryptAsync = promisify(scrypt);
 
@@ -260,25 +261,50 @@ export function setupAuth(app: Express) {
         passwordResetExpiry: expiry,
       }).where(eq(users.id, user.id));
 
+      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
+        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
+        : process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : "https://badmintonhub.org";
+      const resetLink = `${baseUrl}/reset-password/${token}`;
+
+      try {
+        await sendEmail(user.email, "Password Reset - Club Master", `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Password Reset Request</h2>
+            <p>Hi ${user.fullName},</p>
+            <p>We received a request to reset your password. Click the button below to set a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+            <p style="color: #666; font-size: 14px; word-break: break-all;">${resetLink}</p>
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">This link expires in 24 hours. If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `);
+        console.log(`[AUTH] Password reset email sent to ${user.email}`);
+      } catch (emailErr) {
+        console.error("[AUTH] Failed to send password reset email:", emailErr);
+      }
+
       try {
         const owners = await storage.getUsersByRole("OWNER");
-        console.log(`[AUTH] Found ${owners.length} OWNER users to notify about password reset for ${user.email}`);
         for (const owner of owners) {
-          console.log(`[AUTH] Creating password reset notification for owner ${(owner as any).id} (${(owner as any).email})`);
           await storage.createNotification({
             userId: (owner as any).id,
             type: "PASSWORD_RESET_REQUEST",
             title: "Password Reset Request",
-            message: `${user.fullName} (${user.email}) has requested a password reset. Share the reset link from Admin > Password Resets.`,
+            message: `${user.fullName} (${user.email}) has requested a password reset.`,
             linkUrl: "/admin/password-resets",
           });
         }
-        console.log("[AUTH] All password reset notifications created successfully");
       } catch (notifErr) {
         console.error("[AUTH] Failed to send password reset notifications:", notifErr);
       }
 
-      res.status(200).json({ message: "If an account with that email exists, a password reset has been initiated. Please contact your club admin for the reset link." });
+      res.status(200).json({ message: "If an account with that email exists, a password reset link has been sent to your email." });
     } catch (err) {
       next(err);
     }
