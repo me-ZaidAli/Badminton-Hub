@@ -23,7 +23,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform and club levels.
 - **Multi-Club Support**: Manages multiple independent clubs with separate data and administration.
-- **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine with gender-aware logic and 9-tier grade-based scoring.
+- **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine with gender-aware logic and 9-tier grade-based scoring. The Session Fairness Command Center includes a Player Intelligence system with per-player Challenge Index (grade-based opponent comparison), Performance Score, Promotion Watch (auto-flags promotion candidates, struggling, under-challenged), and a Competitive Distribution Overview with session-wide analytics, grade distribution pie chart, and filterable player list.
 - **Membership System**: Handles club-based memberships, plans, requests, and approvals.
 - **Dynamic Leaderboard System**: Computes player rankings from completed matches.
 - **Financial Dashboard & Credit System**: Provides financial oversight, credit management, and a donation system.

@@ -2580,6 +2580,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           liveCount={liveMatches.length}
           queuedCount={queuedMatches.length}
           completedCount={completedCount}
+          matches={typedMatches as any}
         />
       )}
 
