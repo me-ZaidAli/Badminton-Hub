@@ -561,7 +561,8 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
       <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 border-b" style={{ background: PGS.bg, borderColor: PGS.cardBorder }}>
         <button
           type="button"
-          onClick={() => onClose()}
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onClose(); } }}
           className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 cursor-pointer"
           data-testid="close-side-panel"
         >
@@ -576,7 +577,8 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
         </div>
         <button
           type="button"
-          onClick={() => onClose()}
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onClose(); } }}
           className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/10 cursor-pointer transition-colors"
           style={{ background: "rgba(255,255,255,0.04)" }}
           data-testid="close-side-panel-x"
@@ -1001,9 +1003,14 @@ export function CrowdControlPanel({
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="pgs-top-row">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3" data-testid="pgs-top-row">
               <div className="sm:col-span-1 rounded-2xl p-4 flex flex-col items-center justify-center" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="pgs-fairness-gauge">
                 <PGSRadialGauge value={pgs.fairnessIndex} size={140} label="PGS Fairness" sublabel={`${liveCount + completedCount} matches`} />
+              </div>
+              <div className="rounded-2xl p-4 flex flex-col justify-center" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="pgs-total-matches">
+                <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: PGS.muted }}>Total Matches</p>
+                <p className="text-3xl font-extrabold tabular-nums" style={{ color: PGS.blue }}>{liveCount + completedCount}</p>
+                <p className="text-[10px] mt-1" style={{ color: PGS.muted }}>{liveCount > 0 ? `${liveCount} live · ${completedCount} done` : `${completedCount} completed`}</p>
               </div>
               <div className="rounded-2xl p-4 flex flex-col justify-center" style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }} data-testid="pgs-avg-challenge">
                 <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: PGS.muted }}>Avg Challenge</p>
@@ -1350,14 +1357,13 @@ export function CrowdControlPanel({
             <div
               className="fixed inset-0 z-[100] flex justify-end"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
-              onClick={() => setSelectedPlayerId(null)}
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => { e.stopPropagation(); setSelectedPlayerId(null); }}
               data-testid="player-side-panel-overlay"
             >
               <div
                 className="w-[95vw] max-w-[520px] h-full overflow-y-auto"
                 style={{ background: PGS.bg, animation: "pgs-slide-in 0.3s cubic-bezier(0.4,0,0.2,1)" }}
-                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
                 data-testid="player-side-panel"
               >
                 <PlayerSidePanel player={selectedPlayer} onClose={() => setSelectedPlayerId(null)} />
