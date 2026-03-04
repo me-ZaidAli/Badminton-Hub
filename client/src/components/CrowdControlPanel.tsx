@@ -99,8 +99,11 @@ type PerMatchDetail = {
   opponentNames: string;
   partnerName: string | null;
   playerGrade: number;
+  playerCategory: string;
   avgOpponentGrade: number;
+  opponentCategories: string[];
   partnerGrade: number;
+  partnerCategory: string | null;
   gradeDiff: number;
   rawDifficulty: number;
   adjustedDifficulty: number;
@@ -241,8 +244,11 @@ function computePGSEngine(players: PlayerInfo[], matches: MatchData[], sessionMa
         opponentNames: opponents.map(o => o.user?.fullName || "Unknown").join(" & "),
         partnerName: partner?.user?.fullName || null,
         playerGrade: pGrade,
+        playerCategory: player.category || "?",
         avgOpponentGrade: avgOppGrade,
+        opponentCategories: opponents.map(o => o.category || "?"),
         partnerGrade,
+        partnerCategory: partner?.category || null,
         gradeDiff,
         rawDifficulty,
         adjustedDifficulty: adjusted,
@@ -535,9 +541,11 @@ function PGSInfoModal({ open, onClose }: { open: boolean; onClose: () => void })
 
 function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; onClose: () => void }) {
   const [showMatchTable, setShowMatchTable] = useState(false);
+  const [expandedMatchId, setExpandedMatchId] = useState<number | null>(null);
 
   useEffect(() => {
     setShowMatchTable(false);
+    setExpandedMatchId(null);
   }, [player?.id]);
 
   if (!player) return null;
@@ -678,7 +686,7 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
                 type="button"
                 className="w-full px-4 py-3 flex items-center gap-2 text-left min-h-[44px] cursor-pointer"
                 onPointerDown={e => e.stopPropagation()}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowMatchTable(!showMatchTable); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowMatchTable(!showMatchTable); if (showMatchTable) setExpandedMatchId(null); }}
                 data-testid="toggle-match-table"
               >
                 <BarChart3 className="h-3.5 w-3.5" style={{ color: PGS.muted }} />
@@ -688,44 +696,110 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
                 {showMatchTable ? <ChevronUp className="h-3.5 w-3.5" style={{ color: PGS.muted }} /> : <ChevronDown className="h-3.5 w-3.5" style={{ color: PGS.muted }} />}
               </button>
               {showMatchTable && (
-                <div className="overflow-x-auto border-t" style={{ borderColor: PGS.cardBorder }}>
-                  <table className="w-full text-[10px] sm:text-[11px]">
-                    <thead>
-                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                        <th className="text-left px-3 py-2 font-bold" style={{ color: PGS.muted }}>#</th>
-                        <th className="text-left px-3 py-2 font-bold" style={{ color: PGS.muted }}>Opponent</th>
-                        <th className="text-left px-3 py-2 font-bold" style={{ color: PGS.muted }}>Partner</th>
-                        <th className="text-center px-2 py-2 font-bold" style={{ color: PGS.muted }}>Diff</th>
-                        <th className="text-center px-2 py-2 font-bold" style={{ color: PGS.muted }}>Difficulty</th>
-                        <th className="text-center px-2 py-2 font-bold" style={{ color: PGS.muted }}>Score</th>
-                        <th className="text-center px-2 py-2 font-bold" style={{ color: PGS.muted }}>Result</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {player.matchDetails.map((md, idx) => (
-                        <tr key={md.matchId} className="border-t" style={{ borderColor: PGS.cardBorder }}>
-                          <td className="px-3 py-2" style={{ color: PGS.muted }}>{idx + 1}</td>
-                          <td className="px-3 py-2 max-w-[100px] truncate" style={{ color: PGS.secondary }}>{md.opponentNames}</td>
-                          <td className="px-3 py-2 max-w-[80px] truncate" style={{ color: PGS.muted }}>{md.partnerName || "—"}</td>
-                          <td className="text-center px-2 py-2 font-mono font-bold" style={{ color: md.gradeDiff > 0 ? PGS.red : md.gradeDiff < 0 ? PGS.green : PGS.secondary }}>
-                            {md.playerGrade > 0 ? (md.gradeDiff > 0 ? `+${md.gradeDiff.toFixed(1)}` : md.gradeDiff.toFixed(1)) : "—"}
-                          </td>
-                          <td className="text-center px-2 py-2">
-                            <span className="font-bold" style={{ color: md.adjustedDifficulty <= 40 ? PGS.amber : md.adjustedDifficulty <= 60 ? PGS.green : md.adjustedDifficulty <= 75 ? PGS.blue : PGS.red }}>
-                              {md.adjustedDifficulty.toFixed(0)}
-                            </span>
-                            <span className="ml-1" style={{ color: PGS.muted }}>
-                              {md.pressureFactor ? "🔥" : ""}{md.strengthFactor ? "💪" : ""}{md.supportAdjustment ? "🤝" : ""}
-                            </span>
-                          </td>
-                          <td className="text-center px-2 py-2 font-mono font-medium" style={{ color: PGS.secondary }}>{md.scoreFor}–{md.scoreAgainst}</td>
-                          <td className="text-center px-2 py-2">
-                            <span className="font-bold" style={{ color: md.won ? PGS.green : PGS.red }}>{md.won ? "W" : "L"}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="border-t" style={{ borderColor: PGS.cardBorder }}>
+                  {player.matchDetails.map((md, idx) => {
+                    const isExpanded = expandedMatchId === md.matchId;
+                    const diffColor = md.adjustedDifficulty <= 40 ? PGS.amber : md.adjustedDifficulty <= 60 ? PGS.green : md.adjustedDifficulty <= 75 ? PGS.blue : PGS.red;
+                    const challengeLabel = md.adjustedDifficulty <= 40 ? "Under-Challenged" : md.adjustedDifficulty <= 60 ? "Balanced" : md.adjustedDifficulty <= 75 ? "Challenged" : "Over-Challenged";
+                    return (
+                      <div key={md.matchId} className={idx > 0 ? "border-t" : ""} style={{ borderColor: PGS.cardBorder }}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2.5 flex items-center gap-2 text-left cursor-pointer hover:bg-white/[0.03] transition-colors"
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpandedMatchId(isExpanded ? null : md.matchId); }}
+                          data-testid={`toggle-match-${md.matchId}`}
+                        >
+                          <span className="text-[10px] font-mono w-4 shrink-0" style={{ color: PGS.muted }}>{idx + 1}</span>
+                          <span className="text-[11px] font-bold w-8 shrink-0" style={{ color: md.won ? PGS.green : PGS.red }}>{md.won ? "W" : "L"}</span>
+                          <span className="text-[10px] font-mono shrink-0" style={{ color: PGS.secondary }}>{md.scoreFor}–{md.scoreAgainst}</span>
+                          <span className="text-[10px] truncate flex-1 mx-1" style={{ color: PGS.muted }}>vs {md.opponentCategories.join(" & ")}</span>
+                          <span className="text-[11px] font-bold font-mono shrink-0 mr-1" style={{ color: diffColor }}>{md.adjustedDifficulty.toFixed(0)}</span>
+                          {md.pressureFactor && <span className="text-[9px]">🔥</span>}
+                          {md.strengthFactor && <span className="text-[9px]">💪</span>}
+                          {md.supportAdjustment && <span className="text-[9px]">🤝</span>}
+                          {isExpanded
+                            ? <ChevronUp className="h-3 w-3 shrink-0" style={{ color: PGS.muted }} />
+                            : <ChevronDown className="h-3 w-3 shrink-0" style={{ color: PGS.muted }} />
+                          }
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-1 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
+                            <div className="flex items-center gap-3 justify-center py-2">
+                              <div className="text-center">
+                                <div className="text-[9px] uppercase tracking-wider mb-0.5" style={{ color: PGS.muted }}>You</div>
+                                <div className="text-sm font-bold px-3 py-1 rounded-lg" style={{ background: `${PGS.blue}15`, color: PGS.blue }}>{md.playerCategory}</div>
+                              </div>
+                              <div className="text-[11px] font-bold" style={{ color: PGS.muted }}>vs</div>
+                              {md.opponentCategories.map((cat, ci) => (
+                                <div key={ci} className="text-center">
+                                  <div className="text-[9px] uppercase tracking-wider mb-0.5" style={{ color: PGS.muted }}>Opp {md.opponentCategories.length > 1 ? ci + 1 : ""}</div>
+                                  <div className="text-sm font-bold px-3 py-1 rounded-lg" style={{ background: `${PGS.red}15`, color: PGS.red }}>{cat}</div>
+                                </div>
+                              ))}
+                              {md.partnerCategory && (
+                                <>
+                                  <div className="text-[11px] font-bold" style={{ color: PGS.muted }}>+</div>
+                                  <div className="text-center">
+                                    <div className="text-[9px] uppercase tracking-wider mb-0.5" style={{ color: PGS.muted }}>Partner</div>
+                                    <div className="text-sm font-bold px-3 py-1 rounded-lg" style={{ background: `${PGS.green}15`, color: PGS.green }}>{md.partnerCategory}</div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${PGS.cardBorder}` }}>
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px]" style={{ color: PGS.muted }}>Challenge Rating</span>
+                                <span className="text-xs font-bold" style={{ color: diffColor }}>{challengeLabel}</span>
+                              </div>
+                              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                <div className="h-full rounded-full transition-all" style={{ width: `${md.adjustedDifficulty}%`, background: diffColor }} />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="flex justify-between">
+                                  <span className="text-[10px]" style={{ color: PGS.muted }}>Grade Diff</span>
+                                  <span className="text-[10px] font-bold font-mono" style={{ color: md.gradeDiff > 0 ? PGS.red : md.gradeDiff < 0 ? PGS.green : PGS.secondary }}>
+                                    {md.playerGrade > 0 ? (md.gradeDiff > 0 ? `+${md.gradeDiff.toFixed(1)}` : md.gradeDiff.toFixed(1)) : "—"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px]" style={{ color: PGS.muted }}>Raw Score</span>
+                                  <span className="text-[10px] font-bold font-mono" style={{ color: PGS.secondary }}>{md.rawDifficulty.toFixed(0)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px]" style={{ color: PGS.muted }}>Adjusted</span>
+                                  <span className="text-[10px] font-bold font-mono" style={{ color: diffColor }}>{md.adjustedDifficulty.toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-[10px]" style={{ color: PGS.muted }}>Result</span>
+                                  <span className="text-[10px] font-bold" style={{ color: md.won ? PGS.green : PGS.red }}>{md.won ? "Won" : "Lost"} {md.scoreFor}–{md.scoreAgainst}</span>
+                                </div>
+                              </div>
+                              {(md.pressureFactor || md.strengthFactor || md.supportAdjustment) && (
+                                <div className="flex flex-wrap gap-1.5 pt-1 border-t" style={{ borderColor: PGS.cardBorder }}>
+                                  {md.pressureFactor && (
+                                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: `${PGS.red}15`, color: PGS.red }}>🔥 Close margin (×1.1)</span>
+                                  )}
+                                  {md.strengthFactor && (
+                                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: `${PGS.purple}15`, color: PGS.purple }}>💪 Strong opponents (×1.05)</span>
+                                  )}
+                                  {md.supportAdjustment && (
+                                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: `${PGS.green}15`, color: PGS.green }}>🤝 Stronger partner (×0.95)</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {md.court && (
+                              <div className="flex justify-between text-[10px]">
+                                <span style={{ color: PGS.muted }}>Court</span>
+                                <span style={{ color: PGS.secondary }}>Court {md.court}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
