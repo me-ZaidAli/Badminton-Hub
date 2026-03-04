@@ -230,15 +230,15 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
     if (user.role === "ADMIN" || user.role === "OWNER") {
       adminItems.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard });
     }
-    if (user.role === "OWNER") {
-      adminItems.push({ href: "/super-admin/billing", label: "Platform Billing", icon: CreditCard });
-    }
     sections.push({ label: "Management", items: adminItems });
 
     if (user.role === "OWNER") {
       sections.push({
         label: "Super Admin",
-        items: [{ href: "/super-admin/god-mode", label: "God Mode", icon: Zap }],
+        items: [
+          { href: "/super-admin/billing", label: "Platform Billing", icon: CreditCard },
+          { href: "/super-admin/god-mode", label: "God Mode", icon: Zap },
+        ],
       });
     }
   }
