@@ -396,6 +396,12 @@ function DashboardContent({
               }
             });
             const isMyReserve = sel.myPosition === "Reserve";
+            let myPartner: string | null = null;
+            if (sel.myPosition && sel.myPosition !== "Reserve") {
+              const pairMembers = pairGroups[sel.myPosition] || [];
+              const partner = pairMembers.find((n: string) => n !== user?.fullName);
+              if (partner) myPartner = partner;
+            }
 
             return (
               <Link key={sel.id} href="/league">
@@ -457,6 +463,16 @@ function DashboardContent({
                         </div>
                       )}
                     </div>
+
+                    {myPartner && (
+                      <div className="bg-emerald-400/10 rounded-lg p-2 border border-emerald-400/20 mb-3 flex items-center gap-2" data-testid="partner-info">
+                        <Users className="h-4 w-4 text-emerald-300 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-emerald-300/70 uppercase font-semibold">Your Partner ({sel.myPosition})</p>
+                          <p className="text-sm font-bold text-white">{myPartner}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {Object.keys(pairGroups).length > 0 && (
                       <div className="bg-black/25 rounded-lg p-2.5 border border-emerald-500/15">

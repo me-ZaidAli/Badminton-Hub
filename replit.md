@@ -90,6 +90,14 @@ The UI features a modern design with a privacy-enhanced public view, comprehensi
 ### League Match Selection Banner
 - **Player Selection Notification**: When admins assign players to league matches via the `AssignPlayersDialog` in `LeagueManagement.tsx`, selected players see a prominent "You've Been Selected!" banner on their Dashboard.
 - **API**: `GET /api/league/my-selections` returns upcoming league matches where the current user is assigned as a player (via `league_match_players` table). Includes match details, pair positions, team lineup, and all assigned players.
-- **Dashboard Banner**: Emerald-themed card showing opponent, date/time, venue, player's assigned position (Pair A/B/C/Reserve), and full team lineup grouped by pairs. Highlights the current user with "(You)" marker. Only visible to selected players.
-- **Pair System**: Players can be assigned to Pair A, Pair B, Pair C, or Reserve via the admin league management page.
+- **Dashboard Banner**: Emerald-themed card showing opponent, date/time, venue, player's assigned position (Pair A/B/C/Reserve), partner name, and full team lineup grouped by pairs. Highlights the current user with "(You)" marker. Only visible to selected players.
+- **Pair System**: Dynamic pair creation (default 4, add up to 8, remove down to 1). Players assigned to removed pairs auto-move to Unassigned. Admin assigns pairs via visual slots in AssignPlayersDialog.
+
+### League Squad Management System
+- **Schema**: `league_squad_players` table (clubId, userId, formatPreference, addedBy) with unique constraint on (club_id, user_id). `league_match_availability` table (matchId, userId, status: PENDING/AVAILABLE/UNAVAILABLE/MAYBE) with unique constraint on (match_id, user_id).
+- **Admin Squad Tab**: New "Squad" tab in LeagueManagement with left/right scroll arrows on tabs. Lists league players categorized by gender (Male/Female/Unset filter buttons). Each player shows format preference selector (Mens Doubles, Ladies Doubles, Mixed Doubles, Any). Add/remove players from club members.
+- **Match Availability Polls**: Admin can send polls to all squad players for each upcoming match. Poll responses (Available/Maybe/Can't Play) visible in admin Squad tab. Players respond via League page availability section.
+- **Profile Badge**: League players see emerald "League Player" badge next to their role badge, plus a "League Squad Player" card showing which clubs they represent.
+- **Player-Facing**: League page shows "Match Availability" section for squad players to respond to polls with Available/Maybe/Can't Play buttons per match.
+- **APIs**: `GET/POST/PATCH/DELETE /api/league/squad/:clubId`, `GET /api/league/match-availability/:matchId`, `POST /api/league/match-availability/:matchId/respond`, `POST /api/league/match-availability/:matchId/send-poll`, `GET /api/league/my-availability`, `GET /api/league/my-squad-status`. All admin endpoints require hasAdminAccess. Respond requires existing poll row.
 - **API**: Preferences saved via `PATCH /api/user/display-preferences` with `bottomNavItems` field.

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -19408,6 +19408,205 @@ export async function registerRoutes(
       const { locked } = req.body;
       const [updated] = await db.update(leagueMatchResults).set({ locked: !!locked, updatedAt: new Date() }).where(eq(leagueMatchResults.id, resultId)).returning();
       res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/league/squad/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const clubId = Number(req.params.clubId);
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const squad = await db.select({
+        id: leagueSquadPlayers.id,
+        userId: leagueSquadPlayers.userId,
+        clubId: leagueSquadPlayers.clubId,
+        formatPreference: leagueSquadPlayers.formatPreference,
+        createdAt: leagueSquadPlayers.createdAt,
+        fullName: users.fullName,
+        email: users.email,
+        gender: playerProfiles.gender,
+        grade: playerProfiles.grade,
+      })
+        .from(leagueSquadPlayers)
+        .innerJoin(users, eq(leagueSquadPlayers.userId, users.id))
+        .leftJoin(playerProfiles, and(eq(playerProfiles.userId, leagueSquadPlayers.userId), eq(playerProfiles.clubId, clubId)))
+        .where(eq(leagueSquadPlayers.clubId, clubId))
+        .orderBy(users.fullName);
+      res.json(squad);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/league/squad", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { clubId, userId, formatPreference } = req.body;
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const existing = await db.select().from(leagueSquadPlayers).where(and(eq(leagueSquadPlayers.clubId, clubId), eq(leagueSquadPlayers.userId, userId)));
+      if (existing.length > 0) return res.status(400).json({ message: "Player already in squad" });
+      const [created] = await db.insert(leagueSquadPlayers).values({ clubId, userId, formatPreference: formatPreference || null, addedBy: req.user!.id }).returning();
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/league/squad/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const { formatPreference } = req.body;
+      const [existing] = await db.select().from(leagueSquadPlayers).where(eq(leagueSquadPlayers.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const [updated] = await db.update(leagueSquadPlayers).set({ formatPreference: formatPreference || null }).where(eq(leagueSquadPlayers.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/league/squad/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(leagueSquadPlayers).where(eq(leagueSquadPlayers.id, id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, existing.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      await db.delete(leagueSquadPlayers).where(eq(leagueSquadPlayers.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/league/match-availability/:matchId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const matchId = Number(req.params.matchId);
+      const [match] = await db.select().from(leagueMatches).where(eq(leagueMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, match.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const availability = await db.select({
+        id: leagueMatchAvailability.id,
+        matchId: leagueMatchAvailability.matchId,
+        userId: leagueMatchAvailability.userId,
+        status: leagueMatchAvailability.status,
+        respondedAt: leagueMatchAvailability.respondedAt,
+        fullName: users.fullName,
+      })
+        .from(leagueMatchAvailability)
+        .innerJoin(users, eq(leagueMatchAvailability.userId, users.id))
+        .where(eq(leagueMatchAvailability.matchId, matchId))
+        .orderBy(users.fullName);
+      res.json(availability);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/league/match-availability/:matchId/respond", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const matchId = Number(req.params.matchId);
+      const userId = req.user!.id;
+      const { status } = req.body;
+      if (!["AVAILABLE", "UNAVAILABLE", "MAYBE"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const existing = await db.select().from(leagueMatchAvailability).where(and(eq(leagueMatchAvailability.matchId, matchId), eq(leagueMatchAvailability.userId, userId)));
+      if (existing.length === 0) {
+        return res.status(403).json({ message: "You have not been polled for this match" });
+      }
+      const [updated] = await db.update(leagueMatchAvailability).set({ status, respondedAt: new Date() }).where(eq(leagueMatchAvailability.id, existing[0].id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/league/match-availability/:matchId/send-poll", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const matchId = Number(req.params.matchId);
+      const [match] = await db.select().from(leagueMatches).where(eq(leagueMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, match.clubId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+      const squadPlayers = await db.select().from(leagueSquadPlayers).where(eq(leagueSquadPlayers.clubId, match.clubId));
+      let created = 0;
+      for (const sp of squadPlayers) {
+        const existing = await db.select().from(leagueMatchAvailability).where(and(eq(leagueMatchAvailability.matchId, matchId), eq(leagueMatchAvailability.userId, sp.userId)));
+        if (existing.length === 0) {
+          await db.insert(leagueMatchAvailability).values({ matchId, userId: sp.userId, status: "PENDING" });
+          created++;
+        }
+      }
+      res.json({ sent: created, total: squadPlayers.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/league/my-availability", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const now = new Date();
+      const myPolls = await db.select({
+        availability: leagueMatchAvailability,
+        match: leagueMatches,
+        clubName: clubs.name,
+        opponentClub: leagueMatches.opponentClub,
+        leagueName: leagues.name,
+      })
+        .from(leagueMatchAvailability)
+        .innerJoin(leagueMatches, eq(leagueMatchAvailability.matchId, leagueMatches.id))
+        .leftJoin(clubs, eq(leagueMatches.clubId, clubs.id))
+        .leftJoin(leagues, eq(leagueMatches.leagueId, leagues.id))
+        .where(and(
+          eq(leagueMatchAvailability.userId, userId),
+          or(eq(leagueMatches.status, "UPCOMING"), eq(leagueMatches.status, "LIVE")),
+          gte(leagueMatches.matchDatetime, now)
+        ))
+        .orderBy(leagueMatches.matchDatetime);
+      const result = myPolls.map(p => ({
+        ...p.availability,
+        matchDatetime: p.match.matchDatetime,
+        venue: p.match.venue,
+        category: p.match.category,
+        clubName: p.clubName,
+        opponentClub: p.opponentClub,
+        leagueName: p.leagueName,
+      }));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/league/my-squad-status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const squadEntries = await db.select({
+        id: leagueSquadPlayers.id,
+        clubId: leagueSquadPlayers.clubId,
+        clubName: clubs.name,
+        formatPreference: leagueSquadPlayers.formatPreference,
+      })
+        .from(leagueSquadPlayers)
+        .innerJoin(clubs, eq(leagueSquadPlayers.clubId, clubs.id))
+        .where(eq(leagueSquadPlayers.userId, userId));
+      res.json(squadEntries);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Plus, Pencil, Trash2, Users, Trophy, Calendar, MapPin,
   Lock, Unlock, Shield, Search, ChevronDown, ChevronUp, Swords, BarChart3,
-  Home, Building, Navigation, Star
+  Home, Building, Navigation, Star, ChevronLeft, ChevronRight, UserPlus, Check, X, HelpCircle,
+  Send, ClipboardList
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -109,6 +110,17 @@ export default function LeagueManagement() {
     queryFn: async () => {
       if (!effectiveClubId) return [];
       const res = await fetch(`/api/league/club-members/${effectiveClubId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!user && !!effectiveClubId,
+  });
+
+  const { data: squadPlayers } = useQuery<any[]>({
+    queryKey: ["/api/league/squad", effectiveClubId],
+    queryFn: async () => {
+      if (!effectiveClubId) return [];
+      const res = await fetch(`/api/league/squad/${effectiveClubId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
@@ -237,14 +249,41 @@ export default function LeagueManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex w-full overflow-x-auto no-scrollbar" data-testid="admin-league-tabs">
-          <TabsTrigger value="fixtures" className="flex-shrink-0">Fixtures</TabsTrigger>
-          <TabsTrigger value="results" className="flex-shrink-0">Results</TabsTrigger>
-          <TabsTrigger value="teams" className="flex-shrink-0">Teams</TabsTrigger>
-          <TabsTrigger value="leagues" className="flex-shrink-0">Leagues</TabsTrigger>
-          <TabsTrigger value="opponents" className="flex-shrink-0">Opponents</TabsTrigger>
-          <TabsTrigger value="homevenue" className="flex-shrink-0 whitespace-nowrap">Home Venue</TabsTrigger>
-        </TabsList>
+        <div className="relative flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 shrink-0"
+            onClick={() => {
+              const el = document.getElementById("league-tabs-scroll");
+              if (el) el.scrollBy({ left: -150, behavior: "smooth" });
+            }}
+            data-testid="button-tabs-scroll-left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <TabsList id="league-tabs-scroll" className="flex flex-1 overflow-x-auto no-scrollbar scroll-smooth" data-testid="admin-league-tabs">
+            <TabsTrigger value="fixtures" className="flex-shrink-0">Fixtures</TabsTrigger>
+            <TabsTrigger value="results" className="flex-shrink-0">Results</TabsTrigger>
+            <TabsTrigger value="squad" className="flex-shrink-0">Squad</TabsTrigger>
+            <TabsTrigger value="teams" className="flex-shrink-0">Teams</TabsTrigger>
+            <TabsTrigger value="leagues" className="flex-shrink-0">Leagues</TabsTrigger>
+            <TabsTrigger value="opponents" className="flex-shrink-0">Opponents</TabsTrigger>
+            <TabsTrigger value="homevenue" className="flex-shrink-0 whitespace-nowrap">Home Venue</TabsTrigger>
+          </TabsList>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 shrink-0"
+            onClick={() => {
+              const el = document.getElementById("league-tabs-scroll");
+              if (el) el.scrollBy({ left: 150, behavior: "smooth" });
+            }}
+            data-testid="button-tabs-scroll-right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
 
         <TabsContent value="fixtures" className="mt-4">
           <FixturesTable
@@ -270,6 +309,15 @@ export default function LeagueManagement() {
             matches={completedMatches}
             loading={matchesLoading}
             onResult={(id: number) => { setResultMatchId(id); setResultDialogOpen(true); }}
+          />
+        </TabsContent>
+
+        <TabsContent value="squad" className="mt-4">
+          <SquadTab
+            clubId={Number(effectiveClubId)}
+            squadPlayers={squadPlayers || []}
+            clubMembers={clubMembers || []}
+            matches={upcomingMatches}
           />
         </TabsContent>
 
@@ -1179,6 +1227,308 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
   );
 }
 
+function SquadTab({ clubId, squadPlayers, clubMembers, matches }: {
+  clubId: number;
+  squadPlayers: any[];
+  clubMembers: any[];
+  matches: any[];
+}) {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [genderFilter, setGenderFilter] = useState<string>("all");
+  const [availabilityMatchId, setAvailabilityMatchId] = useState<number | null>(null);
+
+  const { data: availabilityData } = useQuery<any[]>({
+    queryKey: ["/api/league/match-availability", availabilityMatchId],
+    queryFn: async () => {
+      if (!availabilityMatchId) return [];
+      const res = await fetch(`/api/league/match-availability/${availabilityMatchId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!availabilityMatchId,
+  });
+
+  const addToSquadMutation = useMutation({
+    mutationFn: async ({ userId, formatPreference }: { userId: number; formatPreference: string }) => {
+      await apiRequest("POST", "/api/league/squad", { clubId, userId, formatPreference });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/squad"] });
+      toast({ title: "Player added to squad" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateFormatMutation = useMutation({
+    mutationFn: async ({ id, formatPreference }: { id: number; formatPreference: string }) => {
+      await apiRequest("PATCH", `/api/league/squad/${id}`, { formatPreference });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/squad"] });
+      toast({ title: "Format updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const removeFromSquadMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/league/squad/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/squad"] });
+      toast({ title: "Player removed from squad" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const sendPollMutation = useMutation({
+    mutationFn: async (matchId: number) => {
+      return await apiRequest("POST", `/api/league/match-availability/${matchId}/send-poll`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/match-availability"] });
+      toast({ title: "Availability poll sent to all squad players" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const squadIds = new Set(squadPlayers.map((p: any) => p.userId));
+  const availableMembers = (clubMembers || []).filter((m: any) => !squadIds.has(m.userId));
+  const filteredAvailableMembers = availableMembers.filter((m: any) => {
+    if (!searchTerm) return true;
+    return m.fullName.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const malePlayers = squadPlayers.filter((p: any) => p.gender === "MALE");
+  const femalePlayers = squadPlayers.filter((p: any) => p.gender === "FEMALE");
+  const unknownGenderPlayers = squadPlayers.filter((p: any) => !p.gender);
+
+  const displayedPlayers = genderFilter === "all" ? squadPlayers :
+    genderFilter === "male" ? malePlayers :
+    genderFilter === "female" ? femalePlayers :
+    unknownGenderPlayers;
+
+  const upcomingForPoll = matches.filter((m: any) => m.status === "UPCOMING" || m.status === "LIVE");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            League Squad
+          </h3>
+          <Badge variant="outline">{squadPlayers.length} players</Badge>
+        </div>
+        <Button size="sm" onClick={() => { setAddDialogOpen(true); setSearchTerm(""); }} data-testid="button-add-squad-player">
+          <UserPlus className="h-4 w-4 mr-1" /> Add Player
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1">
+          <Button variant={genderFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setGenderFilter("all")} data-testid="filter-all-gender">
+            All ({squadPlayers.length})
+          </Button>
+          <Button variant={genderFilter === "male" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setGenderFilter("male")} data-testid="filter-male">
+            Male ({malePlayers.length})
+          </Button>
+          <Button variant={genderFilter === "female" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setGenderFilter("female")} data-testid="filter-female">
+            Female ({femalePlayers.length})
+          </Button>
+          {unknownGenderPlayers.length > 0 && (
+            <Button variant={genderFilter === "unknown" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setGenderFilter("unknown")} data-testid="filter-unknown-gender">
+              Unset ({unknownGenderPlayers.length})
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {displayedPlayers.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No squad players found</p>
+            <p className="text-xs mt-1">Add club members to your league squad to get started</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {displayedPlayers.map((player: any) => (
+            <Card key={player.id} data-testid={`squad-player-${player.userId}`}>
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm truncate">{player.fullName}</span>
+                    {player.gender && (
+                      <Badge variant="outline" className={`text-[10px] ${player.gender === "MALE" ? "border-blue-300 text-blue-600 dark:text-blue-400" : "border-pink-300 text-pink-600 dark:text-pink-400"}`}>
+                        {player.gender === "MALE" ? "M" : "F"}
+                      </Badge>
+                    )}
+                    {player.grade && (
+                      <Badge variant="outline" className="text-[10px]">{player.grade}</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{player.email}</p>
+                </div>
+                <Select
+                  value={player.formatPreference || "none"}
+                  onValueChange={(v) => updateFormatMutation.mutate({ id: player.id, formatPreference: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger className="w-32 h-7 text-xs" data-testid={`select-format-${player.userId}`}>
+                    <SelectValue placeholder="Format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Preference</SelectItem>
+                    <SelectItem value="MENS_DOUBLES">Mens Doubles</SelectItem>
+                    <SelectItem value="LADIES_DOUBLES">Ladies Doubles</SelectItem>
+                    <SelectItem value="MIXED_DOUBLES">Mixed Doubles</SelectItem>
+                    <SelectItem value="ANY">Any Format</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive shrink-0" onClick={() => removeFromSquadMutation.mutate(player.id)} data-testid={`button-remove-squad-${player.userId}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card className="mt-6">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            Match Availability Polls
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          {upcomingForPoll.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">No upcoming matches to poll for</p>
+          ) : (
+            upcomingForPoll.map((match: any) => (
+              <div key={match.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-3" data-testid={`poll-match-${match.id}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">vs {match.opponentClub}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(match.matchDatetime), "EEE, dd MMM yyyy HH:mm")} · {match.category}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => setAvailabilityMatchId(match.id === availabilityMatchId ? null : match.id)}
+                  data-testid={`button-view-poll-${match.id}`}
+                >
+                  {availabilityMatchId === match.id ? "Hide" : "View"} Poll
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => sendPollMutation.mutate(match.id)}
+                  disabled={sendPollMutation.isPending}
+                  data-testid={`button-send-poll-${match.id}`}
+                >
+                  <Send className="h-3 w-3 mr-1" />
+                  Send Poll
+                </Button>
+              </div>
+            ))
+          )}
+
+          {availabilityMatchId && availabilityData && (
+            <div className="mt-3 border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Responses</p>
+              {availabilityData.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">No responses yet. Send the poll first.</p>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex gap-3 text-xs text-muted-foreground mb-2">
+                    <span className="flex items-center gap-1"><Check className="h-3 w-3 text-green-500" /> {availabilityData.filter((a: any) => a.status === "AVAILABLE").length}</span>
+                    <span className="flex items-center gap-1"><X className="h-3 w-3 text-red-500" /> {availabilityData.filter((a: any) => a.status === "UNAVAILABLE").length}</span>
+                    <span className="flex items-center gap-1"><HelpCircle className="h-3 w-3 text-yellow-500" /> {availabilityData.filter((a: any) => a.status === "MAYBE").length}</span>
+                    <span className="flex items-center gap-1 text-muted-foreground">Pending: {availabilityData.filter((a: any) => a.status === "PENDING").length}</span>
+                  </div>
+                  {availabilityData.map((a: any) => (
+                    <div key={a.id} className="flex items-center gap-2 text-sm">
+                      {a.status === "AVAILABLE" && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+                      {a.status === "UNAVAILABLE" && <X className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+                      {a.status === "MAYBE" && <HelpCircle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
+                      {a.status === "PENDING" && <div className="h-3.5 w-3.5 rounded-full border-2 border-muted-foreground/30 shrink-0" />}
+                      <span className="truncate flex-1">{a.fullName}</span>
+                      <Badge variant="outline" className={`text-[10px] ${
+                        a.status === "AVAILABLE" ? "border-green-300 text-green-600 dark:text-green-400" :
+                        a.status === "UNAVAILABLE" ? "border-red-300 text-red-600 dark:text-red-400" :
+                        a.status === "MAYBE" ? "border-yellow-300 text-yellow-600 dark:text-yellow-400" :
+                        ""
+                      }`}>
+                        {a.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Add Player to League Squad</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search members..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" data-testid="input-search-squad-add" />
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-1 max-h-64 border rounded-md p-2">
+            {filteredAvailableMembers.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No available members</p>
+            ) : (
+              filteredAvailableMembers.map((m: any) => (
+                <div
+                  key={m.userId}
+                  className="flex items-center justify-between gap-2 p-2 rounded cursor-pointer text-sm hover:bg-muted/50"
+                  data-testid={`add-squad-member-${m.userId}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{m.fullName}</span>
+                    {m.grade && <Badge variant="outline" className="ml-1.5 text-[10px]">{m.grade}</Badge>}
+                    {m.category && <Badge variant="outline" className="ml-1 text-[10px]">{m.category}</Badge>}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => addToSquadMutation.mutate({ userId: m.userId, formatPreference: "" })}
+                    disabled={addToSquadMutation.isPending}
+                  >
+                    <UserPlus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1189,18 +1539,40 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPlayers, setSelectedPlayers] = useState<{ userId: number; position: string; userName: string }[]>([]);
+  const [pairCount, setPairCount] = useState(4);
 
   const match = matches.find(m => m.id === matchId);
 
+  const pairLabels = useMemo(() => {
+    const labels: string[] = [];
+    const letterLabels = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    for (let i = 0; i < pairCount; i++) {
+      labels.push(`Pair ${letterLabels[i] || String(i + 1)}`);
+    }
+    return labels;
+  }, [pairCount]);
+
   const handleOpen = () => {
     if (match?.players) {
-      setSelectedPlayers(match.players.map((p: any) => ({
+      const existing = match.players.map((p: any) => ({
         userId: p.userId,
         position: p.position || "",
         userName: p.userName || "Unknown",
-      })));
+      }));
+      setSelectedPlayers(existing);
+      const letterLabels = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      let maxIdx = 3;
+      for (const p of existing) {
+        if (p.position && p.position !== "Reserve") {
+          const letter = p.position.replace("Pair ", "");
+          const idx = letterLabels.indexOf(letter);
+          if (idx >= 0 && idx > maxIdx) maxIdx = idx;
+        }
+      }
+      setPairCount(maxIdx + 1);
     } else {
       setSelectedPlayers([]);
+      setPairCount(match?.pairsCount || 4);
     }
     setSearchTerm("");
   };
@@ -1234,6 +1606,7 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/league/matches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/league/my-selections"] });
       toast({ title: "Players assigned" });
       onOpenChange(false);
     },
@@ -1242,78 +1615,162 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, members, matches }: 
     },
   });
 
+  const playersByPair = useMemo(() => {
+    const groups: Record<string, typeof selectedPlayers> = {};
+    for (const label of pairLabels) {
+      groups[label] = selectedPlayers.filter(p => p.position === label);
+    }
+    groups["Reserve"] = selectedPlayers.filter(p => p.position === "Reserve");
+    groups["Unassigned"] = selectedPlayers.filter(p => !p.position);
+    return groups;
+  }, [selectedPlayers, pairLabels]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) handleOpen(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            Assign Players
+            Assign Players & Create Pairs
             {match && <span className="text-sm font-normal text-muted-foreground block">vs {match.opponentClub} - {format(new Date(match.matchDatetime), "dd MMM yyyy HH:mm")}</span>}
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <Shield className="h-3 w-3" />
-          Players will be visible to others 2 hours before match start
-        </p>
-
-        {selectedPlayers.length > 0 && (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Selected Players ({selectedPlayers.length})</Label>
-            {selectedPlayers.map(p => (
-              <div key={p.userId} className="flex items-center gap-2 bg-muted/50 rounded-md p-2">
-                <span className="text-sm flex-1 truncate">{p.userName}</span>
-                <Select value={p.position || "none"} onValueChange={v => updatePosition(p.userId, v)}>
-                  <SelectTrigger className="w-24 h-7 text-xs"><SelectValue placeholder="Pair" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="Pair A">Pair A</SelectItem>
-                    <SelectItem value="Pair B">Pair B</SelectItem>
-                    <SelectItem value="Pair C">Pair C</SelectItem>
-                    <SelectItem value="Reserve">Reserve</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removePlayer(p.userId)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Shield className="h-3 w-3" />
+            Visible 2hrs before match
+          </p>
+          <div className="flex items-center gap-1">
+            <Label className="text-xs">Pairs:</Label>
+            <Button variant="outline" size="sm" className="h-6 w-6 p-0 text-xs" onClick={() => {
+              const newCount = Math.max(1, pairCount - 1);
+              const letterLabels = ["A", "B", "C", "D", "E", "F", "G", "H"];
+              const removedLabel = `Pair ${letterLabels[newCount]}`;
+              setSelectedPlayers(prev => prev.map(p => p.position === removedLabel ? { ...p, position: "" } : p));
+              setPairCount(newCount);
+            }} data-testid="button-remove-pair">
+              -
+            </Button>
+            <span className="text-sm font-bold w-5 text-center">{pairCount}</span>
+            <Button variant="outline" size="sm" className="h-6 w-6 p-0 text-xs" onClick={() => setPairCount(Math.min(8, pairCount + 1))} data-testid="button-add-pair">
+              +
+            </Button>
           </div>
-        )}
+        </div>
 
-        <div className="flex-1 min-h-0 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search members..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9"
-              data-testid="input-search-players"
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2">
-            {filteredMembers.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">No members found</p>
-            ) : (
-              filteredMembers.map(m => {
-                const isSelected = selectedPlayers.some(p => p.userId === m.userId);
-                return (
-                  <div
-                    key={m.userId}
-                    className={`flex items-center justify-between gap-2 p-2 rounded cursor-pointer text-sm hover:bg-muted/50 ${isSelected ? "opacity-50" : ""}`}
-                    onClick={() => !isSelected && addPlayer(m)}
-                    data-testid={`member-option-${m.userId}`}
-                  >
-                    <div>
-                      <span className="font-medium">{m.fullName}</span>
-                      {m.grade && <Badge variant="outline" className="ml-1.5 text-[10px]">{m.grade}</Badge>}
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {pairLabels.map(label => (
+            <div key={label} className="bg-muted/30 border rounded-lg p-2.5">
+              <p className="text-xs font-bold mb-1.5 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-primary" />
+                {label}
+                <Badge variant="outline" className="text-[9px] ml-auto">{playersByPair[label]?.length || 0}/2</Badge>
+              </p>
+              {(playersByPair[label] || []).map(p => (
+                <div key={p.userId} className="flex items-center gap-2 bg-background/50 rounded-md p-1.5 mb-1">
+                  <span className="text-sm flex-1 truncate">{p.userName}</span>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => removePlayer(p.userId)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              {(playersByPair[label]?.length || 0) < 2 && (
+                <p className="text-[10px] text-muted-foreground italic pl-1">
+                  {2 - (playersByPair[label]?.length || 0)} slot{2 - (playersByPair[label]?.length || 0) > 1 ? "s" : ""} available
+                </p>
+              )}
+            </div>
+          ))}
+
+          {(playersByPair["Reserve"]?.length > 0 || playersByPair["Unassigned"]?.length > 0) && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
+              {playersByPair["Reserve"]?.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs font-bold mb-1 text-amber-600 dark:text-amber-400">Reserve</p>
+                  {playersByPair["Reserve"].map(p => (
+                    <div key={p.userId} className="flex items-center gap-2 bg-background/50 rounded-md p-1.5 mb-1">
+                      <span className="text-sm flex-1 truncate">{p.userName}</span>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => removePlayer(p.userId)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    {isSelected && <Badge variant="secondary" className="text-[10px]">Added</Badge>}
-                  </div>
-                );
-              })
-            )}
+                  ))}
+                </div>
+              )}
+              {playersByPair["Unassigned"]?.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold mb-1 text-muted-foreground">Unassigned</p>
+                  {playersByPair["Unassigned"].map(p => (
+                    <div key={p.userId} className="flex items-center gap-2 bg-background/50 rounded-md p-1.5 mb-1">
+                      <span className="text-sm flex-1 truncate">{p.userName}</span>
+                      <Select value="none" onValueChange={v => updatePosition(p.userId, v)}>
+                        <SelectTrigger className="w-24 h-6 text-[10px]"><SelectValue placeholder="Assign" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {pairLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                          <SelectItem value="Reserve">Reserve</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => removePlayer(p.userId)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-xs font-semibold">Add Players</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search members..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-players"
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-1 border rounded-md p-2">
+              {filteredMembers.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No members found</p>
+              ) : (
+                filteredMembers.map(m => {
+                  const isSelected = selectedPlayers.some(p => p.userId === m.userId);
+                  return (
+                    <div
+                      key={m.userId}
+                      className={`flex items-center justify-between gap-2 p-2 rounded text-sm hover:bg-muted/50 ${isSelected ? "opacity-50" : "cursor-pointer"}`}
+                      data-testid={`member-option-${m.userId}`}
+                    >
+                      <div>
+                        <span className="font-medium">{m.fullName}</span>
+                        {m.grade && <Badge variant="outline" className="ml-1.5 text-[10px]">{m.grade}</Badge>}
+                      </div>
+                      {isSelected ? (
+                        <Badge variant="secondary" className="text-[10px]">Added</Badge>
+                      ) : (
+                        <Select onValueChange={v => {
+                          addPlayer(m);
+                          if (v !== "none") {
+                            setTimeout(() => updatePosition(m.userId, v), 0);
+                          }
+                        }}>
+                          <SelectTrigger className="w-24 h-6 text-[10px]"><SelectValue placeholder="Add to..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {pairLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                            <SelectItem value="Reserve">Reserve</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 

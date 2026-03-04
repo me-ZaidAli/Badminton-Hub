@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar, MapPin, Trophy, Users, Shield, ChevronDown, ChevronUp, Swords, BarChart3, TrendingUp, TrendingDown, Target, Activity, Clock, Navigation } from "lucide-react";
+import { Loader2, Calendar, MapPin, Trophy, Users, Shield, ChevronDown, ChevronUp, Swords, BarChart3, TrendingUp, TrendingDown, Target, Activity, Clock, Navigation, Check, X, HelpCircle } from "lucide-react";
 import { format, differenceInSeconds, formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 import heroBg from "@assets/UNI_T_PROMOTIONAL_VIDEO_20260223_225338_0000_1771887239418.png";
 
 function CountdownTimer({ targetDate }: { targetDate: Date }) {
@@ -632,6 +634,44 @@ export default function LeaguePage() {
 
   const availableLeagues = leaguesData || [];
 
+  const { toast } = useToast();
+
+  const { data: myAvailability } = useQuery<any[]>({
+    queryKey: ["/api/league/my-availability"],
+    queryFn: async () => {
+      const res = await fetch("/api/league/my-availability", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { data: mySquadStatus } = useQuery<any[]>({
+    queryKey: ["/api/league/my-squad-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/league/my-squad-status", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: async ({ matchId, status }: { matchId: number; status: string }) => {
+      await apiRequest("POST", `/api/league/match-availability/${matchId}/respond`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/league/my-availability"] });
+      toast({ title: "Availability updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const pendingPolls = (myAvailability || []).filter((a: any) => a.status === "PENDING");
+  const isSquadPlayer = (mySquadStatus || []).length > 0;
+
   const userClubs = useMemo(() => {
     if (!clubs || !profilesData) return [];
     return clubs.filter((c: any) => clubIds.includes(c.id));
@@ -795,6 +835,77 @@ export default function LeaguePage() {
       </div>
 
       {nextMatch && <NextMatchSpotlight match={nextMatch} />}
+
+      {isSquadPlayer && myAvailability && myAvailability.length > 0 && (
+        <div className="px-4 sm:px-6 lg:px-8 pt-4">
+          <Card data-testid="availability-poll-section">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-bold uppercase tracking-wider">Match Availability</h3>
+                {pendingPolls.length > 0 && (
+                  <Badge className="bg-amber-500 text-white text-[10px]">{pendingPolls.length} pending</Badge>
+                )}
+              </div>
+              <div className="space-y-2">
+                {myAvailability.map((poll: any) => (
+                  <div key={poll.id} className="bg-muted/50 rounded-lg p-3 border" data-testid={`availability-poll-${poll.matchId}`}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">vs {poll.opponentClub}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(poll.matchDatetime), "EEE, dd MMM yyyy HH:mm")}
+                          {poll.category && ` · ${poll.category}`}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                        poll.status === "AVAILABLE" ? "border-green-300 text-green-600 dark:text-green-400" :
+                        poll.status === "UNAVAILABLE" ? "border-red-300 text-red-600 dark:text-red-400" :
+                        poll.status === "MAYBE" ? "border-yellow-300 text-yellow-600 dark:text-yellow-400" :
+                        ""
+                      }`}>
+                        {poll.status}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant={poll.status === "AVAILABLE" ? "default" : "outline"}
+                        className={`h-7 text-xs flex-1 ${poll.status === "AVAILABLE" ? "bg-green-600 hover:bg-green-700 text-white" : ""}`}
+                        onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "AVAILABLE" })}
+                        disabled={respondMutation.isPending}
+                        data-testid={`button-available-${poll.matchId}`}
+                      >
+                        <Check className="h-3 w-3 mr-1" /> Available
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={poll.status === "MAYBE" ? "default" : "outline"}
+                        className={`h-7 text-xs flex-1 ${poll.status === "MAYBE" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : ""}`}
+                        onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "MAYBE" })}
+                        disabled={respondMutation.isPending}
+                        data-testid={`button-maybe-${poll.matchId}`}
+                      >
+                        <HelpCircle className="h-3 w-3 mr-1" /> Maybe
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={poll.status === "UNAVAILABLE" ? "default" : "outline"}
+                        className={`h-7 text-xs flex-1 ${poll.status === "UNAVAILABLE" ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                        onClick={() => respondMutation.mutate({ matchId: poll.matchId, status: "UNAVAILABLE" })}
+                        disabled={respondMutation.isPending}
+                        data-testid={`button-unavailable-${poll.matchId}`}
+                      >
+                        <X className="h-3 w-3 mr-1" /> Can't Play
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="px-4 sm:px-6 lg:px-8 pt-5 pb-6 space-y-5">
         <Tabs value={activeTab} onValueChange={setActiveTab}>

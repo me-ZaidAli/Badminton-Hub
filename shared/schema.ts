@@ -1644,6 +1644,42 @@ export const insertLeagueOpponentSchema = createInsertSchema(leagueOpponents).om
 export type LeagueOpponent = typeof leagueOpponents.$inferSelect;
 export type InsertLeagueOpponent = z.infer<typeof insertLeagueOpponentSchema>;
 
+export const leagueSquadPlayers = pgTable("league_squad_players", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  formatPreference: text("format_preference"),
+  addedBy: integer("added_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueSquadPlayerRelations = relations(leagueSquadPlayers, ({ one }) => ({
+  club: one(clubs, { fields: [leagueSquadPlayers.clubId], references: [clubs.id] }),
+  user: one(users, { fields: [leagueSquadPlayers.userId], references: [users.id] }),
+}));
+
+export const insertLeagueSquadPlayerSchema = createInsertSchema(leagueSquadPlayers).omit({ id: true, createdAt: true });
+export type LeagueSquadPlayer = typeof leagueSquadPlayers.$inferSelect;
+export type InsertLeagueSquadPlayer = z.infer<typeof insertLeagueSquadPlayerSchema>;
+
+export const leagueMatchAvailability = pgTable("league_match_availability", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id").references(() => leagueMatches.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  status: text("status").default("PENDING").notNull(),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leagueMatchAvailabilityRelations = relations(leagueMatchAvailability, ({ one }) => ({
+  match: one(leagueMatches, { fields: [leagueMatchAvailability.matchId], references: [leagueMatches.id] }),
+  user: one(users, { fields: [leagueMatchAvailability.userId], references: [users.id] }),
+}));
+
+export const insertLeagueMatchAvailabilitySchema = createInsertSchema(leagueMatchAvailability).omit({ id: true, createdAt: true });
+export type LeagueMatchAvailability = typeof leagueMatchAvailability.$inferSelect;
+export type InsertLeagueMatchAvailability = z.infer<typeof insertLeagueMatchAvailabilitySchema>;
+
 export const clubHomeVenues = pgTable("club_home_venues", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),

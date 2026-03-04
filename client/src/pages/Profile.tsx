@@ -1662,6 +1662,15 @@ export default function Profile() {
   const profilePicInputRef = useRef<HTMLInputElement>(null);
   const { data: profiles } = useQuery<any[]>({ queryKey: ["/api/player-profiles"], enabled: !!user });
   const { data: memberships } = useQuery<{ clubId: number; clubName: string; membershipStatus: string }[]>({ queryKey: ["/api/user/memberships"], enabled: !!user });
+  const { data: mySquadStatus } = useQuery<any[]>({
+    queryKey: ["/api/league/my-squad-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/league/my-squad-status", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+  });
   const logout = useLogout();
   const { toast } = useToast();
 
@@ -1868,6 +1877,12 @@ export default function Profile() {
                     Grade {primaryProfile.grade}
                   </Badge>
                 )}
+                {mySquadStatus && mySquadStatus.length > 0 && (
+                  <Badge className="bg-emerald-600/90 text-white border-0 text-[10px]" data-testid="badge-league-player">
+                    <Trophy className="h-3 w-3 mr-1" />
+                    League Player
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-3 sm:gap-4 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground flex-wrap">
                 {(user as any)?.email && (
@@ -1898,6 +1913,35 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {mySquadStatus && mySquadStatus.length > 0 && (
+        <Card data-testid="card-league-squad-status">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-emerald-500/10 rounded-lg">
+                <Trophy className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold">League Squad Player</h3>
+                <p className="text-[11px] text-muted-foreground">Representing your club in competitive league matches</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {mySquadStatus.map((sq: any) => (
+                <div key={sq.id} className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-2.5" data-testid={`league-squad-club-${sq.clubId}`}>
+                  <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
+                  <span className="text-sm font-semibold flex-1">{sq.clubName}</span>
+                  {sq.formatPreference && (
+                    <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-700">
+                      {sq.formatPreference.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {primaryProfile?.joinedAt && (
         <ProfileMembershipDuration joinedAt={primaryProfile.joinedAt} />
