@@ -2455,6 +2455,19 @@ export async function registerRoutes(
         const club = await storage.getClub(session.clubId);
         fee = club?.sessionFee ?? 1000;
       }
+      const [activeMem] = await db
+        .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+        .from(clubMemberships)
+        .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .where(and(
+          eq(clubMemberships.userId, req.user!.id),
+          eq(clubMemberships.clubId, session.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ))
+        .limit(1);
+      if (activeMem) {
+        fee = activeMem.defaultSessionFee;
+      }
       if (isFull) {
         const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
         const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
@@ -2489,6 +2502,19 @@ export async function registerRoutes(
       if (fee == null) {
         const club = await storage.getClub(session.clubId);
         fee = club?.sessionFee ?? 1000;
+      }
+      const [activeMemWait] = await db
+        .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+        .from(clubMemberships)
+        .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .where(and(
+          eq(clubMemberships.userId, req.user!.id),
+          eq(clubMemberships.clubId, session.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ))
+        .limit(1);
+      if (activeMemWait) {
+        fee = activeMemWait.defaultSessionFee;
       }
       const waitingSignups = signups.filter((s: any) => s.signupStatus === "WAITING");
       const maxPos = waitingSignups.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
@@ -2842,10 +2868,10 @@ export async function registerRoutes(
 
     const signups = await storage.getSessionSignups(sessionId);
     const confirmedCount = signups.filter(s => (s as any).signupStatus !== "CANCELLED").length;
-    let fee = session.sessionFee;
-    if (fee == null) {
+    let baseFee = session.sessionFee;
+    if (baseFee == null) {
       const club = await storage.getClub(session.clubId);
-      fee = club?.sessionFee ?? 1000;
+      baseFee = club?.sessionFee ?? 1000;
     }
 
     const results: any[] = [];
@@ -2886,6 +2912,21 @@ export async function registerRoutes(
       if (alreadySignedUp) {
         errors.push(`${targetUser.fullName}: Already signed up`);
         continue;
+      }
+
+      let fee = baseFee;
+      const [attendeeMembership] = await db
+        .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+        .from(clubMemberships)
+        .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .where(and(
+          eq(clubMemberships.userId, userId),
+          eq(clubMemberships.clubId, session.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ))
+        .limit(1);
+      if (attendeeMembership) {
+        fee = attendeeMembership.defaultSessionFee;
       }
 
       if (session.genderRestriction === "FEMALE_ONLY" && profile.gender !== "FEMALE") {
@@ -3115,10 +3156,32 @@ export async function registerRoutes(
       const waitingPlayers = allSignups.filter((s: any) => s.signupStatus === "WAITING");
       const maxPos = waitingPlayers.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
 
+      let fee = session.sessionFee;
+      if (fee == null) {
+        const club = await storage.getClub(session.clubId);
+        fee = club?.sessionFee ?? 0;
+      }
+      const playerProfile = await db.select({ userId: playerProfiles.userId }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      if (playerProfile.length > 0) {
+        const [memberFee] = await db
+          .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+          .from(clubMemberships)
+          .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+          .where(and(
+            eq(clubMemberships.userId, playerProfile[0].userId),
+            eq(clubMemberships.clubId, session.clubId),
+            eq(clubMemberships.status, "ACTIVE")
+          ))
+          .limit(1);
+        if (memberFee) {
+          fee = memberFee.defaultSessionFee;
+        }
+      }
+
       const signup = await storage.createSessionSignupEnhanced({
         sessionId,
         playerId,
-        fee: session.sessionFee || 0,
+        fee,
         signupStatus: "WAITING",
         waitingListPosition: maxPos + 1,
         signedUpByUserId: req.user!.id,
@@ -3154,7 +3217,7 @@ export async function registerRoutes(
       
       const club = await storage.getClub(session.clubId);
       const clubName = club?.name || "your club";
-      const fee = session.sessionFee || club?.sessionFee || 0;
+      const baseFee = session.sessionFee ?? club?.sessionFee ?? 0;
 
       // Remove invitations for players no longer in the list
       for (const signup of currentInvited) {
@@ -3169,10 +3232,25 @@ export async function registerRoutes(
       for (const playerId of inviteePlayerIds) {
         if (!allSignupPlayerIds.has(playerId)) {
           try {
+            let inviteeFee = baseFee;
+            const pp = await db.select({ userId: playerProfiles.userId }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+            if (pp.length > 0) {
+              const [mf] = await db
+                .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+                .from(clubMemberships)
+                .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+                .where(and(
+                  eq(clubMemberships.userId, pp[0].userId),
+                  eq(clubMemberships.clubId, session.clubId),
+                  eq(clubMemberships.status, "ACTIVE")
+                ))
+                .limit(1);
+              if (mf) inviteeFee = mf.defaultSessionFee;
+            }
             await storage.createSessionSignupEnhanced({
               sessionId,
               playerId,
-              fee,
+              fee: inviteeFee,
               signupStatus: "INVITED",
               signedUpByUserId: req.user!.id,
             });

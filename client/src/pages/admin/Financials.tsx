@@ -1690,18 +1690,30 @@ export default function Financials() {
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-1">
-            <span className="font-medium" data-testid={`text-fee-${entry.signupId}`}>
-              £{formatPounds(entry.fee || 0)}
-            </span>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => handleStartEditFee(entry)}
-              data-testid={`button-edit-fee-${entry.signupId}`}
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1">
+              <span className="font-medium" data-testid={`text-fee-${entry.signupId}`}>
+                £{formatPounds(entry.fee || 0)}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => handleStartEditFee(entry)}
+                data-testid={`button-edit-fee-${entry.signupId}`}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            </div>
+            {entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null && entry.fee !== entry.membershipSessionFee && (
+              <span className="text-[10px] text-amber-500" data-testid={`text-member-rate-mismatch-${entry.signupId}`}>
+                Member rate: £{formatPounds(entry.membershipSessionFee)} ({entry.membershipPlanName})
+              </span>
+            )}
+            {entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null && entry.fee === entry.membershipSessionFee && (
+              <span className="text-[10px] text-emerald-500" data-testid={`text-member-rate-match-${entry.signupId}`}>
+                {entry.membershipPlanName} rate
+              </span>
+            )}
           </div>
         )}
       </TableCell>
@@ -2870,9 +2882,21 @@ export default function Financials() {
                                   {entry.clubName}
                                 </TableCell>
                                 <TableCell>
-                                  <span className="font-medium" data-testid={`text-fee-player-${entry.signupId}`}>
-                                    £{formatPounds(entry.fee || 0)}
-                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="font-medium" data-testid={`text-fee-player-${entry.signupId}`}>
+                                      £{formatPounds(entry.fee || 0)}
+                                    </span>
+                                    {entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null && entry.fee !== entry.membershipSessionFee && (
+                                      <span className="text-[10px] text-amber-500" data-testid={`text-member-rate-mismatch-player-${entry.signupId}`}>
+                                        Member rate: £{formatPounds(entry.membershipSessionFee)} ({entry.membershipPlanName})
+                                      </span>
+                                    )}
+                                    {entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null && entry.fee === entry.membershipSessionFee && (
+                                      <span className="text-[10px] text-emerald-500" data-testid={`text-member-rate-match-player-${entry.signupId}`}>
+                                        {entry.membershipPlanName} rate
+                                      </span>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   {(() => {
