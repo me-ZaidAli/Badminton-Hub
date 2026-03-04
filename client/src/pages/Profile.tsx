@@ -1671,6 +1671,15 @@ export default function Profile() {
     },
     enabled: !!user,
   });
+  const { data: myAvailability } = useQuery<any[]>({
+    queryKey: ["/api/league/my-availability"],
+    queryFn: async () => {
+      const res = await fetch("/api/league/my-availability", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user && (mySquadStatus || []).length > 0,
+  });
   const logout = useLogout();
   const { toast } = useToast();
 
@@ -1956,6 +1965,50 @@ export default function Profile() {
                 </div>
               ))}
             </div>
+            {(() => {
+              const pendingPolls = (myAvailability || []).filter((a: any) => a.status === "PENDING");
+              if (pendingPolls.length === 0) return null;
+              return (
+                <div className="mt-4 pt-3 border-t border-amber-500/20" data-testid="pending-polls-section">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className="p-1.5 bg-amber-500/10 rounded-lg">
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Availability Polls Awaiting Response</p>
+                      <p className="text-[10px] text-muted-foreground">{pendingPolls.length} poll{pendingPolls.length !== 1 ? "s" : ""} need your response</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {pendingPolls.map((poll: any) => (
+                      <Link key={poll.id} href="/league">
+                        <div className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/15 rounded-lg p-3 cursor-pointer hover:bg-amber-500/10 transition-colors" data-testid={`pending-poll-${poll.matchId}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">
+                              {poll.clubName} vs {poll.opponentClub}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(poll.matchDatetime), "EEE, MMM d")}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {format(new Date(poll.matchDatetime), "h:mm a")}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-300 border-0 text-[10px] shrink-0">
+                            Respond
+                          </Badge>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}

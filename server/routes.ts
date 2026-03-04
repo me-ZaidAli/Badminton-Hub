@@ -19543,10 +19543,20 @@ export async function registerRoutes(
       if (!canAccess) return res.status(403).json({ message: "Access denied" });
       const squadPlayers = await db.select().from(leagueSquadPlayers).where(eq(leagueSquadPlayers.clubId, match.clubId));
       let created = 0;
+      const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, match.clubId));
+      const matchDate = match.matchDatetime ? new Date(match.matchDatetime).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "TBD";
       for (const sp of squadPlayers) {
         const existing = await db.select().from(leagueMatchAvailability).where(and(eq(leagueMatchAvailability.matchId, matchId), eq(leagueMatchAvailability.userId, sp.userId)));
         if (existing.length === 0) {
           await db.insert(leagueMatchAvailability).values({ matchId, userId: sp.userId, status: "PENDING" });
+          await db.insert(notifications).values({
+            userId: sp.userId,
+            type: "MATCH",
+            title: "League Availability Poll",
+            message: `Your club ${club?.name || "team"} needs to know if you're available for the match vs ${match.opponentClub || "opponent"} on ${matchDate}. Please confirm your availability.`,
+            linkUrl: "/league",
+            status: "in_progress",
+          });
           created++;
         }
       }
