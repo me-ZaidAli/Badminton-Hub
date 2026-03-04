@@ -2321,11 +2321,24 @@ export async function registerRoutes(
       }
     }
 
-    // Use session fee or club default fee or fallback to 1000 pence
+    // Determine fee: check active membership first, then session fee, then club default
     let fee = session.sessionFee;
+    const club = await storage.getClub(session.clubId);
     if (fee == null) {
-      const club = await storage.getClub(session.clubId);
       fee = club?.sessionFee ?? 1000;
+    }
+    const [activeMembership] = await db
+      .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+      .from(clubMemberships)
+      .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+      .where(and(
+        eq(clubMemberships.userId, req.user!.id),
+        eq(clubMemberships.clubId, session.clubId),
+        eq(clubMemberships.status, "ACTIVE")
+      ))
+      .limit(1);
+    if (activeMembership) {
+      fee = activeMembership.defaultSessionFee;
     }
 
     if (isFull) {
@@ -3620,11 +3633,27 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Player already in session" });
       }
 
-      // Use session fee or club default fee or fallback to 1000 pence
+      // Determine fee: check active membership first, then session fee, then club default
       let fee = session.sessionFee;
       if (fee == null) {
         const club = await storage.getClub(session.clubId);
         fee = club?.sessionFee ?? 1000;
+      }
+      const playerProfile = await db.select({ userId: playerProfiles.userId }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      if (playerProfile.length > 0) {
+        const [memberFee] = await db
+          .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+          .from(clubMemberships)
+          .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+          .where(and(
+            eq(clubMemberships.userId, playerProfile[0].userId),
+            eq(clubMemberships.clubId, session.clubId),
+            eq(clubMemberships.status, "ACTIVE")
+          ))
+          .limit(1);
+        if (memberFee) {
+          fee = memberFee.defaultSessionFee;
+        }
       }
 
       // Check capacity - admin can still add but to waiting list
@@ -8100,15 +8129,25 @@ export async function registerRoutes(
           sessionFee: sessions.sessionFee,
           clubId: sessions.clubId,
           clubName: clubs.name,
+          clubSessionFee: clubs.sessionFee,
           playerName: users.fullName,
           playerEmail: users.email,
           playerUserId: users.id,
+          membershipStatus: clubMemberships.status,
+          membershipPlanName: membershipPlans.name,
+          membershipSessionFee: membershipPlans.defaultSessionFee,
         })
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
         .innerJoin(clubs, eq(sessions.clubId, clubs.id))
         .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
         .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .leftJoin(clubMemberships, and(
+          eq(clubMemberships.userId, users.id),
+          eq(clubMemberships.clubId, sessions.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ))
+        .leftJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
         .where(queryConditions.length > 0 ? and(...queryConditions) : undefined)
         .orderBy(desc(sessions.date));
 

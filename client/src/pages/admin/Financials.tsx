@@ -48,6 +48,7 @@ import {
   Bell,
   Send,
   Mail,
+  Crown,
 } from "lucide-react";
 
 interface FinancialEntry {
@@ -71,9 +72,13 @@ interface FinancialEntry {
   sessionFee: number;
   clubId: number;
   clubName: string;
+  clubSessionFee: number | null;
   playerName: string;
   playerEmail: string;
   playerUserId: number;
+  membershipStatus: string | null;
+  membershipPlanName: string | null;
+  membershipSessionFee: number | null;
 }
 
 type AttendanceStatus =
@@ -1643,7 +1648,12 @@ export default function Financials() {
         />
       </TableCell>
       <TableCell className="font-medium" data-testid={`text-player-name-${entry.signupId}`}>
-        {entry.playerName}
+        <div className="flex items-center gap-1.5">
+          {entry.membershipStatus === "ACTIVE" && (
+            <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" data-testid={`icon-member-${entry.signupId}`} title={`Member: ${entry.membershipPlanName || "Active"}`} />
+          )}
+          <span>{entry.playerName}</span>
+        </div>
       </TableCell>
       <TableCell>
         {editingFee === entry.signupId ? (
@@ -2582,19 +2592,52 @@ export default function Financials() {
                               </Button>
                             </div>
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setBulkFeeSessionId(sessionId);
-                                setBulkFeeAmount("");
-                              }}
-                              data-testid={`button-set-standard-rate-${sessionId}`}
-                            >
-                              <DollarSign className="h-3 w-3 mr-1" />
-                              Set Standard Rate
-                            </Button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBulkFeeSessionId(sessionId);
+                                  setBulkFeeAmount("");
+                                }}
+                                data-testid={`button-set-standard-rate-${sessionId}`}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Set Standard Rate
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const updates: Promise<any>[] = [];
+                                  for (const entry of entries) {
+                                    const targetFee = entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null
+                                      ? entry.membershipSessionFee
+                                      : (entry.sessionFee ?? entry.clubSessionFee ?? 0);
+                                    if (entry.fee !== targetFee) {
+                                      updates.push(apiRequest("PATCH", `/api/admin/signups/${entry.signupId}/fee`, { fee: targetFee }));
+                                    }
+                                  }
+                                  if (updates.length === 0) {
+                                    toast({ title: "No Changes", description: "All fees already match membership rates." });
+                                    return;
+                                  }
+                                  try {
+                                    await Promise.all(updates);
+                                    toast({ title: "Fees Updated", description: `Applied membership-based rates to ${updates.length} player(s).` });
+                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
+                                  } catch (err: any) {
+                                    toast({ title: "Error", description: err.message || "Failed to apply rates", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-apply-member-rates-${sessionId}`}
+                              >
+                                <Crown className="h-3 w-3 mr-1" />
+                                Apply Member Rates
+                              </Button>
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -4542,7 +4585,12 @@ export default function Financials() {
                 <Card key={player.playerUserId} data-testid={`card-outstanding-player-${player.playerUserId}`}>
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2 space-y-0">
                     <div className="min-w-0">
-                      <CardTitle className="text-sm font-medium" data-testid={`text-outstanding-player-name-${player.playerUserId}`}>{player.playerName}</CardTitle>
+                      <CardTitle className="text-sm font-medium flex items-center gap-1.5" data-testid={`text-outstanding-player-name-${player.playerUserId}`}>
+                        {player.sessions.some((s: any) => s.membershipStatus === "ACTIVE") && (
+                          <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                        )}
+                        {player.playerName}
+                      </CardTitle>
                       <p className="text-xs text-muted-foreground truncate" data-testid={`text-outstanding-player-email-${player.playerUserId}`}>{player.playerEmail}</p>
                     </div>
                     <div className="flex items-center gap-2">
