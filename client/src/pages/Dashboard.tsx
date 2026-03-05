@@ -18,13 +18,15 @@ import { format, isPast, isFuture, subMonths, startOfMonth, endOfMonth, isWithin
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords, CreditCard, Crown, Share2, Shield, Star, ArrowUpRight, ArrowDownRight
+  MapPin, Swords, CreditCard, Crown, Share2, Shield, Star, ArrowUpRight, ArrowDownRight,
+  LayoutDashboard, BarChart3,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import DashboardAnalyticsView from "@/components/DashboardAnalyticsView";
 
 function SessionMiniLeaderboard({ sessionId, completedMatchCount, liveMatchCount }: { sessionId: number; completedMatchCount?: number; liveMatchCount?: number }) {
   const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
@@ -181,6 +183,7 @@ function DashboardContent({
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
   const [kpiDetail, setKpiDetail] = useState<string | null>(null);
+  const [dashboardView, setDashboardView] = useState<"overview" | "analytics">("overview");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const adminClubId = useAdminClubId();
@@ -365,6 +368,28 @@ function DashboardContent({
           <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.fullName.split(' ')[0]}</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1" data-testid="dashboard-view-switcher">
+            <Button
+              size="sm"
+              variant={dashboardView === "overview" ? "default" : "ghost"}
+              onClick={() => setDashboardView("overview")}
+              className="gap-1.5 h-8"
+              data-testid="button-overview-view"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Overview</span>
+            </Button>
+            <Button
+              size="sm"
+              variant={dashboardView === "analytics" ? "default" : "ghost"}
+              onClick={() => setDashboardView("analytics")}
+              className="gap-1.5 h-8"
+              data-testid="button-analytics-view"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Analytics</span>
+            </Button>
+          </div>
           {clubs.length > 1 && (
             <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
               <SelectTrigger className="w-[180px] h-9" data-testid="select-dashboard-club">
@@ -381,6 +406,17 @@ function DashboardContent({
           )}
         </div>
       </div>
+
+      {dashboardView === "analytics" ? (
+        <DashboardAnalyticsView
+          sessions={sessions}
+          mySessions={mySessionsList}
+          clubs={clubs}
+          effectiveClubId={effectiveClubId}
+          user={user}
+        />
+      ) : (
+      <>
 
       {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
         <Card className={`border ${
@@ -1121,6 +1157,9 @@ function DashboardContent({
           </Card>
         );
       })()}
+
+      </>
+      )}
 
       <PlayerStatsDialog
         profileId={statsPlayerId}
