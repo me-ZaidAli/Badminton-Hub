@@ -807,9 +807,9 @@ export default function AdminReferrals() {
 
   const selectedCreateClubId = createClubId ? Number(createClubId) : null;
   const { data: clubMembers = [] } = useQuery<any[]>({
-    queryKey: ["/api/clubs", selectedCreateClubId, "memberships"],
+    queryKey: ["/api/clubs", selectedCreateClubId, "members"],
     queryFn: async () => {
-      const res = await fetch(`/api/clubs/${selectedCreateClubId}/memberships`, { credentials: "include" });
+      const res = await fetch(`/api/clubs/${selectedCreateClubId}/members`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
