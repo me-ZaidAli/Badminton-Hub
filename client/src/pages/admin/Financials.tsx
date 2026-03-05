@@ -49,7 +49,10 @@ import {
   Send,
   Mail,
   Crown,
+  BarChart3,
+  LayoutDashboard,
 } from "lucide-react";
+import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 
 interface FinancialEntry {
   signupId: number;
@@ -515,6 +518,7 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits" | "donations">("session");
+  const [dashboardView, setDashboardView] = useState<"classic" | "analytics">("classic");
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
@@ -1891,18 +1895,42 @@ export default function Financials() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 flex-wrap">
-        <Link href="/admin">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="h-5 w-5" />
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Link href="/admin">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2 flex-wrap" data-testid="text-page-title">
+              <DollarSign className="h-6 w-6 text-green-500" />
+              Financial Dashboard
+            </h1>
+            <p className="text-muted-foreground">Track revenue, payments and outstanding fees.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1" data-testid="view-switcher">
+          <Button
+            size="sm"
+            variant={dashboardView === "classic" ? "default" : "ghost"}
+            onClick={() => setDashboardView("classic")}
+            className="gap-1.5"
+            data-testid="button-classic-view"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Classic
           </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2 flex-wrap" data-testid="text-page-title">
-            <DollarSign className="h-6 w-6 text-green-500" />
-            Financial Dashboard
-          </h1>
-          <p className="text-muted-foreground">Track revenue, payments and outstanding fees.</p>
+          <Button
+            size="sm"
+            variant={dashboardView === "analytics" ? "default" : "ghost"}
+            onClick={() => setDashboardView("analytics")}
+            className="gap-1.5"
+            data-testid="button-analytics-view"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Analytics
+          </Button>
         </div>
       </div>
 
@@ -1979,60 +2007,69 @@ export default function Financials() {
               </Button>
             </div>
 
-            <div className="flex gap-1 flex-wrap">
-              <Button
-                variant={viewMode === "session" ? "default" : "outline"}
-                onClick={() => setViewMode("session")}
-                data-testid="button-view-session"
-              >
-                <Calendar className="h-4 w-4 mr-1" />
-                By Session
-              </Button>
-              <Button
-                variant={viewMode === "player" ? "default" : "outline"}
-                onClick={() => setViewMode("player")}
-                data-testid="button-view-player"
-              >
-                <Users className="h-4 w-4 mr-1" />
-                By Player
-              </Button>
-              <Button
-                variant={viewMode === "credits" ? "default" : "outline"}
-                onClick={() => setViewMode("credits")}
-                data-testid="button-view-credits"
-              >
-                <History className="h-4 w-4 mr-1" />
-                Credit History
-              </Button>
-              <Button
-                variant={viewMode === "memberships" ? "default" : "outline"}
-                onClick={() => setViewMode("memberships")}
-                data-testid="button-view-memberships"
-              >
-                <CreditCard className="h-4 w-4 mr-1" />
-                Memberships
-              </Button>
-              <Button
-                variant={viewMode === "manage-credits" ? "default" : "outline"}
-                onClick={() => setViewMode("manage-credits")}
-                data-testid="button-view-manage-credits"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Manage Credits
-              </Button>
-              <Button
-                variant={viewMode === "donations" ? "default" : "outline"}
-                onClick={() => setViewMode("donations")}
-                data-testid="button-view-donations"
-              >
-                <Heart className="h-4 w-4 mr-1" />
-                Donations
-              </Button>
-            </div>
+            {dashboardView === "classic" && (
+              <div className="flex gap-1 flex-wrap">
+                <Button
+                  variant={viewMode === "session" ? "default" : "outline"}
+                  onClick={() => setViewMode("session")}
+                  data-testid="button-view-session"
+                >
+                  <Calendar className="h-4 w-4 mr-1" />
+                  By Session
+                </Button>
+                <Button
+                  variant={viewMode === "player" ? "default" : "outline"}
+                  onClick={() => setViewMode("player")}
+                  data-testid="button-view-player"
+                >
+                  <Users className="h-4 w-4 mr-1" />
+                  By Player
+                </Button>
+                <Button
+                  variant={viewMode === "credits" ? "default" : "outline"}
+                  onClick={() => setViewMode("credits")}
+                  data-testid="button-view-credits"
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  Credit History
+                </Button>
+                <Button
+                  variant={viewMode === "memberships" ? "default" : "outline"}
+                  onClick={() => setViewMode("memberships")}
+                  data-testid="button-view-memberships"
+                >
+                  <CreditCard className="h-4 w-4 mr-1" />
+                  Memberships
+                </Button>
+                <Button
+                  variant={viewMode === "manage-credits" ? "default" : "outline"}
+                  onClick={() => setViewMode("manage-credits")}
+                  data-testid="button-view-manage-credits"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Manage Credits
+                </Button>
+                <Button
+                  variant={viewMode === "donations" ? "default" : "outline"}
+                  onClick={() => setViewMode("donations")}
+                  data-testid="button-view-donations"
+                >
+                  <Heart className="h-4 w-4 mr-1" />
+                  Donations
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {dashboardView === "analytics" ? (
+        <FinancialAnalyticsView
+          filteredData={filteredData}
+          dashboardData={dashboardData}
+        />
+      ) : (
+      <>
       <div className="grid gap-2 grid-cols-3 sm:grid-cols-3 md:grid-cols-5">
         <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-total-revenue" onClick={() => setFinKpiDetail("revenue")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
@@ -3656,6 +3693,8 @@ export default function Financials() {
             </div>
           )}
         </div>
+      )}
+      </>
       )}
 
       <Dialog open={!!attendanceModal} onOpenChange={(open) => { if (!open) setAttendanceModal(null); }}>
