@@ -560,6 +560,7 @@ export default function Financials() {
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
   const [sortPlayersAlpha, setSortPlayersAlpha] = useState(false);
   const [sessionPaymentView, setSessionPaymentView] = useState<"all" | "paid" | "unpaid" | "grouped">("all");
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
@@ -880,14 +881,20 @@ export default function Financials() {
   }, [sessionTimeTab, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
+    const data = playerSearchQuery
+      ? filteredData.filter((e) =>
+          e.playerName.toLowerCase().includes(playerSearchQuery.toLowerCase()) ||
+          (e.playerEmail && e.playerEmail.toLowerCase().includes(playerSearchQuery.toLowerCase()))
+        )
+      : filteredData;
     const groups: Record<string, FinancialEntry[]> = {};
-    filteredData.forEach((entry) => {
+    data.forEach((entry) => {
       const key = `${entry.playerUserId}-${entry.playerName}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(entry);
     });
     return groups;
-  }, [filteredData]);
+  }, [filteredData, playerSearchQuery]);
 
   const clubRevenueData = useMemo(() => {
     const clubs: Record<number, { clubId: number; clubName: string; totalRevenue: number; totalPaid: number; memberCount: number; members: Record<number, { userId: number; name: string; email: string; totalFee: number; paidFee: number; sessions: number }> }> = {};
@@ -2802,6 +2809,21 @@ export default function Financials() {
         </div>
       ) : viewMode === "player" ? (
         <div className="space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by player name or email..."
+                value={playerSearchQuery}
+                onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-player-search"
+              />
+            </div>
+            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+              {Object.keys(playerGroups).length} player(s)
+            </Badge>
+          </div>
           {Object.keys(playerGroups).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-players">
@@ -3052,6 +3074,7 @@ export default function Financials() {
                               <TableHead>Type</TableHead>
                               <TableHead>Amount</TableHead>
                               <TableHead>Reason</TableHead>
+                              <TableHead>Status</TableHead>
                               <TableHead>Session</TableHead>
                               <TableHead>Club</TableHead>
                               <TableHead>By</TableHead>
@@ -3080,6 +3103,23 @@ export default function Financials() {
                                 </TableCell>
                                 <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
                                   {entry.reason}
+                                </TableCell>
+                                <TableCell>
+                                  {entry.amount > 0 ? (
+                                    group.balance <= 0 ? (
+                                      <Badge variant="outline" className="text-blue-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                        <CheckCircle className="h-3 w-3 mr-1" /> Claimed
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-amber-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                        <Clock className="h-3 w-3 mr-1" /> Unclaimed
+                                      </Badge>
+                                    )
+                                  ) : (
+                                    <Badge variant="outline" className="text-muted-foreground no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                      <CheckCircle className="h-3 w-3 mr-1" /> Applied
+                                    </Badge>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
                                   {entry.sessionTitle || "-"}
