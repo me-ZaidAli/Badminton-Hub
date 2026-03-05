@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2413,7 +2413,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               </div>
 
               {isOrganiser && (
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-4 flex-wrap">
                   <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
                     <SelectTrigger className="w-[120px]" data-testid="select-generate-gender-type">
                       <SelectValue />
@@ -2425,16 +2425,35 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     </SelectContent>
                   </Select>
 
-                  <Button 
-                    onClick={handleSmartGenerate}
-                    disabled={isSmartGenerating}
-                    variant="outline"
-                    className="gap-2"
-                    data-testid="button-generate-matches"
-                  >
-                    <Shuffle className="w-4 h-4" />
-                    {isSmartGenerating ? "Generating..." : "Generate Matches"}
-                  </Button>
+                  <div className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={handleSmartGenerate}
+                      disabled={isSmartGenerating}
+                      className="neon-power-btn group relative"
+                      style={{ width: '72px', height: '72px' }}
+                      data-testid="button-generate-matches"
+                    >
+                      <div className="neon-power-outer" />
+                      <div className="neon-power-ring" />
+                      <div className={`neon-power-ring-pulse ${isSmartGenerating ? "neon-heartbeat" : ""}`} />
+                      <div className={`neon-power-glow ${isSmartGenerating ? "neon-heartbeat" : ""}`} />
+                      <div className="neon-power-inner">
+                        {isSmartGenerating ? (
+                          <div className="neon-power-icon neon-vibrate">
+                            <Power className="h-6 w-6" strokeWidth={2.5} />
+                          </div>
+                        ) : (
+                          <div className="neon-power-icon">
+                            <Power className="h-6 w-6" strokeWidth={2.5} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="neon-power-circuit-ring" />
+                    </button>
+                    <span className={`text-[10px] font-medium tracking-wider uppercase ${isSmartGenerating ? "text-cyan-400 neon-text-pulse" : "text-muted-foreground"}`}>
+                      {isSmartGenerating ? "Generating..." : "Generate"}
+                    </span>
+                  </div>
 
                   <Button
                     variant={aiBrainActive ? "default" : "outline"}
