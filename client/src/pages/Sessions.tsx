@@ -16,10 +16,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
+import { CrowdControlPanel } from "@/components/CrowdControlPanel";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
@@ -58,6 +59,95 @@ function computePublishAt(sessionDate: Date | string | null | undefined, weeksBe
   const d = new Date(sessionDate);
   d.setDate(d.getDate() - weeksBefore * 7);
   return d;
+}
+
+function StandaloneCrowdControl({ sessionId, open, onOpenChange }: { sessionId: number; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { data: matches = [] } = useQuery<any[]>({
+    queryKey: ["/api/sessions", sessionId, "matches"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+    refetchInterval: open ? 5000 : false,
+  });
+
+  const { data: signups = [] } = useQuery<any[]>({
+    queryKey: ["/api/sessions", sessionId, "signups"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+  });
+
+  const { data: sessionData } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+  });
+
+  const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus);
+
+  const sessionMatchCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const m of matches) {
+      for (const pid of [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id]) {
+        if (pid) counts[pid] = (counts[pid] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [matches]);
+
+  const players = useMemo(() => {
+    const signupPlayers = confirmedSignups.map((s: any) => ({
+      id: s.player?.id || s.playerId,
+      fullName: s.player?.user?.fullName || "",
+      category: s.player?.category || null,
+      isPaused: s.isPaused || false,
+    }));
+    const knownIds = new Set(signupPlayers.map((p: any) => p.id));
+    const matchOnlyPlayers: typeof signupPlayers = [];
+    for (const m of matches) {
+      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+        if (p && p.id && !knownIds.has(p.id)) {
+          knownIds.add(p.id);
+          matchOnlyPlayers.push({
+            id: p.id,
+            fullName: p.user?.fullName || `Player ${p.id}`,
+            category: p.category || null,
+            isPaused: false,
+          });
+        }
+      }
+    }
+    return [...signupPlayers, ...matchOnlyPlayers];
+  }, [confirmedSignups, matches]);
+
+  const liveCount = matches.filter((m: any) => m.status === "LIVE").length;
+  const queuedCount = matches.filter((m: any) => m.status === "QUEUED").length;
+  const completedCount = matches.filter((m: any) => m.status === "COMPLETED").length;
+
+  return (
+    <CrowdControlPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      sessionMatchCounts={sessionMatchCounts}
+      players={players}
+      liveCount={liveCount}
+      queuedCount={queuedCount}
+      completedCount={completedCount}
+      matches={matches}
+      sessionId={sessionId}
+      aiBrainEnabled={sessionData?.aiBrainEnabled || false}
+    />
+  );
 }
 
 function ScheduledPublishSection({ sessionDate, scheduleEnabled, setScheduleEnabled, weeksBefore, setWeeksBefore }: {
@@ -392,6 +482,7 @@ export default function Sessions() {
   const [detailsSession, setDetailsSession] = useState<any>(null);
   const [financeSession, setFinanceSession] = useState<any>(null);
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
+  const [crowdSessionId, setCrowdSessionId] = useState<number | null>(null);
   const [joinSession, setJoinSession] = useState<any>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
@@ -956,6 +1047,18 @@ export default function Sessions() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {editableClubIds.has(session.clubId) ? (
                       <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCrowdSessionId(session.id);
+                          }}
+                          data-testid={`button-crowd-session-${session.id}`}
+                        >
+                          <BarChart3 className="h-4 w-4 mr-1" />
+                          Crowd
+                        </Button>
                         {!isOrganiserOnly && (
                           <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
                             <Wallet className="h-4 w-4 mr-1" />
@@ -1064,6 +1167,14 @@ export default function Sessions() {
           session={financeSession}
           open={!!financeSession}
           onOpenChange={(open) => { if (!open) setFinanceSession(null); }}
+        />
+      )}
+
+      {crowdSessionId && (
+        <StandaloneCrowdControl
+          sessionId={crowdSessionId}
+          open={!!crowdSessionId}
+          onOpenChange={(open) => { if (!open) setCrowdSessionId(null); }}
         />
       )}
 
