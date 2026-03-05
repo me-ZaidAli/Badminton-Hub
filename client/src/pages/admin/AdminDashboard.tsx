@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown } from "lucide-react";
+import { Users, Calendar, DollarSign, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -361,6 +361,7 @@ export default function AdminDashboard() {
   const analyticsSections: AdminTile[] = [
     ...(!isOrganiserOnly ? [{ href: "/admin/acquisition-analytics", label: "Acquisition & KPI", description: "Track growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/attendance-analytics", label: "Attendance Analytics", description: "Session attendance and engagement metrics", icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/match-engine-lab", label: "Match Engine Lab", description: "Stress-test the matchmaking algorithm in a sandbox", icon: FlaskConical, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
   ];
 
   const juniorsSections: AdminTile[] = [

@@ -14,6 +14,7 @@ import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { applyAIBrainLayer, computeSessionMetrics } from "./adaptiveFairnessAI";
+import { runSimulation } from "./matchEngineLab";
 import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
@@ -5111,6 +5112,60 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching AI metrics:", err);
       res.status(500).json({ message: err.message || "Failed to fetch AI metrics" });
+    }
+  });
+
+  app.post("/api/admin/match-engine-lab/simulate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+
+    try {
+      const {
+        totalMatches = 50,
+        playerCount = 16,
+        maleCount = 8,
+        mode = "SOCIAL",
+        genderType = "MIXED",
+        playersPerSide = 2,
+        courtsAvailable = 3,
+        useAIBrain = false,
+        gradeDistribution = "weighted",
+        customGrades,
+      } = req.body;
+
+      const rawTotal = Number(totalMatches);
+      const rawPlayers = Number(playerCount);
+      const rawMale = Number(maleCount);
+      const rawCourts = Number(courtsAvailable);
+
+      if (!Number.isFinite(rawTotal) || !Number.isFinite(rawPlayers) || !Number.isFinite(rawMale) || !Number.isFinite(rawCourts)) {
+        return res.status(400).json({ message: "Invalid numeric parameters" });
+      }
+
+      const validTotal = Math.min(Math.max(Math.round(rawTotal), 10), 500);
+      const validPlayers = Math.min(Math.max(Math.round(rawPlayers), 4), 40);
+      const validMale = Math.min(Math.max(Math.round(rawMale), 0), validPlayers);
+      const validFemale = validPlayers - validMale;
+
+      const report = runSimulation({
+        totalMatches: validTotal,
+        playerCount: validPlayers,
+        maleCount: validMale,
+        femaleCount: validFemale,
+        mode: mode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL",
+        genderType: ["MIXED", "FEMALE", "MALE"].includes(genderType) ? genderType : "MIXED",
+        playersPerSide: playersPerSide === 1 ? 1 : 2,
+        courtsAvailable: Math.min(Math.max(Math.round(rawCourts), 1), 10),
+        useAIBrain: !!useAIBrain,
+        gradeDistribution: ["uniform", "weighted", "custom"].includes(gradeDistribution) ? gradeDistribution : "weighted",
+        customGrades,
+      });
+
+      res.json(report);
+    } catch (err: any) {
+      console.error("Simulation error:", err);
+      res.status(500).json({ message: err.message || "Simulation failed" });
     }
   });
 

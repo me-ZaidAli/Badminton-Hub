@@ -69,6 +69,8 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Web App Manifest**: Defines PWA properties.
 - **Service Worker**: Implements network-first caching strategy.
 
+- **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics (fairness, balance, partner/opponent diversity, fatigue, gender distribution). Supports Standard vs AI Brain comparison, configurable player pools (4-40 players), match volumes (50-500), and side-by-side run comparison.
+
 ### APIs / Integrations
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
