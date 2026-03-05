@@ -3875,6 +3875,10 @@ export async function registerRoutes(
       }
 
       const { courtNumber } = req.body;
+
+      if (!match.teamAPlayer1Id || !match.teamBPlayer1Id) {
+        return res.status(400).json({ message: "Cannot start match: each team needs at least one player" });
+      }
       
       const updated = await storage.updateMatch(matchId, {
         status: "LIVE",

@@ -666,13 +666,11 @@ export class DatabaseStorage implements IStorage {
       const scoreEnteredByUser = await getUser(m.scoreEnteredByUserId);
       const scoreUpdatedByUser = await getUser(m.scoreUpdatedByUserId);
 
-      if (!p1 || !p3) throw new Error("Invalid match state: missing required players");
-
       return {
         ...m,
-        teamAPlayer1: p1,
+        teamAPlayer1: p1 || null,
         teamAPlayer2: p2 || null,
-        teamBPlayer1: p3,
+        teamBPlayer1: p3 || null,
         teamBPlayer2: p4 || null,
         scoreEnteredByUser,
         scoreUpdatedByUser,
