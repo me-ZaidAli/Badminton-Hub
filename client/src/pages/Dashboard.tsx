@@ -14,12 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Link, Redirect, useLocation } from "wouter";
-import { format, isPast, isFuture } from "date-fns";
+import { format, isPast, isFuture, subMonths, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import {
   Calendar, Trophy, Zap, TrendingUp, Building2, Plus, Percent,
   Users, Target, Clock, Loader2, ChevronRight, Activity, Filter, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords, CreditCard, Crown, Share2, Shield, Star
+  MapPin, Swords, CreditCard, Crown, Share2, Shield, Star, ArrowUpRight, ArrowDownRight
 } from "lucide-react";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import vsBannerBg from "@/assets/images/vs-banner-bg.png";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
@@ -280,12 +281,106 @@ function DashboardContent({
       .slice(0, 5);
   }, [mySessionsList]);
 
+  const sessionActivityData = useMemo(() => {
+    const now = new Date();
+    const months: { name: string; sessions: number; signups: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(now, i);
+      const start = startOfMonth(monthDate);
+      const end = endOfMonth(monthDate);
+      const monthSessions = filteredSessions.filter(s => {
+        const d = new Date(s.date);
+        return isWithinInterval(d, { start, end });
+      });
+      const monthSignups = mySessionsList.filter(s => {
+        const d = new Date(s.sessionDate);
+        return isWithinInterval(d, { start, end });
+      });
+      months.push({
+        name: format(monthDate, "MMM"),
+        sessions: monthSessions.length,
+        signups: monthSignups.length,
+      });
+    }
+    return months;
+  }, [filteredSessions, mySessionsList]);
+
+  const monthlyAttendanceData = useMemo(() => {
+    const now = new Date();
+    const months: { name: string; attended: number; missed: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(now, i);
+      const start = startOfMonth(monthDate);
+      const end = endOfMonth(monthDate);
+      const monthPlayed = mySessionsList.filter(s => {
+        const d = new Date(s.sessionDate);
+        return isPast(d) && s.sessionStatus !== "ACTIVE" && isWithinInterval(d, { start, end });
+      });
+      const attended = monthPlayed.filter(s => s.attendanceStatus === "ATTENDED" || s.attendanceStatus === "PARTIAL_ATTENDANCE" || s.attendanceStatus === "LATE_ARRIVAL").length;
+      months.push({
+        name: format(monthDate, "MMM"),
+        attended,
+        missed: monthPlayed.length - attended,
+      });
+    }
+    return months;
+  }, [mySessionsList]);
+
+  const kpiChanges = useMemo(() => {
+    const now = new Date();
+    const thisMonth = startOfMonth(now);
+    const lastMonthStart = startOfMonth(subMonths(now, 1));
+    const lastMonthEnd = endOfMonth(subMonths(now, 1));
+
+    const thisMonthSessions = filteredSessions.filter(s => new Date(s.date) >= thisMonth).length;
+    const lastMonthSessions = filteredSessions.filter(s => {
+      const d = new Date(s.date);
+      return isWithinInterval(d, { start: lastMonthStart, end: lastMonthEnd });
+    }).length;
+
+    const thisMonthSignups = mySessionsList.filter(s => new Date(s.sessionDate) >= thisMonth).length;
+    const lastMonthSignups = mySessionsList.filter(s => {
+      const d = new Date(s.sessionDate);
+      return isWithinInterval(d, { start: lastMonthStart, end: lastMonthEnd });
+    }).length;
+
+    const calcChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    return {
+      sessions: calcChange(thisMonthSessions, lastMonthSessions),
+      signups: calcChange(thisMonthSignups, lastMonthSignups),
+      upcoming: myUpcomingCount,
+      played: myPlayedCount,
+    };
+  }, [filteredSessions, mySessionsList, myUpcomingCount, myPlayedCount]);
+
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title={`Welcome back, ${user?.fullName.split(' ')[0]}!`}
-        description="Your dashboard overview."
-      />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.fullName.split(' ')[0]}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {clubs.length > 1 && (
+            <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
+              <SelectTrigger className="w-[180px] h-9" data-testid="select-dashboard-club">
+                <SelectValue placeholder="Select club" />
+              </SelectTrigger>
+              <SelectContent>
+                {clubs.map(club => (
+                  <SelectItem key={club.id} value={club.id.toString()}>
+                    {club.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
 
       {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
         <Card className={`border ${
@@ -699,73 +794,184 @@ function DashboardContent({
         </CardContent>
       </Card>
 
-      {clubs.length > 0 && (
-        <div className="flex items-center gap-2" data-testid="club-filter">
-          <label className="text-sm font-medium text-muted-foreground">Club:</label>
-          <Select value={effectiveClubId?.toString() || ""} onValueChange={onClubChange}>
-            <SelectTrigger className="w-[200px]" data-testid="select-dashboard-club">
-              <SelectValue placeholder="Select club" />
-            </SelectTrigger>
-            <SelectContent>
-              {clubs.map(club => (
-                <SelectItem key={club.id} value={club.id.toString()}>
-                  {club.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="stats-grid">
+        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("club-sessions")}>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</p>
+              <div className="p-1.5 rounded-lg bg-blue-500/10">
+                <Calendar className="h-3.5 w-3.5 text-blue-500" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-total-sessions">{totalSessionsCount}</span>
+              {kpiChanges.sessions !== 0 && (
+                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 font-semibold ${kpiChanges.sessions > 0 ? "text-emerald-600 bg-emerald-500/10" : "text-red-500 bg-red-500/10"}`}>
+                  {kpiChanges.sessions > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                  {Math.abs(kpiChanges.sessions)}%
+                </Badge>
+              )}
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">in this club</p>
+          </CardContent>
+        </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4" data-testid="stats-grid">
-        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("club-sessions")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/10">
-              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
+        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("my-sessions")}>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</p>
+              <div className="p-1.5 rounded-lg bg-emerald-500/10">
+                <Users className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-total-sessions">{totalSessionsCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">in this club</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-my-sessions-count">{mySessionsList.length}</span>
+              {kpiChanges.signups !== 0 && (
+                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 font-semibold ${kpiChanges.signups > 0 ? "text-emerald-600 bg-emerald-500/10" : "text-red-500 bg-red-500/10"}`}>
+                  {kpiChanges.signups > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                  {Math.abs(kpiChanges.signups)}%
+                </Badge>
+              )}
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">signed up</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("my-sessions")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10">
-              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500" />
+
+        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => navigate("/my-sessions")}>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Upcoming</p>
+              <div className="p-1.5 rounded-lg bg-amber-500/10">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-my-sessions-count">{mySessionsList.length}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">signed up</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-upcoming-count">{myUpcomingCount}</span>
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">sessions ahead</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover-elevate" onClick={() => navigate("/my-sessions")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">My Upcoming</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-amber-500/10">
-              <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+
+        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("played")}>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Played</p>
+              <div className="p-1.5 rounded-lg bg-purple-500/10">
+                <Activity className="h-3.5 w-3.5 text-purple-500" />
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-upcoming-count">{myUpcomingCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">sessions ahead</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-sessions-played">{myPlayedCount}</span>
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">completed</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover-elevate" onClick={() => setKpiDetail("played")}>
-          <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Played</CardTitle>
-            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/10">
-              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500" />
+      </div>
+
+      <Card className="border-border/40" data-testid="card-session-activity-chart">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold">Session Activity</CardTitle>
+            <Badge variant="outline" className="text-[10px] font-normal">Last 6 months</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="h-[220px] sm:h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sessionActivityData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sessionGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }}
+                  labelStyle={{ fontWeight: 600 }}
+                />
+                <Area type="monotone" dataKey="sessions" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#sessionGradient)" name="Club Sessions" />
+                <Area type="monotone" dataKey="signups" stroke="hsl(142 71% 45%)" strokeWidth={2} fill="none" strokeDasharray="5 5" name="My Signups" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-3 border-border/40" data-testid="card-attendance-chart">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">Monthly Attendance</CardTitle>
+              <div className="flex items-center gap-3 text-[10px] sm:text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Attended</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-300 inline-block" /> Missed</span>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-2xl sm:text-3xl font-bold" data-testid="text-sessions-played">{myPlayedCount}</div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">completed</div>
+          <CardContent className="pt-0">
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyAttendanceData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }}
+                    labelStyle={{ fontWeight: 600 }}
+                  />
+                  <Bar dataKey="attended" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} name="Attended" />
+                  <Bar dataKey="missed" fill="hsl(217 91% 80%)" radius={[4, 4, 0, 0]} name="Missed" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
+
+        <div className="lg:col-span-2">
+          {!isPremium && !isSuperAdmin ? (
+            <Card className="h-full bg-gradient-to-br from-slate-900 to-blue-950 text-white border-0 overflow-hidden relative" data-testid="card-premium-promo">
+              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 70% 30%, rgba(59,130,246,0.4), transparent 60%)" }} />
+              <CardContent className="p-6 relative z-10 flex flex-col h-full justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Crown className="h-6 w-6 text-amber-400" />
+                    <h3 className="text-lg font-bold">Premium</h3>
+                  </div>
+                  <p className="text-sm text-white/70 leading-relaxed">
+                    Upgrade now to unlock all features you need — rankings, analytics, match engine, and more.
+                  </p>
+                </div>
+                <Link href="/admin/billing">
+                  <Button className="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-semibold" data-testid="button-upgrade-premium-promo">
+                    Unlock Now <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="h-full bg-gradient-to-br from-primary/5 to-primary/10 border-border/40" data-testid="card-create-club-promo">
+              <CardContent className="p-6 flex flex-col h-full justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building2 className="h-6 w-6 text-primary" />
+                    <h3 className="text-lg font-bold">Start a Club</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Create and manage your own racket sports club or group. Invite players and organise sessions.
+                  </p>
+                </div>
+                <Link href="/create-club">
+                  <Button className="w-full mt-6" data-testid="button-create-club">
+                    <Plus className="h-4 w-4 mr-1" /> Create Club
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       <KpiDetailDialog open={kpiDetail === "club-sessions"} onOpenChange={(o) => !o && setKpiDetail(null)} title="Club Sessions" description={`${totalSessionsCount} sessions in this club`}>
@@ -833,24 +1039,6 @@ function DashboardContent({
         )}
       </KpiDetailDialog>
 
-      <Card className="bg-gradient-to-br from-primary/5 to-primary/10" data-testid="card-create-club">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/20 rounded-lg shrink-0">
-              <Building2 className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm">Start Your Own Club or Group</h3>
-              <p className="text-xs text-muted-foreground">Create and manage your club</p>
-            </div>
-          </div>
-          <Link href="/create-club">
-            <Button size="sm" className="w-full mt-3" data-testid="button-create-club">
-              <Plus className="h-4 w-4 mr-1" /> Create Club
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
 
       {pastSessions.length > 0 && (
         <div data-testid="recent-sessions-section">
