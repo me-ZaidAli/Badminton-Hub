@@ -6943,3 +6943,176 @@ html.theme-transitioning * {
 .phantom-luxe ::-webkit-scrollbar-thumb { background: hsl(0 0% 16%); border-radius: 3px; }
 .phantom-luxe ::-webkit-scrollbar-thumb:hover { background: hsl(0 0% 24%); }
 
+.neon-power-btn {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.2s;
+  outline: none;
+}
+.neon-power-btn:hover { transform: scale(1.05); }
+.neon-power-btn:active { transform: scale(0.97); }
+.neon-power-btn:disabled { cursor: default; }
+.neon-power-btn:disabled:hover { transform: none; }
+.neon-power-btn:disabled:active { transform: none; }
+
+.neon-power-outer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(0, 180, 255, 0.08) 0deg,
+    rgba(0, 120, 255, 0.15) 60deg,
+    rgba(0, 180, 255, 0.05) 120deg,
+    rgba(0, 140, 255, 0.12) 180deg,
+    rgba(0, 180, 255, 0.08) 240deg,
+    rgba(0, 120, 255, 0.15) 300deg,
+    rgba(0, 180, 255, 0.08) 360deg
+  );
+  animation: neon-outer-rotate 8s linear infinite;
+}
+
+.neon-power-circuit-ring {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0, 180, 255, 0.15);
+  animation: neon-outer-rotate 12s linear infinite reverse;
+  pointer-events: none;
+}
+
+.neon-power-ring {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(0, 200, 255, 0.6);
+  box-shadow:
+    0 0 8px rgba(0, 200, 255, 0.4),
+    0 0 20px rgba(0, 180, 255, 0.2),
+    inset 0 0 8px rgba(0, 200, 255, 0.15);
+}
+
+.neon-power-ring-pulse {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 220, 255, 0.3);
+  opacity: 0;
+  animation: neon-ring-expand 2.5s ease-out infinite;
+}
+
+.neon-power-glow {
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 180, 255, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.neon-power-inner {
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, hsl(220 20% 16%) 0%, hsl(220 25% 8%) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.neon-power-icon {
+  color: rgba(0, 220, 255, 0.85);
+  filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.6)) drop-shadow(0 0 14px rgba(0, 180, 255, 0.3));
+  transition: all 0.3s;
+}
+
+.neon-power-btn:hover .neon-power-icon {
+  color: rgba(0, 240, 255, 1);
+  filter: drop-shadow(0 0 10px rgba(0, 220, 255, 0.8)) drop-shadow(0 0 25px rgba(0, 180, 255, 0.5));
+}
+
+@keyframes neon-outer-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes neon-ring-expand {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  70% { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+@keyframes neon-heartbeat-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  15% { transform: scale(1.08); opacity: 1; }
+  30% { transform: scale(0.96); opacity: 0.85; }
+  45% { transform: scale(1.06); opacity: 1; }
+  60% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes neon-vibrate-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-1px, 0.5px) rotate(-0.5deg); }
+  20% { transform: translate(1px, -0.5px) rotate(0.5deg); }
+  30% { transform: translate(-0.5px, 1px) rotate(-0.3deg); }
+  40% { transform: translate(1px, 0px) rotate(0.4deg); }
+  50% { transform: translate(-1px, -0.5px) rotate(-0.5deg); }
+  60% { transform: translate(0.5px, 1px) rotate(0.3deg); }
+  70% { transform: translate(-1px, 0px) rotate(-0.4deg); }
+  80% { transform: translate(0.5px, -1px) rotate(0.5deg); }
+  90% { transform: translate(-0.5px, 0.5px) rotate(-0.3deg); }
+}
+
+@keyframes neon-text-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes neon-glow-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+.neon-heartbeat {
+  animation: neon-heartbeat-pulse 0.8s ease-in-out infinite !important;
+}
+
+.neon-vibrate {
+  animation: neon-vibrate-shake 0.15s ease-in-out infinite;
+}
+
+.neon-text-pulse {
+  animation: neon-text-blink 1s ease-in-out infinite;
+  text-shadow: 0 0 8px rgba(0, 220, 255, 0.6), 0 0 20px rgba(0, 180, 255, 0.3);
+}
+
+.neon-power-btn:disabled .neon-power-ring {
+  border-color: rgba(0, 220, 255, 0.9);
+  box-shadow:
+    0 0 12px rgba(0, 220, 255, 0.6),
+    0 0 30px rgba(0, 180, 255, 0.3),
+    0 0 60px rgba(0, 160, 255, 0.15),
+    inset 0 0 12px rgba(0, 220, 255, 0.25);
+}
+
+.neon-power-btn:disabled .neon-power-glow {
+  animation: neon-glow-breathe 0.8s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(0, 200, 255, 0.25) 0%, transparent 65%);
+}
+
+.neon-power-btn:disabled .neon-power-icon {
+  color: rgba(0, 255, 255, 1);
+  filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.9)) drop-shadow(0 0 30px rgba(0, 200, 255, 0.5));
+}
+

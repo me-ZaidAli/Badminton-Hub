@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   FlaskConical, Play, BarChart3, Users, Zap, Brain, AlertTriangle,
   TrendingUp, Target, Shield, Loader2, Trash2, ArrowLeftRight,
-  ChevronDown, ChevronUp, Trophy, Activity, Shuffle, Eye
+  ChevronDown, ChevronUp, Trophy, Activity, Shuffle, Eye, Power
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -528,28 +528,45 @@ export default function MatchEngineLab() {
 
           <Separator className="my-4" />
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button
-              onClick={() => simulateMutation.mutate()}
-              disabled={simulateMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-700"
-              data-testid="button-run-simulation"
-            >
-              {simulateMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Simulating...</>
-              ) : (
-                <><Play className="h-4 w-4 mr-2" /> Run Simulation</>
+          <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => !simulateMutation.isPending && simulateMutation.mutate()}
+                disabled={simulateMutation.isPending}
+                className="neon-power-btn group relative"
+                data-testid="button-run-simulation"
+              >
+                <div className="neon-power-outer" />
+                <div className="neon-power-ring" />
+                <div className={`neon-power-ring-pulse ${simulateMutation.isPending ? "neon-heartbeat" : ""}`} />
+                <div className={`neon-power-glow ${simulateMutation.isPending ? "neon-heartbeat" : ""}`} />
+                <div className="neon-power-inner">
+                  {simulateMutation.isPending ? (
+                    <div className="neon-power-icon neon-vibrate">
+                      <Power className="h-8 w-8" strokeWidth={2.5} />
+                    </div>
+                  ) : (
+                    <div className="neon-power-icon">
+                      <Power className="h-8 w-8" strokeWidth={2.5} />
+                    </div>
+                  )}
+                </div>
+                <div className="neon-power-circuit-ring" />
+              </button>
+              <span className={`text-xs font-medium tracking-wider uppercase ${simulateMutation.isPending ? "text-cyan-400 neon-text-pulse" : "text-muted-foreground"}`}>
+                {simulateMutation.isPending ? "Analysing..." : "Initiate Test"}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 items-start">
+              {currentReport && (
+                <Button variant="outline" onClick={handleSaveForComparison} data-testid="button-save-comparison">
+                  <TrendingUp className="h-4 w-4 mr-2" /> Save for Comparison
+                </Button>
               )}
-            </Button>
-
-            {currentReport && (
-              <Button variant="outline" onClick={handleSaveForComparison} data-testid="button-save-comparison">
-                <TrendingUp className="h-4 w-4 mr-2" /> Save for Comparison
-              </Button>
-            )}
-
-            <div className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
-              <Shield className="h-3.5 w-3.5" /> All data is temporary and isolated
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <Shield className="h-3.5 w-3.5" /> All data is temporary and isolated
+              </div>
             </div>
           </div>
         </CardContent>
