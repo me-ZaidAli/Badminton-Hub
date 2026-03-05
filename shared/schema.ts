@@ -357,6 +357,7 @@ export const sessions = pgTable("sessions", {
   defaultPointsToPlayTo: integer("default_points_to_play_to").default(21),
   numberOfSets: integer("number_of_sets").default(1).notNull(),
   autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
+  aiBrainEnabled: boolean("ai_brain_enabled").default(false).notNull(),
   queueTargetSize: integer("queue_target_size").default(3),
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
   publishAt: timestamp("publish_at"),

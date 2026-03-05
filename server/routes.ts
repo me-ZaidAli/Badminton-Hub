@@ -13,6 +13,7 @@ import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
+import { applyAIBrainLayer, computeSessionMetrics } from "./adaptiveFairnessAI";
 import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
@@ -4933,17 +4934,47 @@ export async function registerRoutes(
         }
       }
 
-      const generated = generateSmartMatches({
-        mode: matchMode as "SOCIAL" | "COMPETITIVE",
-        players,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: gType,
-        queueTarget: finalTarget,
-        recentPairings,
-        recentOpponents,
-        playerMatchCounts,
-        fixedPairs: extractFixedPairs(eligibleSignups),
-      });
+      const clubPlan = await getClubPlanStatus(session.clubId);
+      const useAIBrain = session.aiBrainEnabled && isClubPremium(clubPlan.planStatus);
+
+      let generated: any;
+      if (useAIBrain) {
+        generated = applyAIBrainLayer({
+          mode: matchMode as "SOCIAL" | "COMPETITIVE",
+          players,
+          playersPerSide: playersPerSide as 1 | 2,
+          genderType: gType,
+          queueTarget: finalTarget,
+          matchHistory: existingMatches.map(m => ({
+            id: m.id,
+            status: m.status,
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            scoreA: m.scoreA,
+            scoreB: m.scoreB,
+            startedAt: m.startedAt,
+            completedAt: m.completedAt,
+          })),
+          fixedPairs: extractFixedPairs(eligibleSignups),
+          priorityPlayerIds: undefined,
+          sessionDurationMinutes: session.durationMinutes || 120,
+          elapsedMinutes: session.date ? Math.max(0, Math.round((Date.now() - new Date(session.date).getTime()) / 60000)) : undefined,
+        });
+      } else {
+        generated = generateSmartMatches({
+          mode: matchMode as "SOCIAL" | "COMPETITIVE",
+          players,
+          playersPerSide: playersPerSide as 1 | 2,
+          genderType: gType,
+          queueTarget: finalTarget,
+          recentPairings,
+          recentOpponents,
+          playerMatchCounts,
+          fixedPairs: extractFixedPairs(eligibleSignups),
+        });
+      }
 
       if (generated.pairConstraintBlocked) {
         return res.json({ status: "pair_blocked", message: generated.pairConstraintMessage || "Pair constraint blocked match generation", matches: [] });
@@ -4993,6 +5024,93 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error smart-generating matches:", err);
       res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/ai-brain-toggle", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const isAdmin = await canManageSessions(user.id, user.role, session.clubId);
+        if (!isAdmin) return res.sendStatus(403);
+      }
+
+      const clubPlan = await getClubPlanStatus(session.clubId);
+      if (!isClubPremium(clubPlan.planStatus) && user.role !== "OWNER") {
+        return res.status(403).json({ message: "AI Match Brain requires a Premium plan.", requiresPremium: true });
+      }
+
+      const newState = !session.aiBrainEnabled;
+      await db.update(sessions).set({ aiBrainEnabled: newState }).where(eq(sessions.id, sessionId));
+      res.json({ aiBrainEnabled: newState });
+    } catch (err: any) {
+      console.error("Error toggling AI brain:", err);
+      res.status(500).json({ message: err.message || "Failed to toggle AI brain" });
+    }
+  });
+
+  app.get("/api/sessions/:sessionId/ai-metrics", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+
+      const players = confirmedSignups.map(s => ({
+        id: s.player.id,
+        gender: s.player.gender,
+        grade: s.player.grade || s.player.category || "C3",
+        isPaused: s.isPaused,
+        genderOverride: s.genderOverride,
+      }));
+
+      const matchHistory = existingMatches.map(m => ({
+        id: m.id,
+        status: m.status,
+        teamAPlayer1Id: m.teamAPlayer1Id,
+        teamAPlayer2Id: m.teamAPlayer2Id,
+        teamBPlayer1Id: m.teamBPlayer1Id,
+        teamBPlayer2Id: m.teamBPlayer2Id,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        startedAt: m.startedAt,
+        completedAt: m.completedAt,
+      }));
+
+      const metrics = computeSessionMetrics(matchHistory, players);
+
+      const playerNameMap = new Map<number, string>();
+      for (const s of confirmedSignups) {
+        playerNameMap.set(s.player.id, s.player.user?.fullName || `Player ${s.player.id}`);
+      }
+      const warningsWithNames = metrics.warnings.map(w => ({
+        ...w,
+        playerName: playerNameMap.get(w.playerId) || `Player ${w.playerId}`,
+      }));
+
+      res.json({
+        ...metrics,
+        warnings: warningsWithNames,
+        aiBrainEnabled: session.aiBrainEnabled,
+        playerMetrics: metrics.playerMetrics.map(pm => ({
+          ...pm,
+          playerName: playerNameMap.get(pm.playerId) || `Player ${pm.playerId}`,
+          partnerHistory: Object.fromEntries(pm.partnerHistory),
+          opponentHistory: Object.fromEntries(pm.opponentHistory),
+        })),
+      });
+    } catch (err: any) {
+      console.error("Error fetching AI metrics:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch AI metrics" });
     }
   });
 

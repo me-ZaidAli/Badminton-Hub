@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1089,7 +1089,9 @@ export default function SessionDetail() {
         defaultPointsToPlayTo={(session as any).defaultPointsToPlayTo || 21}
         sessionStatus={session.status || "UPCOMING"}
         autoGenerateActive={(session as any).autoGenerateActive || false}
+        aiBrainEnabled={(session as any).aiBrainEnabled || false}
         savedQueueTargetSize={(session as any).queueTargetSize ?? 3}
+        clubId={session.clubId}
       />
 
       <div className="space-y-4 sm:space-y-6">
@@ -1828,7 +1830,7 @@ export default function SessionDetail() {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3 }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, aiBrainEnabled: initialAiBrainEnabled = false, savedQueueTargetSize = 3, clubId }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
@@ -1842,9 +1844,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   defaultPointsToPlayTo?: number;
   sessionStatus: string;
   autoGenerateActive: boolean;
+  aiBrainEnabled?: boolean;
   savedQueueTargetSize?: number;
+  clubId?: number;
 }) {
   const confirmedSignups = signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || [];
+  const { toast } = useToast();
   const { data: matches, isLoading } = useSessionMatches(sessionId);
   const { mutate: startMatch } = useStartMatch();
   const { mutateAsync: completeMatch } = useCompleteMatch();
@@ -1885,6 +1890,27 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
+  const [aiBrainActive, setAiBrainActive] = useState(initialAiBrainEnabled);
+
+  const aiBrainToggleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/ai-brain-toggle`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setAiBrainActive(data.aiBrainEnabled);
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+      toast({
+        title: data.aiBrainEnabled ? "AI Match Brain Activated" : "AI Match Brain Deactivated",
+        description: data.aiBrainEnabled
+          ? "Adaptive fairness analysis is now enhancing match generation."
+          : "Switched back to Standard Smart Match Engine.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to toggle AI brain.", variant: "destructive" });
+    },
+  });
 
   const isSessionCompleted = sessionStatus === "COMPLETED";
 
@@ -2409,11 +2435,34 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     <Shuffle className="w-4 h-4" />
                     {isSmartGenerating ? "Generating..." : "Generate Matches"}
                   </Button>
+
+                  <Button
+                    variant={aiBrainActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => aiBrainToggleMutation.mutate()}
+                    disabled={aiBrainToggleMutation.isPending}
+                    className={cn(
+                      "gap-1.5 transition-all duration-300",
+                      aiBrainActive && "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg shadow-purple-500/25"
+                    )}
+                    data-testid="button-ai-brain-toggle"
+                  >
+                    <Brain className={cn("w-4 h-4", aiBrainActive && "animate-pulse")} />
+                    <span className="hidden sm:inline">{aiBrainActive ? "AI Brain ON" : "AI Brain"}</span>
+                    {aiBrainActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
+                  </Button>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {aiBrainActive && (
+        <div className="flex items-center gap-2 text-sm rounded-md px-3 py-2 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40" data-testid="ai-brain-indicator">
+          <Brain className="w-4 h-4" />
+          <span>AI Match Brain is active — adaptive fairness analysis enhancing match generation</span>
+        </div>
       )}
 
       {autoGenerateActive && !autoGenLocallyStopped && (
@@ -2581,6 +2630,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           queuedCount={queuedMatches.length}
           completedCount={completedCount}
           matches={typedMatches as any}
+          sessionId={sessionId}
+          aiBrainEnabled={aiBrainActive}
         />
       )}
 
