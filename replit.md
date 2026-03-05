@@ -26,7 +26,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine with gender-aware logic and 9-tier grade-based scoring. The Session Fairness Command Center includes a Player Intelligence system with per-player Challenge Index (grade-based opponent comparison), Performance Score, Promotion Watch (auto-flags promotion candidates, struggling, under-challenged), and a Competitive Distribution Overview with session-wide analytics, grade distribution pie chart, and filterable player list.
 - **Membership System**: Handles club-based memberships, plans, requests, and approvals.
 - **Dynamic Leaderboard System**: Computes player rankings from completed matches.
-- **Financial Dashboard & Credit System**: Provides financial oversight, credit management, and a donation system.
+- **Financial Intelligence System**: Multi-view financial dashboard with 5 views (Classic, Analytics, Profitability, Cashflow, Reports), Smart Insights with auto-detected alerts and Revenue Forecast, localStorage view persistence. Components in `client/src/components/financial/` with shared types. Includes credit management and donation system.
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.

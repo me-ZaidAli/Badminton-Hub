@@ -51,8 +51,16 @@ import {
   Crown,
   BarChart3,
   LayoutDashboard,
+  Activity,
+  FileText,
+  Target,
+  Lightbulb,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
+import ProfitabilityView from "@/components/financial/ProfitabilityView";
+import CashflowView from "@/components/financial/CashflowView";
+import ReportsView from "@/components/financial/ReportsView";
+import SmartInsights from "@/components/financial/SmartInsights";
 
 interface FinancialEntry {
   signupId: number;
@@ -518,7 +526,19 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits" | "donations">("session");
-  const [dashboardView, setDashboardView] = useState<"classic" | "analytics">("classic");
+  const [dashboardView, setDashboardView] = useState<"classic" | "analytics" | "profitability" | "cashflow" | "reports">(() => {
+    try {
+      const saved = localStorage.getItem("financialDashboardView");
+      if (saved && ["classic", "analytics", "profitability", "cashflow", "reports"].includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return "classic";
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("financialDashboardView", dashboardView); } catch {}
+  }, [dashboardView]);
   const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
@@ -1910,7 +1930,7 @@ export default function Financials() {
             <p className="text-muted-foreground">Track revenue, payments and outstanding fees.</p>
           </div>
         </div>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1" data-testid="view-switcher">
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 flex-wrap" data-testid="view-switcher">
           <Button
             size="sm"
             variant={dashboardView === "classic" ? "default" : "ghost"}
@@ -1919,7 +1939,7 @@ export default function Financials() {
             data-testid="button-classic-view"
           >
             <LayoutDashboard className="h-4 w-4" />
-            Classic
+            <span className="hidden sm:inline">Classic</span>
           </Button>
           <Button
             size="sm"
@@ -1929,7 +1949,37 @@ export default function Financials() {
             data-testid="button-analytics-view"
           >
             <BarChart3 className="h-4 w-4" />
-            Analytics
+            <span className="hidden sm:inline">Analytics</span>
+          </Button>
+          <Button
+            size="sm"
+            variant={dashboardView === "profitability" ? "default" : "ghost"}
+            onClick={() => setDashboardView("profitability")}
+            className="gap-1.5"
+            data-testid="button-profitability-view"
+          >
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline">Profitability</span>
+          </Button>
+          <Button
+            size="sm"
+            variant={dashboardView === "cashflow" ? "default" : "ghost"}
+            onClick={() => setDashboardView("cashflow")}
+            className="gap-1.5"
+            data-testid="button-cashflow-view"
+          >
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Cashflow</span>
+          </Button>
+          <Button
+            size="sm"
+            variant={dashboardView === "reports" ? "default" : "ghost"}
+            onClick={() => setDashboardView("reports")}
+            className="gap-1.5"
+            data-testid="button-reports-view"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Reports</span>
           </Button>
         </div>
       </div>
@@ -2063,11 +2113,21 @@ export default function Financials() {
         </CardContent>
       </Card>
 
+      {dashboardView !== "classic" && (
+        <SmartInsights filteredData={filteredData} dashboardData={dashboardData} />
+      )}
+
       {dashboardView === "analytics" ? (
         <FinancialAnalyticsView
           filteredData={filteredData}
           dashboardData={dashboardData}
         />
+      ) : dashboardView === "profitability" ? (
+        <ProfitabilityView filteredData={filteredData} dashboardData={dashboardData} />
+      ) : dashboardView === "cashflow" ? (
+        <CashflowView filteredData={filteredData} dashboardData={dashboardData} />
+      ) : dashboardView === "reports" ? (
+        <ReportsView filteredData={filteredData} dashboardData={dashboardData} />
       ) : (
       <>
       <div className="grid gap-2 grid-cols-3 sm:grid-cols-3 md:grid-cols-5">
