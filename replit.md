@@ -34,7 +34,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts.
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC.
 - **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.
-- **Club-Scoped Referral System**: Independent referral programs per club.
+- **Club-Scoped Referral System**: Independent referral programs per club with admin manual referral creation and approval.
 - **Junior Management**: Comprehensive features for managing junior players, including skill tracking, exercise challenges, and parent-facing dashboards.
 - **League Management System**: Full league fixture and results management, supporting multiple named leagues per club. This includes a Player Selection Notification banner for assigned players on their Dashboard, a League Squad Management System for admins to manage players, their format preferences, and send match availability polls.
 - **Payment & Credit Request System**: Players can confirm payments and request credits in-app, triggering admin notifications and support tickets.

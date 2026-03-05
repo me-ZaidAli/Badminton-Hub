@@ -15299,6 +15299,63 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/referrals/create", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      if (user.role !== "OWNER") {
+        const { clubId } = req.body;
+        if (!clubId) return res.status(400).json({ message: "Club is required" });
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_MEMBERSHIPS", clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const { referrerId, referredUserId, clubId } = req.body;
+      if (!referrerId || !clubId) {
+        return res.status(400).json({ message: "Referrer and club are required" });
+      }
+
+      const [referrer] = await db.select().from(users).where(eq(users.id, referrerId));
+      if (!referrer) return res.status(404).json({ message: "Referrer not found" });
+
+      let referredName: string | null = null;
+      let referredEmail: string | null = null;
+      if (referredUserId) {
+        const [referred] = await db.select().from(users).where(eq(users.id, referredUserId));
+        if (!referred) return res.status(404).json({ message: "Referred user not found" });
+        referredName = referred.fullName;
+        referredEmail = referred.email;
+      }
+
+      const codePrefix = "REF-";
+      const codeChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let code = codePrefix;
+      for (let i = 0; i < 6; i++) {
+        code += codeChars.charAt(Math.floor(Math.random() * codeChars.length));
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const [newReferral] = await db.insert(referrals).values({
+        referrerId,
+        code,
+        referredName,
+        referredEmail,
+        referredUserId: referredUserId || null,
+        clubId,
+        status: "PENDING",
+        expiresAt,
+        usedAt: referredUserId ? new Date() : null,
+      }).returning();
+
+      res.json({ success: true, referral: newReferral });
+    } catch (err: any) {
+      console.error("Error creating admin referral:", err);
+      res.status(500).json({ message: err.message || "Failed to create referral" });
+    }
+  });
+
   // GET /api/admin/referrals - Admin view of all referrals (filtered by club)
   app.get("/api/admin/referrals", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

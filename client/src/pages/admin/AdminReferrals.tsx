@@ -741,6 +741,12 @@ export default function AdminReferrals() {
   const [rejectDialog, setRejectDialog] = useState<AdminReferral | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [activeTab, setActiveTab] = useState("referrals");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createClubId, setCreateClubId] = useState("");
+  const [createReferrerId, setCreateReferrerId] = useState("");
+  const [createReferredId, setCreateReferredId] = useState("");
+  const [referrerSearch, setReferrerSearch] = useState("");
+  const [referredSearch, setReferredSearch] = useState("");
 
   const clubFilterParam = clubFilter !== "all" ? Number(clubFilter) : undefined;
 
@@ -799,6 +805,56 @@ export default function AdminReferrals() {
     },
   });
 
+  const selectedCreateClubId = createClubId ? Number(createClubId) : null;
+  const { data: clubMembers = [] } = useQuery<any[]>({
+    queryKey: ["/api/clubs", selectedCreateClubId, "memberships"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${selectedCreateClubId}/memberships`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedCreateClubId && createDialogOpen,
+  });
+
+  const memberUsers = clubMembers
+    .filter((m: any) => m.membershipStatus === "APPROVED" && m.user)
+    .map((m: any) => ({ id: m.user.id, fullName: m.user.fullName, email: m.user.email }));
+
+  const filteredReferrers = memberUsers.filter((u: any) =>
+    !referrerSearch || u.fullName.toLowerCase().includes(referrerSearch.toLowerCase())
+  );
+
+  const filteredReferred = memberUsers.filter((u: any) =>
+    u.id !== Number(createReferrerId) &&
+    (!referredSearch || u.fullName.toLowerCase().includes(referredSearch.toLowerCase()))
+  );
+
+  const createReferralMutation = useMutation({
+    mutationFn: async () => {
+      if (!createClubId || !createReferrerId) throw new Error("Please select a club and referrer");
+      const res = await apiRequest("POST", "/api/admin/referrals/create", {
+        referrerId: Number(createReferrerId),
+        referredUserId: createReferredId ? Number(createReferredId) : null,
+        clubId: Number(createClubId),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/referrals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/referrals/analytics"] });
+      setCreateDialogOpen(false);
+      setCreateClubId("");
+      setCreateReferrerId("");
+      setCreateReferredId("");
+      setReferrerSearch("");
+      setReferredSearch("");
+      toast({ title: "Referral Created", description: "The referral has been created and is ready to be approved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create referral.", variant: "destructive" });
+    },
+  });
+
   const pendingCount = referrals.filter(r => r.status === "PENDING").length;
 
   return (
@@ -830,36 +886,52 @@ export default function AdminReferrals() {
         </TabsList>
 
         <TabsContent value="referrals" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40" data-testid="select-referral-status-filter">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="EXPIRED">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-            {myAdminClubs.length > 1 && (
-              <Select value={clubFilter} onValueChange={setClubFilter}>
-                <SelectTrigger className="w-48" data-testid="select-referral-club-filter">
-                  <SelectValue placeholder="Filter by club" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40" data-testid="select-referral-status-filter">
+                  <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Clubs</SelectItem>
-                  {myAdminClubs.map((club: any) => (
-                    <SelectItem key={club.id} value={String(club.id)}>{club.name}</SelectItem>
-                  ))}
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="EXPIRED">Expired</SelectItem>
                 </SelectContent>
               </Select>
-            )}
-            {statusFilter === "PENDING" && pendingCount > 0 && (
-              <Badge className="bg-amber-500 text-white no-default-hover-elevate">{pendingCount} pending</Badge>
-            )}
+              {myAdminClubs.length > 1 && (
+                <Select value={clubFilter} onValueChange={setClubFilter}>
+                  <SelectTrigger className="w-48" data-testid="select-referral-club-filter">
+                    <SelectValue placeholder="Filter by club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clubs</SelectItem>
+                    {myAdminClubs.map((club: any) => (
+                      <SelectItem key={club.id} value={String(club.id)}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {statusFilter === "PENDING" && pendingCount > 0 && (
+                <Badge className="bg-amber-500 text-white no-default-hover-elevate">{pendingCount} pending</Badge>
+              )}
+            </div>
+            <Button
+              onClick={() => {
+                setCreateClubId(myAdminClubs.length === 1 ? String(myAdminClubs[0].id) : "");
+                setCreateReferrerId("");
+                setCreateReferredId("");
+                setReferrerSearch("");
+                setReferredSearch("");
+                setCreateDialogOpen(true);
+              }}
+              data-testid="button-create-referral"
+            >
+              <UserPlus className="h-4 w-4 mr-1" />
+              Create Referral
+            </Button>
           </div>
 
           {isLoading ? (
@@ -1082,6 +1154,144 @@ export default function AdminReferrals() {
             >
               {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Reject Referral
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-background max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Create Referral
+            </DialogTitle>
+            <DialogDescription>
+              Manually create a referral on behalf of a club member. The referral will be created in Pending status so you can approve it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Club</Label>
+              <Select
+                value={createClubId}
+                onValueChange={(v) => {
+                  setCreateClubId(v);
+                  setCreateReferrerId("");
+                  setCreateReferredId("");
+                  setReferrerSearch("");
+                  setReferredSearch("");
+                }}
+              >
+                <SelectTrigger data-testid="select-create-club">
+                  <SelectValue placeholder="Select a club" />
+                </SelectTrigger>
+                <SelectContent>
+                  {myAdminClubs.map((club: any) => (
+                    <SelectItem key={club.id} value={String(club.id)}>{club.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedCreateClubId && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Referrer (who referred)</Label>
+                  <Input
+                    placeholder="Search members..."
+                    value={referrerSearch}
+                    onChange={(e) => setReferrerSearch(e.target.value)}
+                    data-testid="input-search-referrer"
+                  />
+                  {createReferrerId && (
+                    <div className="flex items-center gap-2 text-sm bg-primary/10 rounded-md px-3 py-1.5">
+                      <Check className="h-3.5 w-3.5 text-primary" />
+                      <span className="font-medium">{memberUsers.find((u: any) => u.id === Number(createReferrerId))?.fullName}</span>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setCreateReferrerId("")} data-testid="button-clear-referrer">
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                  {!createReferrerId && referrerSearch && (
+                    <div className="max-h-32 overflow-y-auto border rounded-md">
+                      {filteredReferrers.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">No members found</div>
+                      ) : (
+                        filteredReferrers.slice(0, 10).map((u: any) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            onClick={() => {
+                              setCreateReferrerId(String(u.id));
+                              setReferrerSearch("");
+                            }}
+                            data-testid={`option-referrer-${u.id}`}
+                          >
+                            <span className="font-medium">{u.fullName}</span>
+                            <span className="text-muted-foreground ml-2 text-xs">{u.email}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Referred Person (who was referred)</Label>
+                  <Input
+                    placeholder="Search members..."
+                    value={referredSearch}
+                    onChange={(e) => setReferredSearch(e.target.value)}
+                    data-testid="input-search-referred"
+                  />
+                  {createReferredId && (
+                    <div className="flex items-center gap-2 text-sm bg-green-500/10 rounded-md px-3 py-1.5">
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                      <span className="font-medium">{memberUsers.find((u: any) => u.id === Number(createReferredId))?.fullName}</span>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setCreateReferredId("")} data-testid="button-clear-referred">
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                  {!createReferredId && referredSearch && (
+                    <div className="max-h-32 overflow-y-auto border rounded-md">
+                      {filteredReferred.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">No members found</div>
+                      ) : (
+                        filteredReferred.slice(0, 10).map((u: any) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            onClick={() => {
+                              setCreateReferredId(String(u.id));
+                              setReferredSearch("");
+                            }}
+                            data-testid={`option-referred-${u.id}`}
+                          >
+                            <span className="font-medium">{u.fullName}</span>
+                            <span className="text-muted-foreground ml-2 text-xs">{u.email}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Optional - leave empty if the referred person hasn't joined yet</p>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} data-testid="button-create-referral-cancel">Cancel</Button>
+            <Button
+              onClick={() => createReferralMutation.mutate()}
+              disabled={!createClubId || !createReferrerId || createReferralMutation.isPending}
+              data-testid="button-create-referral-confirm"
+            >
+              {createReferralMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Create Referral
             </Button>
           </DialogFooter>
         </DialogContent>
