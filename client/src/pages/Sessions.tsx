@@ -1158,11 +1158,15 @@ export default function Sessions() {
         
         {filteredSessions?.map((session) => {
           const canManageThis = isPlatformAdmin || managedClubIds.has(session.clubId);
+          const clubName = clubs?.find(c => c.id === session.clubId)?.name;
+          const formatLabel = session.playersPerSide === 1 ? "Singles" : "Doubles";
+          const venue = (session as any).venue;
+
           return (
           <div key={session.id} className="relative">
             {canManageThis && (
               <div
-                className="absolute top-4 left-4 z-10"
+                className="absolute top-5 left-5 z-10"
                 onClick={(e) => toggleSelect(session.id, e)}
               >
                 <Checkbox
@@ -1172,86 +1176,105 @@ export default function Sessions() {
                 />
               </div>
             )}
-            <Card className={`h-full border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
-              <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
-              <CardContent className="p-3 sm:p-6">
-                <div className={`flex justify-between items-start mb-3 sm:mb-4 gap-2 ${canManageThis ? "pl-8" : ""}`}>
-                  <div className="flex gap-1 flex-wrap">
-                    <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
+            <Card className={`h-full border-border/40 group overflow-visible rounded-2xl shadow-sm ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
+              <CardContent className="p-4 sm:p-5">
+
+                <div className={`flex items-center justify-between gap-2 ${canManageThis ? "pl-7" : ""}`}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${
+                      session.matchMode === "COMPETITIVE"
+                        ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                        : session.matchMode === "TRAINING"
+                        ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    }`} data-testid={`badge-mode-${session.id}`}>
                       {session.matchMode}
-                    </Badge>
-                    {clubs?.find(c => c.id === session.clubId)?.name && (
-                      <Badge variant="outline" className="text-xs">
-                        {clubs.find(c => c.id === session.clubId)!.name}
-                      </Badge>
-                    )}
-                    {session.playersPerSide === 1 && (
-                      <Badge variant="outline">Singles</Badge>
-                    )}
+                    </span>
                     {session.genderRestriction === "FEMALE_ONLY" && (
-                      <Badge variant="secondary" className="bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">Females Only</Badge>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females Only</span>
                     )}
                     {session.sessionType === "JUNIORS_ONLY" && (
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Juniors</Badge>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
                     )}
                     {session.isPrivate && (
-                      <Badge variant="outline">Private</Badge>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-muted text-muted-foreground">
+                        <Lock className="h-3 w-3 mr-0.5" />Private
+                      </span>
                     )}
                     {(session as any).recurringEventId && (
-                      <Badge variant="outline" className="text-xs">
-                        <Repeat className="h-3 w-3 mr-1" />
-                        Recurring
-                      </Badge>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground bg-muted/60">
+                        <Repeat className="h-3 w-3 mr-0.5" />Series
+                      </span>
                     )}
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
+                  <span className="text-sm font-semibold text-foreground bg-muted/70 px-2.5 py-1 rounded-lg whitespace-nowrap tabular-nums" data-testid={`text-time-${session.id}`}>
                     {session.startTime}
                   </span>
                 </div>
-                
-                <h3
-                  className="text-base sm:text-xl font-bold mb-1.5 sm:mb-2 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-wrap"
-                  onClick={() => setDetailsSession(session)}
-                  data-testid={`button-session-title-${session.id}`}
-                >
-                  {session.title}
-                </h3>
-                
-                <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-6">
+
+                <div className="mt-3 space-y-0.5">
+                  <h3
+                    className="text-lg sm:text-xl font-bold leading-tight cursor-pointer transition-colors"
+                    onClick={() => setDetailsSession(session)}
+                    data-testid={`button-session-title-${session.id}`}
+                  >
+                    {session.title || "Untitled Session"}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    {clubName && <span>{clubName}</span>}
+                    {clubName && <span className="mx-1.5 text-border">•</span>}
+                    <span>{formatLabel}</span>
+                    {session.durationMinutes && (
+                      <>
+                        <span className="mx-1.5 text-border">•</span>
+                        <span>{session.durationMinutes} min</span>
+                      </>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 font-medium pt-0.5">
+                    {format(new Date(session.date), "EEE, MMM d, yyyy")}
+                  </p>
+                </div>
+
+                <div className="mt-3.5 flex items-center gap-2 flex-wrap" data-testid={`stats-row-${session.id}`}>
                   <div
-                    className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors"
                     onClick={() => setDetailsSession(session)}
                     data-testid={`button-rsvp-${session.id}`}
                   >
-                    <Users className="h-4 w-4" />
-                    <span>{session.signupCount || 0} / {session.maxPlayers} Players</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                      RSVP
-                    </Badge>
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium">{session.signupCount || 0}/{session.maxPlayers}</span>
+                    <span className="text-[10px] text-muted-foreground">Players</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    <span>{session.courtsAvailable} Courts Available</span>
+                  <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium">{session.courtsAvailable}</span>
+                    <span className="text-[10px] text-muted-foreground">Courts</span>
                   </div>
-                  {(session as any).venue && (
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ''}</span>
-                    </div>
-                  )}
-                  {session.sessionFee != null && (
-                    <div className="flex items-center gap-2">
-                      <PoundSterling className="h-4 w-4" />
-                      <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
-                    </div>
-                  )}
-                  {session.shuttlecockType && (
-                    <div className="flex items-center gap-2">
-                      <CircleDot className="h-4 w-4" />
-                      <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'} equipment</span>
+                  {venue && (
+                    <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium truncate max-w-[120px]">{venue.name}{venue.city ? `, ${venue.city}` : ''}</span>
                     </div>
                   )}
                 </div>
+
+                {(session.sessionFee != null || session.shuttlecockType) && (
+                  <div className="mt-2 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                    {session.sessionFee != null && (
+                      <div className="flex items-center gap-1">
+                        <PoundSterling className="h-3 w-3" />
+                        <span>£{(session.sessionFee / 100).toFixed(2)} per session</span>
+                      </div>
+                    )}
+                    {session.shuttlecockType && (
+                      <div className="flex items-center gap-1">
+                        <CircleDot className="h-3 w-3" />
+                        <span>{session.shuttlecockType === 'feather' ? 'Feather' : session.shuttlecockType === 'plastic' ? 'Plastic' : 'Feather & Plastic'}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {(() => {
                   const signup = mySignupsBySession.get(session.id);
@@ -1265,19 +1288,19 @@ export default function Sessions() {
                   return (
                     <>
                       {user && hasAccess && !isPast && !isScheduledLater && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
-                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 space-y-2" data-testid={`session-join-area-${session.id}`}>
+                        <div className="mt-4 pt-4 border-t border-border/30 space-y-2" data-testid={`session-join-area-${session.id}`}>
                           {isSignedUp ? (
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 px-3 py-2">
+                              <div className="flex-1 flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-3.5 py-2.5">
                                 <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                                <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                                   {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
                                 </span>
                               </div>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-lg text-xs font-medium"
+                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-xl text-xs font-medium"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   withdrawMutation.mutate(session.id);
@@ -1292,7 +1315,7 @@ export default function Sessions() {
                           ) : isInvited ? (
                             <div className="flex items-center gap-2">
                               <Button
-                                className="flex-1 rounded-lg font-semibold shadow-sm"
+                                className="flex-1 rounded-xl font-semibold shadow-sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setJoinSession(session);
@@ -1305,7 +1328,7 @@ export default function Sessions() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-lg text-xs font-medium"
+                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-xl text-xs font-medium"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   withdrawMutation.mutate(session.id);
@@ -1318,30 +1341,41 @@ export default function Sessions() {
                               </Button>
                             </div>
                           ) : (
-                            <Button
-                              className="w-full rounded-lg font-semibold shadow-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setJoinSession(session);
-                              }}
-                              data-testid={`button-join-session-${session.id}`}
-                            >
-                              <UserCheck className="h-4 w-4" />
-                              Join Session
+                            <div className="flex items-center gap-2">
+                              <Button
+                                className="flex-1 rounded-xl font-semibold shadow-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setJoinSession(session);
+                                }}
+                                data-testid={`button-join-session-${session.id}`}
+                              >
+                                <UserCheck className="h-4 w-4" />
+                                Join Session
+                              </Button>
                               {juniors && juniors.length > 0 && (
-                                <Badge variant="secondary" className="ml-2 text-[10px] bg-primary-foreground/20 rounded-full px-1.5">
-                                  <Baby className="h-3 w-3 mr-0.5" />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-xl text-xs font-medium gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setJoinSession(session);
+                                  }}
+                                  data-testid={`button-join-kids-${session.id}`}
+                                >
+                                  <Baby className="h-3.5 w-3.5" />
                                   +Kids
-                                </Badge>
+                                </Button>
                               )}
-                            </Button>
+                            </div>
                           )}
                         </div>
                       )}
 
                       {user && !hasAccess && !isPast && (
-                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center rounded-lg bg-muted/40 py-2.5 px-3 border border-border/30">
+                        <div className="mt-4 pt-4 border-t border-border/30">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center rounded-xl bg-muted/30 py-2.5 px-3 border border-border/20">
                             <Lock className="h-4 w-4 text-red-500" />
                             <span>Join the club to sign up</span>
                           </div>
@@ -1351,48 +1385,22 @@ export default function Sessions() {
                   );
                 })()}
 
-                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-bold text-sm sm:text-base">
-                        {format(new Date(session.date), "EEE, MMM d")}
-                      </span>
-                    </div>
-                    {editableClubIds.has(session.clubId) ? (
-                      <Button
-                        size="sm"
-                        className="rounded-lg font-semibold shadow-sm gap-1.5 h-9 px-4"
-                        onClick={() => setLocation(`/sessions/${session.id}`)}
-                        data-testid={`button-run-session-${session.id}`}
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        Run Session
-                      </Button>
-                    ) : (
-                      <Link href={`/sessions/${session.id}`}>
-                        <Button size="sm" variant="outline" className="rounded-lg font-medium gap-1.5" data-testid={`button-details-session-${session.id}`}>
-                          View Details
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                  {editableClubIds.has(session.clubId) && (
-                    <div className="flex items-center gap-1.5">
+                {editableClubIds.has(session.clubId) && (
+                  <div className="mt-3 pt-3 border-t border-border/30">
+                    <div className="flex items-center gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+                            variant="ghost"
+                            className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
                             onClick={(e) => {
                               e.stopPropagation();
                               setCrowdSessionId(session.id);
                             }}
                             data-testid={`button-crowd-session-${session.id}`}
                           >
-                            <BarChart3 className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                            <BarChart3 className="h-3.5 w-3.5" />
                             <span className="hidden sm:inline">Crowd</span>
                           </Button>
                         </TooltipTrigger>
@@ -1403,12 +1411,12 @@ export default function Sessions() {
                           <TooltipTrigger asChild>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+                              variant="ghost"
+                              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
                               onClick={() => setFinanceSession(session)}
                               data-testid={`button-finance-session-${session.id}`}
                             >
-                              <PoundSterling className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                              <Wallet className="h-3.5 w-3.5" />
                               <span className="hidden sm:inline">Finances</span>
                             </Button>
                           </TooltipTrigger>
@@ -1421,8 +1429,8 @@ export default function Sessions() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="rounded-lg h-8 w-8 p-0"
+                            variant="ghost"
+                            className="rounded-lg h-8 w-8 p-0 text-muted-foreground"
                             data-testid={`button-more-session-${session.id}`}
                           >
                             <MoreVertical className="h-3.5 w-3.5" />
@@ -1459,8 +1467,31 @@ export default function Sessions() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {editableClubIds.has(session.clubId) ? (
+                  <div className="mt-3 pt-3 border-t border-border/30">
+                    <Button
+                      className="w-full rounded-xl font-semibold shadow-sm gap-2"
+                      onClick={() => setLocation(`/sessions/${session.id}`)}
+                      data-testid={`button-run-session-${session.id}`}
+                    >
+                      <Play className="h-4 w-4" />
+                      Run Session
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 pt-3 border-t border-border/30">
+                    <Link href={`/sessions/${session.id}`}>
+                      <Button variant="outline" className="w-full rounded-xl font-medium gap-2" data-testid={`button-details-session-${session.id}`}>
+                        View Details
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+
               </CardContent>
             </Card>
           </div>
@@ -2909,11 +2940,11 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
           <DialogTrigger asChild>
             <Button
               size="sm"
-              variant="outline"
-              className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+              variant="ghost"
+              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
               data-testid={`button-edit-session-${session.id}`}
             >
-              <Pencil className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+              <Pencil className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Edit</span>
             </Button>
           </DialogTrigger>
