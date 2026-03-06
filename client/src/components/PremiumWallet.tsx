@@ -99,32 +99,41 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg p-0 bg-black/95 border-none overflow-hidden" data-testid="dialog-card-carousel">
-        <div className="relative flex flex-col items-center justify-center min-h-[480px] p-6">
+      <DialogContent className="max-w-sm sm:max-w-md p-0 bg-black/95 border-none overflow-hidden" data-testid="dialog-card-carousel">
+        <div className="relative flex flex-col items-center justify-center min-h-[520px] p-4 sm:p-6">
           <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-white/70 z-50" onClick={onClose} data-testid="button-close-carousel">
             <X className="h-5 w-5" />
           </Button>
 
-          <div className="text-center mb-4">
+          <div className="text-center mb-3">
             <p className="text-white/50 text-xs">{currentIndex + 1} of {cardList.length}</p>
           </div>
 
-          <div className="relative flex items-center gap-4">
+          <div className="relative flex items-center gap-2 sm:gap-4 w-full justify-center">
             {cardList.length > 1 && (
               <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goPrev} data-testid="button-carousel-prev">
                 <ChevronLeft className="h-6 w-6" />
               </Button>
             )}
 
-            <div style={{ width: "300px", aspectRatio: "1.586", perspective: "1200px" }} onClick={() => setIsFlipped(!isFlipped)}>
+            <motion.div
+              className="cursor-pointer"
+              style={{ perspective: "1200px" }}
+              onClick={() => setIsFlipped(!isFlipped)}
+              animate={{
+                width: isFlipped ? "280px" : "280px",
+                height: isFlipped ? "400px" : "176px",
+              }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentCard.id}
-                  initial={{ opacity: 0, scale: 0.8, rotateY: -30 }}
-                  animate={{ opacity: 1, scale: 1, rotateY: isFlipped ? 180 : 0 }}
-                  exit={{ opacity: 0, scale: 0.8, rotateY: 30 }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                  className="relative w-full h-full cursor-pointer"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1, rotateX: isFlipped ? 180 : 0 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.6, ease: "easeInOut" }}
+                  className="relative w-full h-full"
                   style={{ transformStyle: "preserve-3d" }}
                 >
                   <MetalCardFront
@@ -144,10 +153,11 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
                     rarityLabel={rarity.label}
                     cardCategory={currentCard.cardCategory}
                     size="large"
+                    vertical
                   />
                 </motion.div>
               </AnimatePresence>
-            </div>
+            </motion.div>
 
             {cardList.length > 1 && (
               <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goNext} data-testid="button-carousel-next">

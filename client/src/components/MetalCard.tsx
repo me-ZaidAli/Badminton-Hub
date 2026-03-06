@@ -527,6 +527,7 @@ export function MetalCardBack({
   rarityLabel,
   cardCategory,
   size = "normal",
+  vertical = false,
 }: {
   cardId: number;
   cardName: string;
@@ -537,39 +538,43 @@ export function MetalCardBack({
   rarityLabel?: string;
   cardCategory?: string | null;
   size?: "compact" | "normal" | "large";
+  vertical?: boolean;
 }) {
   const mat = METAL_MATERIALS[cardId] || DEFAULT_MATERIAL;
   const stars = RARITY_STARS[rarityLabel || "Standard"] || 1;
   const power = RARITY_POWER[rarityLabel || "Standard"] || RARITY_POWER.Standard;
 
-  const sizeConfig = {
+  const sizeConfig = vertical ? {
+    headerText: "text-base", label: "text-xs", body: "text-sm", pad: "p-5", starSize: "text-lg", headerPad: "px-4 py-2.5", gap: "gap-3",
+  } : {
     compact: { headerText: "text-[7px]", label: "text-[5px]", body: "text-[6px]", pad: "p-2", starSize: "text-[6px]", headerPad: "px-2 py-0.5", gap: "gap-1" },
     normal: { headerText: "text-[9px]", label: "text-[7px]", body: "text-[7px]", pad: "p-2.5", starSize: "text-[8px]", headerPad: "px-3 py-1", gap: "gap-1.5" },
     large: { headerText: "text-sm", label: "text-[10px]", body: "text-xs", pad: "p-3", starSize: "text-sm", headerPad: "px-4 py-1.5", gap: "gap-2" },
   }[size];
 
+  const statBarSize = vertical ? "large" as const : size;
   const categoryDisplay = cardCategory === "admin_gifted" ? "Admin Award" : cardCategory === "milestone" ? "Milestone" : cardCategory || "Recognition";
 
   return (
     <div
       className="absolute inset-0 flex flex-col"
       style={{
-        borderRadius: "16px",
+        borderRadius: vertical ? "20px" : "16px",
         background: mat.base,
         boxShadow: `${mat.edgeHighlight}, 0 0 20px ${mat.shimmerColor}, 0 25px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
         backfaceVisibility: "hidden",
-        transform: "rotateY(180deg)",
+        transform: vertical ? "rotateX(180deg)" : "rotateY(180deg)",
         overflow: "hidden",
         border: `2px solid ${mat.shimmerColor}`,
       }}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.texture }} />
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.lighting }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: vertical ? "18px" : "14px", background: mat.texture }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: vertical ? "18px" : "14px", background: mat.lighting }} />
 
       <div className={`relative z-10 flex flex-col ${sizeConfig.pad} h-full`}>
-        <div className="space-y-1.5 mb-auto">
+        <div className={`${vertical ? "space-y-4" : "space-y-1.5"} mb-auto`}>
           <div
-            className={`${sizeConfig.headerPad} rounded-lg flex items-center justify-between`}
+            className={`${sizeConfig.headerPad} rounded-xl flex items-center justify-between`}
             style={{
               background: "rgba(0,0,0,0.35)",
               border: "1px solid rgba(255,255,255,0.08)",
@@ -584,7 +589,7 @@ export function MetalCardBack({
             </span>
             {rarityLabel && (
               <span
-                className={`${sizeConfig.label} font-bold uppercase tracking-widest shrink-0 ml-1`}
+                className={`${sizeConfig.label} font-bold uppercase tracking-widest shrink-0 ml-2`}
                 style={{ color: mat.textMain, textShadow: `0 0 6px ${mat.shimmerColor}` }}
               >
                 {rarityLabel}
@@ -592,14 +597,14 @@ export function MetalCardBack({
             )}
           </div>
 
-          <div className="space-y-1 px-0.5">
-            <StatBar label="Rarity" value={power.rarity} color={mat.shimmerColor.replace(/[\d.]+\)$/, "0.9)")} size={size} />
-            <StatBar label="Honor" value={power.honor} color="#f0c040" size={size} />
-            <StatBar label="Prestige" value={power.prestige} color="#c084fc" size={size} />
+          <div className={`${vertical ? "space-y-3" : "space-y-1"} px-0.5`}>
+            <StatBar label="Rarity" value={power.rarity} color={mat.shimmerColor.replace(/[\d.]+\)$/, "0.9)")} size={statBarSize} />
+            <StatBar label="Honor" value={power.honor} color="#f0c040" size={statBarSize} />
+            <StatBar label="Prestige" value={power.prestige} color="#c084fc" size={statBarSize} />
           </div>
 
           <div
-            className={`${sizeConfig.headerPad} rounded-lg flex items-center justify-between`}
+            className={`${sizeConfig.headerPad} rounded-xl flex items-center justify-between`}
             style={{
               background: "rgba(0,0,0,0.3)",
               border: "1px solid rgba(255,255,255,0.06)",
@@ -611,7 +616,7 @@ export function MetalCardBack({
             >
               {categoryDisplay}
             </span>
-            <span className={sizeConfig.starSize} style={{ color: "#f0c040", textShadow: "0 0 4px rgba(240,192,64,0.5)", letterSpacing: "1px" }}>
+            <span className={sizeConfig.starSize} style={{ color: "#f0c040", textShadow: "0 0 4px rgba(240,192,64,0.5)", letterSpacing: "2px" }}>
               {Array.from({ length: 5 }).map((_, i) => (
                 <span key={i} style={{ opacity: i < stars ? 1 : 0.2 }}>★</span>
               ))}
@@ -619,9 +624,9 @@ export function MetalCardBack({
           </div>
         </div>
 
-        <div className="mt-auto space-y-1">
+        <div className={`mt-auto ${vertical ? "space-y-3" : "space-y-1"}`}>
           <div
-            className="rounded-lg p-1.5"
+            className={`rounded-xl ${vertical ? "p-4" : "p-1.5"}`}
             style={{
               background: "rgba(0,0,0,0.25)",
               border: "1px solid rgba(255,255,255,0.06)",
