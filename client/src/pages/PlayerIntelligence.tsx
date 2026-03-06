@@ -483,6 +483,8 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
   const [comments, setComments] = useState<Record<number, string>>({});
   const [newNote, setNewNote] = useState("");
 
+  const canViewCoachNotes = isAdmin || isOwnProfile;
+
   const { data: skillEvals } = useQuery({
     queryKey: ["/api/players/skill-review", playerId],
     enabled: !!playerId,
@@ -495,7 +497,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
   });
   const { data: coachNotes } = useQuery({
     queryKey: ["/api/players/coach-notes", playerId],
-    enabled: !!playerId,
+    enabled: !!playerId && canViewCoachNotes,
   });
   const { data: pendingRequests } = useQuery({
     queryKey: ["/api/players/skill-review/requests"],
@@ -633,36 +635,38 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
-        <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-cyan-400" />
-          Coach Notes
-        </h4>
-        {isAdmin && (
-          <div className="flex gap-2 mb-4">
-            <Textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Add a coach note..."
-              className="min-h-[60px] rounded-xl bg-[#0c1322] border-[#1e293b] text-slate-200 placeholder:text-slate-600"
-              data-testid="textarea-coach-note"
-            />
-            <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-        <div className="space-y-3">
-          {(coachNotes as any[])?.map((n: any) => (
-            <div key={n.id} className="bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
-              <p className="text-sm text-slate-300">{n.note}</p>
-              <p className="text-[10px] text-slate-500 mt-1">
-                {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
-              </p>
+      {canViewCoachNotes && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+          <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-cyan-400" />
+            Coach Notes
+          </h4>
+          {isAdmin && (
+            <div className="flex gap-2 mb-4">
+              <Textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Add a coach note..."
+                className="min-h-[60px] rounded-xl bg-[#0c1322] border-[#1e293b] text-slate-200 placeholder:text-slate-600"
+                data-testid="textarea-coach-note"
+              />
+              <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
+                <Send className="h-4 w-4" />
+              </Button>
             </div>
-          )) || <p className="text-sm text-slate-500">No coach notes yet</p>}
+          )}
+          <div className="space-y-3">
+            {(coachNotes as any[])?.map((n: any) => (
+              <div key={n.id} className="bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
+                <p className="text-sm text-slate-300">{n.note}</p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            )) || <p className="text-sm text-slate-500">No coach notes yet</p>}
+          </div>
         </div>
-      </div>
+      )}
 
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
         <DialogContent className="rounded-2xl">

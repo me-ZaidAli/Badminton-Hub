@@ -23776,12 +23776,24 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
-  // GET /api/players/coach-notes/:playerId - Get coach notes timeline
+  // GET /api/players/coach-notes/:playerId - Get coach notes timeline (player, admin, owner only)
   app.get("/api/players/coach-notes/:playerId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const playerId = Number(req.params.playerId);
     if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
     try {
+      const user = req.user!;
+      const isSuperAdmin = user.role === "OWNER";
+      if (!isSuperAdmin) {
+        const profileRow = await db.select({ userId: playerProfiles.userId, clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+        if (profileRow.length === 0) return res.status(404).json({ message: "Player not found" });
+        const isOwnProfile = profileRow[0].userId === user.id;
+        if (!isOwnProfile) {
+          const adminCheck = await db.select({ clubRole: playerProfiles.clubRole }).from(playerProfiles).where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, profileRow[0].clubId))).limit(1);
+          const isClubAdmin = adminCheck.length > 0 && (adminCheck[0].clubRole === "ADMIN" || adminCheck[0].clubRole === "OWNER");
+          if (!isClubAdmin) return res.status(403).json({ message: "Only the player, admins, or owners can view coach notes" });
+        }
+      }
       const notes = await db.select({
         note: playerCoachNotes,
         author: users,
