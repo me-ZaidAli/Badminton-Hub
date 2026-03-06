@@ -8,9 +8,9 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  List, LayoutGrid, BarChart3, Clock, Trophy, CheckCircle, XCircle,
+  List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
-  Activity, Zap, CircleDot
+  CircleDot
 } from "lucide-react";
 
 type Player = {
@@ -266,35 +266,35 @@ function LiveMatchRow({
           <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-400/20 bg-emerald-400/5" data-testid={`pro-live-badge-${match.id}`}>LIVE</span>
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center gap-3">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex items-center gap-1.5 min-w-0 shrink">
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-              className="text-sm font-bold text-white truncate" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} />
+              className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} />
             {match.teamAPlayer2 && (
               <>
-                <span className="text-white/20 text-xs">&</span>
+                <span className="text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-                  className="text-sm font-bold text-white truncate" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} />
+                  className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} />
               </>
             )}
           </div>
-          <span className="text-white/20 text-xs font-bold uppercase tracking-widest shrink-0">vs</span>
-          <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-white/20 text-[10px] font-bold uppercase tracking-widest shrink-0">vs</span>
+          <div className="flex items-center gap-1.5 min-w-0 shrink">
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-              className="text-sm font-bold text-white/80 truncate" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} />
+              className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} />
             {match.teamBPlayer2 && (
               <>
-                <span className="text-white/20 text-xs">&</span>
+                <span className="text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-                  className="text-sm font-bold text-white/80 truncate" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                  className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} />
               </>
             )}
           </div>
@@ -507,124 +507,69 @@ function CourtView({ match }: { match: CourtMatch }) {
   );
 }
 
-function StatsView({ match }: { match: CourtMatch }) {
-  const pointsTarget = match.pointsToPlayTo || 21;
-  const scoreA = match.scoreA || 0;
-  const scoreB = match.scoreB || 0;
-  const percentA = Math.min(100, (scoreA / pointsTarget) * 100);
-  const percentB = Math.min(100, (scoreB / pointsTarget) * 100);
+function CourtCard({
+  match, isOrganiser, isSignedUp, currentPlayerProfileId, courtNames, defaultPointsToPlayTo = 21,
+  onCompleteMatch, onEndSet, onCancelMatch,
+}: {
+  match: CourtMatch;
+  isOrganiser: boolean;
+  isSignedUp: boolean;
+  currentPlayerProfileId?: number | null;
+  courtNames?: string[];
+  defaultPointsToPlayTo?: number;
+  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCancelMatch?: (matchId: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
+  const isPlayerInMatch = currentPlayerProfileId && (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  );
+  const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
+
   const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
   const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
 
-  const circumference = 2 * Math.PI * 40;
-  const dashA = (percentA / 100) * circumference;
-  const dashB = (percentB / 100) * circumference;
-
-  const leading = scoreA > scoreB ? "A" : scoreB > scoreA ? "B" : null;
-
   return (
-    <div className="flex items-center justify-around py-4" data-testid={`pro-stats-view-${match.id}`}>
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative w-24 h-24">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
-            <circle cx="50" cy="50" r="40" fill="none" stroke={courtColor.ring} strokeWidth="6"
-              strokeDasharray={`${dashA} ${circumference - dashA}`}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dasharray 500ms ease', filter: `drop-shadow(0 0 6px ${courtColor.glow})` }} />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold font-mono text-white tabular-nums" style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</span>
-          </div>
-        </div>
-        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider truncate max-w-[100px]">{teamANames.join(" & ") || "Team A"}</span>
-        {leading === "A" && scoreA - scoreB >= 3 && (
-          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/20">
-            <Zap className="w-2.5 h-2.5 inline mr-0.5" />{scoreA - scoreB} pt lead!
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">vs</span>
-        <span className="text-[9px] text-white/15 font-mono">to {pointsTarget}</span>
-      </div>
-
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative w-24 h-24">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
-            <circle cx="50" cy="50" r="40" fill="none" stroke="rgb(96,165,250)" strokeWidth="6"
-              strokeDasharray={`${dashB} ${circumference - dashB}`}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dasharray 500ms ease', filter: `drop-shadow(0 0 6px rgba(96,165,250,0.6))` }} />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold font-mono text-white tabular-nums" style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</span>
-          </div>
-        </div>
-        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider truncate max-w-[100px]">{teamBNames.join(" & ") || "Team B"}</span>
-        {leading === "B" && scoreB - scoreA >= 3 && (
-          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-400/20">
-            <Zap className="w-2.5 h-2.5 inline mr-0.5" />{scoreB - scoreA} pt lead!
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TimelineView({ match }: { match: CourtMatch }) {
-  const scoreA = match.scoreA || 0;
-  const scoreB = match.scoreB || 0;
-  const total = scoreA + scoreB;
-  const courtColor = getCourtColor(match.courtNumber || 1);
-
-  const points: ("A" | "B")[] = [];
-  for (let i = 0; i < Math.min(total, 10); i++) {
-    const ratio = scoreA / (scoreA + scoreB || 1);
-    points.push(Math.random() < ratio ? "A" : "B");
-  }
-
-  return (
-    <div className="py-4 px-2" data-testid={`pro-timeline-view-${match.id}`}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Score Timeline</span>
-        <span className="text-[10px] font-mono text-white/20">
-          {scoreA} - {scoreB}
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
+        <span className="text-xs font-bold text-white/60 uppercase tracking-wider">
+          {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
         </span>
+        <div className="flex-1" />
+        {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
-      <div className="relative flex flex-col items-center gap-0">
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/10" style={{ transform: 'translateX(-50%)' }} />
-        {points.length === 0 ? (
-          <div className="py-6 text-center text-[10px] text-white/20">No points scored yet</div>
-        ) : (
-          points.map((point, i) => (
-            <div key={i} className={cn("relative flex items-center gap-3 py-1.5 w-full", point === "A" ? "justify-start pl-[calc(50%+12px)]" : "justify-end pr-[calc(50%+12px)]")}>
-              {point === "A" ? (
-                <>
-                  <div className="absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: courtColor.ring, backgroundColor: `${courtColor.ring}40` }} />
-                  <span className="text-[10px] font-medium" style={{ color: courtColor.ring }}>Team A scores</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[10px] font-medium" style={{ color: 'rgb(96,165,250)' }}>Team B scores</span>
-                  <div className="absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: 'rgb(96,165,250)', backgroundColor: 'rgba(96,165,250,0.3)' }} />
-                </>
-              )}
-            </div>
-          ))
-        )}
+      <div className="px-3 pb-1">
+        <CourtView match={match} />
       </div>
-      {match.setScores && match.setScores.length > 0 && (
-        <div className="mt-3 flex gap-2 justify-center">
-          {match.setScores.map((s, i) => (
-            <span key={i} className="text-[10px] font-mono text-white/20 bg-white/[0.03] px-2 py-0.5 rounded">
-              Set {i + 1}: {s.scoreA}-{s.scoreB}
-            </span>
-          ))}
+      <div className="px-4 pb-2">
+        <div className="flex items-center justify-between text-[11px] text-white/40">
+          <span className="truncate">{teamANames.join(" & ") || "Team A"}</span>
+          <span className="text-white/20 font-bold text-[10px] px-2 shrink-0">vs</span>
+          <span className="truncate text-right">{teamBNames.join(" & ") || "Team B"}</span>
         </div>
+      </div>
+      {canInteract && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.05] text-white/40 hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
+            data-testid={`pro-court-expand-${match.id}`}
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
+            <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
+          </button>
+          {expanded && (
+            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+          )}
+        </>
       )}
     </div>
   );
@@ -788,7 +733,7 @@ function InlineScorePanel({
   );
 }
 
-type SubView = "court" | "list" | "stats" | "timeline";
+type SubView = "court" | "list";
 
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
@@ -820,8 +765,6 @@ export function ProLiveMatches({
   const subViews: { key: SubView; label: string; icon: typeof List }[] = [
     { key: "court", label: "Courts", icon: LayoutGrid },
     { key: "list", label: "List", icon: List },
-    { key: "stats", label: "Stats", icon: BarChart3 },
-    { key: "timeline", label: "Timeline", icon: Activity },
   ];
 
   if (liveMatches.length === 0) {
@@ -842,7 +785,7 @@ export function ProLiveMatches({
   }
 
   return (
-    <div className="relative rounded-[2rem] border border-white/[0.07] bg-slate-950/90 backdrop-blur-2xl p-6 overflow-hidden" data-testid="pro-live-matches">
+    <div className="relative rounded-[2rem] border border-white/[0.07] bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden" data-testid="pro-live-matches">
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
 
       <div className="relative z-10 space-y-5">
@@ -907,63 +850,14 @@ export function ProLiveMatches({
         {subView === "court" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {liveMatches.map(match => (
-              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-                <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
-                  <span className="text-xs font-bold text-white/60 uppercase tracking-wider">
-                    {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
-                  </span>
-                  {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
-                </div>
-                <div className="px-3 pb-3">
-                  <CourtView match={match} />
-                </div>
-                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-              </div>
+              <CourtCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+                currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
+                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
             ))}
           </div>
         )}
 
-        {subView === "stats" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {liveMatches.map(match => (
-              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-                <div className="flex items-center gap-2 px-4 pt-3">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
-                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">
-                    {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
-                  </span>
-                  {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
-                </div>
-                <StatsView match={match} />
-                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {subView === "timeline" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {liveMatches.map(match => (
-              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-                <div className="flex items-center gap-2 px-4 pt-3">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
-                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">
-                    {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
-                  </span>
-                </div>
-                <TimelineView match={match} />
-                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
