@@ -17,7 +17,7 @@ import {
   type PolicyAcceptance, type InsertPolicyAcceptance,
   type AnnouncementComment
 } from "@shared/schema";
-import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, isNull } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 
@@ -654,7 +654,7 @@ export class DatabaseStorage implements IStorage {
     scoreEnteredByUser?: { id: number; fullName: string } | null,
     scoreUpdatedByUser?: { id: number; fullName: string } | null,
   })[]> {
-    const matchesList = await db.select().from(matches).where(eq(matches.sessionId, sessionId)).orderBy(desc(matches.createdAt));
+    const matchesList = await db.select().from(matches).where(and(eq(matches.sessionId, sessionId), isNull(matches.deletedAt))).orderBy(desc(matches.createdAt));
     
     const getPlayer = async (id: number | null) => {
       if (!id) return null;
@@ -705,7 +705,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMatch(id: number): Promise<Match | undefined> {
-    const [match] = await db.select().from(matches).where(eq(matches.id, id));
+    const [match] = await db.select().from(matches).where(and(eq(matches.id, id), isNull(matches.deletedAt)));
     return match;
   }
 
@@ -1058,6 +1058,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             eq(matches.teamAPlayer1Id, playerProfileId),
             eq(matches.teamAPlayer2Id, playerProfileId),
@@ -1184,7 +1185,8 @@ export class DatabaseStorage implements IStorage {
         and(
           inArray(matches.sessionId, sessionIds),
           eq(matches.isCompleted, true),
-          eq(matches.status, "COMPLETED")
+          eq(matches.status, "COMPLETED"),
+          isNull(matches.deletedAt)
         )
       );
 
@@ -1225,7 +1227,8 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(matches.sessionId, sessionId),
           eq(matches.isCompleted, true),
-          eq(matches.status, "COMPLETED")
+          eq(matches.status, "COMPLETED"),
+          isNull(matches.deletedAt)
         )
       );
 
@@ -1269,7 +1272,8 @@ export class DatabaseStorage implements IStorage {
   }) {
     const conditions: any[] = [
       eq(matches.isCompleted, true),
-      eq(matches.status, "COMPLETED")
+      eq(matches.status, "COMPLETED"),
+      isNull(matches.deletedAt)
     ];
 
     if (filters.dateFrom) {
@@ -1433,6 +1437,7 @@ export class DatabaseStorage implements IStorage {
 
     const conditions: any[] = [
       eq(matches.isCompleted, true),
+      isNull(matches.deletedAt),
       or(
         eq(matches.teamAPlayer1Id, profileId),
         eq(matches.teamAPlayer2Id, profileId),

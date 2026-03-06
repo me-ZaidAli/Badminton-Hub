@@ -30,6 +30,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing. Scheduled (unpublished) sessions are shown in a separate admin-only section and move to the main listing when published. Editing a recurring session offers "Apply to This Session Only" or "Apply to All Future Sessions". Deleting offers "This Only", "This & Future", or "Entire Series" options. The same structure is used in both the main Sessions page and the Junior Sessions panel.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.
+- **Session Match Recovery**: When a session is restarted, matches are soft-deleted (archived) rather than permanently removed. Admins can recover archived matches using the "Recover" button in the session detail view. Schema: `matches.deletedAt` timestamp column. Endpoints: `GET /api/sessions/:id/deleted-matches-count`, `POST /api/sessions/:id/recover-matches`. All match queries filter `deletedAt IS NULL` to exclude archived matches.
 - **Coach Directory & Marketplace**: Manages and lists public coach profiles.
 - **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts.
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC.

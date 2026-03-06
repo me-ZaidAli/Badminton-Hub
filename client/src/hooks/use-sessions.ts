@@ -135,10 +135,42 @@ export function useRestartSession() {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "leaderboard"] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
-      toast({ title: "Session Restarted", description: `${data.matchesDeleted} matches deleted. Session is ready for new matches.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "deleted-matches-count"] });
+      toast({ title: "Session Restarted", description: `${data.matchesDeleted} matches archived. You can recover them if needed.` });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message || "Failed to restart session.", variant: "destructive" });
+    }
+  });
+}
+
+export function useRecoverMatches() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await fetch(`/api/sessions/${sessionId}/recover-matches`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to recover matches");
+      }
+      return res.json();
+    },
+    onSuccess: (data, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "deleted-matches-count"] });
+      toast({ title: "Matches Recovered", description: `${data.matchesRecovered} match${data.matchesRecovered !== 1 ? "es" : ""} restored successfully.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message || "Failed to recover matches.", variant: "destructive" });
     }
   });
 }

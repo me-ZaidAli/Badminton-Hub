@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
@@ -113,6 +113,8 @@ export default function SessionDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
   const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
+  const { mutate: recoverMatches, isPending: isRecovering } = useRecoverMatches();
+  const [recoverDialogOpen, setRecoverDialogOpen] = useState(false);
   const { mutate: stopAllMatchesParent, isPending: isStoppingAllParent } = useStopAllMatches();
   const { data: parentMatches } = useSessionMatches(id);
   const { data: parentLeaderboard } = useSessionLeaderboard(id);
@@ -148,6 +150,17 @@ export default function SessionDetail() {
     }
     return result;
   })();
+
+  const { data: deletedMatchesData } = useQuery<{ count: number }>({
+    queryKey: ["/api/sessions", id, "deleted-matches-count"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${id}/deleted-matches-count`, { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    enabled: isOrganiser,
+  });
+  const deletedMatchesCount = deletedMatchesData?.count ?? 0;
 
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [endSessionModalOpenParent, setEndSessionModalOpenParent] = useState(false);
@@ -840,11 +853,11 @@ export default function SessionDetail() {
                   Restart Session
                 </DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to restart this session? This will permanently delete all completed, active, and queued matches along with their scores. Players will remain signed up and the session will be ready for fresh matches.
+                  Are you sure you want to restart this session? This will archive all completed, active, and queued matches along with their scores. Players will remain signed up and the session will be ready for fresh matches.
                 </DialogDescription>
               </DialogHeader>
-              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 text-sm text-destructive">
-                This action cannot be undone. All match history and scores will be lost.
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-md p-3 text-sm text-amber-700 dark:text-amber-400">
+                Matches will be archived. You can recover them later using the "Recover Matches" button.
               </div>
               <DialogFooter className="gap-2">
                 <Button variant="outline" onClick={() => setRestartDialogOpen(false)} data-testid="button-cancel-restart">
@@ -862,6 +875,41 @@ export default function SessionDetail() {
                 >
                   {isRestarting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="w-4 h-4 mr-2" />}
                   Yes, Restart Session
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={recoverDialogOpen} onOpenChange={setRecoverDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <RotateCcw className="w-5 h-5" />
+                  Recover Previous Matches
+                </DialogTitle>
+                <DialogDescription>
+                  This will restore {deletedMatchesCount} previously archived match{deletedMatchesCount !== 1 ? "es" : ""} back into this session, including all scores and player assignments.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-md p-3 text-sm text-emerald-700 dark:text-emerald-400">
+                All archived matches will be restored to the session. Any new matches created after the restart will be kept as well.
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setRecoverDialogOpen(false)} data-testid="button-cancel-recover">
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => {
+                    recoverMatches(id, {
+                      onSuccess: () => setRecoverDialogOpen(false)
+                    });
+                  }}
+                  disabled={isRecovering}
+                  data-testid="button-confirm-recover"
+                >
+                  {isRecovering ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                  Yes, Recover Matches
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1137,6 +1185,19 @@ export default function SessionDetail() {
                     <RotateCcw className="w-3.5 h-3.5" />
                     {isRestarting ? "Restarting..." : "Restart"}
                   </Button>
+                  {deletedMatchesCount > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 gap-1.5 rounded-full text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-950 transition-all duration-300"
+                      onClick={() => setRecoverDialogOpen(true)}
+                      disabled={isRecovering}
+                      data-testid="button-recover-matches"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      {isRecovering ? "Recovering..." : `Recover (${deletedMatchesCount})`}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

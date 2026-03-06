@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements } from "@shared/schema";
-import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -3568,9 +3568,9 @@ export async function registerRoutes(
       }
       console.log(`[AUDIT] SESSION_RESTART: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
-      const matches = await storage.getSessionMatches(sessionId);
-      for (const match of matches) {
-        await storage.deleteMatch(match.id);
+      const sessionMatches = await storage.getSessionMatches(sessionId);
+      for (const match of sessionMatches) {
+        await db.update(matches).set({ deletedAt: new Date() }).where(eq(matches.id, match.id));
       }
 
       const signups = await storage.getSessionSignups(sessionId);
@@ -3585,10 +3585,53 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateSession(sessionId, { status: "ACTIVE", autoGenerateActive: false });
-      res.json({ message: "Session restarted", matchesDeleted: matches.length, signupsReset: signups.length, session: updated });
+      res.json({ message: "Session restarted", matchesDeleted: sessionMatches.length, signupsReset: signups.length, session: updated });
     } catch (err: any) {
       console.error("Error restarting session:", err);
       res.status(500).json({ message: err.message || "Failed to restart session" });
+    }
+  });
+
+  app.get("/api/sessions/:id/deleted-matches-count", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const deletedMatches = await db.select({ id: matches.id }).from(matches)
+        .where(and(eq(matches.sessionId, sessionId), isNotNull(matches.deletedAt)));
+      res.json({ count: deletedMatches.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to check deleted matches" });
+    }
+  });
+
+  app.post("/api/sessions/:id/recover-matches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Only admins and organisers can recover matches" });
+      }
+      console.log(`[AUDIT] SESSION_RECOVER_MATCHES: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
+
+      const recovered = await db.update(matches)
+        .set({ deletedAt: null })
+        .where(and(eq(matches.sessionId, sessionId), isNotNull(matches.deletedAt)))
+        .returning();
+
+      res.json({ message: "Matches recovered", matchesRecovered: recovered.length });
+    } catch (err: any) {
+      console.error("Error recovering matches:", err);
+      res.status(500).json({ message: err.message || "Failed to recover matches" });
     }
   });
 

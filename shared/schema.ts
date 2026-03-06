@@ -429,6 +429,7 @@ export const matches = pgTable("matches", {
   setsWonB: integer("sets_won_b").default(0).notNull(),
   setScores: jsonb("set_scores").$type<{ scoreA: number; scoreB: number }[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // === TOURNAMENTS ===
