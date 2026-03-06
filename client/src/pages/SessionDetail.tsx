@@ -19,7 +19,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { CompactMatchView } from "@/components/CompactMatchView";
-import { ProLiveMatches } from "@/components/ProLiveMatches";
+import { ProLiveMatches, type PlayerAchievements } from "@/components/ProLiveMatches";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { CrowdControlPanel } from "@/components/CrowdControlPanel";
@@ -28,7 +28,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -115,6 +115,40 @@ export default function SessionDetail() {
   const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
   const { mutate: stopAllMatchesParent, isPending: isStoppingAllParent } = useStopAllMatches();
   const { data: parentMatches } = useSessionMatches(id);
+  const { data: parentLeaderboard } = useSessionLeaderboard(id);
+
+  const parentSessionMatchCounts: Record<number, number> = {};
+  if (parentMatches) {
+    for (const m of parentMatches) {
+      if (m.status === "LIVE" || m.status === "COMPLETED") {
+        for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+          if ((p as any)?.id) parentSessionMatchCounts[(p as any).id] = (parentSessionMatchCounts[(p as any).id] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const parentPlayerAchievements: Record<number, { trophy?: boolean; fire?: boolean }> = (() => {
+    if (!parentLeaderboard || parentLeaderboard.length === 0) return {};
+    const result: Record<number, { trophy?: boolean; fire?: boolean }> = {};
+    let maxWins = 0, maxPoints = 0;
+    for (const p of parentLeaderboard) {
+      if (p.matchesWon > maxWins) maxWins = p.matchesWon;
+      if (p.pointsWon > maxPoints) maxPoints = p.pointsWon;
+    }
+    if (maxWins > 0) {
+      for (const p of parentLeaderboard) {
+        if (p.matchesWon === maxWins) result[p.playerId] = { ...result[p.playerId], trophy: true };
+      }
+    }
+    if (maxPoints > 0) {
+      for (const p of parentLeaderboard) {
+        if (p.pointsWon === maxPoints) result[p.playerId] = { ...result[p.playerId], fire: true };
+      }
+    }
+    return result;
+  })();
+
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [endSessionModalOpenParent, setEndSessionModalOpenParent] = useState(false);
   const [editingCapacity, setEditingCapacity] = useState(false);
@@ -1438,7 +1472,14 @@ export default function SessionDetail() {
                         }}
                         data-testid={`text-player-name-${signup.id}`}
                       >
-                        {signup.player?.user?.fullName || "Unknown"}
+                        <span className="inline-flex items-center gap-1">
+                          {signup.player?.user?.fullName || "Unknown"}
+                          {parentSessionMatchCounts[signup.playerId] != null && (
+                            <span className="text-muted-foreground text-xs font-normal">({parentSessionMatchCounts[signup.playerId]})</span>
+                          )}
+                          {parentPlayerAchievements[signup.playerId]?.trophy && <Trophy className="w-3.5 h-3.5 text-amber-400 inline-block" />}
+                          {parentPlayerAchievements[signup.playerId]?.fire && <Flame className="w-3.5 h-3.5 text-orange-400 inline-block" />}
+                        </span>
                       </p>
                     )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -1900,6 +1941,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const { mutate: clearQueue, isPending: isClearingQueue } = useClearQueue();
   const { mutate: editMatchScore } = useEditMatchScore();
   const queryClient = useQueryClient();
+  const { data: sessionLeaderboard } = useSessionLeaderboard(sessionId);
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
   const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
@@ -2067,6 +2109,34 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       if (p?.id) sessionMatchCounts[p.id] = (sessionMatchCounts[p.id] || 0) + 1;
     }
   }
+
+  const playerAchievements = (() => {
+    if (!sessionLeaderboard || sessionLeaderboard.length === 0) return {} as Record<number, { trophy?: boolean; fire?: boolean }>;
+    const result: Record<number, { trophy?: boolean; fire?: boolean }> = {};
+    let maxWins = 0;
+    let maxPoints = 0;
+    for (const p of sessionLeaderboard) {
+      if (p.matchesWon > maxWins) maxWins = p.matchesWon;
+      if (p.pointsWon > maxPoints) maxPoints = p.pointsWon;
+    }
+    if (maxWins > 0) {
+      for (const p of sessionLeaderboard) {
+        if (p.matchesWon === maxWins) {
+          const pid = p.playerId ?? p.id;
+          if (pid != null) result[pid] = { ...result[pid], trophy: true };
+        }
+      }
+    }
+    if (maxPoints > 0) {
+      for (const p of sessionLeaderboard) {
+        if (p.pointsWon === maxPoints) {
+          const pid = p.playerId ?? p.id;
+          if (pid != null) result[pid] = { ...result[pid], fire: true };
+        }
+      }
+    }
+    return result;
+  })();
 
   const busyPlayerIds = (() => {
     const playerMatchCount = new Map<number, number>();
@@ -2612,6 +2682,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     notEnoughPlayersMessage={notEnoughPlayersMessage}
                     sessionId={sessionId}
                     busyPlayerIds={busyPlayerIds}
+                    sessionMatchCounts={sessionMatchCounts}
+                    achievements={playerAchievements}
                   />
                 </div>
               ) : undefined}
@@ -2633,6 +2705,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               courtNames={courtNamesState}
               defaultPointsToPlayTo={defaultPointsToPlayTo}
               sessionMatchCounts={sessionMatchCounts}
+              achievements={playerAchievements}
               onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
               onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
               onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
@@ -2662,6 +2735,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 notEnoughPlayersMessage={notEnoughPlayersMessage}
                 sessionId={sessionId}
                 busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts}
+                achievements={playerAchievements}
               />
               <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
             </div>

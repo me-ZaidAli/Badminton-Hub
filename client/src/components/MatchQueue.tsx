@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,8 @@ type MatchQueueProps = {
   notEnoughPlayersMessage?: string | null;
   sessionId?: number;
   busyPlayerIds?: Set<number>;
+  sessionMatchCounts?: Record<number, number>;
+  achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
 };
 
 function PlayerBadge({
@@ -48,6 +50,8 @@ function PlayerBadge({
   isOrganiser,
   onSwap,
   isBusy,
+  sessionMatchCount,
+  achievements,
 }: {
   player: { id: number; user: { fullName: string }; category: string | null } | null;
   position: string;
@@ -56,6 +60,8 @@ function PlayerBadge({
   isOrganiser: boolean;
   onSwap: (matchId: number, position: string, playerId: number) => void;
   isBusy?: boolean;
+  sessionMatchCount?: number;
+  achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -112,7 +118,7 @@ function PlayerBadge({
       <Badge
         variant="outline"
         className={cn(
-          "text-xs py-1 max-w-[140px] truncate",
+          "text-xs py-1 max-w-[160px] truncate inline-flex items-center gap-0.5",
           isOrganiser && "cursor-pointer hover:bg-primary/10",
           isBusy && "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30"
         )}
@@ -120,7 +126,10 @@ function PlayerBadge({
         data-testid={`queue-player-${matchId}-${position}`}
         title={isBusy ? "This player is already in another live or queued match" : undefined}
       >
-        {player.user?.fullName || player.fullName || "Unknown"}
+        <span className="truncate">{player.user?.fullName || player.fullName || "Unknown"}</span>
+        {sessionMatchCount != null && <span className="text-muted-foreground text-[10px] shrink-0">({sessionMatchCount})</span>}
+        {achievements && player.id && achievements[player.id]?.trophy && <Trophy className="w-3 h-3 text-amber-400 shrink-0" />}
+        {achievements && player.id && achievements[player.id]?.fire && <Flame className="w-3 h-3 text-orange-400 shrink-0" />}
       </Badge>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -242,6 +251,8 @@ export function MatchQueue({
   notEnoughPlayersMessage,
   sessionId,
   busyPlayerIds,
+  sessionMatchCounts,
+  achievements,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
@@ -427,6 +438,8 @@ export function MatchQueue({
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
                             isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
+                            sessionMatchCount={match.teamAPlayer1?.id ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
+                            achievements={achievements}
                           />
                           {(match.teamAPlayer2 || isOrganiser) && (
                             <PlayerBadge
@@ -437,6 +450,8 @@ export function MatchQueue({
                               isOrganiser={isOrganiser}
                               onSwap={onSwapPlayer}
                               isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
+                              sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
+                              achievements={achievements}
                             />
                           )}
                         </div>
@@ -456,6 +471,8 @@ export function MatchQueue({
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
                             isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
+                            sessionMatchCount={match.teamBPlayer1?.id ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
+                            achievements={achievements}
                           />
                           {(match.teamBPlayer2 || isOrganiser) && (
                             <PlayerBadge
@@ -466,6 +483,8 @@ export function MatchQueue({
                               isOrganiser={isOrganiser}
                               onSwap={onSwapPlayer}
                               isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
+                              sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
+                              achievements={achievements}
                             />
                           )}
                         </div>

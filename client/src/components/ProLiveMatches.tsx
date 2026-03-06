@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
-  CircleDot, Hash, Monitor, Maximize2, X
+  CircleDot, Hash, Monitor, Maximize2, X, Flame
 } from "lucide-react";
 
 type Player = {
@@ -91,8 +91,22 @@ function SwapPlayerDialog({
   );
 }
 
+export type PlayerAchievements = Record<number, { trophy?: boolean; fire?: boolean }>;
+
+function PlayerAchievementIcons({ playerId, achievements }: { playerId?: number; achievements?: PlayerAchievements }) {
+  if (!playerId || !achievements) return null;
+  const a = achievements[playerId];
+  if (!a) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 ml-0.5 align-middle">
+      {a.trophy && <Trophy className="w-3 h-3 text-amber-400 inline-block" data-testid={`icon-trophy-${playerId}`} />}
+      {a.fire && <Flame className="w-3 h-3 text-orange-400 inline-block" data-testid={`icon-fire-${playerId}`} />}
+    </span>
+  );
+}
+
 function ClickablePlayerName({
-  player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy, style,
+  player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy, style, achievements,
 }: {
   player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
   matchId: number;
@@ -105,12 +119,19 @@ function ClickablePlayerName({
   className?: string;
   isBusy?: boolean;
   style?: React.CSSProperties;
+  achievements?: PlayerAchievements;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player?.user?.fullName || "Unknown";
-  const nameWithCount = showMatchCount && sessionMatchCount != null ? (
-    <>{name} <span className="text-white/30 font-normal text-[10px]">({sessionMatchCount})</span></>
-  ) : name;
+  const nameWithCount = (
+    <>
+      {name}
+      {showMatchCount && sessionMatchCount != null && (
+        <span className="text-white/30 font-normal text-[10px]"> ({sessionMatchCount})</span>
+      )}
+      <PlayerAchievementIcons playerId={player?.id} achievements={achievements} />
+    </>
+  );
   const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
   if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass)} style={style}>{nameWithCount}</span>;
   return (
@@ -137,6 +158,7 @@ type LiveMatchRowProps = {
   courtName?: string;
   defaultPointsToPlayTo?: number;
   sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
@@ -149,7 +171,7 @@ type LiveMatchRowProps = {
 
 function LiveMatchRow({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers,
-  courtName, defaultPointsToPlayTo = 21, sessionMatchCounts,
+  courtName, defaultPointsToPlayTo = 21, sessionMatchCounts, achievements,
   onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: LiveMatchRowProps) {
@@ -274,14 +296,14 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} />
+              className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
             {match.teamAPlayer2 && (
               <>
                 <span className="text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} />
+                  className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
@@ -291,14 +313,14 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} />
+              className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
             {match.teamBPlayer2 && (
               <>
                 <span className="text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                  className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
@@ -457,10 +479,19 @@ function LiveMatchRow({
   );
 }
 
-function CourtView({ match }: { match: CourtMatch }) {
+function CourtViewPlayerLabel({ name, playerId, sessionMatchCounts, achievements }: { name: string; playerId?: number; sessionMatchCounts?: Record<number, number>; achievements?: PlayerAchievements }) {
+  const count = playerId ? sessionMatchCounts?.[playerId] : undefined;
+  return (
+    <>
+      {name}
+      {count != null && <span className="opacity-50 font-normal text-[9px]"> ({count})</span>}
+      {playerId && achievements && <PlayerAchievementIcons playerId={playerId} achievements={achievements} />}
+    </>
+  );
+}
+
+function CourtView({ match, sessionMatchCounts, achievements }: { match: CourtMatch; sessionMatchCounts?: Record<number, number>; achievements?: PlayerAchievements }) {
   const courtColor = getCourtColor(match.courtNumber || 1);
-  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
 
   return (
     <div className="relative w-full aspect-[2/1.2] rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
@@ -473,28 +504,28 @@ function CourtView({ match }: { match: CourtMatch }) {
       <div className="absolute right-[6%] left-1/2 top-[30%] bottom-[30%] border border-white/20" />
 
       <div className="absolute left-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[100px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a1-${match.id}`}>
-          {match.teamAPlayer1?.user?.fullName || "Player 1"}
+        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[120px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a1-${match.id}`}>
+          <CourtViewPlayerLabel name={match.teamAPlayer1?.user?.fullName || "Player 1"} playerId={match.teamAPlayer1?.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
         </div>
         <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 12px ${courtColor.glow}` }} />
       </div>
       {match.teamAPlayer2 && (
         <div className="absolute left-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[100px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a2-${match.id}`}>
-            {match.teamAPlayer2.user?.fullName || "Player 2"}
+          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[120px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a2-${match.id}`}>
+            <CourtViewPlayerLabel name={match.teamAPlayer2.user?.fullName || "Player 2"} playerId={match.teamAPlayer2.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
           </div>
         </div>
       )}
 
       <div className="absolute right-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[100px]" data-testid={`pro-court-player-b1-${match.id}`}>
-          {match.teamBPlayer1?.user?.fullName || "Player 3"}
+        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[120px]" data-testid={`pro-court-player-b1-${match.id}`}>
+          <CourtViewPlayerLabel name={match.teamBPlayer1?.user?.fullName || "Player 3"} playerId={match.teamBPlayer1?.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
         </div>
       </div>
       {match.teamBPlayer2 && (
         <div className="absolute right-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[100px]" data-testid={`pro-court-player-b2-${match.id}`}>
-            {match.teamBPlayer2.user?.fullName || "Player 4"}
+          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[120px]" data-testid={`pro-court-player-b2-${match.id}`}>
+            <CourtViewPlayerLabel name={match.teamBPlayer2.user?.fullName || "Player 4"} playerId={match.teamBPlayer2.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
           </div>
         </div>
       )}
@@ -514,7 +545,7 @@ function CourtView({ match }: { match: CourtMatch }) {
 function CourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, courtNames, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
-  onSwapPlayer, availablePlayers, busyPlayerIds,
+  onSwapPlayer, availablePlayers, busyPlayerIds, sessionMatchCounts, achievements,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -530,6 +561,8 @@ function CourtCard({
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   availablePlayers?: Player[];
   busyPlayerIds?: Set<number>;
+  sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
@@ -560,7 +593,7 @@ function CourtCard({
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
       <div className="px-3 pb-1">
-        <CourtView match={match} />
+        <CourtView match={match} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
       </div>
       {isOrganiser && (
         <div className="px-4 pb-2">
@@ -810,7 +843,7 @@ function BroadcastTimer({ startedAt }: { startedAt: string }) {
 function BroadcastCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
-  onSwapPlayer, availablePlayers, busyPlayerIds,
+  onSwapPlayer, availablePlayers, busyPlayerIds, sessionMatchCounts, achievements,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -825,6 +858,8 @@ function BroadcastCard({
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   availablePlayers?: Player[];
   busyPlayerIds?: Set<number>;
+  sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
@@ -883,14 +918,16 @@ function BroadcastCard({
                   {match.teamAPlayer1 && (
                     <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1.id]}
                       className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
-                      style={{ color: `${courtColor.ring}99` }} />
+                      style={{ color: `${courtColor.ring}99` }} achievements={achievements} />
                   )}
                   {match.teamAPlayer2 && (
                     <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2.id]}
                       className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
-                      style={{ color: `${courtColor.ring}99` }} />
+                      style={{ color: `${courtColor.ring}99` }} achievements={achievements} />
                   )}
                 </div>
               </div>
@@ -914,12 +951,14 @@ function BroadcastCard({
                   {match.teamBPlayer1 && (
                     <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+                      showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1.id]}
+                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
                   )}
                   {match.teamBPlayer2 && (
                     <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                      showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2.id]}
+                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
                   )}
                 </div>
               </div>
@@ -1045,7 +1084,7 @@ function BroadcastCard({
 function ScoreboardCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
-  onSwapPlayer, availablePlayers, busyPlayerIds,
+  onSwapPlayer, availablePlayers, busyPlayerIds, sessionMatchCounts, achievements,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -1060,6 +1099,8 @@ function ScoreboardCard({
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   availablePlayers?: Player[];
   busyPlayerIds?: Set<number>;
+  sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
@@ -1108,26 +1149,30 @@ function ScoreboardCard({
           {match.teamAPlayer1 && (
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1.id]}
               className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
-              style={{ color: courtColor.ring }} />
+              style={{ color: courtColor.ring }} achievements={achievements} />
           )}
           {match.teamAPlayer2 && (
             <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2.id]}
               className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
-              style={{ color: courtColor.ring }} />
+              style={{ color: courtColor.ring }} achievements={achievements} />
           )}
         </div>
         <div className="flex flex-col items-end min-w-0 max-w-[45%]">
           {match.teamBPlayer1 && (
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1.id]}
+              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
           )}
           {match.teamBPlayer2 && (
             <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2.id]}
+              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
           )}
         </div>
       </div>
@@ -1322,7 +1367,7 @@ function CourtDetailDialog({
   match, open, onOpenChange, isOrganiser, isSignedUp, currentPlayerProfileId,
   defaultPointsToPlayTo = 21, courtNames, availablePlayers,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
-  onSwapPlayer, busyPlayerIds,
+  onSwapPlayer, busyPlayerIds, sessionMatchCounts, achievements,
 }: {
   match: CourtMatch | null;
   open: boolean;
@@ -1340,6 +1385,8 @@ function CourtDetailDialog({
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   busyPlayerIds?: Set<number>;
+  sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
 }) {
   const [editingPoints, setEditingPoints] = useState(false);
 
@@ -1392,14 +1439,16 @@ function CourtDetailDialog({
                 {match.teamAPlayer1 && (
                   <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
                     availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1.id]}
                     className="text-xs font-semibold truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
-                    style={{ color: courtColor.ring }} />
+                    style={{ color: courtColor.ring }} achievements={achievements} />
                 )}
                 {match.teamAPlayer2 && (
                   <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                     availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2.id]}
                     className="text-xs font-semibold truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
-                    style={{ color: courtColor.ring }} />
+                    style={{ color: courtColor.ring }} achievements={achievements} />
                 )}
               </div>
               <div className="flex flex-col items-center px-4 shrink-0">
@@ -1421,12 +1470,14 @@ function CourtDetailDialog({
                 {match.teamBPlayer1 && (
                   <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
                     availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+                    showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1.id]}
+                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
                 )}
                 {match.teamBPlayer2 && (
                   <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                     availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                    showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2.id]}
+                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
                 )}
               </div>
             </div>
@@ -1512,6 +1563,7 @@ type ProLiveMatchesProps = {
   courtNames?: string[];
   defaultPointsToPlayTo?: number;
   sessionMatchCounts?: Record<number, number>;
+  achievements?: PlayerAchievements;
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
@@ -1524,7 +1576,7 @@ type ProLiveMatchesProps = {
 
 export function ProLiveMatches({
   liveMatches, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers,
-  courtNames, defaultPointsToPlayTo = 21, sessionMatchCounts,
+  courtNames, defaultPointsToPlayTo = 21, sessionMatchCounts, achievements,
   onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
@@ -1619,6 +1671,8 @@ export function ProLiveMatches({
               onUpdateSets={onUpdateSets}
               onSwapPlayer={onSwapPlayer}
               busyPlayerIds={busyPlayerIds}
+              sessionMatchCounts={sessionMatchCounts}
+              achievements={achievements}
             />
           </>
         )}
@@ -1636,6 +1690,7 @@ export function ProLiveMatches({
                 courtName={match.courtNumber ? courtNames?.[match.courtNumber - 1] : undefined}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
                 sessionMatchCounts={sessionMatchCounts}
+                achievements={achievements}
                 onCompleteMatch={onCompleteMatch}
                 onEndSet={onEndSet}
                 onCancelMatch={onCancelMatch}
@@ -1657,7 +1712,8 @@ export function ProLiveMatches({
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
-                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
             ))}
           </div>
         )}
@@ -1669,7 +1725,8 @@ export function ProLiveMatches({
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
-                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
             ))}
           </div>
         )}
@@ -1681,7 +1738,8 @@ export function ProLiveMatches({
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
-                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
             ))}
           </div>
         )}
