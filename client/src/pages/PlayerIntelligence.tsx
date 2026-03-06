@@ -47,6 +47,7 @@ type PlayerData = {
   fullName: string;
   email: string;
   role: string;
+  profilePictureUrl?: string | null;
   playerProfiles: ProfileData[];
 };
 
@@ -62,32 +63,46 @@ const GRADE_COLORS: Record<string, string> = {
   C3: "from-green-300 to-emerald-400",
 };
 
+const GRADE_GLOW: Record<string, string> = {
+  A1: "shadow-yellow-500/20",
+  A2: "shadow-yellow-400/20",
+  A3: "shadow-yellow-300/20",
+  B1: "shadow-blue-500/20",
+  B2: "shadow-blue-400/20",
+  B3: "shadow-blue-300/20",
+  C1: "shadow-green-500/20",
+  C2: "shadow-green-400/20",
+  C3: "shadow-green-300/20",
+};
+
 const CATEGORY_ICONS: Record<string, any> = {
   target: Target, crosshair: Crosshair, zap: Zap, shield: Shield,
   move: Move, brain: Brain, lightbulb: Lightbulb, book: BookOpen,
   heart: Heart, dumbbell: Dumbbell,
 };
 
-function AthleteSilhouette({ style = "neutral", size = 80, className = "" }: { style?: string; size?: number; className?: string }) {
-  const poses: Record<string, string> = {
-    neutral: "M40,15 C40,8 33,3 25,3 C17,3 10,8 10,15 C10,22 17,27 25,27 C33,27 40,22 40,15 M25,27 L25,55 M10,38 L25,38 L40,38 M25,55 L15,75 M25,55 L35,75",
-    ready: "M40,15 C40,8 33,3 25,3 C17,3 10,8 10,15 C10,22 17,27 25,27 C33,27 40,22 40,15 M25,27 L25,55 M10,32 L5,45 M40,32 L45,45 M25,55 L18,75 M25,55 L32,75",
-    smash: "M40,12 C40,5 33,0 25,0 C17,0 10,5 10,12 C10,19 17,24 25,24 C33,24 40,19 40,12 M25,24 L23,52 M8,28 L3,18 M42,28 L47,20 M23,52 L15,75 M23,52 L33,72",
-    defensive: "M40,15 C40,8 33,3 25,3 C17,3 10,8 10,15 C10,22 17,27 25,27 C33,27 40,22 40,15 M25,27 L25,55 M10,35 L2,42 M40,35 L48,42 M25,55 L15,75 M25,55 L35,75",
-    running: "M40,12 C40,5 33,0 25,0 C17,0 10,5 10,12 C10,19 17,24 25,24 C33,24 40,19 40,12 M25,24 L28,52 M12,30 L5,38 M38,30 L45,25 M28,52 L18,75 M28,52 L38,70",
-    jumping: "M40,8 C40,1 33,-4 25,-4 C17,-4 10,1 10,8 C10,15 17,20 25,20 C33,20 40,15 40,8 M25,20 L25,48 M8,25 L2,15 M42,25 L48,15 M25,48 L15,68 M25,48 L35,68",
-  };
+function getRealisticAvatarUrl(name: string, id?: number) {
+  const seed = encodeURIComponent(name);
+  const idx = (id || 0) % 70;
+  return `https://i.pravatar.cc/150?u=${seed}-${idx}`;
+}
+
+function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl }: {
+  name: string; id?: number; size?: "sm" | "md" | "lg" | "xl" | "hero"; className?: string; profilePictureUrl?: string | null;
+}) {
+  const sizeMap = { sm: "h-8 w-8", md: "h-11 w-11", lg: "h-16 w-16", xl: "h-20 w-20", hero: "h-28 w-28" };
+  const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-base", xl: "text-xl", hero: "text-3xl" };
+  const ringSize = { sm: "ring-1", md: "ring-2", lg: "ring-2", xl: "ring-[3px]", hero: "ring-[3px]" };
+  const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
+  const avatarSrc = profilePictureUrl || getRealisticAvatarUrl(name, id);
+
   return (
-    <svg width={size} height={size} viewBox="0 0 50 80" className={className}>
-      <path
-        d={poses[style] || poses.neutral}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <Avatar className={`${sizeMap[size]} ${ringSize[size]} ring-primary/40 ${className}`}>
+      <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
+      <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-primary/20 to-primary/5 font-bold`}>
+        {initials}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 
@@ -95,21 +110,24 @@ function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-pri
   label: string; value: string | number; icon: any; trend?: number; subtitle?: string; color?: string;
 }) {
   return (
-    <div className="bg-card/60 backdrop-blur border border-border/40 rounded-xl p-4 flex flex-col gap-1" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
-        <Icon className={`h-4 w-4 ${color}`} />
+    <div className="relative overflow-hidden bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm border border-border/30 rounded-2xl p-4 flex flex-col gap-1.5 group hover:border-primary/30 transition-all duration-300" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
+      <div className="flex items-center justify-between relative z-10">
+        <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+        <div className={`${color} p-1.5 rounded-lg bg-current/10`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
       </div>
-      <div className="flex items-end gap-2">
-        <span className="text-2xl font-bold">{value}</span>
+      <div className="flex items-end gap-2 relative z-10">
+        <span className="text-2xl font-bold tracking-tight">{value}</span>
         {trend !== undefined && (
-          <span className={`text-xs flex items-center gap-0.5 ${trend >= 0 ? "text-green-500" : "text-red-500"}`}>
+          <span className={`text-xs flex items-center gap-0.5 mb-0.5 ${trend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
             {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {Math.abs(trend)}%
           </span>
         )}
       </div>
-      {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+      {subtitle && <span className="text-[11px] text-muted-foreground/80">{subtitle}</span>}
     </div>
   );
 }
@@ -124,20 +142,22 @@ function AchievementBadge({ badge }: { badge: any }) {
   const isLocked = badge.locked;
   return (
     <div
-      className={`relative rounded-xl p-3 text-center transition-all ${
+      className={`relative rounded-2xl p-4 text-center transition-all duration-300 ${
         isLocked
-          ? "bg-muted/20 border border-dashed border-border/40 opacity-50"
-          : "bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20"
+          ? "bg-muted/10 border border-dashed border-border/30 opacity-40"
+          : "bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
       }`}
       data-testid={`badge-${badge.achievementName?.replace(/\s+/g, '-')}`}
     >
       {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-muted-foreground" />}
-      <Icon className={`h-8 w-8 mx-auto mb-1 ${isLocked ? "text-muted-foreground" : "text-primary"}`} />
-      <p className="text-xs font-medium truncate">{badge.achievementName}</p>
-      {badge.description && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{badge.description}</p>}
+      <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-muted/20" : "bg-primary/10"}`}>
+        <Icon className={`h-6 w-6 ${isLocked ? "text-muted-foreground" : "text-primary"}`} />
+      </div>
+      <p className="text-xs font-semibold truncate">{badge.achievementName}</p>
+      {badge.description && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{badge.description}</p>}
       {badge.progress !== undefined && (
-        <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(badge.progress, 100)}%` }} />
+        <div className="mt-2 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all" style={{ width: `${Math.min(badge.progress, 100)}%` }} />
         </div>
       )}
     </div>
@@ -150,30 +170,24 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
   const profile = clubId !== "all"
     ? player.playerProfiles.find(p => p.clubId === Number(clubId)) || player.playerProfiles[0]
     : player.playerProfiles[0];
-  const grade = profile?.grade || profile?.category || "N/A";
+  const grade = profile?.grade || profile?.category || "—";
   const winRate = profile && profile.matchesPlayed > 0
     ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) : 0;
 
   return (
     <button
       onClick={onSelect}
-      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left ${
         isSelected
-          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-          : "bg-card/40 border border-border/30 hover:bg-card/80 hover:border-border/60"
+          ? "bg-primary/10 border border-primary/30 shadow-lg shadow-primary/5"
+          : "border border-transparent hover:bg-card/60 hover:border-border/30"
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
-      <Avatar className="h-10 w-10 shrink-0">
-        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-        <AvatarFallback className="text-xs">{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
+      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} />
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{player.fullName}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <Badge variant="outline" className="text-[10px] py-0 px-1.5">{grade}</Badge>
-          <span className="text-[10px] text-muted-foreground">{winRate}% win</span>
-        </div>
+        <p className={`font-semibold text-sm truncate ${isSelected ? "text-primary" : ""}`}>{player.fullName}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
       </div>
       {isSelected && <ChevronRight className="h-4 w-4 text-primary shrink-0" />}
     </button>
@@ -187,22 +201,23 @@ function PerformanceChart({ data }: { data: any[] }) {
       <AreaChart data={data}>
         <defs>
           <linearGradient id="winRateGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
             <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-        <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
+        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
+        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" domain={[0, 100]} />
         <Tooltip
           contentStyle={{
             backgroundColor: "hsl(var(--card))",
             border: "1px solid hsl(var(--border))",
-            borderRadius: "8px",
+            borderRadius: "12px",
             fontSize: "12px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           }}
         />
-        <Area type="monotone" dataKey="winRate" stroke="hsl(var(--primary))" fill="url(#winRateGradient)" strokeWidth={2} name="Win Rate %" />
+        <Area type="monotone" dataKey="winRate" stroke="hsl(var(--primary))" fill="url(#winRateGradient)" strokeWidth={2.5} name="Win Rate %" dot={{ r: 3, fill: "hsl(var(--primary))" }} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -218,12 +233,12 @@ function DifficultyChart({ data }: { data: any }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={chartData} barGap={4}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-        <XAxis dataKey="level" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
-        <Bar dataKey="wins" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Wins" />
-        <Bar dataKey="losses" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="Losses" />
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
+        <XAxis dataKey="level" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
+        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
+        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }} />
+        <Bar dataKey="wins" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Wins" />
+        <Bar dataKey="losses" fill="hsl(var(--destructive))" radius={[6, 6, 0, 0]} name="Losses" />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -246,10 +261,10 @@ function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <RadarChart data={radarData} cx="50%" cy="50%">
-        <PolarGrid stroke="hsl(var(--border))" />
+        <PolarGrid stroke="hsl(var(--border))" opacity={0.3} />
         <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
         <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
-        <Radar name="Skill" dataKey="rating" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
+        <Radar name="Skill" dataKey="rating" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} strokeWidth={2} />
       </RadarChart>
     </ResponsiveContainer>
   );
@@ -269,21 +284,22 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
   ];
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-center gap-4 py-4">
-        <div className="text-center">
-          <Avatar className="h-16 w-16 mx-auto mb-2 border-2 border-primary">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player1.fullName}`} />
-            <AvatarFallback>{player1.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <p className="font-semibold text-sm">{player1.fullName}</p>
-        </div>
-        <div className="text-2xl font-bold text-muted-foreground">VS</div>
-        <div className="text-center">
-          <Avatar className="h-16 w-16 mx-auto mb-2 border-2 border-blue-400">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player2.fullName}`} />
-            <AvatarFallback>{player2.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <p className="font-semibold text-sm">{player2.fullName}</p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/30 p-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-blue-400/5" />
+        <div className="flex items-center justify-center gap-6 relative z-10">
+          <div className="text-center">
+            <PlayerAvatar name={player1.fullName} id={player1.id} size="lg" className="mx-auto mb-2 ring-primary/60" profilePictureUrl={player1.profilePictureUrl} />
+            <p className="font-bold text-sm">{player1.fullName}</p>
+          </div>
+          <div className="flex flex-col items-center">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted/30 to-muted/10 flex items-center justify-center border border-border/30">
+              <span className="text-lg font-black text-muted-foreground">VS</span>
+            </div>
+          </div>
+          <div className="text-center">
+            <PlayerAvatar name={player2.fullName} id={player2.id} size="lg" className="mx-auto mb-2 ring-blue-400/60" profilePictureUrl={player2.profilePictureUrl} />
+            <p className="font-bold text-sm">{player2.fullName}</p>
+          </div>
         </div>
       </div>
 
@@ -294,15 +310,15 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
           const total = m.n1 + m.n2;
           const p1Pct = total > 0 ? (m.n1 / total) * 100 : 50;
           return (
-            <div key={m.label} className="space-y-1">
+            <div key={m.label} className="space-y-1.5 bg-card/30 rounded-xl p-3 border border-border/20">
               <div className="flex justify-between text-sm">
                 <span className={p1Better && !equal ? "font-bold text-primary" : ""}>{m.v1}</span>
-                <span className="text-muted-foreground text-xs">{m.label}</span>
+                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">{m.label}</span>
                 <span className={!p1Better && !equal ? "font-bold text-blue-400" : ""}>{m.v2}</span>
               </div>
-              <div className="flex h-2 rounded-full overflow-hidden bg-muted/30">
-                <div className="bg-primary rounded-l-full transition-all" style={{ width: `${p1Pct}%` }} />
-                <div className="bg-blue-400 rounded-r-full transition-all" style={{ width: `${100 - p1Pct}%` }} />
+              <div className="flex h-2 rounded-full overflow-hidden bg-muted/20">
+                <div className="bg-gradient-to-r from-primary to-primary/70 rounded-l-full transition-all duration-500" style={{ width: `${p1Pct}%` }} />
+                <div className="bg-gradient-to-l from-blue-400 to-blue-400/70 rounded-r-full transition-all duration-500" style={{ width: `${100 - p1Pct}%` }} />
               </div>
             </div>
           );
@@ -310,33 +326,33 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
       </div>
 
       {h2h && (
-        <Card className="border-border/40 bg-card/60">
+        <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Swords className="h-4 w-4" />
+              <Swords className="h-4 w-4 text-primary" />
               Head-to-Head Record
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-3 gap-4 text-center py-2">
               <div>
-                <p className="text-2xl font-bold text-primary">{h2h.player1Wins || 0}</p>
-                <p className="text-xs text-muted-foreground">Wins</p>
+                <p className="text-3xl font-black text-primary">{h2h.player1Wins || 0}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">Wins</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-muted-foreground">{h2h.totalMatches || 0}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-3xl font-black text-muted-foreground/50">{h2h.totalMatches || 0}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">Total</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-blue-400">{h2h.player2Wins || 0}</p>
-                <p className="text-xs text-muted-foreground">Wins</p>
+                <p className="text-3xl font-black text-blue-400">{h2h.player2Wins || 0}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">Wins</p>
               </div>
             </div>
             {h2h.recentResults && h2h.recentResults.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs text-muted-foreground">Recent Results</p>
+              <div className="mt-4 space-y-1.5">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Recent Results</p>
                 {h2h.recentResults.slice(0, 5).map((r: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between text-xs bg-muted/20 rounded-lg px-3 py-1.5">
+                  <div key={i} className="flex items-center justify-between text-xs bg-muted/10 rounded-lg px-3 py-2 border border-border/20">
                     <span className={r.player1Score > r.player2Score ? "font-bold text-primary" : ""}>{r.player1Score ?? "?"}</span>
                     <span className="text-muted-foreground">{r.date ? new Date(r.date).toLocaleDateString() : ""}</span>
                     <span className={r.player2Score > r.player1Score ? "font-bold text-blue-400" : ""}>{r.player2Score ?? "?"}</span>
@@ -440,7 +456,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
           Skill Assessment
         </h3>
         {isOwnProfile && !requestHistory.some((r: any) => r.status === "PENDING" || r.status === "ACCEPTED") && (
-          <Button size="sm" onClick={() => setShowRequestDialog(true)} data-testid="button-request-review">
+          <Button size="sm" onClick={() => setShowRequestDialog(true)} className="rounded-xl" data-testid="button-request-review">
             <PoundSterling className="h-4 w-4 mr-1" />
             Request Coach Feedback (£20)
           </Button>
@@ -457,22 +473,22 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             const avg = Math.round(catEvals.reduce((s: number, e: any) => s + e.rating, 0) / catEvals.length);
             const Icon = CATEGORY_ICONS[cat.iconName] || Target;
             return (
-              <div key={cat.id} className="bg-card/40 border border-border/30 rounded-xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="flex items-center gap-2 text-sm font-medium">
+              <div key={cat.id} className="bg-card/30 border border-border/20 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
                     <Icon className="h-4 w-4 text-primary" />
                     {cat.name}
                   </span>
-                  <Badge variant="outline">{avg}%</Badge>
+                  <Badge variant="outline" className="rounded-lg">{avg}%</Badge>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {catEvals.map((e: any) => (
                     <div key={e.skillId || e.id} className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground w-32 truncate">{e.skillName}</span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${e.rating}%` }} />
+                      <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all" style={{ width: `${e.rating}%` }} />
                       </div>
-                      <span className="text-xs font-medium w-8 text-right">{e.rating}%</span>
+                      <span className="text-xs font-bold w-8 text-right">{e.rating}%</span>
                     </div>
                   ))}
                 </div>
@@ -483,7 +499,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
       )}
 
       {isAdmin && pendingRequests && (pendingRequests as any[]).filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED").length > 0 && (
-        <Card className="border-border/40">
+        <Card className="border-border/30 rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Pending Review Requests</CardTitle>
           </CardHeader>
@@ -491,19 +507,19 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             {(pendingRequests as any[])
               .filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED")
               .map((r: any) => (
-                <div key={r.id} className="flex items-center justify-between bg-muted/20 rounded-lg p-3">
+                <div key={r.id} className="flex items-center justify-between bg-muted/10 rounded-xl p-3 border border-border/20">
                   <div>
                     <p className="text-sm font-medium">{r.playerName || `Player #${r.playerId}`}</p>
-                    <Badge variant={r.status === "PENDING" ? "secondary" : "default"} className="text-[10px]">{r.status}</Badge>
+                    <Badge variant={r.status === "PENDING" ? "secondary" : "default"} className="text-[10px] rounded-lg">{r.status}</Badge>
                   </div>
                   <div className="flex gap-2">
                     {r.status === "PENDING" && (
-                      <Button size="sm" variant="outline" onClick={() => acceptRequest.mutate(r.id)} data-testid={`button-accept-review-${r.id}`}>
+                      <Button size="sm" variant="outline" onClick={() => acceptRequest.mutate(r.id)} className="rounded-xl" data-testid={`button-accept-review-${r.id}`}>
                         <CheckCircle className="h-3 w-3 mr-1" /> Accept
                       </Button>
                     )}
                     {r.status === "ACCEPTED" && (
-                      <Button size="sm" onClick={() => setEvaluateRequestId(r.id)} data-testid={`button-evaluate-${r.id}`}>
+                      <Button size="sm" onClick={() => setEvaluateRequestId(r.id)} className="rounded-xl" data-testid={`button-evaluate-${r.id}`}>
                         <Star className="h-3 w-3 mr-1" /> Evaluate
                       </Button>
                     )}
@@ -514,10 +530,10 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
         </Card>
       )}
 
-      <Card className="border-border/40">
+      <Card className="border-border/30 rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
+            <MessageSquare className="h-4 w-4 text-primary" />
             Coach Notes
           </CardTitle>
         </CardHeader>
@@ -528,17 +544,17 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Add a coach note..."
-                className="min-h-[60px]"
+                className="min-h-[60px] rounded-xl"
                 data-testid="textarea-coach-note"
               />
-              <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} data-testid="button-add-note">
+              <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
           )}
           <div className="space-y-3">
             {(coachNotes as any[])?.map((n: any) => (
-              <div key={n.id} className="bg-muted/20 rounded-lg p-3">
+              <div key={n.id} className="bg-muted/10 rounded-xl p-3 border border-border/20">
                 <p className="text-sm">{n.note}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
@@ -550,7 +566,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
       </Card>
 
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Request Skill Review</DialogTitle>
             <DialogDescription>A coach will evaluate your skills across all categories. The cost is £20.</DialogDescription>
@@ -560,8 +576,8 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             <p className="text-sm text-muted-foreground mt-2">Comprehensive skill assessment by a qualified coach</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRequestDialog(false)}>Cancel</Button>
-            <Button onClick={() => requestReview.mutate()} disabled={requestReview.isPending} data-testid="button-confirm-review-request">
+            <Button variant="outline" onClick={() => setShowRequestDialog(false)} className="rounded-xl">Cancel</Button>
+            <Button onClick={() => requestReview.mutate()} disabled={requestReview.isPending} className="rounded-xl" data-testid="button-confirm-review-request">
               {requestReview.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Confirm Request
             </Button>
@@ -571,7 +587,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
 
       {evaluateRequestId && skills && (
         <Dialog open={!!evaluateRequestId} onOpenChange={() => setEvaluateRequestId(null)}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl">
             <DialogHeader>
               <DialogTitle>Evaluate Player Skills</DialogTitle>
               <DialogDescription>Rate each skill from 0-100%</DialogDescription>
@@ -601,7 +617,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                         />
                         <Input
                           placeholder="Optional comment..."
-                          className="text-xs h-7"
+                          className="text-xs h-7 rounded-lg"
                           value={comments[skill.id] || ""}
                           onChange={(e) => setComments(prev => ({ ...prev, [skill.id]: e.target.value }))}
                         />
@@ -612,7 +628,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
               })}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEvaluateRequestId(null)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setEvaluateRequestId(null)} className="rounded-xl">Cancel</Button>
               <Button
                 onClick={() => {
                   const evals = Object.entries(ratings).map(([skillId, rating]) => ({
@@ -624,6 +640,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                   submitEvaluation.mutate({ reviewRequestId: evaluateRequestId, evaluations: evals });
                 }}
                 disabled={submitEvaluation.isPending || Object.keys(ratings).length === 0}
+                className="rounded-xl"
                 data-testid="button-submit-evaluation"
               >
                 {submitEvaluation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -650,20 +667,20 @@ function AIStyleBadge({ playerId }: { playerId: number }) {
   });
   if (isLoading || !data) return null;
   const styleColors: Record<string, string> = {
-    Attacking: "bg-red-500/10 text-red-500 border-red-500/30",
-    Defensive: "bg-blue-500/10 text-blue-500 border-blue-500/30",
-    Tactical: "bg-purple-500/10 text-purple-500 border-purple-500/30",
-    Balanced: "bg-green-500/10 text-green-500 border-green-500/30",
-    Power: "bg-orange-500/10 text-orange-500 border-orange-500/30",
-    Control: "bg-cyan-500/10 text-cyan-500 border-cyan-500/30",
+    Attacking: "bg-red-500/15 text-red-400 border-red-500/30",
+    Defensive: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    Tactical: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+    Balanced: "bg-green-500/15 text-green-400 border-green-500/30",
+    Power: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    Control: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   };
   return (
-    <div className="space-y-2" data-testid="ai-style-badge">
-      <Badge variant="outline" className={`${styleColors[data.style] || "bg-muted"} text-xs`}>
+    <div className="space-y-2 mt-2" data-testid="ai-style-badge">
+      <Badge variant="outline" className={`${styleColors[data.style] || "bg-muted"} text-xs rounded-lg px-2.5 py-0.5`}>
         <Brain className="h-3 w-3 mr-1" />
         {data.style} Player
       </Badge>
-      {data.explanation && <p className="text-xs text-muted-foreground leading-relaxed">{data.explanation}</p>}
+      {data.explanation && <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{data.explanation}</p>}
     </div>
   );
 }
@@ -709,59 +726,102 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 pb-4 border-b border-border/30">
-        <div className="relative">
-          <Avatar className="h-20 w-20 border-2 border-primary">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-            <AvatarFallback className="text-xl">{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <AthleteSilhouette style="ready" size={32} className="absolute -bottom-1 -right-1 text-primary bg-background rounded-full p-0.5" />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-xl font-bold">{player.fullName}</h2>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <Badge className={`bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} text-white border-0`}>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/30 p-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/8 to-transparent rounded-bl-full" />
+        <div className="relative z-10 flex items-start gap-5">
+          <div className="relative">
+            <PlayerAvatar
+              name={player.fullName}
+              id={player.id}
+              size="hero"
+              className="ring-primary/50 shadow-2xl shadow-primary/10"
+              profilePictureUrl={player.profilePictureUrl}
+            />
+            <div className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""}`}>
               {grade}
-            </Badge>
-            <span className="text-sm text-muted-foreground">{clubName}</span>
-            {profile && <span className="text-sm text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3" />{profile.rankingPoints} pts</span>}
+            </div>
           </div>
-          <AIStyleBadge playerId={profileId!} />
+          <div className="flex-1 min-w-0 pt-1">
+            <h2 className="text-2xl font-black tracking-tight">{player.fullName}</h2>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <span className="text-sm text-muted-foreground font-medium">{clubName}</span>
+              {profile && (
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+                  <span className="font-semibold">{profile.rankingPoints}</span> pts
+                </span>
+              )}
+            </div>
+            <AIStyleBadge playerId={profileId!} />
+
+            {stats && (
+              <div className="flex items-center gap-4 mt-3 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                    <Trophy className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-none">{stats.matchesWon || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Wins</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center">
+                    <XCircle className="h-4 w-4 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-none">{stats.matchesLost || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Losses</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Star className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-none">{stats.winRate || 0}%</p>
+                    <p className="text-[10px] text-muted-foreground">Win Rate</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <Tabs value={dashTab} onValueChange={setDashTab}>
-        <TabsList className="w-full">
-          <TabsTrigger value="overview" className="flex-1" data-testid="tab-overview">
+        <TabsList className="w-full bg-card/40 border border-border/30 rounded-xl p-1">
+          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-overview">
             <Activity className="h-4 w-4 mr-1" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="achievements" className="flex-1" data-testid="tab-achievements">
+          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-achievements">
             <Award className="h-4 w-4 mr-1" /> Badges
           </TabsTrigger>
-          <TabsTrigger value="skills" className="flex-1" data-testid="tab-skills">
+          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-4">
+        <TabsContent value="overview" className="space-y-5 mt-5">
           {loadingAnalytics ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="h-24 bg-muted/30 animate-pulse rounded-xl" />)}
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="h-24 bg-muted/20 animate-pulse rounded-2xl" />)}
             </div>
           ) : stats ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="Matches" value={stats.matchesPlayed || 0} icon={Swords} subtitle={`${stats.matchesWon || 0}W - ${stats.matchesLost || 0}L`} />
-                <StatCard label="Win Rate" value={`${stats.winRate || 0}%`} icon={TrendingUp} color={stats.winRate >= 50 ? "text-green-500" : "text-red-500"} />
+                <StatCard label="Win Rate" value={`${stats.winRate || 0}%`} icon={TrendingUp} color={stats.winRate >= 50 ? "text-emerald-400" : "text-red-400"} />
                 <StatCard label="Points Scored" value={stats.pointsScored || 0} icon={Target} subtitle={`${stats.pointsConceded || 0} conceded`} />
                 <StatCard label="Sessions" value={stats.sessionsAttended || 0} icon={Clock} subtitle={`${stats.totalHoursPlayed?.toFixed(1) || 0}h played`} />
-                <StatCard label="Impact Score" value={stats.sessionImpactScore || "0"} icon={Zap} color="text-yellow-500" />
+                <StatCard label="Impact Score" value={stats.sessionImpactScore || "0"} icon={Zap} color="text-yellow-400" />
                 <StatCard label="Opponents" value={stats.uniqueOpponents || 0} icon={Users} />
                 <StatCard label="30-Day Sessions" value={stats.sessions30d || 0} icon={Medal} />
                 <StatCard label="Difficulty Score" value={stats.opponentDifficultyScore?.toFixed(2) || "—"} icon={BarChart3} />
               </div>
 
-              <Card className="border-border/40 bg-card/60">
+              <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-primary" />
@@ -773,7 +833,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/40 bg-card/60">
+              <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-primary" />
@@ -786,7 +846,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               </Card>
 
               {perfHistory?.monthlyHours && perfHistory.monthlyHours.length > 0 && (
-                <Card className="border-border/40 bg-card/60">
+                <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Clock className="h-4 w-4 text-primary" />
@@ -796,11 +856,11 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                   <CardContent>
                     <ResponsiveContainer width="100%" height={200}>
                       <BarChart data={perfHistory.monthlyHours}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                        <Bar dataKey="hours" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
+                        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
+                        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }} />
+                        <Bar dataKey="hours" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -808,14 +868,15 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               )}
             </>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No analytics data available yet</p>
+            <div className="text-center py-16 text-muted-foreground">
+              <Activity className="h-14 w-14 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No analytics data available yet</p>
+              <p className="text-sm mt-1">Play some matches to see your stats!</p>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="achievements" className="mt-4">
+        <TabsContent value="achievements" className="mt-5">
           {achievements && (achievements as any[]).length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(achievements as any[]).map((b: any, i: number) => (
@@ -823,14 +884,15 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Award className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No achievements yet. Keep playing!</p>
+            <div className="text-center py-16 text-muted-foreground">
+              <Award className="h-14 w-14 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No achievements yet</p>
+              <p className="text-sm mt-1">Keep playing to unlock badges!</p>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="skills" className="mt-4">
+        <TabsContent value="skills" className="mt-5">
           {profileId && (
             <SkillReviewTab
               playerId={profileId}
@@ -902,37 +964,46 @@ export default function PlayerIntelligence() {
 
   const playerList = (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-muted-foreground">{filteredPlayers.length} players</span>
+        {clubs && clubs.length > 1 && (
+          <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+            <SelectTrigger className="w-auto h-7 text-xs rounded-lg border-border/30 bg-transparent gap-1 px-2" data-testid="select-club-filter">
+              <SelectValue placeholder="ALL" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ALL</SelectItem>
+              {clubs.map((club: any) => (
+                <SelectItem key={club.id} value={club.id.toString()}>{club.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
         <Input
           placeholder="Search players..."
-          className="pl-10"
+          className="pl-10 bg-card/30 border-border/20 rounded-xl h-9 text-sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid="input-search-players"
         />
       </div>
-      {clubs && clubs.length > 1 && (
-        <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-          <SelectTrigger className="w-full" data-testid="select-club-filter">
-            <SelectValue placeholder="All Clubs" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Clubs</SelectItem>
-            {clubs.map((club: any) => (
-              <SelectItem key={club.id} value={club.id.toString()}>{club.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-      <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+      <div className="space-y-1 max-h-[calc(100vh-300px)] overflow-y-auto pr-1 scrollbar-thin">
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-xl" />
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 p-2.5">
+              <div className="h-11 w-11 bg-muted/20 animate-pulse rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-24 bg-muted/20 animate-pulse rounded" />
+                <div className="h-2.5 w-16 bg-muted/20 animate-pulse rounded" />
+              </div>
+            </div>
           ))
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <div className="text-center py-10 text-muted-foreground">
+            <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">No players found</p>
           </div>
         ) : (
@@ -961,7 +1032,7 @@ export default function PlayerIntelligence() {
   if (!isPremium) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="max-w-md text-center p-8">
+        <Card className="max-w-md text-center p-8 rounded-2xl">
           <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-xl font-bold mb-2">Premium Feature</h2>
           <p className="text-muted-foreground">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
@@ -971,24 +1042,24 @@ export default function PlayerIntelligence() {
   }
 
   return (
-    <div className="flex gap-6 min-h-[calc(100vh-140px)]">
-      <div className="hidden lg:block w-80 shrink-0">
+    <div className="flex gap-0 min-h-[calc(100vh-140px)]">
+      <div className="hidden lg:block w-72 shrink-0 border-r border-border/20 pr-4">
         <div className="sticky top-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Player Intelligence
-            </h1>
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-primary" />
+            </div>
+            <h1 className="text-base font-bold">Players</h1>
           </div>
           {playerList}
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 lg:pl-6">
         <div className="lg:hidden flex items-center gap-2 mb-4">
           <Sheet open={mobileListOpen} onOpenChange={setMobileListOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-open-player-list">
+              <Button variant="outline" size="sm" className="rounded-xl" data-testid="button-open-player-list">
                 <Users className="h-4 w-4 mr-2" /> Players
               </Button>
             </SheetTrigger>
@@ -1005,7 +1076,7 @@ export default function PlayerIntelligence() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-5">
           <Button
             variant={compareMode ? "default" : "outline"}
             size="sm"
@@ -1013,6 +1084,7 @@ export default function PlayerIntelligence() {
               setCompareMode(!compareMode);
               if (compareMode) setComparePlayer(null);
             }}
+            className="rounded-xl"
             data-testid="button-toggle-compare"
           >
             <GitCompare className="h-4 w-4 mr-1" />
@@ -1042,9 +1114,11 @@ export default function PlayerIntelligence() {
         ) : (
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="text-center text-muted-foreground">
-              <AthleteSilhouette style="neutral" size={120} className="mx-auto mb-4 opacity-30" />
-              <h2 className="text-lg font-semibold mb-1">Select a Player</h2>
-              <p className="text-sm">Choose a player from the list to view their analytics dashboard</p>
+              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-muted/10 flex items-center justify-center">
+                <Users className="h-10 w-10 opacity-30" />
+              </div>
+              <h2 className="text-lg font-bold mb-1">Select a Player</h2>
+              <p className="text-sm">Choose a player from the list to view their analytics</p>
             </div>
           </div>
         )}
