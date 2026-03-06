@@ -686,66 +686,75 @@ function DashboardContent({
       {nextLeagueMatch && (
         <Link href="/league" className="mt-4 block">
           <div
-            className="relative overflow-hidden rounded-2xl cursor-pointer border border-white/10 bg-black/60 backdrop-blur-xl p-6 transition-transform duration-200 ease-out hover:scale-[1.02]"
+            className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate animate-[card-glow_3s_ease-in-out_infinite]"
             data-testid="card-upcoming-league-match"
           >
-            {nextLeagueMatch.leagueName && (
-              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-widest text-white/40 mb-4">
-                {nextLeagueMatch.leagueName}
-              </p>
-            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#1a0a2e] via-[#0d1117] to-[#0a1628]" />
+            <div className="absolute inset-0 animate-[sweep_4s_linear_infinite] bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.03)_45%,rgba(255,255,255,0.06)_50%,rgba(255,255,255,0.03)_55%,transparent_100%)]" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 sm:px-5">
+                <div className="flex items-center gap-2">
+                  <Swords className="h-4 w-4 text-amber-400 animate-[pulse_2s_ease-in-out_infinite]" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Next League Match
+                  </span>
+                </div>
+                {nextLeagueMatch.leagueName && (
+                  <Badge className="bg-white/15 text-white/90 border-0 text-[9px] sm:text-[10px] shrink-0">
+                    {nextLeagueMatch.leagueName}
+                  </Badge>
+                )}
+              </div>
 
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0 text-center">
-                <p className="text-white font-bold text-base sm:text-lg leading-tight line-clamp-2">
-                  {nextLeagueMatch.clubName || "Your Club"}
-                </p>
-                <div className="flex items-center justify-center gap-1.5 mt-1.5">
-                  {nextLeagueMatch.location === "HOME" && (
-                    <span className="inline-flex items-center rounded-full bg-green-500/20 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-green-400 border border-green-500/20">
-                      Home
-                    </span>
-                  )}
-                  {nextLeagueMatch.teamName && (
-                    <span className="text-white/50 text-[10px] sm:text-xs truncate">{nextLeagueMatch.teamName}</span>
-                  )}
+              <div className="flex items-stretch px-3 sm:px-4 py-2">
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-red-500/30 bg-black/40 px-3 py-3 animate-[glow-red_3s_ease-in-out_infinite]">
+                  <div className="text-center overflow-hidden">
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextLeagueMatch.clubName || "Your Club"}
+                    </p>
+                    {nextLeagueMatch.teamName && (
+                      <p className="text-white/60 text-[9px] sm:text-[10px] truncate mt-1">{nextLeagueMatch.teamName}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="shrink-0 w-14 sm:w-16 flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-[heartbeat_1.2s_ease-in-out_infinite]">
+                    <span className="text-white font-black text-sm sm:text-base">VS</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-blue-500/30 bg-black/40 px-3 py-3 animate-[glow-blue_3s_ease-in-out_infinite]">
+                  <div className="text-center overflow-hidden">
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextLeagueMatch.opponentClub}
+                    </p>
+                    {nextLeagueMatch.category && (
+                      <p className="text-white/60 text-[9px] sm:text-[10px] truncate mt-1">{nextLeagueMatch.category}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                <span className="text-white font-black text-xs tracking-tight">VS</span>
-              </div>
-
-              <div className="flex-1 min-w-0 text-center">
-                <p className="text-white font-bold text-base sm:text-lg leading-tight line-clamp-2">
-                  {nextLeagueMatch.opponentClub}
-                </p>
-                <div className="flex items-center justify-center gap-1.5 mt-1.5">
-                  {nextLeagueMatch.location === "AWAY" && (
-                    <span className="inline-flex items-center rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-blue-400 border border-blue-500/20">
-                      Away
-                    </span>
-                  )}
-                  {nextLeagueMatch.category && (
-                    <span className="text-white/50 text-[10px] sm:text-xs truncate">{nextLeagueMatch.category}</span>
-                  )}
+              <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 pb-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-white/80 text-[10px] sm:text-xs">
+                  <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400" />
+                  <span>{format(new Date(nextLeagueMatch.matchDatetime), "EEE, MMM d, yyyy")}</span>
                 </div>
-              </div>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-center gap-4 sm:gap-6 flex-wrap">
-              <div className="flex items-center gap-1.5 text-white/60 text-[11px] sm:text-xs">
-                <Calendar className="h-3.5 w-3.5 text-white/40 stroke-[1.5]" />
-                <span>{format(new Date(nextLeagueMatch.matchDatetime), "MMM d, yyyy")}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-white/60 text-[11px] sm:text-xs">
-                <Clock className="h-3.5 w-3.5 text-white/40 stroke-[1.5]" />
-                <span>{format(new Date(nextLeagueMatch.matchDatetime), "h:mm a")}</span>
+                <div className="flex items-center gap-1.5 text-white/80 text-[10px] sm:text-xs">
+                  <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-400" />
+                  <span>{format(new Date(nextLeagueMatch.matchDatetime), "h:mm a")}</span>
+                </div>
+                {nextLeagueMatch.location && (
+                  <Badge className={`text-[9px] sm:text-[10px] border-0 ${nextLeagueMatch.location === "HOME" ? "bg-green-500/30 text-green-300" : "bg-blue-500/30 text-blue-300"}`}>
+                    {nextLeagueMatch.location}
+                  </Badge>
+                )}
               </div>
               {nextLeagueMatch.venue && (
-                <div className="flex items-center gap-1.5 text-white/60 text-[11px] sm:text-xs">
-                  <MapPin className="h-3.5 w-3.5 text-white/40 stroke-[1.5]" />
-                  <span className="truncate max-w-[180px]">{nextLeagueMatch.venue}</span>
+                <div className="flex items-center justify-center gap-1.5 pb-3 text-white/50 text-[9px] sm:text-xs">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate max-w-[250px]">{nextLeagueMatch.venue}</span>
                 </div>
               )}
             </div>
