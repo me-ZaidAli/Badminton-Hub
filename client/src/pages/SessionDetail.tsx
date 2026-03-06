@@ -2301,230 +2301,251 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   return (
     <div className="space-y-6">
       {(isOrganiser || isSignedUp) && (
-        <Card className="border-white/10 bg-slate-900/80 backdrop-blur-xl">
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex justify-between items-center flex-wrap gap-4">
-                {isOrganiser && (
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <div className="flex items-center gap-2" data-testid="mode-toggle-container">
-                      <Label className="text-sm font-medium">Mode:</Label>
-                      <div className="flex items-center rounded-full border-2 border-primary/30 p-0.5 bg-muted/50 relative">
-                        <button
-                          className={cn(
-                            "relative z-10 px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-300 flex items-center gap-1.5",
-                            activeMode === "SOCIAL"
-                              ? "text-white"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                          onClick={() => {
-                            setActiveMode("SOCIAL");
-                            updateSession({ sessionId, updates: { matchMode: "SOCIAL" } });
-                          }}
-                          data-testid="button-mode-social"
-                        >
-                          <span className={cn(
-                            "w-2.5 h-2.5 rounded-full transition-all duration-300",
-                            activeMode === "SOCIAL" ? "bg-white shadow-sm" : "bg-muted-foreground/30"
-                          )} />
-                          Social
-                        </button>
-                        <button
-                          className={cn(
-                            "relative z-10 px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-300 flex items-center gap-1.5",
-                            activeMode === "COMPETITIVE"
-                              ? "text-white"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                          onClick={() => {
-                            setActiveMode("COMPETITIVE");
-                            updateSession({ sessionId, updates: { matchMode: "COMPETITIVE" } });
-                          }}
-                          data-testid="button-mode-competitive"
-                        >
-                          <span className={cn(
-                            "w-2.5 h-2.5 rounded-full transition-all duration-300",
-                            activeMode === "COMPETITIVE" ? "bg-white shadow-sm" : "bg-muted-foreground/30"
-                          )} />
-                          Competitive
-                        </button>
-                        <div
-                          className={cn(
-                            "absolute top-0.5 bottom-0.5 rounded-full bg-primary transition-all duration-300 ease-in-out",
-                            activeMode === "SOCIAL" ? "left-0.5 w-[calc(50%-2px)]" : "left-[calc(50%+2px)] w-[calc(50%-2px)]"
-                          )}
-                        />
-                      </div>
-                      <MatchAlgorithmInfoButton />
-                    </div>
+        <div
+          className="relative rounded-[2rem] border border-white/10 bg-slate-900/80 backdrop-blur-xl p-6 sm:p-8 hover:scale-[1.01] transition-all duration-300 overflow-hidden"
+          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}
+        >
+          <div className="absolute inset-0 rounded-[2rem] pointer-events-none bg-[radial-gradient(ellipse_at_center_bottom,rgba(56,189,248,0.06)_0%,transparent_60%)]" />
+          <div className="relative z-10 flex flex-col gap-6">
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Courts:</span>
-                      <div className="flex items-center gap-1">
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          onClick={() => {
-                            const newVal = Math.max(1, courtsToUse - 1);
-                            setCourtsToUse(newVal);
-                            updateSession({ sessionId, updates: { courtsAvailable: newVal } });
-                          }}
-                          disabled={courtsToUse <= 1}
-                          data-testid="button-decrease-courts"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <Badge variant="secondary" className="text-lg px-4 py-1 min-w-[3rem] justify-center" data-testid="badge-courts-count">
-                          {courtsToUse}
-                        </Badge>
-                        <Button 
-                          size="icon" 
-                          variant="outline" 
-                          onClick={() => {
-                            const newVal = Math.min(10, courtsToUse + 1);
-                            setCourtsToUse(newVal);
-                            updateSession({ sessionId, updates: { courtsAvailable: newVal } });
-                          }}
-                          disabled={courtsToUse >= 10}
-                          data-testid="button-increase-courts"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
-                    <span className={cn("w-2 h-2 rounded-full", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse" : "bg-emerald-400/40")} />
-                    <span className="text-foreground/80">{liveMatches.length} Live</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
-                    <span className={cn("w-2 h-2 rounded-full", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" : "bg-amber-400/40")} />
-                    <span className="text-foreground/80">{queuedMatches.length} Queued</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
-                    <span className={cn("w-2 h-2 rounded-full", completedCount > 0 ? "bg-blue-400" : "bg-blue-400/40")} />
-                    <span className="text-foreground/80">{completedCount} Done</span>
-                  </span>
-                  {!isOrganiser && <MatchAlgorithmInfoButton />}
-                  {isOrganiser && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2.5 text-xs gap-1.5"
-                      onClick={() => setCrowdControlOpen(true)}
-                      data-testid="button-crowd-control"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      Crowd
-                    </Button>
-                  )}
-                  <div className="flex items-center border rounded-lg overflow-hidden ml-auto" data-testid="match-view-toggle">
-                    <button
-                      onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
-                        matchViewMode === "court"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted"
-                      )}
-                      data-testid="button-court-view"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      Courts
-                    </button>
-                    <button
-                      onClick={() => { setMatchViewMode("compact"); localStorage.setItem("matchViewMode", "compact"); }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
-                        matchViewMode === "compact"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted"
-                      )}
-                      data-testid="button-compact-view"
-                    >
-                      <List className="w-3.5 h-3.5" />
-                      Cards
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+            <div className="flex justify-between items-start flex-wrap gap-4">
               {isOrganiser && (
-                <div className="flex items-center gap-4 flex-wrap">
-                  <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
-                    <SelectTrigger className="w-[120px]" data-testid="select-generate-gender-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MIXED">Mixed</SelectItem>
-                      <SelectItem value="FEMALE">Female Only</SelectItem>
-                      <SelectItem value="MALE">Male Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <div className="flex flex-col items-center gap-1">
-                    <button
-                      onClick={handleSmartGenerate}
-                      disabled={isSmartGenerating}
-                      className={cn(
-                        "neon-power-btn group relative active:scale-95 transition-transform duration-300",
-                        generateSuccess && "ring-2 ring-emerald-400/60"
-                      )}
-                      style={{ width: '72px', height: '72px' }}
-                      data-testid="button-generate-matches"
-                    >
-                      <div className={cn("neon-power-outer", generateSuccess && "!border-emerald-500/50")} />
-                      <div className="neon-power-ring" />
-                      <div className={cn("neon-power-ring-pulse", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/30")} />
-                      <div className={cn("neon-power-glow", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/20")} />
-                      <div className="neon-power-inner">
-                        {isSmartGenerating ? (
-                          <div className="neon-power-icon neon-vibrate">
-                            <Power className="h-6 w-6 animate-spin" strokeWidth={2.5} style={{ animationDuration: '2s' }} />
-                          </div>
-                        ) : generateSuccess ? (
-                          <div className="neon-power-icon">
-                            <CheckCircle className="h-6 w-6 text-emerald-400" strokeWidth={2.5} />
-                          </div>
-                        ) : (
-                          <div className="neon-power-icon">
-                            <Power className="h-6 w-6" strokeWidth={2.5} />
-                          </div>
+                <div className="flex flex-col gap-5">
+                  <div className="flex items-center gap-3" data-testid="mode-toggle-container">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Mode</span>
+                    <div className="flex items-center rounded-full border border-white/10 bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
+                      <button
+                        className={cn(
+                          "relative z-10 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center gap-1.5 active:scale-95",
+                          activeMode === "SOCIAL"
+                            ? "text-white"
+                            : "text-white/40 hover:text-white/70"
                         )}
-                      </div>
-                      <div className="neon-power-circuit-ring" />
-                    </button>
-                    <span className={cn(
-                      "text-[10px] font-medium tracking-wider uppercase transition-colors duration-500",
-                      isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-muted-foreground"
-                    )}>
-                      {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
-                    </span>
+                        onClick={() => {
+                          setActiveMode("SOCIAL");
+                          updateSession({ sessionId, updates: { matchMode: "SOCIAL" } });
+                        }}
+                        data-testid="button-mode-social"
+                      >
+                        <span className={cn(
+                          "w-2 h-2 rounded-full transition-all duration-500",
+                          activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
+                        )} />
+                        Social
+                      </button>
+                      <button
+                        className={cn(
+                          "relative z-10 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center gap-1.5 active:scale-95",
+                          activeMode === "COMPETITIVE"
+                            ? "text-white"
+                            : "text-white/40 hover:text-white/70"
+                        )}
+                        onClick={() => {
+                          setActiveMode("COMPETITIVE");
+                          updateSession({ sessionId, updates: { matchMode: "COMPETITIVE" } });
+                        }}
+                        data-testid="button-mode-competitive"
+                      >
+                        <span className={cn(
+                          "w-2 h-2 rounded-full transition-all duration-500",
+                          activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
+                        )} />
+                        Competitive
+                      </button>
+                      <div
+                        className={cn(
+                          "absolute top-0.5 bottom-0.5 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 shadow-[0_0_16px_rgba(96,165,250,0.3)]",
+                          activeMode === "SOCIAL" ? "left-0.5 w-[calc(50%-2px)]" : "left-[calc(50%+2px)] w-[calc(50%-2px)]"
+                        )}
+                        style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                      />
+                    </div>
+                    <MatchAlgorithmInfoButton />
                   </div>
 
-                  <Button
-                    variant={aiBrainActive ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => aiBrainToggleMutation.mutate()}
-                    disabled={aiBrainToggleMutation.isPending}
-                    className={cn(
-                      "gap-1.5 transition-all duration-300",
-                      aiBrainActive && "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg shadow-purple-500/25"
-                    )}
-                    data-testid="button-ai-brain-toggle"
-                  >
-                    <Brain className={cn("w-4 h-4", aiBrainActive && "animate-pulse")} />
-                    <span className="hidden sm:inline">{aiBrainActive ? "AI Brain ON" : "AI Brain"}</span>
-                    {aiBrainActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Courts</span>
+                    <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-800/80 overflow-hidden">
+                      <button
+                        onClick={() => {
+                          const newVal = Math.max(1, courtsToUse - 1);
+                          setCourtsToUse(newVal);
+                          updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                        }}
+                        disabled={courtsToUse <= 1}
+                        className="px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                        data-testid="button-decrease-courts"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="px-3 py-1.5 text-lg font-bold tabular-nums text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] min-w-[2.5rem] text-center" data-testid="badge-courts-count">
+                        {courtsToUse}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const newVal = Math.min(10, courtsToUse + 1);
+                          setCourtsToUse(newVal);
+                          updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                        }}
+                        disabled={courtsToUse >= 10}
+                        className="px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                        data-testid="button-increase-courts"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
+
+              <div className="flex items-center rounded-full border border-white/10 bg-slate-800/60 overflow-hidden ml-auto" data-testid="match-view-toggle">
+                <button
+                  onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
+                    matchViewMode === "court"
+                      ? "bg-white/10 text-white"
+                      : "text-white/40 hover:text-white/70"
+                  )}
+                  data-testid="button-court-view"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Courts
+                </button>
+                <button
+                  onClick={() => { setMatchViewMode("compact"); localStorage.setItem("matchViewMode", "compact"); }}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
+                    matchViewMode === "compact"
+                      ? "bg-white/10 text-white"
+                      : "text-white/40 hover:text-white/70"
+                  )}
+                  data-testid="button-compact-view"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  Cards
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
+                <span className="relative flex h-2 w-2">
+                  {liveMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-white/20")} />
+                </span>
+                <span className="text-white/70">{liveMatches.length} Live</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
+                <span className="relative flex h-2 w-2">
+                  {queuedMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />}
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]" : "bg-white/20")} />
+                </span>
+                <span className="text-white/70">{queuedMatches.length} Queued</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
+                <span className="relative flex h-2 w-2">
+                  {completedCount > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />}
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", completedCount > 0 ? "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.7)]" : "bg-white/20")} />
+                </span>
+                <span className="text-white/70">{completedCount} Done</span>
+              </span>
+              {!isOrganiser && <MatchAlgorithmInfoButton />}
+              {isOrganiser && (
+                <button
+                  onClick={() => setCrowdControlOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
+                  data-testid="button-crowd-control"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Crowd
+                </button>
+              )}
+            </div>
+
+            {isOrganiser && (
+              <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
+                <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                  <SelectTrigger className="w-[120px] rounded-full border-white/10 bg-slate-800/80 text-white/80 hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MIXED">Mixed</SelectItem>
+                    <SelectItem value="FEMALE">Female Only</SelectItem>
+                    <SelectItem value="MALE">Male Only</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="relative flex flex-col items-center gap-1.5">
+                  <div className="absolute inset-0 -m-6 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.08)_0%,transparent_70%)] pointer-events-none" />
+                  <button
+                    onClick={handleSmartGenerate}
+                    disabled={isSmartGenerating}
+                    className={cn(
+                      "neon-power-btn group relative active:scale-95 transition-transform duration-300",
+                      generateSuccess && "ring-2 ring-emerald-400/60"
+                    )}
+                    style={{ width: '80px', height: '80px' }}
+                    data-testid="button-generate-matches"
+                  >
+                    <div className={cn(
+                      "neon-power-outer",
+                      generateSuccess && "!border-emerald-500/50",
+                      isSmartGenerating && "!animate-spin"
+                    )} style={isSmartGenerating ? { animationDuration: '3s' } : undefined} />
+                    <div className="neon-power-ring" />
+                    <div className={cn("neon-power-ring-pulse", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/30")} />
+                    <div className={cn("neon-power-glow", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/20")} />
+                    <div className="neon-power-inner">
+                      {isSmartGenerating ? (
+                        <div className="neon-power-icon neon-vibrate">
+                          <Power className="h-7 w-7 animate-spin text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" strokeWidth={2.5} style={{ animationDuration: '2s' }} />
+                        </div>
+                      ) : generateSuccess ? (
+                        <div className="neon-power-icon">
+                          <CheckCircle className="h-7 w-7 text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" strokeWidth={2.5} />
+                        </div>
+                      ) : (
+                        <div className="neon-power-icon">
+                          <Power className="h-7 w-7 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" strokeWidth={2.5} />
+                        </div>
+                      )}
+                    </div>
+                    <div className={cn("neon-power-circuit-ring", isSmartGenerating && "animate-spin")} style={isSmartGenerating ? { animationDuration: '2s' } : undefined} />
+                  </button>
+                  <span className={cn(
+                    "text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors duration-500",
+                    isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-white/40"
+                  )}>
+                    {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => aiBrainToggleMutation.mutate()}
+                  disabled={aiBrainToggleMutation.isPending}
+                  className={cn(
+                    "relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300",
+                    aiBrainActive
+                      ? "bg-gradient-to-r from-blue-600/80 to-indigo-600/80 text-white border border-blue-400/30 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                      : "border border-white/10 bg-slate-800/80 text-white/50 hover:text-white/80 hover:bg-slate-800"
+                  )}
+                  data-testid="button-ai-brain-toggle"
+                >
+                  <Brain className={cn("w-4 h-4 transition-all duration-300", aiBrainActive && "text-blue-200 drop-shadow-[0_0_8px_rgba(147,197,253,0.8)]")} />
+                  <span className="hidden sm:inline">{aiBrainActive ? "AI Brain ON" : "AI Brain"}</span>
+                  {aiBrainActive && (
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
       )}
 
       {aiBrainActive && (
