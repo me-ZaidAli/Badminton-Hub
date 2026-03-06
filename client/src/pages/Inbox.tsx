@@ -61,8 +61,11 @@ import {
   PoundSterling,
   Shield,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   User,
   Users,
+  Smile,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -142,7 +145,16 @@ export default function InboxPage() {
   const [mobileShowThread, setMobileShowThread] = useState(false);
   const [initialRecipientHandled, setInitialRecipientHandled] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [chatListCollapsed, setChatListCollapsed] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const BASIC_EMOJIS = [
+    "😊", "😂", "❤️", "👍", "👎", "🎉", "🔥", "💪",
+    "👏", "🙏", "😍", "🤔", "😢", "😮", "🤗", "😎",
+    "✅", "❌", "⭐", "💯", "🏸", "🎾", "🏓", "💰",
+    "📅", "⏰", "🏆", "🥇", "🥈", "🥉", "👋", "🙌",
+  ];
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/messages/conversations"],
@@ -363,8 +375,8 @@ export default function InboxPage() {
           </Suspense>
         </TabsContent>
         <TabsContent value="direct" className="flex-1 min-h-0 mt-2 mx-0">
-      <div className="flex flex-1 min-h-0 border rounded-md overflow-hidden">
-        <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 border-r flex flex-col bg-background ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
+      <div className="flex flex-1 min-h-0 border rounded-md overflow-hidden relative">
+        <div className={`${chatListCollapsed ? "w-0 overflow-hidden border-r-0" : "w-full md:w-80 lg:w-96"} flex-shrink-0 border-r flex flex-col bg-background transition-all duration-300 ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b space-y-2">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold text-lg" data-testid="text-chats-title">Chats</h2>
@@ -376,6 +388,16 @@ export default function InboxPage() {
                 )}
                 <Button size="icon" variant="ghost" onClick={handleStartNewChat} data-testid="button-new-chat">
                   <Plus className="h-5 w-5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setChatListCollapsed(true)}
+                  className="hidden md:flex"
+                  title="Collapse chat list"
+                  data-testid="button-collapse-chat-list"
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -479,6 +501,17 @@ export default function InboxPage() {
             )}
           </div>
         </div>
+
+        {chatListCollapsed && (
+          <button
+            onClick={() => setChatListCollapsed(false)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-10 w-6 rounded-l-none rounded-r-md bg-muted/80 border border-l-0 shadow-sm hidden md:flex items-center justify-center hover-elevate cursor-pointer"
+            title="Expand chat list"
+            data-testid="button-expand-chat-list"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
 
         <div className={`flex-1 flex flex-col ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
           {activeConversation && activeContact ? (
@@ -598,13 +631,43 @@ export default function InboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t p-3 bg-background">
+              <div className="border-t p-3 pb-4 bg-background relative">
+                {emojiPickerOpen && (
+                  <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-popover border rounded-lg shadow-lg p-3 z-20" data-testid="emoji-picker">
+                    <div className="grid grid-cols-8 gap-1">
+                      {BASIC_EMOJIS.map((emoji, idx) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          className="h-8 w-8 flex items-center justify-center text-lg rounded-md transition-colors cursor-pointer hover-elevate"
+                          onClick={() => {
+                            setMessageInput(prev => prev + emoji);
+                            setEmojiPickerOpen(false);
+                          }}
+                          data-testid={`emoji-btn-${idx}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full flex-shrink-0"
+                    onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
+                    data-testid="button-emoji-picker"
+                  >
+                    <Smile className="h-5 w-5 text-muted-foreground" />
+                  </Button>
                   <Input
                     placeholder="Type a message..."
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    onFocus={() => setEmojiPickerOpen(false)}
                     className="flex-1 rounded-full"
                     data-testid="input-message"
                   />
