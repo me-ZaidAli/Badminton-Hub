@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
-  Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
+  Swords, ChevronDown, ChevronLeft, ChevronRight, Pencil, Users, Target, Check, Minus, Plus,
   CircleDot, Hash, Monitor, Maximize2, X, Flame
 } from "lucide-react";
 
@@ -1581,6 +1581,33 @@ export function ProLiveMatches({
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
   const [subView, setSubView] = useState<SubView>("overview");
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkTabScroll = useCallback(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    checkTabScroll();
+    el.addEventListener("scroll", checkTabScroll, { passive: true });
+    const ro = new ResizeObserver(checkTabScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", checkTabScroll); ro.disconnect(); };
+  }, [checkTabScroll]);
+
+  const scrollTabs = useCallback((dir: "left" | "right") => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -120 : 120, behavior: "smooth" });
+  }, []);
+
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const selectedMatch = liveMatches.find(m => m.id === selectedMatchId) || null;
 
@@ -1626,23 +1653,49 @@ export function ProLiveMatches({
             <span className="text-xs font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
           </div>
 
-          <div className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.03] p-1" data-testid="pro-live-view-toggle">
-            {subViews.map(({ key, label, icon: Icon }) => (
+          <div className="flex items-center gap-1 min-w-0 max-w-full" data-testid="pro-live-view-toggle">
+            {canScrollLeft && (
               <button
-                key={key}
-                onClick={() => setSubView(key)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-full transition-all duration-300 active:scale-95",
-                  subView === key
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-white/30 hover:text-white/60"
-                )}
-                data-testid={`pro-live-tab-${key}`}
+                onClick={() => scrollTabs("left")}
+                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
+                aria-label="Scroll tabs left"
+                data-testid="pro-live-tab-scroll-left"
               >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            ))}
+            )}
+            <div
+              ref={tabScrollRef}
+              className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.03] p-1 overflow-x-auto no-scrollbar touch-pan-x"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}
+            >
+              {subViews.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setSubView(key)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-full transition-all duration-300 active:scale-95 whitespace-nowrap shrink-0",
+                    subView === key
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-white/30 hover:text-white/60"
+                  )}
+                  data-testid={`pro-live-tab-${key}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            {canScrollRight && (
+              <button
+                onClick={() => scrollTabs("right")}
+                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
+                aria-label="Scroll tabs right"
+                data-testid="pro-live-tab-scroll-right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
