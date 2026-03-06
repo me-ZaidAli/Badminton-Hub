@@ -16,7 +16,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
@@ -1266,14 +1268,16 @@ export default function Sessions() {
                         <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 space-y-2" data-testid={`session-join-area-${session.id}`}>
                           {isSignedUp ? (
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400 flex-1 justify-center py-1.5">
-                                <CheckCircle className="h-4 w-4 mr-1.5" />
-                                {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
-                              </Badge>
+                              <div className="flex-1 flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 px-3 py-2">
+                                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                                  {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
+                                </span>
+                              </div>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 border-red-200 dark:border-red-800"
+                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-lg text-xs font-medium"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   withdrawMutation.mutate(session.id);
@@ -1281,27 +1285,27 @@ export default function Sessions() {
                                 disabled={withdrawMutation.isPending}
                                 data-testid={`button-decline-session-${session.id}`}
                               >
-                                {withdrawMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
+                                {withdrawMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
                                 Withdraw
                               </Button>
                             </div>
                           ) : isInvited ? (
                             <div className="flex items-center gap-2">
                               <Button
-                                className="flex-1"
+                                className="flex-1 rounded-lg font-semibold shadow-sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setJoinSession(session);
                                 }}
                                 data-testid={`button-accept-invite-${session.id}`}
                               >
-                                <UserCheck className="h-4 w-4 mr-1.5" />
+                                <UserCheck className="h-4 w-4" />
                                 Accept Invite
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 border-red-200 dark:border-red-800"
+                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-lg text-xs font-medium"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   withdrawMutation.mutate(session.id);
@@ -1309,23 +1313,23 @@ export default function Sessions() {
                                 disabled={withdrawMutation.isPending}
                                 data-testid={`button-decline-invite-${session.id}`}
                               >
-                                {withdrawMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
+                                {withdrawMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
                                 Decline
                               </Button>
                             </div>
                           ) : (
                             <Button
-                              className="w-full"
+                              className="w-full rounded-lg font-semibold shadow-sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setJoinSession(session);
                               }}
                               data-testid={`button-join-session-${session.id}`}
                             >
-                              <UserCheck className="h-4 w-4 mr-1.5" />
+                              <UserCheck className="h-4 w-4" />
                               Join Session
                               {juniors && juniors.length > 0 && (
-                                <Badge variant="secondary" className="ml-2 text-[10px] bg-primary-foreground/20">
+                                <Badge variant="secondary" className="ml-2 text-[10px] bg-primary-foreground/20 rounded-full px-1.5">
                                   <Baby className="h-3 w-3 mr-0.5" />
                                   +Kids
                                 </Badge>
@@ -1337,7 +1341,7 @@ export default function Sessions() {
 
                       {user && !hasAccess && !isPast && (
                         <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center rounded-lg bg-muted/40 py-2.5 px-3 border border-border/30">
                             <Lock className="h-4 w-4 text-red-500" />
                             <span>Join the club to sign up</span>
                           </div>
@@ -1347,75 +1351,115 @@ export default function Sessions() {
                   );
                 })()}
 
-                <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 gap-2">
-                  <span className="font-bold text-sm sm:text-lg">
-                    {format(new Date(session.date), "EEE, MMM d")}
-                  </span>
-                  <div className="flex items-center gap-2 flex-wrap">
+                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/50 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-bold text-sm sm:text-base">
+                        {format(new Date(session.date), "EEE, MMM d")}
+                      </span>
+                    </div>
                     {editableClubIds.has(session.clubId) ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCrowdSessionId(session.id);
-                          }}
-                          data-testid={`button-crowd-session-${session.id}`}
-                        >
-                          <BarChart3 className="h-4 w-4 mr-1" />
-                          Crowd
-                        </Button>
-                        {!isOrganiserOnly && (
-                          <Button size="sm" variant="outline" onClick={() => setFinanceSession(session)} data-testid={`button-finance-session-${session.id}`}>
-                            <Wallet className="h-4 w-4 mr-1" />
-                            Finances
-                          </Button>
-                        )}
-                        <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleSessionType(session);
-                          }}
-                          disabled={togglingSessionId === session.id}
-                          data-testid={`button-toggle-junior-${session.id}`}
-                          title={session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
-                        >
-                          <Baby className={`h-4 w-4 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
-                          data-testid={`button-copy-session-${session.id}`}
-                          title="Copy Session"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date ? new Date(session.date).toISOString() : null })}
-                          data-testid={`button-delete-session-${session.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" onClick={() => setLocation(`/sessions/${session.id}`)} data-testid={`button-run-session-${session.id}`}>
-                          <Activity className="h-4 w-4 mr-1" />
-                          Run Session
-                        </Button>
-                      </>
+                      <Button
+                        size="sm"
+                        className="rounded-lg font-semibold shadow-sm gap-1.5 h-9 px-4"
+                        onClick={() => setLocation(`/sessions/${session.id}`)}
+                        data-testid={`button-run-session-${session.id}`}
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        Run Session
+                      </Button>
                     ) : (
                       <Link href={`/sessions/${session.id}`}>
-                        <Button size="sm" variant="outline" data-testid={`button-details-session-${session.id}`}>
-                          Details
+                        <Button size="sm" variant="outline" className="rounded-lg font-medium gap-1.5" data-testid={`button-details-session-${session.id}`}>
+                          View Details
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </Button>
                       </Link>
                     )}
                   </div>
+                  {editableClubIds.has(session.clubId) && (
+                    <div className="flex items-center gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCrowdSessionId(session.id);
+                            }}
+                            data-testid={`button-crowd-session-${session.id}`}
+                          >
+                            <BarChart3 className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                            <span className="hidden sm:inline">Crowd</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Crowd Control</TooltipContent>
+                      </Tooltip>
+                      {!isOrganiserOnly && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+                              onClick={() => setFinanceSession(session)}
+                              data-testid={`button-finance-session-${session.id}`}
+                            >
+                              <PoundSterling className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                              <span className="hidden sm:inline">Finances</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Session Finances</TooltipContent>
+                        </Tooltip>
+                      )}
+                      <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
+                      <div className="flex-1" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg h-8 w-8 p-0"
+                            data-testid={`button-more-session-${session.id}`}
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
+                            data-testid={`button-copy-session-${session.id}`}
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            Duplicate Session
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSessionType(session);
+                            }}
+                            disabled={togglingSessionId === session.id}
+                            data-testid={`button-toggle-junior-${session.id}`}
+                          >
+                            <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+                            {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                            onClick={(e) => { e.stopPropagation(); setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date ? new Date(session.date).toISOString() : null }); }}
+                            data-testid={`button-delete-session-${session.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Session
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -2860,16 +2904,22 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
       setOpen(isOpen);
       if (isOpen) initializeForm();
     }}>
-      <DialogTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          data-testid={`button-edit-session-${session.id}`}
-        >
-          <Pencil className="h-4 w-4 mr-1" />
-          Edit Session
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-lg h-8 px-2.5 text-xs font-medium gap-1.5"
+              data-testid={`button-edit-session-${session.id}`}
+            >
+              <Pencil className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Edit Session</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Session</DialogTitle>
