@@ -687,7 +687,7 @@ export default function Sessions() {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
-  }, []);
+  }, [sessions]);
 
   const liveSessions = useMemo(() =>
     baseFilteredSessions.filter(s => s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
@@ -743,9 +743,10 @@ export default function Sessions() {
 
         result = result.filter(s => {
           const d = new Date(s.date);
+          d.setHours(0, 0, 0, 0);
           return d >= start && d <= today;
         });
-      } else {
+      } else if (statusFilter === "upcoming") {
         let end: Date;
         if (timeRange === "week") end = addWeeks(today, 1);
         else if (timeRange === "2weeks") end = addWeeks(today, 2);
@@ -753,7 +754,20 @@ export default function Sessions() {
 
         result = result.filter(s => {
           const d = new Date(s.date);
+          d.setHours(0, 0, 0, 0);
           return d >= today && d <= end;
+        });
+      } else {
+        let start: Date;
+        let end: Date;
+        if (timeRange === "week") { start = addWeeks(today, -1); end = addWeeks(today, 1); }
+        else if (timeRange === "2weeks") { start = addWeeks(today, -2); end = addWeeks(today, 2); }
+        else { start = addMonths(today, -1); end = addMonths(today, 1); }
+
+        result = result.filter(s => {
+          const d = new Date(s.date);
+          d.setHours(0, 0, 0, 0);
+          return d >= start && d <= end;
         });
       }
     }
@@ -951,9 +965,9 @@ export default function Sessions() {
         <div className="flex items-center gap-1">
           {([
             { key: "all" as const, label: "All" },
-            { key: "week" as const, label: statusFilter === "past" ? "Last Week" : "This Week" },
-            { key: "2weeks" as const, label: statusFilter === "past" ? "Last 2 Weeks" : "2 Weeks" },
-            { key: "month" as const, label: statusFilter === "past" ? "Last Month" : "1 Month" },
+            { key: "week" as const, label: statusFilter === "past" ? "Last Week" : statusFilter === "upcoming" ? "This Week" : "±1 Week" },
+            { key: "2weeks" as const, label: statusFilter === "past" ? "Last 2 Weeks" : statusFilter === "upcoming" ? "2 Weeks" : "±2 Weeks" },
+            { key: "month" as const, label: statusFilter === "past" ? "Last Month" : statusFilter === "upcoming" ? "1 Month" : "±1 Month" },
           ]).map(r => (
             <Button
               key={r.key}
