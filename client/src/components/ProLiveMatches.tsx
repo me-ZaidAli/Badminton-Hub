@@ -776,8 +776,8 @@ function BroadcastCard({
 
   const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
   const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
-  const teamALabel = teamANames.length > 0 ? teamANames[0]?.split(" ").pop()?.toUpperCase() || "TEAM A" : "TEAM A";
-  const teamBLabel = teamBNames.length > 0 ? teamBNames[0]?.split(" ").pop()?.toUpperCase() || "TEAM B" : "TEAM B";
+  const teamALabel = "TEAM A";
+  const teamBLabel = "TEAM B";
 
   const scoreA = match.scoreA || 0;
   const scoreB = match.scoreB || 0;
@@ -802,12 +802,6 @@ function BroadcastCard({
     <div className="rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-broadcast-${match.id}`}>
       <div className="relative" style={{ background: 'linear-gradient(135deg, #0c1a0c 0%, #0a1e1e 30%, #0d1a0d 60%, #0a1a10 100%)' }}>
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px), repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px)' }} />
-        <div className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none overflow-hidden">
-          <span className="text-[3rem] font-black tracking-[0.3em] uppercase whitespace-nowrap origin-center -rotate-90 select-none" style={{ color: `${courtColor.ring}12`, WebkitTextStroke: `1px ${courtColor.ring}08` }}>{teamALabel}</span>
-        </div>
-        <div className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none overflow-hidden">
-          <span className="text-[3rem] font-black tracking-[0.3em] uppercase whitespace-nowrap origin-center rotate-90 select-none" style={{ color: 'rgba(250,204,21,0.07)', WebkitTextStroke: '1px rgba(250,204,21,0.03)' }}>{teamBLabel}</span>
-        </div>
 
         <div className="relative z-10 px-4 sm:px-6 py-3">
           <div className="flex items-start justify-between">
@@ -875,56 +869,20 @@ function BroadcastCard({
           </div>
         </div>
 
-        <div className="relative z-10 px-4 sm:px-6 pb-3">
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-3">
-            <div className="space-y-1">
-              {teamANames.map((name, i) => (
-                <div key={i} className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-white/[0.04]">
-                  <span className="text-[10px] sm:text-xs font-semibold truncate" style={{ color: courtColor.ring }} data-testid={`broadcast-player-a-${match.id}-${i}`}>{name}</span>
+        {isMultiSet && match.setScores && match.setScores.length > 0 && (
+          <div className="relative z-10 px-4 sm:px-6 pb-3">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {match.setScores.map((s: any, i: number) => (
+                <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04]">
+                  <span className="text-[9px] text-white/30 font-semibold">G{i + 1}</span>
+                  <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreA > s.scoreB ? courtColor.ring : 'rgba(255,255,255,0.4)' }}>{s.scoreA}</span>
+                  <span className="text-[9px] text-white/20">-</span>
+                  <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreB > s.scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.4)' }}>{s.scoreB}</span>
                 </div>
               ))}
-              {isMultiSet && match.setScores && match.setScores.length > 0 && (
-                <div className="space-y-0.5 mt-1.5">
-                  {match.setScores.map((s: any, i: number) => (
-                    <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.03]">
-                      <span className="text-[9px] text-white/25 font-medium">G{i + 1}</span>
-                      <span className="text-[10px] font-mono font-bold ml-auto tabular-nums" style={{ color: s.scoreA > s.scoreB ? courtColor.ring : 'rgba(255,255,255,0.3)' }}>{s.scoreA}-{s.scoreB}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center gap-1.5 px-1">
-              <div className="rounded-lg px-3 py-1.5 text-center" style={{ backgroundColor: `${courtColor.ring}10`, border: `1px solid ${courtColor.ring}25` }}>
-                <span className="text-[8px] font-bold uppercase tracking-wider text-white/40 block">Aces</span>
-                <span className="text-sm font-black tabular-nums" style={{ color: courtColor.ring }}>0</span>
-              </div>
-              <div className="rounded-lg bg-amber-400/10 border border-amber-400/25 px-3 py-1.5 text-center">
-                <span className="text-[8px] font-bold uppercase tracking-wider text-white/40 block">Aces</span>
-                <span className="text-sm font-black text-amber-400 tabular-nums">0</span>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              {teamBNames.map((name, i) => (
-                <div key={i} className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-white/[0.04]">
-                  <span className="text-[10px] sm:text-xs font-semibold text-amber-400 truncate ml-auto" data-testid={`broadcast-player-b-${match.id}-${i}`}>{name}</span>
-                </div>
-              ))}
-              {isMultiSet && match.setScores && match.setScores.length > 0 && (
-                <div className="space-y-0.5 mt-1.5">
-                  {match.setScores.map((s: any, i: number) => (
-                    <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.03]">
-                      <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreB > s.scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.3)' }}>{s.scoreB}-{s.scoreA}</span>
-                      <span className="text-[9px] text-white/25 font-medium ml-auto">G{i + 1}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {canInteract && (
