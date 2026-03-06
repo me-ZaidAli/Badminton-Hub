@@ -495,7 +495,7 @@ export default function Sessions() {
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
-  const canManageSessions = (sessionClubs && sessionClubs.length > 0) || false;
+  const canManageSessions = isPlatformAdmin || (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const editableClubIds = new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
 
@@ -689,7 +689,15 @@ export default function Sessions() {
     if (statusFilter === "upcoming") result = upcomingSessions;
     else if (statusFilter === "live") result = liveSessions;
     else if (statusFilter === "past") result = pastSessions;
-    else result = [...liveSessions, ...upcomingSessions];
+    else {
+      const combined = [...liveSessions, ...upcomingSessions, ...pastSessions];
+      const seen = new Set<number>();
+      result = combined.filter(s => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+    }
 
     if (timeRange !== "all") {
       const today = new Date();
@@ -834,7 +842,7 @@ export default function Sessions() {
             onClick={() => setStatusFilter("all")}
             data-testid="button-filter-all"
           >
-            All ({liveSessions.length + upcomingSessions.length})
+            All
           </Button>
           {liveSessions.length > 0 && (
             <Button
@@ -1039,9 +1047,11 @@ export default function Sessions() {
         <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
-        {filteredSessions?.map((session) => (
+        {filteredSessions?.map((session) => {
+          const canManageThis = isPlatformAdmin || managedClubIds.has(session.clubId);
+          return (
           <div key={session.id} className="relative">
-            {managedClubIds.has(session.clubId) && (
+            {canManageThis && (
               <div
                 className="absolute top-4 left-4 z-10"
                 onClick={(e) => toggleSelect(session.id, e)}
@@ -1056,7 +1066,7 @@ export default function Sessions() {
             <Card className={`h-full border-border/50 group overflow-visible ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
               <div className="h-2 bg-gradient-to-r from-primary to-secondary rounded-t-md" />
               <CardContent className="p-3 sm:p-6">
-                <div className={`flex justify-between items-start mb-3 sm:mb-4 gap-2 ${managedClubIds.has(session.clubId) ? "pl-8" : ""}`}>
+                <div className={`flex justify-between items-start mb-3 sm:mb-4 gap-2 ${canManageThis ? "pl-8" : ""}`}>
                   <div className="flex gap-1 flex-wrap">
                     <Badge variant={session.matchMode === "COMPETITIVE" ? "destructive" : session.matchMode === "TRAINING" ? "outline" : "secondary"}>
                       {session.matchMode}
@@ -1090,7 +1100,7 @@ export default function Sessions() {
                           <Clock className="h-3 w-3 mr-1" />
                           Opens {format(new Date((session as any).publishAt), "MMM d")}
                         </Badge>
-                        {managedClubIds.has(session.clubId) && (
+                        {canManageThis && (
                           <Badge
                             variant="outline"
                             className="text-xs cursor-pointer bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
@@ -1303,7 +1313,8 @@ export default function Sessions() {
               </CardContent>
             </Card>
           </div>
-        ))}
+          );
+        })}
       </div>
       )}
 
