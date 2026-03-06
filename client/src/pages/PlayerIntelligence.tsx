@@ -25,7 +25,7 @@ import {
   PoundSterling, CheckCircle, XCircle, Send, ClipboardList,
   MapPin, UserCheck, MinusCircle
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -385,6 +385,7 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
   const { toast } = useToast();
   const [aiReview, setAiReview] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const lastCompareKey = useRef<string>("");
 
   const generateAiReview = async () => {
     const p1Id = player1.playerProfiles?.[0]?.id;
@@ -407,6 +408,17 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
       setAiLoading(false);
     }
   };
+
+  useEffect(() => {
+    const p1Id = player1.playerProfiles?.[0]?.id;
+    const p2Id = player2.playerProfiles?.[0]?.id;
+    const key = `${p1Id}-${p2Id}`;
+    if (p1Id && p2Id && key !== lastCompareKey.current) {
+      lastCompareKey.current = key;
+      setAiReview(null);
+      generateAiReview();
+    }
+  }, [player1.id, player2.id]);
 
   const s1 = compareData?.player1?.stats;
   const s2 = compareData?.player2?.stats;
@@ -503,39 +515,20 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
               <Sparkles className="h-4 w-4 text-amber-400" />
               AI Comparison Review
             </h4>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={generateAiReview}
-              disabled={aiLoading}
-              className="text-xs bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-purple-500/30 hover:border-purple-500/50 text-slate-300 hover:text-white"
-              data-testid="button-generate-ai-review"
-            >
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                  Analysing...
-                </>
-              ) : (
-                <>
-                  <Brain className="h-3 w-3 mr-1.5" />
-                  {aiReview ? "Regenerate" : "Generate Review"}
-                </>
-              )}
-            </Button>
+            {aiReview && !aiLoading && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={generateAiReview}
+                disabled={aiLoading}
+                className="text-xs bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-purple-500/30 hover:border-purple-500/50 text-slate-300 hover:text-white"
+                data-testid="button-generate-ai-review"
+              >
+                <Brain className="h-3 w-3 mr-1.5" />
+                Regenerate
+              </Button>
+            )}
           </div>
-
-          {!aiReview && !aiLoading && (
-            <div className="text-center py-8 space-y-3">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center border border-purple-500/20">
-                <Brain className="h-8 w-8 text-purple-400/60" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-400">Get a detailed AI-powered analysis</p>
-                <p className="text-xs text-slate-500 mt-1">Covers scoring power, experience, form, head-to-head verdict and more</p>
-              </div>
-            </div>
-          )}
 
           {aiLoading && (
             <div className="text-center py-10 space-y-3">
