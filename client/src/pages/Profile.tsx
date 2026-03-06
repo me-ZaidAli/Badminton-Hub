@@ -12,6 +12,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
+import AvatarPicker, { getAvatarUrl } from "@/components/AvatarPicker";
 import {
   LogOut, User, Settings, Shield, Loader2, XCircle, MapPin, Phone, Calendar,
   AlertCircle, Camera, Wallet, TrendingUp, TrendingDown, History, CreditCard,
@@ -1858,13 +1859,32 @@ export default function Profile() {
         <CardContent className="p-4 sm:p-6">
           <div className="flex items-start gap-3 sm:gap-4 flex-wrap">
             <div className="relative">
-              <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
-                {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} /> : null}
-                <AvatarFallback className="text-lg sm:text-xl">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
-              </Avatar>
-              <button className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1.5 shadow-sm" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
-                {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-              </button>
+              {(() => {
+                const avatarUrl = getAvatarUrl((user as any).selectedAvatar);
+                return avatarUrl ? (
+                  <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden ring-2 ring-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" data-testid="img-profile-3d-avatar" />
+                  </div>
+                ) : (
+                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+                    {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} /> : null}
+                    <AvatarFallback className="text-lg sm:text-xl">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
+                  </Avatar>
+                );
+              })()}
+              <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+                <AvatarPicker
+                  currentAvatar={(user as any).selectedAvatar}
+                  trigger={
+                    <button className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-full p-1.5 shadow-sm" data-testid="button-open-avatar-picker-profile">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                />
+                <button className="bg-primary text-primary-foreground rounded-full p-1.5 shadow-sm" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
+                  {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                </button>
+              </div>
               <input type="file" accept="image/*" className="hidden" ref={profilePicInputRef}
                 onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
             </div>

@@ -118,6 +118,7 @@ export interface IStorage {
     accountStatus: string;
     profilePictureUrl: string | null;
     blackCardAccess: boolean;
+    selectedAvatar: string | null;
   }>): Promise<User>;
   updatePlayerProfile(id: number, updates: { gender?: string; category?: string; rankingPoints?: number; playerStatus?: string; clubId?: number; grade?: string; adminLocked?: boolean; gradingResetAt?: Date | null }): Promise<PlayerProfile>;
   updatePlayerProfileWithFullName(profileId: number, updates: { membershipStatus?: string; clubRole?: string; category?: string; grade?: string; gender?: string }, fullName?: string): Promise<PlayerProfile>;
@@ -853,6 +854,7 @@ export class DatabaseStorage implements IStorage {
     accountStatus: string;
     profilePictureUrl: string | null;
     blackCardAccess: boolean;
+    selectedAvatar: string | null;
   }>): Promise<User> {
     const [updated] = await db.update(users).set(updates as any).where(eq(users.id, id)).returning();
     return updated;

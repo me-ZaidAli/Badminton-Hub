@@ -91,6 +91,7 @@ export const users = pgTable("users", {
   deletionReason: text("deletion_reason"),
   badmintonEnglandNumber: text("badminton_england_number"),
   blackCardAccess: boolean("black_card_access").default(false).notNull(),
+  selectedAvatar: text("selected_avatar"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

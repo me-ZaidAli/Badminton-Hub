@@ -71,6 +71,8 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Web App Manifest**: Defines PWA properties.
 - **Service Worker**: Implements network-first caching strategy.
 
+- **3D Avatar Selection System**: AI-generated Pixar-style 3D avatar presets (10 avatars: 5 male, 5 female) stored in `public/avatars/`. Users select from a picker dialog on their Profile page. Selection stored in `users.selectedAvatar` column. Component: `client/src/components/AvatarPicker.tsx` with `getAvatarUrl()` utility. Integrated into Profile header and Sidebar. Route: `POST /api/user/selected-avatar`.
+
 - **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics (fairness, balance, partner/opponent diversity, fatigue, gender distribution). Supports Standard vs AI Brain comparison, configurable player pools (4-40 players), match volumes (50-500), and side-by-side run comparison.
 
 ### APIs / Integrations

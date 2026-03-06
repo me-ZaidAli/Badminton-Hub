@@ -24367,6 +24367,26 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
+  app.post("/api/user/selected-avatar", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { selectedAvatar } = req.body;
+      const validAvatars = [
+        "avatar-male-1", "avatar-male-2", "avatar-male-3", "avatar-male-4", "avatar-male-5",
+        "avatar-female-1", "avatar-female-2", "avatar-female-3", "avatar-female-4", "avatar-female-5",
+      ];
+      if (selectedAvatar !== null && !validAvatars.includes(selectedAvatar)) {
+        return res.status(400).json({ message: "Invalid avatar selection" });
+      }
+      const updated = await storage.updateUser(req.user!.id, { selectedAvatar: selectedAvatar || null });
+      Object.assign(req.user!, updated);
+      res.json({ selectedAvatar: updated.selectedAvatar });
+    } catch (err: any) {
+      console.error("Avatar selection error:", err);
+      res.status(500).json({ message: "Failed to save avatar selection" });
+    }
+  });
+
   app.get("/api/players/analytics/:playerId/ai-style", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

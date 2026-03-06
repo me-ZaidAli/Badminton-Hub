@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarUrl } from "@/components/AvatarPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -851,10 +852,19 @@ export function Sidebar() {
       <div className="p-4 border-t border-border/50 bg-muted/20">
         {user ? (
           <div className="flex items-center gap-3 mb-3">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`} />
-              <AvatarFallback className="text-xs">{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
+            {(() => {
+              const av = getAvatarUrl((user as any).selectedAvatar);
+              return av ? (
+                <div className="h-9 w-9 rounded-full overflow-hidden ring-1 ring-cyan-400/30 shrink-0">
+                  <img src={av} alt="Avatar" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`} />
+                  <AvatarFallback className="text-xs">{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              );
+            })()}
             <div className="flex-1 overflow-hidden">
               <p className="text-sm font-semibold truncate">{user.fullName}</p>
               <p className="text-[11px] text-muted-foreground truncate capitalize">{user.role.toLowerCase()}</p>
