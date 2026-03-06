@@ -102,6 +102,7 @@ import {
   ExternalLink,
   HelpCircle,
   FileDown,
+  ArrowRightLeft,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, any> = {
@@ -2081,6 +2082,14 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
   const { toast } = useToast();
   const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past">("upcoming");
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
+  const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
+  const { mutate: toggleSessionTypeMut } = useUpdateSession();
+  const handleMoveToSessions = (sessionId: number) => {
+    setTogglingSessionId(sessionId);
+    toggleSessionTypeMut({ sessionId, updates: { sessionType: "OPEN" } }, {
+      onSettled: () => setTogglingSessionId(null),
+    });
+  };
 
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const managedClubIds = useMemo(() => new Set(adminClubs?.map((c: any) => c.id) || []), [adminClubs]);
@@ -2257,6 +2266,18 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => handleMoveToSessions(session.id)}
+                      disabled={togglingSessionId === session.id}
+                      data-testid={`button-move-to-sessions-scheduled-${session.id}`}
+                      title="Move to Sessions"
+                    >
+                      <ArrowRightLeft className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">Move to Sessions</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       className="h-7 text-xs text-destructive hover:text-destructive"
                       onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
                       data-testid={`button-delete-scheduled-junior-${session.id}`}
@@ -2332,15 +2353,28 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                             </Button>
                           </Link>
                           {isAdmin && (isPlatformAdmin || managedClubIds.has(session.clubId)) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
-                              data-testid={`button-delete-junior-session-${session.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleMoveToSessions(session.id)}
+                                disabled={togglingSessionId === session.id}
+                                data-testid={`button-move-to-sessions-${session.id}`}
+                                title="Move to Sessions"
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
+                                data-testid={`button-delete-junior-session-${session.id}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       )}

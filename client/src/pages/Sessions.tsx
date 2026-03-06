@@ -493,6 +493,15 @@ export default function Sessions() {
   const [crowdSessionId, setCrowdSessionId] = useState<number | null>(null);
   const [joinSession, setJoinSession] = useState<any>(null);
   const [copySession, setCopySession] = useState<any>(null);
+  const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
+  const { mutate: toggleSessionTypeMut } = useUpdateSession();
+  const handleToggleSessionType = (sessionId: number, currentType: string) => {
+    setTogglingSessionId(sessionId);
+    const newType = currentType === "JUNIORS_ONLY" ? "OPEN" : "JUNIORS_ONLY";
+    toggleSessionTypeMut({ sessionId, updates: { sessionType: newType } }, {
+      onSettled: () => setTogglingSessionId(null),
+    });
+  };
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
@@ -1024,6 +1033,20 @@ export default function Sessions() {
                         size="sm"
                         variant="ghost"
                         className="h-7 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSessionType(session.id, session.sessionType || "OPEN");
+                        }}
+                        disabled={togglingSessionId === session.id}
+                        data-testid={`button-toggle-junior-scheduled-${session.id}`}
+                        title={session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+                      >
+                        <Baby className={`h-3 w-3 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
                         onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
                         data-testid={`button-copy-scheduled-${session.id}`}
                         title="Copy Session"
@@ -1322,6 +1345,19 @@ export default function Sessions() {
                           </Button>
                         )}
                         <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleSessionType(session.id, session.sessionType || "OPEN");
+                          }}
+                          disabled={togglingSessionId === session.id}
+                          data-testid={`button-toggle-junior-${session.id}`}
+                          title={session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+                        >
+                          <Baby className={`h-4 w-4 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
