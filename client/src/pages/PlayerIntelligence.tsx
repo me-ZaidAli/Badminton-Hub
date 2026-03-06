@@ -22,13 +22,14 @@ import {
   Swords, ChevronRight, ChevronLeft, Brain, Loader2, Lock,
   Flame, Medal, Crown, Heart, Eye, Crosshair, Dumbbell,
   Lightbulb, BookOpen, Move, GitCompare, MessageSquare,
-  PoundSterling, CheckCircle, XCircle, Send
+  PoundSterling, CheckCircle, XCircle, Send, ClipboardList,
+  MapPin, UserCheck, MinusCircle
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Area, AreaChart
+  Tooltip, ResponsiveContainer, Legend, Area, AreaChart, Cell
 } from "recharts";
 
 type ProfileData = {
@@ -810,6 +811,16 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
     enabled: !!profileId && dashTab === "overview",
   });
 
+  const { data: matchLog, isLoading: loadingMatchLog } = useQuery<any[]>({
+    queryKey: ["/api/players/analytics", profileId, "match-log"],
+    queryFn: async () => {
+      const res = await fetch(`/api/players/analytics/${profileId}/match-log`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!profileId && dashTab === "matches",
+  });
+
   const { data: achievements } = useQuery({
     queryKey: ["/api/players/analytics", profileId, "achievements"],
     queryFn: async () => {
@@ -897,6 +908,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
           <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-achievements">
             <Award className="h-4 w-4 mr-1" /> Badges
           </TabsTrigger>
+          <TabsTrigger value="matches" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-matches">
+            <ClipboardList className="h-4 w-4 mr-1" /> Matches
+          </TabsTrigger>
           <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
           </TabsTrigger>
@@ -965,6 +979,159 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               <Activity className="h-14 w-14 mx-auto mb-3 opacity-30" />
               <p className="font-medium text-slate-400">No analytics data available yet</p>
               <p className="text-sm mt-1">Play some matches to see your stats!</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="matches" className="mt-5">
+          {loadingMatchLog ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 bg-muted/20 animate-pulse rounded-xl" />)}
+            </div>
+          ) : matchLog && matchLog.length > 0 ? (
+            <div className="space-y-5">
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                  <BarChart3 className="h-4 w-4 text-cyan-400" />
+                  Match Results Overview
+                </h4>
+                <div className="relative z-10">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={(() => {
+                      const recent = matchLog.slice(0, 20).reverse();
+                      return recent.map(m => ({
+                        match: `#${m.matchNumber}`,
+                        diff: m.pointDiff,
+                        fill: m.result === "W" ? "#22d3ee" : m.result === "L" ? "#ef4444" : "#64748b",
+                      }));
+                    })()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <XAxis dataKey="match" tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+                      <YAxis tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }}
+                        formatter={(value: number) => [`${value > 0 ? "+" : ""}${value} pts`, "Point Diff"]}
+                      />
+                      <Bar dataKey="diff" radius={[4, 4, 0, 0]} fillOpacity={0.85}>
+                        {(() => {
+                          const recent = matchLog.slice(0, 20).reverse();
+                          return recent.map((m, i) => (
+                            <Cell key={i} fill={m.result === "W" ? "#22d3ee" : m.result === "L" ? "#ef4444" : "#64748b"} />
+                          ));
+                        })()}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="flex items-center justify-center gap-4 mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+                      <span className="text-[10px] text-slate-400">Win</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                      <span className="text-[10px] text-slate-400">Loss</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">Last 20 matches</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                <div className="relative z-10 overflow-x-auto">
+                  <table className="w-full text-left" data-testid="match-log-table">
+                    <thead>
+                      <tr className="border-b border-[#1e293b]">
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">#</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          <MapPin className="h-3 w-3 inline mr-1" />Session
+                        </th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Partner</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Opponents</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Result</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">
+                          <CheckCircle className="h-3 w-3 inline" />
+                        </th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">
+                          <XCircle className="h-3 w-3 inline" />
+                        </th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">+/-</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchLog.map((m: any, idx: number) => (
+                        <tr
+                          key={idx}
+                          className="border-b border-[#1e293b]/50 hover:bg-[#1e293b]/30 transition-colors"
+                          data-testid={`match-log-row-${idx}`}
+                        >
+                          <td className="px-3 py-2 text-xs font-bold text-slate-400">{m.matchNumber}</td>
+                          <td className="px-3 py-2">
+                            <div className="text-xs font-medium text-slate-300 truncate max-w-[120px]">{m.sessionTitle}</div>
+                            {m.sessionDate && (
+                              <div className="text-[9px] text-slate-500">{new Date(m.sessionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-400 truncate max-w-[100px]">{m.partner || "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="text-xs text-slate-300 truncate max-w-[130px]">
+                              {[m.opponent1, m.opponent2].filter(Boolean).join(" & ") || "—"}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <span
+                              className={`inline-flex items-center justify-center text-xs font-bold px-2 py-0.5 rounded-md ${
+                                m.result === "W"
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : m.result === "L"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : "bg-slate-500/20 text-slate-400"
+                              }`}
+                              data-testid={`match-result-${idx}`}
+                            >
+                              {m.myScore}-{m.oppScore}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {m.result === "W" ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-400 mx-auto" />
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {m.result === "L" ? (
+                              <XCircle className="h-3.5 w-3.5 text-red-400 mx-auto" />
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`text-xs font-mono font-bold ${m.pointDiff > 0 ? "text-emerald-400" : m.pointDiff < 0 ? "text-red-400" : "text-slate-500"}`}>
+                              {m.pointDiff > 0 ? `+${m.pointDiff}` : m.pointDiff}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-3 py-2 border-t border-[#1e293b] flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">{matchLog.length} match{matchLog.length !== 1 ? "es" : ""} played</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-emerald-400 font-semibold">{matchLog.filter((m: any) => m.result === "W").length}W</span>
+                    <span className="text-[10px] text-red-400 font-semibold">{matchLog.filter((m: any) => m.result === "L").length}L</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">{matchLog.filter((m: any) => m.result === "D").length}D</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-16 text-slate-500">
+              <ClipboardList className="h-14 w-14 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-slate-400">No match history yet</p>
+              <p className="text-sm mt-1">Completed matches will appear here</p>
             </div>
           )}
         </TabsContent>

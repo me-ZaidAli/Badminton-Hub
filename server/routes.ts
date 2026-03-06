@@ -23945,6 +23945,138 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
+  app.get("/api/players/analytics/:playerId/match-log", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+
+      const targetProfile = await db.select({ id: playerProfiles.id, clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      if (targetProfile.length === 0) return res.status(404).json({ message: "Player not found" });
+      const clubId = targetProfile[0].clubId;
+
+      const currentUser = req.user as any;
+      if (currentUser.role !== "OWNER") {
+        const membership = await db.select({ id: playerProfiles.id }).from(playerProfiles).where(and(eq(playerProfiles.userId, currentUser.id), eq(playerProfiles.clubId, clubId))).limit(1);
+        if (membership.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const club = await db.select({ id: clubs.id, plan: clubs.plan }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      if (club.length > 0 && club[0].plan !== "premium" && currentUser.role !== "OWNER") {
+        return res.status(403).json({ message: "Premium feature" });
+      }
+
+      const allMatches = await db.select({
+        id: matches.id,
+        sessionId: matches.sessionId,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        isCompleted: matches.isCompleted,
+        completedAt: matches.completedAt,
+        startedAt: matches.startedAt,
+      }).from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, playerId),
+            eq(matches.teamAPlayer2Id, playerId),
+            eq(matches.teamBPlayer1Id, playerId),
+            eq(matches.teamBPlayer2Id, playerId)
+          )
+        ))
+        .orderBy(desc(matches.completedAt));
+
+      const sessionIds = [...new Set(allMatches.map(m => m.sessionId).filter(Boolean))];
+      const playerIds = new Set<number>();
+      for (const m of allMatches) {
+        if (m.teamAPlayer1Id) playerIds.add(m.teamAPlayer1Id);
+        if (m.teamAPlayer2Id) playerIds.add(m.teamAPlayer2Id);
+        if (m.teamBPlayer1Id) playerIds.add(m.teamBPlayer1Id);
+        if (m.teamBPlayer2Id) playerIds.add(m.teamBPlayer2Id);
+      }
+
+      const sessionMap = new Map<number, { title: string; date: string | null; venueName: string | null }>();
+      if (sessionIds.length > 0) {
+        const sessionRows = await db.select({
+          id: sessions.id,
+          title: sessions.title,
+          date: sessions.date,
+          venueId: sessions.venueId,
+        }).from(sessions).where(inArray(sessions.id, sessionIds as number[]));
+
+        const venueIds = [...new Set(sessionRows.map(s => s.venueId).filter(Boolean))];
+        const venueMap = new Map<number, string>();
+        if (venueIds.length > 0) {
+          const venueRows = await db.select({ id: venues.id, name: venues.name }).from(venues).where(inArray(venues.id, venueIds as number[]));
+          for (const v of venueRows) venueMap.set(v.id, v.name);
+        }
+        for (const s of sessionRows) {
+          sessionMap.set(s.id, {
+            title: s.title,
+            date: s.date ? s.date.toISOString() : null,
+            venueName: s.venueId ? venueMap.get(s.venueId) || null : null,
+          });
+        }
+      }
+
+      const pidArr = [...playerIds];
+      const playerNameMap = new Map<number, string>();
+      if (pidArr.length > 0) {
+        const profiles = await db.select({
+          id: playerProfiles.id,
+          userId: playerProfiles.userId,
+        }).from(playerProfiles).where(inArray(playerProfiles.id, pidArr));
+        const userIds = profiles.map(p => p.userId);
+        if (userIds.length > 0) {
+          const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+          const userNameMap = new Map<number, string>();
+          for (const u of userRows) userNameMap.set(u.id, u.fullName);
+          for (const p of profiles) playerNameMap.set(p.id, userNameMap.get(p.userId) || "Unknown");
+        }
+      }
+
+      const matchLog = allMatches.map((m, idx) => {
+        const isTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
+        const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+        const won = myScore > oppScore;
+        const draw = myScore === oppScore;
+
+        const partnerId = isTeamA
+          ? (m.teamAPlayer1Id === playerId ? m.teamAPlayer2Id : m.teamAPlayer1Id)
+          : (m.teamBPlayer1Id === playerId ? m.teamBPlayer2Id : m.teamBPlayer1Id);
+        const opp1Id = isTeamA ? m.teamBPlayer1Id : m.teamAPlayer1Id;
+        const opp2Id = isTeamA ? m.teamBPlayer2Id : m.teamAPlayer2Id;
+
+        const sess = m.sessionId ? sessionMap.get(m.sessionId) : null;
+
+        return {
+          matchNumber: allMatches.length - idx,
+          sessionTitle: sess?.title || "Session",
+          sessionDate: sess?.date || m.completedAt?.toISOString() || null,
+          venueName: sess?.venueName || null,
+          partner: partnerId ? playerNameMap.get(partnerId) || null : null,
+          opponent1: opp1Id ? playerNameMap.get(opp1Id) || "Unknown" : null,
+          opponent2: opp2Id ? playerNameMap.get(opp2Id) || null : null,
+          myScore,
+          oppScore,
+          result: draw ? "D" : won ? "W" : "L",
+          pointDiff: myScore - oppScore,
+          completedAt: m.completedAt?.toISOString() || null,
+        };
+      });
+
+      res.json(matchLog);
+    } catch (err: any) {
+      console.error("Match log error:", err);
+      res.status(500).json({ message: "Failed to fetch match log" });
+    }
+  });
+
   app.get("/api/players/analytics/:playerId/performance-history", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
