@@ -511,7 +511,7 @@ function CourtView({ match }: { match: CourtMatch }) {
 
 function CourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, courtNames, defaultPointsToPlayTo = 21,
-  onCompleteMatch, onEndSet, onCancelMatch,
+  onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -522,9 +522,19 @@ function CourtCard({
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
+  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+  const matchSets = match.numberOfSets || 1;
+
+  const handlePointsSave = (val: number) => {
+    if (!isNaN(val) && val >= 1 && val !== pointsTarget && onUpdatePointsTarget) onUpdatePointsTarget(match.id, val);
+    setEditingPoints(false);
+  };
   const isPlayerInMatch = currentPlayerProfileId && (
     match.teamAPlayer1?.id === currentPlayerProfileId ||
     match.teamAPlayer2?.id === currentPlayerProfileId ||
@@ -532,9 +542,6 @@ function CourtCard({
     match.teamBPlayer2?.id === currentPlayerProfileId
   );
   const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
-
-  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
 
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
@@ -549,16 +556,52 @@ function CourtCard({
       <div className="px-3 pb-1">
         <CourtView match={match} />
       </div>
-      <div className="px-4 pb-2 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ backgroundColor: courtColor.bg, color: courtColor.ring }}>A</span>
-          <span className="text-[11px] text-white/60 truncate">{teamANames.join(" & ") || "Team A"}</span>
+      {isOrganiser && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <Target className="w-3 h-3 text-white/25" />
+              {editingPoints ? (
+                <input
+                  type="number"
+                  min="1"
+                  className="w-12 border border-white/15 rounded px-1.5 py-0.5 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  defaultValue={pointsTarget}
+                  autoFocus
+                  onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10)); if (e.key === "Escape") setEditingPoints(false); }}
+                  data-testid={`input-court-points-${match.id}`}
+                />
+              ) : (
+                <span
+                  className="text-xs text-white/35 font-mono cursor-pointer transition-colors"
+                  onClick={() => setEditingPoints(true)}
+                  data-testid={`court-points-${match.id}`}
+                >
+                  Play to {pointsTarget}
+                </span>
+              )}
+            </div>
+            {onUpdateSets && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
+                  <SelectTrigger
+                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-white/[0.04] border-white/10 text-white/35 rounded-full"
+                    data-testid={`select-court-sets-${match.id}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1" data-testid={`court-sets-option-1-${match.id}`}>1 Set</SelectItem>
+                    <SelectItem value="2" data-testid={`court-sets-option-2-${match.id}`}>2 Sets</SelectItem>
+                    <SelectItem value="3" data-testid={`court-sets-option-3-${match.id}`}>Bo3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400">B</span>
-          <span className="text-[11px] text-white/60 truncate">{teamBNames.join(" & ") || "Team B"}</span>
-        </div>
-      </div>
+      )}
       {canInteract && (
         <>
           <button
@@ -839,12 +882,12 @@ function BroadcastCard({
               <div className="min-w-0 text-right">
                 <div className="flex gap-0.5 justify-end mb-0.5">
                   {gameIndicatorsB.map((won, i) => (
-                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.08)' }} />
+                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.08)' }} />
                   ))}
                 </div>
-                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block text-amber-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
+                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
               </div>
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-amber-400/20 border-2 border-amber-400/40 text-amber-400">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
                 {teamBLabel.charAt(0)}
               </div>
             </div>
@@ -868,13 +911,13 @@ function BroadcastCard({
                 </div>
                 <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">lead</span>
                 <div className="flex items-center">
-                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreB > scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
+                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreB > scoreA ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 flex items-center justify-end">
-              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl text-amber-400" style={{ textShadow: '0 0 30px rgba(250,204,21,0.4), 0 4px 20px rgba(0,0,0,0.5)' }} data-testid={`broadcast-score-b-${match.id}`}>{scoreB}</span>
+              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl text-blue-400" style={{ textShadow: '0 0 30px rgba(96,165,250,0.4), 0 4px 20px rgba(0,0,0,0.5)' }} data-testid={`broadcast-score-b-${match.id}`}>{scoreB}</span>
             </div>
           </div>
         </div>
@@ -934,7 +977,7 @@ function BroadcastCard({
                   <span className="text-[9px] text-white/30 font-semibold">G{i + 1}</span>
                   <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreA > s.scoreB ? courtColor.ring : 'rgba(255,255,255,0.4)' }}>{s.scoreA}</span>
                   <span className="text-[9px] text-white/20">-</span>
-                  <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreB > s.scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.4)' }}>{s.scoreB}</span>
+                  <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreB > s.scoreA ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.4)' }}>{s.scoreB}</span>
                 </div>
               ))}
             </div>
@@ -965,7 +1008,7 @@ function BroadcastCard({
 
 function ScoreboardCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
-  onCompleteMatch, onEndSet, onCancelMatch,
+  onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -975,11 +1018,21 @@ function ScoreboardCard({
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
   const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
+  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+  const matchSets = match.numberOfSets || 1;
+
+  const handlePointsSave = (val: number) => {
+    if (!isNaN(val) && val >= 1 && val !== pointsTarget && onUpdatePointsTarget) onUpdatePointsTarget(match.id, val);
+    setEditingPoints(false);
+  };
 
   const scoreA = match.scoreA || 0;
   const scoreB = match.scoreB || 0;
@@ -1064,6 +1117,53 @@ function ScoreboardCard({
           </div>
         )}
       </div>
+
+      {isOrganiser && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <Target className="w-3 h-3 text-white/25" />
+              {editingPoints ? (
+                <input
+                  type="number"
+                  min="1"
+                  className="w-12 border border-white/15 rounded px-1.5 py-0.5 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  defaultValue={pointsTarget}
+                  autoFocus
+                  onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10)); if (e.key === "Escape") setEditingPoints(false); }}
+                  data-testid={`input-scoreboard-points-${match.id}`}
+                />
+              ) : (
+                <span
+                  className="text-xs text-white/35 font-mono cursor-pointer transition-colors"
+                  onClick={() => setEditingPoints(true)}
+                  data-testid={`scoreboard-points-${match.id}`}
+                >
+                  Play to {pointsTarget}
+                </span>
+              )}
+            </div>
+            {onUpdateSets && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
+                  <SelectTrigger
+                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-white/[0.04] border-white/10 text-white/35 rounded-full"
+                    data-testid={`select-scoreboard-sets-${match.id}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1" data-testid={`scoreboard-sets-option-1-${match.id}`}>1 Set</SelectItem>
+                    <SelectItem value="2" data-testid={`scoreboard-sets-option-2-${match.id}`}>2 Sets</SelectItem>
+                    <SelectItem value="3" data-testid={`scoreboard-sets-option-3-${match.id}`}>Bo3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {canInteract && (
         <>
@@ -1208,7 +1308,8 @@ export function ProLiveMatches({
               <CourtCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
-                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
             ))}
           </div>
         )}
@@ -1218,7 +1319,8 @@ export function ProLiveMatches({
             {liveMatches.map(match => (
               <ScoreboardCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
             ))}
           </div>
         )}
