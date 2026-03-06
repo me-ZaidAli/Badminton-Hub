@@ -874,8 +874,8 @@ function BroadcastCard({
 
   const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
   const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
-  const teamALabel = "TEAM A";
-  const teamBLabel = "TEAM B";
+  const teamALabel = teamANames.length > 0 ? teamANames.join(" & ") : "TEAM A";
+  const teamBLabel = teamBNames.length > 0 ? teamBNames.join(" & ") : "TEAM B";
 
   const scoreA = match.scoreA || 0;
   const scoreB = match.scoreB || 0;
@@ -905,7 +905,7 @@ function BroadcastCard({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0" style={{ backgroundColor: `${courtColor.ring}20`, border: `2px solid ${courtColor.ring}40`, color: courtColor.ring }}>
-                {teamALabel.charAt(0)}
+                A
               </div>
               <div className="min-w-0">
                 <div className="flex gap-0.5 mb-0.5">
@@ -913,21 +913,21 @@ function BroadcastCard({
                     <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? courtColor.ring : 'rgba(255,255,255,0.08)' }} />
                   ))}
                 </div>
-                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
+                <span className="text-base sm:text-lg font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
                 <div className="flex flex-col">
                   {match.teamAPlayer1 && (
                     <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                       showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1.id]}
-                      className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
-                      style={{ color: `${courtColor.ring}99` }} achievements={achievements} />
+                      className="text-xs sm:text-sm font-medium truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+                      style={{ color: `${courtColor.ring}cc` }} achievements={achievements} />
                   )}
                   {match.teamAPlayer2 && (
                     <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                       showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2.id]}
-                      className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
-                      style={{ color: `${courtColor.ring}99` }} achievements={achievements} />
+                      className="text-xs sm:text-sm font-medium truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+                      style={{ color: `${courtColor.ring}cc` }} achievements={achievements} />
                   )}
                 </div>
               </div>
@@ -946,24 +946,24 @@ function BroadcastCard({
                     <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.08)' }} />
                   ))}
                 </div>
-                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
+                <span className="text-base sm:text-lg font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
                 <div className="flex flex-col items-end">
                   {match.teamBPlayer1 && (
                     <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                       showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1.id]}
-                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
+                      className="text-xs sm:text-sm font-medium text-blue-400/80 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
                   )}
                   {match.teamBPlayer2 && (
                     <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                       availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                       showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2.id]}
-                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
+                      className="text-xs sm:text-sm font-medium text-blue-400/80 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
                   )}
                 </div>
               </div>
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
-                {teamBLabel.charAt(0)}
+                B
               </div>
             </div>
           </div>
