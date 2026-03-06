@@ -21,7 +21,7 @@ import {
   TrendingUp, TrendingDown, Award, Star, Clock, BarChart3,
   Swords, ChevronRight, ChevronLeft, Brain, Loader2, Lock,
   Flame, Medal, Crown, Heart, Eye, Crosshair, Dumbbell,
-  Lightbulb, BookOpen, Move, GitCompare, MessageSquare,
+  Lightbulb, BookOpen, Move, GitCompare, MessageSquare, Sparkles,
   PoundSterling, CheckCircle, XCircle, Send, ClipboardList,
   MapPin, UserCheck, MinusCircle
 } from "lucide-react";
@@ -382,6 +382,32 @@ function PlayerStatsRadar({ stats }: { stats: any }) {
 function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
   player1: PlayerData; player2: PlayerData; compareData: any; h2h: any; clubs: any[];
 }) {
+  const { toast } = useToast();
+  const [aiReview, setAiReview] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const generateAiReview = async () => {
+    const p1Id = player1.playerProfiles?.[0]?.id;
+    const p2Id = player2.playerProfiles?.[0]?.id;
+    if (!p1Id || !p2Id) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch(`/api/players/analytics/ai-comparison/${p1Id}/${p2Id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to generate review");
+      const data = await res.json();
+      setAiReview(data.review);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate AI review", variant: "destructive" });
+      setAiReview("Unable to generate AI comparison at this time. Please try again later.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const s1 = compareData?.player1?.stats;
   const s2 = compareData?.player2?.stats;
   const compMetrics = [
@@ -468,6 +494,85 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
           )}
         </div>
       )}
+
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
+        <div className="p-5 relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              AI Comparison Review
+            </h4>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={generateAiReview}
+              disabled={aiLoading}
+              className="text-xs bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-purple-500/30 hover:border-purple-500/50 text-slate-300 hover:text-white"
+              data-testid="button-generate-ai-review"
+            >
+              {aiLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                  Analysing...
+                </>
+              ) : (
+                <>
+                  <Brain className="h-3 w-3 mr-1.5" />
+                  {aiReview ? "Regenerate" : "Generate Review"}
+                </>
+              )}
+            </Button>
+          </div>
+
+          {!aiReview && !aiLoading && (
+            <div className="text-center py-8 space-y-3">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center border border-purple-500/20">
+                <Brain className="h-8 w-8 text-purple-400/60" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-400">Get a detailed AI-powered analysis</p>
+                <p className="text-xs text-slate-500 mt-1">Covers scoring power, experience, form, head-to-head verdict and more</p>
+              </div>
+            </div>
+          )}
+
+          {aiLoading && (
+            <div className="text-center py-10 space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-400 mx-auto" />
+              <p className="text-sm text-slate-400 animate-pulse">Generating detailed comparison review...</p>
+            </div>
+          )}
+
+          {aiReview && !aiLoading && (
+            <div className="space-y-3" data-testid="text-ai-review">
+              {aiReview.split("\n").filter(line => line.trim()).map((paragraph, i) => {
+                const isBold = paragraph.startsWith("**") || paragraph.match(/^\d+\.\s*\*\*/);
+                const cleaned = paragraph.replace(/\*\*/g, "");
+                const isHeading = cleaned.match(/^(\d+\.\s*)?[A-Z].*[:—-]\s*/);
+
+                if (isHeading) {
+                  const parts = cleaned.split(/[:—-]\s*/);
+                  const heading = parts[0];
+                  const rest = parts.slice(1).join(": ");
+                  return (
+                    <div key={i} className="mt-4 first:mt-0">
+                      <h5 className="text-xs font-bold text-cyan-300 uppercase tracking-wider mb-1.5">{heading}</h5>
+                      {rest && <p className="text-[13px] leading-relaxed text-slate-300">{rest}</p>}
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={i} className={`text-[13px] leading-relaxed ${isBold ? "text-slate-200 font-medium" : "text-slate-400"}`}>
+                    {cleaned}
+                  </p>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -24384,6 +24384,191 @@ Keep it to about 300 words. Be encouraging but honest.`;
     }
   });
 
+  app.post("/api/players/analytics/ai-comparison/:player1Id/:player2Id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const player1Id = parseInt(req.params.player1Id);
+      const player2Id = parseInt(req.params.player2Id);
+      if (isNaN(player1Id) || isNaN(player2Id)) return res.status(400).json({ message: "Invalid player IDs" });
+
+      async function getDetailedStats(pid: number) {
+        const profileResult = await db.select({
+          profile: playerProfiles,
+          user: users,
+          club: clubs,
+        }).from(playerProfiles)
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+          .where(eq(playerProfiles.id, pid))
+          .limit(1);
+
+        if (profileResult.length === 0) return null;
+        const { profile, user, club } = profileResult[0];
+
+        const playerMatches = await db.select({
+          scoreA: matches.scoreA,
+          scoreB: matches.scoreB,
+          teamAPlayer1Id: matches.teamAPlayer1Id,
+          teamAPlayer2Id: matches.teamAPlayer2Id,
+          teamBPlayer1Id: matches.teamBPlayer1Id,
+          teamBPlayer2Id: matches.teamBPlayer2Id,
+          completedAt: matches.completedAt,
+        }).from(matches)
+          .where(and(
+            eq(matches.isCompleted, true),
+            or(
+              eq(matches.teamAPlayer1Id, pid),
+              eq(matches.teamAPlayer2Id, pid),
+              eq(matches.teamBPlayer1Id, pid),
+              eq(matches.teamBPlayer2Id, pid)
+            )
+          ));
+
+        let wins = 0, pointsScored = 0, pointsConceded = 0;
+        const margins: number[] = [];
+        let recentWins = 0;
+        const recentMatches = playerMatches.slice(-5);
+        for (const m of playerMatches) {
+          const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
+          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+          pointsScored += myScore;
+          pointsConceded += oppScore;
+          margins.push(myScore - oppScore);
+          if (myScore > oppScore) wins++;
+        }
+        for (const m of recentMatches) {
+          const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
+          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+          if (myScore > oppScore) recentWins++;
+        }
+
+        const sessionsResult = await db.select({ count: sql<number>`count(*)` })
+          .from(sessionSignups)
+          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+        const sessionsAttended = Number(sessionsResult[0]?.count || 0);
+
+        const hoursResult = await db.select({ total: sql<number>`COALESCE(SUM(${sessions.durationMinutes}), 0)` })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+        const totalHours = Number(hoursResult[0]?.total || 0) / 60;
+
+        const avgMargin = margins.length > 0 ? (margins.reduce((a, b) => a + b, 0) / margins.length).toFixed(1) : "0";
+        const avgPointsPerMatch = playerMatches.length > 0 ? (pointsScored / playerMatches.length).toFixed(1) : "0";
+
+        return {
+          name: user.fullName,
+          grade: profile.grade || profile.category || "Ungraded",
+          gender: profile.gender || "Unknown",
+          club: club.name,
+          matchesPlayed: playerMatches.length,
+          wins,
+          losses: playerMatches.length - wins,
+          winRate: playerMatches.length > 0 ? Math.round((wins / playerMatches.length) * 100) : 0,
+          pointsScored,
+          pointsConceded,
+          avgMargin,
+          avgPointsPerMatch,
+          sessionsAttended,
+          totalHoursPlayed: Math.round(totalHours * 10) / 10,
+          recentForm: `${recentWins}W ${recentMatches.length - recentWins}L (last ${recentMatches.length})`,
+          rankingPoints: profile.rankingPoints || 0,
+        };
+      }
+
+      const [s1, s2] = await Promise.all([getDetailedStats(player1Id), getDetailedStats(player2Id)]);
+      if (!s1 || !s2) return res.status(404).json({ message: "One or both players not found" });
+
+      const h2hMatches = await db.select({
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+      }).from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            and(
+              or(eq(matches.teamAPlayer1Id, player1Id), eq(matches.teamAPlayer2Id, player1Id)),
+              or(eq(matches.teamBPlayer1Id, player2Id), eq(matches.teamBPlayer2Id, player2Id))
+            ),
+            and(
+              or(eq(matches.teamAPlayer1Id, player2Id), eq(matches.teamAPlayer2Id, player2Id)),
+              or(eq(matches.teamBPlayer1Id, player1Id), eq(matches.teamBPlayer2Id, player1Id))
+            )
+          )
+        ));
+
+      let h2hP1Wins = 0, h2hP2Wins = 0;
+      for (const m of h2hMatches) {
+        const p1IsTeamA = m.teamAPlayer1Id === player1Id || m.teamAPlayer2Id === player1Id;
+        const p1Score = p1IsTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const p2Score = p1IsTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+        if (p1Score > p2Score) h2hP1Wins++;
+        else h2hP2Wins++;
+      }
+
+      let aiReview = "";
+      try {
+        const OpenAI = (await import("openai")).default;
+        const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+
+        const prompt = `You are an elite racket sports analyst providing a professional, detailed comparison review between two club players. Write in a confident, insightful tone like a TV sports pundit. Use the players' first names naturally throughout.
+
+PLAYER 1 — ${s1.name}:
+- Grade: ${s1.grade} | Gender: ${s1.gender} | Club: ${s1.club}
+- Matches: ${s1.matchesPlayed} played, ${s1.wins}W / ${s1.losses}L (${s1.winRate}% win rate)
+- Points: ${s1.pointsScored} scored / ${s1.pointsConceded} conceded (avg ${s1.avgPointsPerMatch}/match, avg margin ${s1.avgMargin})
+- Sessions attended: ${s1.sessionsAttended} | Hours played: ${s1.totalHoursPlayed}h
+- Recent form: ${s1.recentForm}
+- Ranking points: ${s1.rankingPoints}
+
+PLAYER 2 — ${s2.name}:
+- Grade: ${s2.grade} | Gender: ${s2.gender} | Club: ${s2.club}
+- Matches: ${s2.matchesPlayed} played, ${s2.wins}W / ${s2.losses}L (${s2.winRate}% win rate)
+- Points: ${s2.pointsScored} scored / ${s2.pointsConceded} conceded (avg ${s2.avgPointsPerMatch}/match, avg margin ${s2.avgMargin})
+- Sessions attended: ${s2.sessionsAttended} | Hours played: ${s2.totalHoursPlayed}h
+- Recent form: ${s2.recentForm}
+- Ranking points: ${s2.rankingPoints}
+
+HEAD-TO-HEAD:
+- Total matches between them: ${h2hMatches.length}
+- ${s1.name} wins: ${h2hP1Wins} | ${s2.name} wins: ${h2hP2Wins}
+
+Provide a detailed comparison review covering:
+1. **Overall Assessment** — Who is the stronger player overall and why? Consider win rate, volume of play, and consistency.
+2. **Scoring Power & Efficiency** — Compare their offensive output, average points per match, and point margins. Who is more clinical?
+3. **Experience & Commitment** — Compare session attendance, hours invested, and match volume. Who shows more dedication?
+4. **Head-to-Head Verdict** — If they've played each other, analyze the rivalry. If not, predict how a matchup would go based on their profiles.
+5. **Recent Form & Trajectory** — Who is trending upward? Who needs to step up?
+6. **Final Verdict** — Give a clear, decisive summary of who has the edge and what each player should focus on to improve.
+
+Write 5-7 detailed paragraphs. Be specific with numbers. Be opinionated but fair. If data is limited (few matches), acknowledge it but still provide analysis based on what's available.`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1200,
+        });
+        aiReview = completion.choices[0]?.message?.content || "Unable to generate comparison review.";
+      } catch (aiErr: any) {
+        console.error("AI comparison error:", aiErr);
+        const stronger = s1.winRate > s2.winRate ? s1 : s2;
+        const weaker = s1.winRate > s2.winRate ? s2 : s1;
+        aiReview = `Comparison Summary: ${stronger.name} currently holds the edge with a ${stronger.winRate}% win rate across ${stronger.matchesPlayed} matches compared to ${weaker.name}'s ${weaker.winRate}% from ${weaker.matchesPlayed} matches. ${stronger.name} has scored ${stronger.pointsScored} points with an average margin of ${stronger.avgMargin} per match. In terms of commitment, ${s1.sessionsAttended > s2.sessionsAttended ? s1.name : s2.name} has attended more sessions (${Math.max(s1.sessionsAttended, s2.sessionsAttended)} vs ${Math.min(s1.sessionsAttended, s2.sessionsAttended)}). ${h2hMatches.length > 0 ? `Head-to-head: ${h2hP1Wins > h2hP2Wins ? s1.name : s2.name} leads the rivalry ${Math.max(h2hP1Wins, h2hP2Wins)}-${Math.min(h2hP1Wins, h2hP2Wins)} from ${h2hMatches.length} encounters.` : "These two players have not yet faced each other directly."}`;
+      }
+
+      res.json({ review: aiReview, player1: s1.name, player2: s2.name });
+    } catch (err: any) {
+      console.error("AI comparison error:", err);
+      res.status(500).json({ message: "Failed to generate AI comparison" });
+    }
+  });
+
   app.get("/api/players/analytics/head-to-head/:player1Id/:player2Id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
