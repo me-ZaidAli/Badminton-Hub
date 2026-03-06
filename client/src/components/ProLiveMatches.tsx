@@ -471,27 +471,27 @@ function CourtView({ match }: { match: CourtMatch }) {
       <div className="absolute right-[6%] left-1/2 top-[30%] bottom-[30%] border border-white/20" />
 
       <div className="absolute left-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-white/10 text-[11px] font-semibold text-white truncate max-w-[100px]" data-testid={`pro-court-player-a1-${match.id}`}>
+        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[100px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a1-${match.id}`}>
           {match.teamAPlayer1?.user?.fullName || "Player 1"}
         </div>
         <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 12px ${courtColor.glow}` }} />
       </div>
       {match.teamAPlayer2 && (
         <div className="absolute left-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-white/10 text-[11px] font-semibold text-white truncate max-w-[100px]" data-testid={`pro-court-player-a2-${match.id}`}>
+          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[100px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a2-${match.id}`}>
             {match.teamAPlayer2.user?.fullName || "Player 2"}
           </div>
         </div>
       )}
 
       <div className="absolute right-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-white/10 text-[11px] font-semibold text-white/80 truncate max-w-[100px]" data-testid={`pro-court-player-b1-${match.id}`}>
+        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[100px]" data-testid={`pro-court-player-b1-${match.id}`}>
           {match.teamBPlayer1?.user?.fullName || "Player 3"}
         </div>
       </div>
       {match.teamBPlayer2 && (
         <div className="absolute right-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-white/10 text-[11px] font-semibold text-white/80 truncate max-w-[100px]" data-testid={`pro-court-player-b2-${match.id}`}>
+          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[100px]" data-testid={`pro-court-player-b2-${match.id}`}>
             {match.teamBPlayer2.user?.fullName || "Player 4"}
           </div>
         </div>
@@ -653,15 +653,15 @@ function InlineScorePanel({
         <p className="text-[10px] text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
         <div className="flex items-center justify-center gap-6">
           <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Team A</p>
-            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</div>
-            <p className="text-[9px] text-white/30 mt-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
+            <p className="text-[9px] text-white/30 mb-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: courtColor.ring }}>Team A</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-white" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace", ...(parseInt(scoreA) > parseInt(scoreB) ? { color: courtColor.ring } : {}) }}>{scoreA}</div>
           </div>
           <Swords className="w-4 h-4 text-white/20" />
           <div className="text-center">
+            <p className="text-[9px] text-white/30 mb-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
             <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Team B</p>
             <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
-            <p className="text-[9px] text-white/30 mt-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -680,15 +680,16 @@ function InlineScorePanel({
     <div className="border-t border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <label className="text-[9px] uppercase tracking-widest text-emerald-400 mb-1 block font-bold">Team A</label>
+          <p className="text-[9px] text-white/40 truncate mb-0.5">{teamANames.join(" & ")}</p>
+          <label className="text-[9px] uppercase tracking-widest mb-1 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
           <div className="flex items-center gap-1">
             <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
               <Minus className="w-3 h-3" />
             </button>
             <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-              className="bg-slate-800/80 border-emerald-500/20 text-white text-center text-lg font-mono h-9 focus:border-emerald-400/40 focus:ring-emerald-400/20"
-              style={{ fontFamily: "'Orbitron', monospace" }}
+              className="bg-slate-800/80 text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
+              style={{ fontFamily: "'Orbitron', monospace", borderColor: courtColor.ring + '30' }}
               placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
             <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
@@ -698,6 +699,7 @@ function InlineScorePanel({
         </div>
         <div className="text-white/15 font-bold text-xs mt-4">vs</div>
         <div className="flex-1 min-w-0">
+          <p className="text-[9px] text-white/40 truncate mb-0.5">{teamBNames.join(" & ")}</p>
           <label className="text-[9px] uppercase tracking-widest text-blue-400 mb-1 block font-bold">Team B</label>
           <div className="flex items-center gap-1">
             <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
