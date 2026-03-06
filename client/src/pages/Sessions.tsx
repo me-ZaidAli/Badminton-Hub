@@ -1471,15 +1471,60 @@ export default function Sessions() {
                 )}
 
                 {editableClubIds.has(session.clubId) ? (
-                  <div className="mt-3 pt-3 border-t border-border/30">
-                    <Button
-                      className="w-full rounded-xl font-semibold shadow-sm gap-2"
+                  <div className="mt-3 pt-3 border-t border-border/30 flex justify-center">
+                    <button
                       onClick={() => setLocation(`/sessions/${session.id}`)}
                       data-testid={`button-run-session-${session.id}`}
+                      className="group relative w-[100px] h-[100px] rounded-full focus:outline-none"
+                      style={{
+                        background: "radial-gradient(circle at 40% 35%, #5a5a5a 0%, #3a3a3a 40%, #252525 70%, #1a1a1a 100%)",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.08), inset 0 -2px 6px rgba(0,0,0,0.4)",
+                      }}
                     >
-                      <Play className="h-4 w-4" />
-                      Run Session
-                    </Button>
+                      <div
+                        className="absolute inset-[6px] rounded-full"
+                        style={{
+                          background: "radial-gradient(circle at 40% 35%, #4a4a4a 0%, #333 30%, #222 60%, #1a1a1a 100%)",
+                          boxShadow: "inset 0 2px 6px rgba(0,0,0,0.6), inset 0 -1px 3px rgba(255,255,255,0.05), 0 0 0 2px rgba(0,0,0,0.3)",
+                        }}
+                      >
+                        <div
+                          className="absolute inset-[3px] rounded-full transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.6)]"
+                          style={{
+                            background: "radial-gradient(circle at 50% 45%, #2a2a2a 0%, #1e1e1e 50%, #151515 100%)",
+                            boxShadow: "inset 0 1px 3px rgba(255,255,255,0.04), inset 0 -2px 4px rgba(0,0,0,0.5), 0 0 0 2.5px #1a1a1a, 0 0 0 4px rgba(245,158,11,0.7), 0 0 12px rgba(245,158,11,0.3)",
+                          }}
+                        >
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <div
+                              className="w-6 h-[3px] rounded-full mb-1.5"
+                              style={{
+                                background: "linear-gradient(90deg, transparent, #f59e0b, #fbbf24, #f59e0b, transparent)",
+                                boxShadow: "0 0 8px rgba(245,158,11,0.6), 0 0 16px rgba(245,158,11,0.3)",
+                              }}
+                            />
+                            <span
+                              className="text-[9px] font-bold tracking-[0.15em] uppercase"
+                              style={{
+                                color: "#d4d4d4",
+                                textShadow: "0 0 6px rgba(245,158,11,0.3), 0 1px 2px rgba(0,0,0,0.8)",
+                              }}
+                            >
+                              START
+                            </span>
+                            <span
+                              className="text-[13px] font-black tracking-wider"
+                              style={{
+                                color: "#e5e5e5",
+                                textShadow: "0 0 8px rgba(245,158,11,0.4), 0 1px 3px rgba(0,0,0,0.9)",
+                              }}
+                            >
+                              SESSION
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 ) : (
                   <div className="mt-3 pt-3 border-t border-border/30">
