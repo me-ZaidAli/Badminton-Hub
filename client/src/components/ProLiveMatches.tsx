@@ -268,6 +268,7 @@ function LiveMatchRow({
 
         <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
           <div className="flex items-center gap-1.5 min-w-0 shrink">
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: courtColor.bg, color: courtColor.ring }}>A</span>
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
@@ -284,6 +285,7 @@ function LiveMatchRow({
           </div>
           <span className="text-white/20 text-[10px] font-bold uppercase tracking-widest shrink-0">vs</span>
           <div className="flex items-center gap-1.5 min-w-0 shrink">
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400 shrink-0">B</span>
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
@@ -547,11 +549,14 @@ function CourtCard({
       <div className="px-3 pb-1">
         <CourtView match={match} />
       </div>
-      <div className="px-4 pb-2">
-        <div className="flex items-center justify-between text-[11px] text-white/40">
-          <span className="truncate">{teamANames.join(" & ") || "Team A"}</span>
-          <span className="text-white/20 font-bold text-[10px] px-2 shrink-0">vs</span>
-          <span className="truncate text-right">{teamBNames.join(" & ") || "Team B"}</span>
+      <div className="px-4 pb-2 space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ backgroundColor: courtColor.bg, color: courtColor.ring }}>A</span>
+          <span className="text-[11px] text-white/60 truncate">{teamANames.join(" & ") || "Team A"}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400">B</span>
+          <span className="text-[11px] text-white/60 truncate">{teamBNames.join(" & ") || "Team B"}</span>
         </div>
       </div>
       {canInteract && (
