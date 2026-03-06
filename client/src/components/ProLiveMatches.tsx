@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
-  CircleDot, Hash, Monitor
+  CircleDot, Hash, Monitor, Maximize2, X
 } from "lucide-react";
 
 type Player = {
@@ -1248,7 +1248,260 @@ function ScoreboardCard({
   );
 }
 
-type SubView = "court" | "list" | "score" | "broadcast";
+type SubView = "overview" | "court" | "list" | "score" | "broadcast";
+
+function MiniCourtTile({
+  match, courtNames, onClick,
+}: {
+  match: CourtMatch;
+  courtNames?: string[];
+  onClick: () => void;
+}) {
+  const courtColor = getCourtColor(match.courtNumber || 1);
+  const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `C${match.courtNumber}` : "C";
+  const isDoubles = !!match.teamAPlayer2 || !!match.teamBPlayer2;
+  const firstName = (name?: string) => name?.split(" ")[0] || "?";
+
+  return (
+    <button
+      onClick={onClick}
+      className="relative w-full aspect-[1/1.15] rounded-xl overflow-hidden border border-white/[0.08] transition-all duration-300 active:scale-[0.97] group"
+      style={{ background: `linear-gradient(160deg, ${courtColor.bg} 0%, rgba(15,23,42,0.95) 100%)` }}
+      data-testid={`overview-tile-${match.id}`}
+    >
+      <div className="absolute inset-[8%] border border-white/20 rounded-sm" />
+      <div className="absolute left-1/2 top-[8%] bottom-[8%] w-px bg-white/15" style={{ transform: 'translateX(-50%)' }} />
+      <div className="absolute left-[8%] right-1/2 top-[32%] bottom-[32%] border border-white/10" />
+      <div className="absolute right-[8%] left-1/2 top-[32%] bottom-[32%] border border-white/10" />
+
+      <div className="absolute left-[12%] top-[14%] z-10 max-w-[35%]">
+        <span className="text-[8px] sm:text-[9px] font-bold truncate block" style={{ color: courtColor.ring }}>
+          {firstName(match.teamAPlayer1?.user?.fullName)}
+        </span>
+      </div>
+      {isDoubles && match.teamAPlayer2 && (
+        <div className="absolute left-[12%] bottom-[14%] z-10 max-w-[35%]">
+          <span className="text-[8px] sm:text-[9px] font-bold truncate block" style={{ color: courtColor.ring }}>
+            {firstName(match.teamAPlayer2?.user?.fullName)}
+          </span>
+        </div>
+      )}
+      <div className="absolute right-[12%] top-[14%] z-10 max-w-[35%] text-right">
+        <span className="text-[8px] sm:text-[9px] font-bold text-blue-400 truncate block">
+          {firstName(match.teamBPlayer1?.user?.fullName)}
+        </span>
+      </div>
+      {isDoubles && match.teamBPlayer2 && (
+        <div className="absolute right-[12%] bottom-[14%] z-10 max-w-[35%] text-right">
+          <span className="text-[8px] sm:text-[9px] font-bold text-blue-400 truncate block">
+            {firstName(match.teamBPlayer2?.user?.fullName)}
+          </span>
+        </div>
+      )}
+
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase" style={{ color: courtColor.ring }}>{courtLabel}</span>
+            {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: courtColor.ring }}>{match.scoreA || 0}</span>
+            <span className="text-[8px] text-white/30 font-bold">-</span>
+            <span className="text-sm sm:text-base font-black text-blue-400 tabular-nums">{match.scoreB || 0}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.03] transition-colors duration-300" />
+    </button>
+  );
+}
+
+function CourtDetailDialog({
+  match, open, onOpenChange, isOrganiser, isSignedUp, currentPlayerProfileId,
+  defaultPointsToPlayTo = 21, courtNames, availablePlayers,
+  onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
+  onSwapPlayer, busyPlayerIds,
+}: {
+  match: CourtMatch | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isOrganiser: boolean;
+  isSignedUp: boolean;
+  currentPlayerProfileId?: number | null;
+  defaultPointsToPlayTo?: number;
+  courtNames?: string[];
+  availablePlayers: Player[];
+  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCancelMatch?: (matchId: number) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  busyPlayerIds?: Set<number>;
+}) {
+  const [editingPoints, setEditingPoints] = useState(false);
+
+  if (!match) return null;
+
+  const courtColor = getCourtColor(match.courtNumber || 1);
+  const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
+  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+  const matchSets = match.numberOfSets || 1;
+  const scoreA = match.scoreA || 0;
+  const scoreB = match.scoreB || 0;
+  const setsWonA = match.setsWonA || 0;
+  const setsWonB = match.setsWonB || 0;
+  const isMultiSet = matchSets > 1;
+
+  const handlePointsSave = (val: number) => {
+    if (!isNaN(val) && val >= 1 && val !== pointsTarget && onUpdatePointsTarget) onUpdatePointsTarget(match.id, val);
+    setEditingPoints(false);
+  };
+
+  const isPlayerInMatch = currentPlayerProfileId && (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  );
+  const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg sm:max-w-xl p-0 bg-slate-950 border-white/10 overflow-hidden" data-testid={`overview-detail-${match.id}`}>
+        <DialogHeader className="sr-only">
+          <DialogTitle>{courtLabel}</DialogTitle>
+          <DialogDescription>Match details and controls</DialogDescription>
+        </DialogHeader>
+
+        <div className="relative" style={{ background: `linear-gradient(135deg, ${courtColor.bg} 0%, rgba(15,23,42,0.98) 50%, ${courtColor.bg} 100%)` }}>
+          <div className="px-5 pt-5 pb-3">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: courtColor.ring }} />
+                <span className="text-sm font-bold text-white uppercase tracking-wider">{courtLabel}</span>
+              </div>
+              {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: courtColor.ring }}>Team A</p>
+                {match.teamAPlayer1 && (
+                  <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
+                    availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    className="text-xs font-semibold truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+                    style={{ color: courtColor.ring }} />
+                )}
+                {match.teamAPlayer2 && (
+                  <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
+                    availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    className="text-xs font-semibold truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+                    style={{ color: courtColor.ring }} />
+                )}
+              </div>
+              <div className="flex flex-col items-center px-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-black tabular-nums" style={{ color: courtColor.ring }}>{scoreA}</span>
+                  <span className="text-sm font-bold text-white/20">-</span>
+                  <span className="text-3xl font-black text-blue-400 tabular-nums">{scoreB}</span>
+                </div>
+                {isMultiSet && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-[10px] font-bold" style={{ color: courtColor.ring }}>{setsWonA}</span>
+                    <span className="text-[9px] text-white/20">sets</span>
+                    <span className="text-[10px] font-bold text-blue-400">{setsWonB}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-blue-400 mb-1">Team B</p>
+                {match.teamBPlayer1 && (
+                  <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
+                    availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+                )}
+                {match.teamBPlayer2 && (
+                  <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
+                    availablePlayers={availablePlayers} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                    className="text-xs font-semibold text-blue-400 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                )}
+              </div>
+            </div>
+
+            {isMultiSet && match.setScores && match.setScores.length > 0 && (
+              <div className="flex items-center justify-center gap-2 mb-3">
+                {match.setScores.map((s: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.04]">
+                    <span className="text-[9px] text-white/30 font-semibold">G{i + 1}</span>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: s.scoreA > s.scoreB ? courtColor.ring : 'rgba(255,255,255,0.4)' }}>{s.scoreA}</span>
+                    <span className="text-[9px] text-white/20">-</span>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: s.scoreB > s.scoreA ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.4)' }}>{s.scoreB}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isOrganiser && (
+              <div className="flex items-center justify-center gap-4 py-2 border-t border-white/[0.06]">
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <Target className="w-3 h-3 text-white/25" />
+                  {editingPoints ? (
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-14 border border-white/15 rounded px-1.5 py-1 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      defaultValue={pointsTarget}
+                      autoFocus
+                      onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10)); if (e.key === "Escape") setEditingPoints(false); }}
+                      data-testid={`input-overview-points-${match.id}`}
+                    />
+                  ) : (
+                    <span
+                      className="text-xs text-white/40 font-mono cursor-pointer transition-colors"
+                      onClick={() => setEditingPoints(true)}
+                      data-testid={`overview-points-${match.id}`}
+                    >
+                      Play to {pointsTarget}
+                    </span>
+                  )}
+                </div>
+                {onUpdateSets && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
+                      <SelectTrigger
+                        className="h-7 w-auto min-w-0 gap-0.5 px-2.5 text-[11px] bg-white/[0.04] border-white/10 text-white/40 rounded-full"
+                        data-testid={`select-overview-sets-${match.id}`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1" data-testid={`overview-sets-option-1-${match.id}`}>1 Set</SelectItem>
+                        <SelectItem value="2" data-testid={`overview-sets-option-2-${match.id}`}>2 Sets</SelectItem>
+                        <SelectItem value="3" data-testid={`overview-sets-option-3-${match.id}`}>Bo3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {canInteract && (
+          <div className="p-0">
+            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
@@ -1275,9 +1528,12 @@ export function ProLiveMatches({
   onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
-  const [subView, setSubView] = useState<SubView>("court");
+  const [subView, setSubView] = useState<SubView>("overview");
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const selectedMatch = liveMatches.find(m => m.id === selectedMatchId) || null;
 
   const subViews: { key: SubView; label: string; icon: typeof List }[] = [
+    { key: "overview", label: "Overview", icon: Maximize2 },
     { key: "court", label: "Courts", icon: LayoutGrid },
     { key: "list", label: "List", icon: List },
     { key: "score", label: "Score", icon: Hash },
@@ -1337,6 +1593,35 @@ export function ProLiveMatches({
             ))}
           </div>
         </div>
+
+        {subView === "overview" && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {liveMatches.map(match => (
+                <MiniCourtTile key={match.id} match={match} courtNames={courtNames}
+                  onClick={() => setSelectedMatchId(match.id)} />
+              ))}
+            </div>
+            <CourtDetailDialog
+              match={selectedMatch}
+              open={selectedMatchId !== null}
+              onOpenChange={(open) => { if (!open) setSelectedMatchId(null); }}
+              isOrganiser={isOrganiser}
+              isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId}
+              defaultPointsToPlayTo={defaultPointsToPlayTo}
+              courtNames={courtNames}
+              availablePlayers={availablePlayers}
+              onCompleteMatch={onCompleteMatch}
+              onEndSet={onEndSet}
+              onCancelMatch={onCancelMatch}
+              onUpdatePointsTarget={onUpdatePointsTarget}
+              onUpdateSets={onUpdateSets}
+              onSwapPlayer={onSwapPlayer}
+              busyPlayerIds={busyPlayerIds}
+            />
+          </>
+        )}
 
         {subView === "list" && (
           <div className="space-y-4">
