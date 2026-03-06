@@ -466,7 +466,9 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlayerProfiles(profileIds: number[]): Promise<void> {
     if (profileIds.length === 0) return;
-    await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
+    for (const id of profileIds) {
+      await this.deletePlayerProfile(id);
+    }
   }
 
   async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; venue?: Venue })[]> {
@@ -802,6 +804,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePlayerProfile(id: number): Promise<void> {
+    await db.execute(sql`UPDATE credit_ledger SET linked_signup_id = NULL WHERE linked_signup_id IN (SELECT id FROM session_signups WHERE player_id = ${id})`);
     await db.delete(sessionSignups).where(eq(sessionSignups.playerId, id));
 
     await db.execute(sql`DELETE FROM matches WHERE team_a_player_1_id = ${id} OR team_b_player_1_id = ${id}`);
@@ -819,7 +822,9 @@ export class DatabaseStorage implements IStorage {
     }
     await db.execute(sql`UPDATE tournament_teams SET player2_id = NULL WHERE player2_id = ${id}`);
 
-    await db.execute(sql`UPDATE credit_ledger SET linked_signup_id = NULL WHERE linked_signup_id IN (SELECT id FROM session_signups WHERE player_id = ${id})`);
+    await db.execute(sql`DELETE FROM player_reward_ledger WHERE player_id = ${id}`);
+
+    await db.execute(sql`DELETE FROM profile_merge_logs WHERE primary_profile_id = ${id} OR secondary_profile_id = ${id}`);
 
     await db.delete(playerProfiles).where(eq(playerProfiles.id, id));
   }
@@ -828,7 +833,39 @@ export class DatabaseStorage implements IStorage {
     const userProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
     const profileIds = userProfiles.map(p => p.id);
 
+    await db.execute(sql`DELETE FROM junior_challenge_completions WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_exercise_videos WHERE added_by = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_progress_history WHERE child_id = ${userId}`);
+    await db.execute(sql`UPDATE junior_progress_history SET updated_by = NULL WHERE updated_by = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_rankings WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_videos WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE junior_videos SET added_by = NULL WHERE added_by = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_achievements WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_skill_progress WHERE child_id = ${userId}`);
+    await db.execute(sql`UPDATE junior_skill_progress SET updated_by = NULL WHERE updated_by = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_profiles WHERE user_id = ${userId}`);
+
+    await db.execute(sql`DELETE FROM league_match_availability WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM league_squad_players WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE league_squad_players SET added_by = NULL WHERE added_by = ${userId}`);
+    await db.execute(sql`DELETE FROM league_match_players WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE league_matches SET created_by = NULL WHERE created_by = ${userId}`);
+
+    await db.execute(sql`DELETE FROM user_cards WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE user_cards SET issued_by = NULL WHERE issued_by = ${userId}`);
+
+    await db.execute(sql`DELETE FROM generated_reports WHERE created_by = ${userId}`);
+
+    await db.execute(sql`UPDATE donations SET confirmed_by_admin_id = NULL WHERE confirmed_by_admin_id = ${userId}`);
+    await db.execute(sql`DELETE FROM donations WHERE user_id = ${userId}`);
+
     if (profileIds.length > 0) {
+      await db.execute(sql`DELETE FROM player_reward_ledger WHERE player_id IN (SELECT id FROM player_profiles WHERE user_id = ${userId})`);
+
+      for (const pid of profileIds) {
+        await db.execute(sql`UPDATE credit_ledger SET linked_signup_id = NULL WHERE linked_signup_id IN (SELECT id FROM session_signups WHERE player_id = ${pid})`);
+      }
+
       await db.delete(sessionSignups).where(inArray(sessionSignups.playerId, profileIds));
 
       for (const pid of profileIds) {
@@ -848,6 +885,8 @@ export class DatabaseStorage implements IStorage {
         await db.execute(sql`UPDATE tournament_teams SET player2_id = NULL WHERE player2_id = ${pid}`);
       }
 
+      await db.execute(sql`DELETE FROM profile_merge_logs WHERE primary_profile_id IN (${sql.join(profileIds.map(id => sql`${id}`), sql`, `)}) OR secondary_profile_id IN (${sql.join(profileIds.map(id => sql`${id}`), sql`, `)})`);
+
       await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
     }
 
@@ -863,7 +902,6 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM merchandise_orders WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM notification_logs WHERE recipient_user_id = ${userId}`);
-    await db.execute(sql`DELETE FROM player_reward_ledger WHERE player_id IN (SELECT id FROM player_profiles WHERE user_id = ${userId})`);
     await db.execute(sql`DELETE FROM announcement_archives WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM discount_code_assignments WHERE user_id = ${userId}`);
 
@@ -923,7 +961,6 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM session_attendance_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM points_milestone_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM badge_achievement_rewards WHERE created_by_id = ${userId}`);
-    await db.execute(sql`DELETE FROM donations WHERE user_id = ${userId}`);
 
     await db.delete(users).where(eq(users.id, userId));
   }

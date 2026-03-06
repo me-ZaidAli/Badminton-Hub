@@ -6456,6 +6456,61 @@ export async function registerRoutes(
 
         await db.execute(sql`UPDATE users SET parent_user_id = ${keepUserId} WHERE parent_user_id = ${removeUserId}`);
 
+        await db.execute(sql`UPDATE league_match_players SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE league_squad_players SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE league_squad_players SET added_by = ${keepUserId} WHERE added_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE league_match_availability SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE league_matches SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+
+        await db.execute(sql`UPDATE junior_profiles SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_skill_progress SET child_id = ${keepUserId} WHERE child_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_skill_progress SET updated_by = ${keepUserId} WHERE updated_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_achievements SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_videos SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_videos SET added_by = ${keepUserId} WHERE added_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_rankings SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_progress_history SET child_id = ${keepUserId} WHERE child_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_progress_history SET updated_by = ${keepUserId} WHERE updated_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_challenge_completions SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE junior_exercise_videos SET added_by = ${keepUserId} WHERE added_by = ${removeUserId}`);
+
+        await db.execute(sql`UPDATE user_cards SET user_id = ${keepUserId} WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE user_cards SET issued_by = ${keepUserId} WHERE issued_by = ${removeUserId}`);
+
+        await db.execute(sql`UPDATE generated_reports SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE donations SET confirmed_by_admin_id = ${keepUserId} WHERE confirmed_by_admin_id = ${removeUserId}`);
+
+        await db.execute(sql`DELETE FROM notification_logs WHERE recipient_user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM announcement_archives WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM discount_code_assignments WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE discount_code_assignments SET assigned_by = ${keepUserId} WHERE assigned_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE discount_codes SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM merchandise_orders WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM inventory_movements WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM expenses WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE session_signups SET signed_up_by_user_id = ${keepUserId} WHERE signed_up_by_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE venues SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE recurring_events SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM referral_programs WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM referrals WHERE referrer_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE referrals SET referred_user_id = ${keepUserId} WHERE referred_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE referrals SET approved_by_id = ${keepUserId} WHERE approved_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM email_logs WHERE recipient_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE email_logs SET sent_by = ${keepUserId} WHERE sent_by = ${removeUserId}`);
+        await db.execute(sql`UPDATE admin_audit_logs SET target_id = ${keepUserId} WHERE target_type = 'user' AND target_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE admin_audit_logs SET actor_id = ${keepUserId} WHERE actor_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM chat_reactions WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE chat_messages SET sender_id = ${keepUserId} WHERE sender_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM chat_members WHERE user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE chat_audit_logs SET target_user_id = ${keepUserId} WHERE target_user_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE chat_audit_logs SET actor_id = ${keepUserId} WHERE actor_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE chat_reports SET resolved_by_id = ${keepUserId} WHERE resolved_by_id = ${removeUserId}`);
+        await db.execute(sql`UPDATE chat_reports SET reporter_id = ${keepUserId} WHERE reporter_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM session_attendance_rewards WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM points_milestone_rewards WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM badge_achievement_rewards WHERE created_by_id = ${removeUserId}`);
+        await db.execute(sql`DELETE FROM player_reward_ledger WHERE player_id IN (SELECT id FROM player_profiles WHERE user_id = ${removeUserId})`);
+
         const mergeUpdates: Record<string, any> = {};
         if (keepEmail && keepEmail !== keepUser.email) {
           const sourceUser = keepEmail === removeUser.email ? removeUser : keepUser;
@@ -13739,8 +13794,9 @@ export async function registerRoutes(
           .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
         if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
       }
-      await db.delete(sessionSignups).where(eq(sessionSignups.playerId, profileId));
-      await db.delete(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "Profile not found in this club" });
+      await storage.deletePlayerProfile(profileId);
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error deleting member:", err);
