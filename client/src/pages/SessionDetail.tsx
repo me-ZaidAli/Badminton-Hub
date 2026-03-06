@@ -151,17 +151,6 @@ export default function SessionDetail() {
     return result;
   })();
 
-  const { data: deletedMatchesData } = useQuery<{ count: number }>({
-    queryKey: ["/api/sessions", id, "deleted-matches-count"],
-    queryFn: async () => {
-      const res = await fetch(`/api/sessions/${id}/deleted-matches-count`, { credentials: "include" });
-      if (!res.ok) return { count: 0 };
-      return res.json();
-    },
-    enabled: isOrganiser,
-  });
-  const deletedMatchesCount = deletedMatchesData?.count ?? 0;
-
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [endSessionModalOpenParent, setEndSessionModalOpenParent] = useState(false);
   const [editingCapacity, setEditingCapacity] = useState(false);
@@ -292,6 +281,18 @@ export default function SessionDetail() {
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
+
+  const { data: deletedMatchesData } = useQuery<{ count: number }>({
+    queryKey: ["/api/sessions", id, "deleted-matches-count"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${id}/deleted-matches-count`, { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    enabled: isOrganiser,
+  });
+  const deletedMatchesCount = deletedMatchesData?.count ?? 0;
+
   const editableClubIds = new Set((user?.role === "OWNER" || user?.role === "ADMIN") ? (allClubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
   const canEditSession = session ? editableClubIds.has(session.clubId) : false;
   const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
