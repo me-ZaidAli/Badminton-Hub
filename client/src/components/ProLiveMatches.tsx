@@ -760,7 +760,7 @@ function BroadcastTimer({ startedAt }: { startedAt: string }) {
 
 function BroadcastCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
-  onCompleteMatch, onEndSet, onCancelMatch,
+  onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -770,9 +770,19 @@ function BroadcastCard({
   onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
+  onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
+  onUpdateSets?: (matchId: number, numberOfSets: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
+  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+  const matchSets = match.numberOfSets || 1;
+
+  const handlePointsSave = (val: number) => {
+    if (!isNaN(val) && val >= 1 && val !== pointsTarget && onUpdatePointsTarget) onUpdatePointsTarget(match.id, val);
+    setEditingPoints(false);
+  };
 
   const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
   const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
@@ -868,6 +878,53 @@ function BroadcastCard({
             </div>
           </div>
         </div>
+
+        {isOrganiser && (
+          <div className="relative z-10 px-4 sm:px-6 pb-2">
+            <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <Target className="w-3 h-3 text-white/25" />
+                {editingPoints ? (
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-12 border border-white/15 rounded px-1.5 py-0.5 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    defaultValue={pointsTarget}
+                    autoFocus
+                    onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10)); if (e.key === "Escape") setEditingPoints(false); }}
+                    data-testid={`input-broadcast-points-${match.id}`}
+                  />
+                ) : (
+                  <span
+                    className="text-xs text-white/35 font-mono cursor-pointer transition-colors"
+                    onClick={() => setEditingPoints(true)}
+                    data-testid={`broadcast-points-${match.id}`}
+                  >
+                    Play to {pointsTarget}
+                  </span>
+                )}
+              </div>
+              {onUpdateSets && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
+                    <SelectTrigger
+                      className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-white/[0.04] border-white/10 text-white/35 rounded-full"
+                      data-testid={`select-broadcast-sets-${match.id}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1" data-testid={`broadcast-sets-option-1-${match.id}`}>1 Set</SelectItem>
+                      <SelectItem value="2" data-testid={`broadcast-sets-option-2-${match.id}`}>2 Sets</SelectItem>
+                      <SelectItem value="3" data-testid={`broadcast-sets-option-3-${match.id}`}>Bo3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {isMultiSet && match.setScores && match.setScores.length > 0 && (
           <div className="relative z-10 px-4 sm:px-6 pb-3">
@@ -1171,7 +1228,8 @@ export function ProLiveMatches({
             {liveMatches.map(match => (
               <BroadcastCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
             ))}
           </div>
         )}
