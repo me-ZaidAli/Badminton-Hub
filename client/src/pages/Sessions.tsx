@@ -873,83 +873,6 @@ export default function Sessions() {
         </div>
       </div>
 
-      {canManageSessions && scheduledSessions.length > 0 && (
-        <div className="space-y-3" data-testid="section-scheduled-sessions">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-500" />
-            <h3 className="font-semibold text-sm">Scheduled Sessions</h3>
-            <Badge variant="secondary" className="text-xs">{scheduledSessions.length}</Badge>
-            <span className="text-xs text-muted-foreground">Only visible to admins</span>
-          </div>
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {scheduledSessions.map((session) => (
-              <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-session-${session.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-sm truncate">{session.title}</h4>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <Calendar className="h-3 w-3 flex-shrink-0" />
-                        <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
-                      </div>
-                      {session.startTime && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <Clock className="h-3 w-3 flex-shrink-0" />
-                          <span>{session.startTime}</span>
-                        </div>
-                      )}
-                    </div>
-                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Opens {format(new Date((session as any).publishAt), "MMM d")}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {session.maxPlayers} max
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <CircleDot className="h-3 w-3" />
-                      {session.courtsAvailable} courts
-                    </span>
-                    {session.sessionFee != null && (
-                      <span className="flex items-center gap-1">
-                        <PoundSterling className="h-3 w-3" />
-                        £{(session.sessionFee / 100).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
-                      onClick={() => publishNowMutation.mutate(session.id)}
-                      disabled={publishNowMutation.isPending}
-                      data-testid={`button-publish-now-${session.id}`}
-                    >
-                      <Send className="h-3 w-3 mr-1" />
-                      Publish Now
-                    </Button>
-                    <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-destructive hover:text-destructive"
-                      onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date || null })}
-                      data-testid={`button-delete-scheduled-${session.id}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
           {([
@@ -991,6 +914,91 @@ export default function Sessions() {
           ))}
         </div>
       </div>
+
+      {canManageSessions && scheduledSessions.length > 0 && (
+        <Card className="border-amber-300/60 dark:border-amber-700/40 bg-gradient-to-br from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/20 dark:via-amber-950/10 dark:to-transparent shadow-sm" data-testid="section-scheduled-sessions">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40">
+                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Scheduled Sessions</h3>
+                  <span className="text-xs text-muted-foreground">Admin only — not yet visible to players</span>
+                </div>
+                <Badge variant="secondary" className="text-xs ml-1">{scheduledSessions.length}</Badge>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {scheduledSessions.map((session) => (
+                <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-white/60 dark:bg-black/20" data-testid={`card-scheduled-session-${session.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-sm truncate">{session.title}</h4>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                          <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
+                        </div>
+                        {session.startTime && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <span>{session.startTime}</span>
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Opens {format(new Date((session as any).publishAt), "MMM d")}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {session.maxPlayers} max
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <CircleDot className="h-3 w-3" />
+                        {session.courtsAvailable} courts
+                      </span>
+                      {session.sessionFee != null && (
+                        <span className="flex items-center gap-1">
+                          <PoundSterling className="h-3 w-3" />
+                          £{(session.sessionFee / 100).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
+                        onClick={() => publishNowMutation.mutate(session.id)}
+                        disabled={publishNowMutation.isPending}
+                        data-testid={`button-publish-now-${session.id}`}
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        Publish Now
+                      </Button>
+                      <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive"
+                        onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date || null })}
+                        data-testid={`button-delete-scheduled-${session.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {canManageSessions && viewMode === "cards" && filteredSessions && filteredSessions.length > 0 && (
         <div className="flex items-center gap-4 flex-wrap">
