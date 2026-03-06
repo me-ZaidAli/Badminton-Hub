@@ -685,12 +685,14 @@ export default function Sessions() {
   );
 
   const filteredSessions = useMemo(() => {
+    if (statusFilter === "scheduled") return [];
+
     let result: typeof upcomingSessions;
     if (statusFilter === "upcoming") result = upcomingSessions;
     else if (statusFilter === "live") result = liveSessions;
     else if (statusFilter === "past") result = pastSessions;
     else {
-      const combined = [...liveSessions, ...upcomingSessions, ...pastSessions];
+      const combined = [...liveSessions, ...upcomingSessions];
       const seen = new Set<number>();
       result = combined.filter(s => {
         if (seen.has(s.id)) return false;
@@ -835,14 +837,14 @@ export default function Sessions() {
             </SelectContent>
           </Select>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => setStatusFilter("all")}
             data-testid="button-filter-all"
           >
-            All
+            All ({liveSessions.length + upcomingSessions.length})
           </Button>
           {liveSessions.length > 0 && (
             <Button
@@ -870,9 +872,21 @@ export default function Sessions() {
           >
             <CheckCircle className="w-3 h-3 mr-1" /> Past ({pastSessions.length})
           </Button>
+          {canManageSessions && (
+            <Button
+              variant={statusFilter === "scheduled" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStatusFilter("scheduled")}
+              className={statusFilter === "scheduled" ? "" : "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"}
+              data-testid="button-filter-scheduled"
+            >
+              <Clock className="w-3 h-3 mr-1" /> Scheduled ({scheduledSessions.length})
+            </Button>
+          )}
         </div>
       </div>
 
+      {statusFilter !== "scheduled" && (
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
           {([
@@ -914,25 +928,32 @@ export default function Sessions() {
           ))}
         </div>
       </div>
+      )}
 
-      {canManageSessions && scheduledSessions.length > 0 && (
-        <Card className="border-amber-300/60 dark:border-amber-700/40 bg-gradient-to-br from-amber-50/60 via-amber-50/30 to-transparent dark:from-amber-950/20 dark:via-amber-950/10 dark:to-transparent shadow-sm" data-testid="section-scheduled-sessions">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40">
-                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Scheduled Sessions</h3>
-                  <span className="text-xs text-muted-foreground">Admin only — not yet visible to players</span>
-                </div>
-                <Badge variant="secondary" className="text-xs ml-1">{scheduledSessions.length}</Badge>
-              </div>
+      {statusFilter === "scheduled" && canManageSessions && (
+        <div className="space-y-4" data-testid="section-scheduled-sessions">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
+            <div>
+              <h3 className="font-semibold text-sm">Scheduled Sessions</h3>
+              <span className="text-xs text-muted-foreground">Not yet visible to players — publish to make them live</span>
+            </div>
+            <Badge variant="secondary" className="text-xs ml-1">{scheduledSessions.length}</Badge>
+          </div>
+          {scheduledSessions.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center">
+                <Clock className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">No scheduled sessions</p>
+                <p className="text-xs text-muted-foreground mt-1">Sessions with a future publish date will appear here</p>
+              </CardContent>
+            </Card>
+          ) : (
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
               {scheduledSessions.map((session) => (
-                <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-white/60 dark:bg-black/20" data-testid={`card-scheduled-session-${session.id}`}>
+                <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-session-${session.id}`}>
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2 gap-2">
                       <div className="min-w-0">
@@ -996,11 +1017,11 @@ export default function Sessions() {
                 </Card>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
-      {canManageSessions && viewMode === "cards" && filteredSessions && filteredSessions.length > 0 && (
+      {statusFilter !== "scheduled" && canManageSessions && viewMode === "cards" && filteredSessions && filteredSessions.length > 0 && (
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Checkbox
@@ -1027,7 +1048,7 @@ export default function Sessions() {
         </div>
       )}
 
-      {viewMode === "calendar" && filteredSessions && (
+      {statusFilter !== "scheduled" && viewMode === "calendar" && filteredSessions && (
         <CalendarView
           sessions={filteredSessions}
           clubs={clubs || []}
@@ -1035,7 +1056,7 @@ export default function Sessions() {
         />
       )}
 
-      {viewMode === "timeline" && filteredSessions && (
+      {statusFilter !== "scheduled" && viewMode === "timeline" && filteredSessions && (
         <TimelineView
           sessions={filteredSessions}
           clubs={clubs || []}
@@ -1043,7 +1064,7 @@ export default function Sessions() {
         />
       )}
 
-      {viewMode === "grouped" && filteredSessions && (
+      {statusFilter !== "scheduled" && viewMode === "grouped" && filteredSessions && (
         <GroupedView
           sessions={filteredSessions}
           clubs={clubs || []}
@@ -1051,7 +1072,7 @@ export default function Sessions() {
         />
       )}
 
-      {viewMode === "cards" && (
+      {statusFilter !== "scheduled" && viewMode === "cards" && (
         <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
@@ -1101,28 +1122,6 @@ export default function Sessions() {
                         <Repeat className="h-3 w-3 mr-1" />
                         Recurring
                       </Badge>
-                    )}
-                    {(session as any).publishAt && new Date((session as any).publishAt) > new Date() && (
-                      <>
-                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Opens {format(new Date((session as any).publishAt), "MMM d")}
-                        </Badge>
-                        {canManageThis && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs cursor-pointer bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              publishNowMutation.mutate(session.id);
-                            }}
-                            data-testid={`button-publish-now-${session.id}`}
-                          >
-                            <Send className="h-3 w-3 mr-1" />
-                            Publish Now
-                          </Badge>
-                        )}
-                      </>
                     )}
                   </div>
                   <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">
