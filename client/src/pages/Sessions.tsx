@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
@@ -492,6 +492,7 @@ export default function Sessions() {
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
   const [crowdSessionId, setCrowdSessionId] = useState<number | null>(null);
   const [joinSession, setJoinSession] = useState<any>(null);
+  const [copySession, setCopySession] = useState<any>(null);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
@@ -1022,6 +1023,16 @@ export default function Sessions() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
+                        data-testid={`button-copy-scheduled-${session.id}`}
+                        title="Copy Session"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         className="h-7 text-xs text-destructive hover:text-destructive"
                         onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date || null })}
                         data-testid={`button-delete-scheduled-${session.id}`}
@@ -1314,6 +1325,15 @@ export default function Sessions() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
+                          data-testid={`button-copy-session-${session.id}`}
+                          title="Copy Session"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date ? new Date(session.date).toISOString() : null })}
                           data-testid={`button-delete-session-${session.id}`}
                         >
@@ -1434,6 +1454,14 @@ export default function Sessions() {
           sessionId={crowdSessionId}
           open={!!crowdSessionId}
           onOpenChange={(open) => { if (!open) setCrowdSessionId(null); }}
+        />
+      )}
+
+      {copySession && (
+        <CopySessionChooser
+          session={copySession}
+          sessionClubs={sessionClubs || []}
+          onClose={() => setCopySession(null)}
         />
       )}
 
@@ -1636,6 +1664,83 @@ function JoinSessionModal({
   );
 }
 
+function extractSessionPrefill(session: any) {
+  return {
+    clubId: session.clubId,
+    title: session.title || "",
+    date: session.date ? new Date(session.date) : undefined,
+    startTime: session.startTime || "18:00",
+    maxPlayers: session.maxPlayers || 24,
+    courtsAvailable: session.courtsAvailable || 4,
+    matchMode: session.matchMode || "SOCIAL",
+    isPrivate: session.isPrivate || false,
+    genderRestriction: session.genderRestriction || "ALL",
+    sessionType: session.sessionType || "OPEN",
+    juniorAgeGroups: session.juniorAgeGroups || [],
+    playersPerSide: session.playersPerSide || 2,
+    matchGenderType: session.matchGenderType || "MIXED",
+    durationMinutes: session.durationMinutes || 120,
+    allowedCategories: session.allowedCategories || ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
+    sessionFee: session.sessionFee != null ? session.sessionFee / 100 : undefined,
+    shuttlecockType: session.shuttlecockType || undefined,
+    liveStreamUrl: session.liveStreamUrl || undefined,
+    defaultPointsToPlayTo: session.defaultPointsToPlayTo || 21,
+    numberOfSets: session.numberOfSets || 1,
+    venueId: session.venueId || undefined,
+  };
+}
+
+function CopySessionChooser({ session, sessionClubs, onClose }: { session: any; sessionClubs: { id: number; name: string }[]; onClose: () => void }) {
+  const [eventType, setEventType] = useState<"single" | "recurring" | null>(null);
+  const prefillData = useMemo(() => extractSessionPrefill(session), [session]);
+
+  if (eventType === "single") {
+    return <CreateSessionDialog sessionClubs={sessionClubs} initialOpen prefillData={prefillData} onClose={onClose} />;
+  }
+  if (eventType === "recurring") {
+    return <RecurringEventDialog sessionClubs={sessionClubs} initialOpen prefillData={prefillData} onClose={onClose} />;
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-[340px]">
+        <DialogHeader>
+          <DialogTitle>Copy Session As...</DialogTitle>
+          <DialogDescription>Choose how to create the copy</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <button
+            onClick={() => setEventType("single")}
+            className="flex items-center gap-4 p-4 rounded-md border hover-elevate cursor-pointer text-left"
+            data-testid="button-copy-as-single"
+          >
+            <div className="flex items-center justify-center h-10 w-10 rounded-md bg-primary/10 text-primary shrink-0">
+              <CalendarPlus className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">Single Event</p>
+              <p className="text-xs text-muted-foreground">Copy as a one-off session</p>
+            </div>
+          </button>
+          <button
+            onClick={() => setEventType("recurring")}
+            className="flex items-center gap-4 p-4 rounded-md border hover-elevate cursor-pointer text-left"
+            data-testid="button-copy-as-recurring"
+          >
+            <div className="flex items-center justify-center h-10 w-10 rounded-md bg-primary/10 text-primary shrink-0">
+              <Repeat className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">Recurring Event</p>
+              <p className="text-xs text-muted-foreground">Copy as a recurring series</p>
+            </div>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EventTypeChooser({ sessionClubs }: { sessionClubs: { id: number; name: string }[] }) {
   const [chooserOpen, setChooserOpen] = useState(false);
   const [eventType, setEventType] = useState<"single" | "recurring" | null>(null);
@@ -1693,7 +1798,7 @@ function EventTypeChooser({ sessionClubs }: { sessionClubs: { id: number; name: 
   );
 }
 
-function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose: () => void }) {
+function RecurringEventDialog({ sessionClubs, initialOpen, onClose, prefillData }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose: () => void; prefillData?: Record<string, any> }) {
   const [open, setOpen] = useState(initialOpen ?? false);
   const { toast } = useToast();
   const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
@@ -1732,23 +1837,23 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
   const form = useForm<z.infer<typeof recurringSchema>>({
     resolver: zodResolver(recurringSchema),
     defaultValues: {
-      clubId: sessionClubs.length > 0 ? sessionClubs[0].id : undefined,
-      title: "",
+      clubId: prefillData?.clubId ?? (sessionClubs.length > 0 ? sessionClubs[0].id : undefined),
+      title: prefillData?.title ?? "",
       frequency: "WEEKLY",
       neverEnd: false,
-      startTime: "18:00",
-      durationMinutes: 120,
-      maxPlayers: 24,
-      courtsAvailable: 4,
-      matchMode: "SOCIAL",
-      allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
-      playersPerSide: 2,
-      matchGenderType: "MIXED",
-      numberOfSets: 1,
-      defaultPointsToPlayTo: 21,
-      isPrivate: false,
-      genderRestriction: "ALL",
-      sessionType: "OPEN",
+      startTime: prefillData?.startTime ?? "18:00",
+      durationMinutes: prefillData?.durationMinutes ?? 120,
+      maxPlayers: prefillData?.maxPlayers ?? 24,
+      courtsAvailable: prefillData?.courtsAvailable ?? 4,
+      matchMode: prefillData?.matchMode ?? "SOCIAL",
+      allowedCategories: prefillData?.allowedCategories ?? ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
+      playersPerSide: prefillData?.playersPerSide ?? 2,
+      matchGenderType: prefillData?.matchGenderType ?? "MIXED",
+      numberOfSets: prefillData?.numberOfSets ?? 1,
+      defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
+      isPrivate: prefillData?.isPrivate ?? false,
+      genderRestriction: prefillData?.genderRestriction ?? "ALL",
+      sessionType: prefillData?.sessionType ?? "OPEN",
     }
   });
 
@@ -1789,8 +1894,8 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
     <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) onClose(); }}>
       <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Create Recurring Event</DialogTitle>
-          <DialogDescription>Sessions will be auto-generated based on the schedule</DialogDescription>
+          <DialogTitle>{prefillData ? "Copy as Recurring Event" : "Create Recurring Event"}</DialogTitle>
+          <DialogDescription>{prefillData ? "Session details have been pre-filled. Set the schedule and adjust as needed." : "Sessions will be auto-generated based on the schedule"}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit((v) => createRecurring.mutate(v))} className="space-y-4">
@@ -1930,7 +2035,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose }: { sessionC
   );
 }
 
-function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose?: () => void }) {
+function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }: { sessionClubs: { id: number; name: string }[]; initialOpen?: boolean; onClose?: () => void; prefillData?: Record<string, any> }) {
   const [open, setOpen] = useState(initialOpen ?? false);
   const { mutate: create, isPending } = useCreateSession();
   const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
@@ -1940,25 +2045,26 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
     defaultValues: {
-      clubId: sessionClubs.length === 1 ? sessionClubs[0].id : (sessionClubs.length > 0 ? sessionClubs[0].id : undefined),
-      title: "",
-      startTime: "18:00",
-      maxPlayers: 24,
-      courtsAvailable: 4,
-      matchMode: "SOCIAL",
-      isPrivate: false,
-      genderRestriction: "ALL",
-      sessionType: "OPEN",
-      juniorAgeGroups: [],
-      playersPerSide: 2,
-      matchGenderType: "MIXED",
-      durationMinutes: 120,
-      allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
-      sessionFee: undefined,
-      shuttlecockType: undefined,
-      liveStreamUrl: undefined,
-      defaultPointsToPlayTo: 21,
-      numberOfSets: 1,
+      clubId: prefillData?.clubId ?? (sessionClubs.length === 1 ? sessionClubs[0].id : (sessionClubs.length > 0 ? sessionClubs[0].id : undefined)),
+      title: prefillData?.title ?? "",
+      date: prefillData?.date ?? undefined,
+      startTime: prefillData?.startTime ?? "18:00",
+      maxPlayers: prefillData?.maxPlayers ?? 24,
+      courtsAvailable: prefillData?.courtsAvailable ?? 4,
+      matchMode: prefillData?.matchMode ?? "SOCIAL",
+      isPrivate: prefillData?.isPrivate ?? false,
+      genderRestriction: prefillData?.genderRestriction ?? "ALL",
+      sessionType: prefillData?.sessionType ?? "OPEN",
+      juniorAgeGroups: prefillData?.juniorAgeGroups ?? [],
+      playersPerSide: prefillData?.playersPerSide ?? 2,
+      matchGenderType: prefillData?.matchGenderType ?? "MIXED",
+      durationMinutes: prefillData?.durationMinutes ?? 120,
+      allowedCategories: prefillData?.allowedCategories ?? ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
+      sessionFee: prefillData?.sessionFee ?? undefined,
+      shuttlecockType: prefillData?.shuttlecockType ?? undefined,
+      liveStreamUrl: prefillData?.liveStreamUrl ?? undefined,
+      defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
+      numberOfSets: prefillData?.numberOfSets ?? 1,
     }
   });
 
@@ -2004,7 +2110,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose }: { sessionCl
       )}
       <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Create New Session</DialogTitle>
+          <DialogTitle>{prefillData ? "Copy Session" : "Create New Session"}</DialogTitle>
+          {prefillData && <DialogDescription>All details have been pre-filled from the original session. Adjust as needed.</DialogDescription>}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
