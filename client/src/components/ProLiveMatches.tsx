@@ -92,7 +92,7 @@ function SwapPlayerDialog({
 }
 
 function ClickablePlayerName({
-  player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy,
+  player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy, style,
 }: {
   player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
   matchId: number;
@@ -104,6 +104,7 @@ function ClickablePlayerName({
   showMatchCount?: boolean;
   className?: string;
   isBusy?: boolean;
+  style?: React.CSSProperties;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player?.user?.fullName || "Unknown";
@@ -111,10 +112,11 @@ function ClickablePlayerName({
     <>{name} <span className="text-white/30 font-normal text-[10px]">({sessionMatchCount})</span></>
   ) : name;
   const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
-  if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass)}>{nameWithCount}</span>;
+  if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass)} style={style}>{nameWithCount}</span>;
   return (
     <>
       <span role="button" tabIndex={0} className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
+        style={style}
         onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`pro-swap-${position}-${matchId}`}
@@ -512,6 +514,7 @@ function CourtView({ match }: { match: CourtMatch }) {
 function CourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, courtNames, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
+  onSwapPlayer, availablePlayers, busyPlayerIds,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -524,6 +527,9 @@ function CourtCard({
   onCancelMatch?: (matchId: number) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  availablePlayers?: Player[];
+  busyPlayerIds?: Set<number>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
@@ -555,6 +561,34 @@ function CourtCard({
       </div>
       <div className="px-3 pb-1">
         <CourtView match={match} />
+      </div>
+      <div className="px-4 pb-2 flex items-start justify-between gap-2">
+        <div className="flex flex-col min-w-0">
+          {match.teamAPlayer1 && (
+            <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+              style={{ color: courtColor.ring }} />
+          )}
+          {match.teamAPlayer2 && (
+            <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+              style={{ color: courtColor.ring }} />
+          )}
+        </div>
+        <div className="flex flex-col items-end min-w-0">
+          {match.teamBPlayer1 && (
+            <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold text-blue-400 truncate" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+          )}
+          {match.teamBPlayer2 && (
+            <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold text-blue-400 truncate" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+          )}
+        </div>
       </div>
       {isOrganiser && (
         <div className="px-4 pb-2">
@@ -804,6 +838,7 @@ function BroadcastTimer({ startedAt }: { startedAt: string }) {
 function BroadcastCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
+  onSwapPlayer, availablePlayers, busyPlayerIds,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -815,6 +850,9 @@ function BroadcastCard({
   onCancelMatch?: (matchId: number) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  availablePlayers?: Player[];
+  busyPlayerIds?: Set<number>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
@@ -869,6 +907,20 @@ function BroadcastCard({
                   ))}
                 </div>
                 <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
+                <div className="flex flex-col">
+                  {match.teamAPlayer1 && (
+                    <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
+                      availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+                      style={{ color: `${courtColor.ring}99` }} />
+                  )}
+                  {match.teamAPlayer2 && (
+                    <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
+                      availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      className="text-[9px] sm:text-[10px] truncate block" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+                      style={{ color: `${courtColor.ring}99` }} />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -886,6 +938,18 @@ function BroadcastCard({
                   ))}
                 </div>
                 <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
+                <div className="flex flex-col items-end">
+                  {match.teamBPlayer1 && (
+                    <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
+                      availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+                  )}
+                  {match.teamBPlayer2 && (
+                    <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
+                      availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+                      className="text-[9px] sm:text-[10px] text-blue-400/60 truncate block text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+                  )}
+                </div>
               </div>
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
                 {teamBLabel.charAt(0)}
@@ -1009,6 +1073,7 @@ function BroadcastCard({
 function ScoreboardCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch, onUpdatePointsTarget, onUpdateSets,
+  onSwapPlayer, availablePlayers, busyPlayerIds,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
@@ -1020,12 +1085,13 @@ function ScoreboardCard({
   onCancelMatch?: (matchId: number) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  availablePlayers?: Player[];
+  busyPlayerIds?: Set<number>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
-  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
   const matchSets = match.numberOfSets || 1;
 
@@ -1065,9 +1131,33 @@ function ScoreboardCard({
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
 
-      <div className="flex items-center justify-between px-4 pb-2">
-        <span className="text-[10px] font-semibold truncate max-w-[40%]" style={{ color: courtColor.ring }}>{teamANames.join(" & ") || "Team A"}</span>
-        <span className="text-[10px] font-semibold text-blue-400 truncate max-w-[40%] text-right">{teamBNames.join(" & ") || "Team B"}</span>
+      <div className="flex items-start justify-between px-4 pb-2 gap-2">
+        <div className="flex flex-col min-w-0 max-w-[45%]">
+          {match.teamAPlayer1 && (
+            <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+              style={{ color: courtColor.ring }} />
+          )}
+          {match.teamAPlayer2 && (
+            <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+              style={{ color: courtColor.ring }} />
+          )}
+        </div>
+        <div className="flex flex-col items-end min-w-0 max-w-[45%]">
+          {match.teamBPlayer1 && (
+            <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
+          )}
+          {match.teamBPlayer2 && (
+            <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
+              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
+          )}
+        </div>
       </div>
 
       <div className="mx-3 mb-3 relative rounded-xl overflow-hidden border border-white/10" style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)' }}>
@@ -1309,7 +1399,8 @@ export function ProLiveMatches({
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
-                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
             ))}
           </div>
         )}
@@ -1320,7 +1411,8 @@ export function ProLiveMatches({
               <ScoreboardCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
-                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
             ))}
           </div>
         )}
@@ -1331,7 +1423,8 @@ export function ProLiveMatches({
               <BroadcastCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
-                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets} />
+                onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
+                onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds} />
             ))}
           </div>
         )}
