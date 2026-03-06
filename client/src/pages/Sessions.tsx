@@ -495,12 +495,26 @@ export default function Sessions() {
   const [copySession, setCopySession] = useState<any>(null);
   const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
   const { mutate: toggleSessionTypeMut } = useUpdateSession();
-  const handleToggleSessionType = (sessionId: number, currentType: string) => {
-    setTogglingSessionId(sessionId);
-    const newType = currentType === "JUNIORS_ONLY" ? "OPEN" : "JUNIORS_ONLY";
-    toggleSessionTypeMut({ sessionId, updates: { sessionType: newType } }, {
-      onSettled: () => setTogglingSessionId(null),
-    });
+  const handleToggleSessionType = async (session: any) => {
+    setTogglingSessionId(session.id);
+    const newType = session.sessionType === "JUNIORS_ONLY" ? "OPEN" : "JUNIORS_ONLY";
+    try {
+      if (session.recurringEventId) {
+        await apiRequest("PATCH", `/api/recurring-events/${session.recurringEventId}/apply-to-series`, {
+          updates: { sessionType: newType },
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+        toast({ title: "Series Updated", description: `All sessions in this series moved to ${newType === "JUNIORS_ONLY" ? "Juniors" : "Sessions"}.` });
+      } else {
+        toggleSessionTypeMut({ sessionId: session.id, updates: { sessionType: newType } }, {
+          onSettled: () => setTogglingSessionId(null),
+        });
+        return;
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update", variant: "destructive" });
+    }
+    setTogglingSessionId(null);
   };
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const isSuperUser = user?.role === "OWNER";
@@ -1035,7 +1049,7 @@ export default function Sessions() {
                         className="h-7 text-xs"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleToggleSessionType(session.id, session.sessionType || "OPEN");
+                          handleToggleSessionType(session);
                         }}
                         disabled={togglingSessionId === session.id}
                         data-testid={`button-toggle-junior-scheduled-${session.id}`}
@@ -1350,7 +1364,7 @@ export default function Sessions() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleSessionType(session.id, session.sessionType || "OPEN");
+                            handleToggleSessionType(session);
                           }}
                           disabled={togglingSessionId === session.id}
                           data-testid={`button-toggle-junior-${session.id}`}

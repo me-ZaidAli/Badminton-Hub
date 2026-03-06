@@ -2080,15 +2080,29 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
   const { data: user } = useUser();
   const { data: adminClubs } = useMyAdminClubs();
   const { toast } = useToast();
-  const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past">("upcoming");
+  const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past" | "scheduled">("upcoming");
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
   const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
   const { mutate: toggleSessionTypeMut } = useUpdateSession();
-  const handleMoveToSessions = (sessionId: number) => {
-    setTogglingSessionId(sessionId);
-    toggleSessionTypeMut({ sessionId, updates: { sessionType: "OPEN" } }, {
-      onSettled: () => setTogglingSessionId(null),
-    });
+  const handleMoveToSessions = async (session: any) => {
+    setTogglingSessionId(session.id);
+    try {
+      if (session.recurringEventId) {
+        await apiRequest("PATCH", `/api/recurring-events/${session.recurringEventId}/apply-to-series`, {
+          updates: { sessionType: "OPEN" },
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+        toast({ title: "Series Moved", description: "All sessions in this series moved to Sessions." });
+      } else {
+        toggleSessionTypeMut({ sessionId: session.id, updates: { sessionType: "OPEN" } }, {
+          onSettled: () => setTogglingSessionId(null),
+        });
+        return;
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update", variant: "destructive" });
+    }
+    setTogglingSessionId(null);
   };
 
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -2203,15 +2217,17 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
       </div>
 
       <div className="flex gap-2 mb-4" data-testid="tabs-sessions">
-        {[
-          { key: "upcoming" as const, label: "Upcoming", icon: Calendar },
+        {([
+          { key: "upcoming" as const, label: `Upcoming (${upcomingSessions.length})`, icon: Calendar },
           { key: "past" as const, label: "Past Sessions", icon: Clock },
-        ].map(tab => (
+          ...(isAdmin ? [{ key: "scheduled" as const, label: `Scheduled (${scheduledJuniorSessions.length})`, icon: Clock }] : []),
+        ]).map(tab => (
           <Button
             key={tab.key}
             variant={sessionsTab === tab.key ? "default" : "outline"}
             size="sm"
             onClick={() => setSessionsTab(tab.key)}
+            className={tab.key === "scheduled" && sessionsTab !== "scheduled" ? "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400" : ""}
             data-testid={`tab-sessions-${tab.key}`}
           >
             <tab.icon className="h-3.5 w-3.5 mr-1.5" />
@@ -2220,75 +2236,88 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
         ))}
       </div>
 
-      {sessionsTab === "upcoming" && isAdmin && scheduledJuniorSessions.length > 0 && (
-        <div className="space-y-3 mb-6" data-testid="section-scheduled-junior-sessions">
+      {sessionsTab === "scheduled" && isAdmin && (
+        <div className="space-y-4" data-testid="section-scheduled-junior-sessions">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-500" />
-            <h4 className="font-semibold text-sm">Scheduled Sessions</h4>
-            <Badge variant="secondary" className="text-xs">{scheduledJuniorSessions.length}</Badge>
-            <span className="text-xs text-muted-foreground">Only visible to admins</span>
+            <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/40">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Scheduled Junior Sessions</h3>
+              <span className="text-xs text-muted-foreground">Not yet visible to players — publish to make them live</span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {scheduledJuniorSessions.map((session: any) => (
-              <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-junior-${session.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-sm truncate">{session.title}</h4>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
-                      </div>
-                      {session.startTime && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <Clock className="h-3 w-3" />
-                          <span>{session.startTime}</span>
+          {scheduledJuniorSessions.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center">
+                <Clock className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">No scheduled junior sessions</p>
+                <p className="text-xs text-muted-foreground mt-1">Sessions with a future publish date will appear here</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {scheduledJuniorSessions.map((session: any) => (
+                <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-junior-${session.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-sm truncate">{session.title}</h4>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
                         </div>
-                      )}
+                        {session.startTime && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <Clock className="h-3 w-3" />
+                            <span>{session.startTime}</span>
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Opens {format(new Date(session.publishAt), "MMM d")}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Opens {format(new Date(session.publishAt), "MMM d")}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap mt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
-                      onClick={() => publishNowMutation.mutate(session.id)}
-                      disabled={publishNowMutation.isPending}
-                      data-testid={`button-publish-junior-${session.id}`}
-                    >
-                      <Send className="h-3 w-3 mr-1" />
-                      Publish Now
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      onClick={() => handleMoveToSessions(session.id)}
-                      disabled={togglingSessionId === session.id}
-                      data-testid={`button-move-to-sessions-scheduled-${session.id}`}
-                      title="Move to Sessions"
-                    >
-                      <ArrowRightLeft className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">Move to Sessions</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-destructive hover:text-destructive"
-                      onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
-                      data-testid={`button-delete-scheduled-junior-${session.id}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
+                        onClick={() => publishNowMutation.mutate(session.id)}
+                        disabled={publishNowMutation.isPending}
+                        data-testid={`button-publish-junior-${session.id}`}
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        Publish Now
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => handleMoveToSessions(session)}
+                        disabled={togglingSessionId === session.id}
+                        data-testid={`button-move-to-sessions-scheduled-${session.id}`}
+                        title="Move to Sessions"
+                      >
+                        <ArrowRightLeft className="h-3 w-3 mr-1" />
+                        <span className="hidden sm:inline">Move to Sessions</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive"
+                        onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
+                        data-testid={`button-delete-scheduled-junior-${session.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -2358,7 +2387,7 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                                 size="sm"
                                 variant="ghost"
                                 className="h-8 w-8 p-0"
-                                onClick={() => handleMoveToSessions(session.id)}
+                                onClick={() => handleMoveToSessions(session)}
                                 disabled={togglingSessionId === session.id}
                                 data-testid={`button-move-to-sessions-${session.id}`}
                                 title="Move to Sessions"
