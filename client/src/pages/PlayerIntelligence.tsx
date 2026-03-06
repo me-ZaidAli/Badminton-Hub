@@ -295,6 +295,52 @@ function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
   );
 }
 
+function PlayerStatsRadar({ stats }: { stats: any }) {
+  if (!stats) return null;
+  const maxMatches = Math.max(stats.matchesPlayed || 1, 1);
+  const maxPoints = Math.max(stats.pointsScored || 1, 1);
+  const radarData = [
+    { stat: "Win Rate", value: stats.winRate || 0, fullMark: 100 },
+    { stat: "Attack", value: maxPoints > 0 ? Math.min(Math.round((stats.pointsScored / Math.max(stats.pointsScored + (stats.pointsConceded || 0), 1)) * 100), 100) : 0, fullMark: 100 },
+    { stat: "Consistency", value: stats.sessionsAttended > 0 ? Math.min(Math.round((stats.sessions30d / Math.max(stats.sessionsAttended, 1)) * 100), 100) : Math.min(stats.matchesPlayed * 10, 100), fullMark: 100 },
+    { stat: "Impact", value: Math.min(stats.sessionImpactScore || 0, 100), fullMark: 100 },
+    { stat: "Experience", value: Math.min(Math.round((stats.uniqueOpponents || 0) * 8), 100), fullMark: 100 },
+  ];
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/80 to-slate-950/90 border border-cyan-500/20 p-4" data-testid="player-stats-radar">
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-cyan-400/5 pointer-events-none" />
+      <h4 className="text-sm font-semibold text-cyan-300/90 mb-2 flex items-center gap-2 relative z-10">
+        <Activity className="h-4 w-4" />
+        Performance Radar
+      </h4>
+      <ResponsiveContainer width="100%" height={260}>
+        <RadarChart data={radarData} cx="50%" cy="50%">
+          <PolarGrid stroke="#22d3ee" strokeOpacity={0.15} gridType="polygon" />
+          <PolarAngleAxis
+            dataKey="stat"
+            tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 500 }}
+          />
+          <PolarRadiusAxis
+            angle={90}
+            domain={[0, 100]}
+            tick={{ fontSize: 9, fill: "#64748b" }}
+            axisLine={false}
+          />
+          <Radar
+            name="Stats"
+            dataKey="value"
+            stroke="#22d3ee"
+            fill="#22d3ee"
+            fillOpacity={0.15}
+            strokeWidth={2}
+            dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }}
+          />
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
   player1: PlayerData; player2: PlayerData; compareData: any; h2h: any; clubs: any[];
 }) {
@@ -846,6 +892,8 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                 <StatCard label="30-Day Sessions" value={stats.sessions30d || 0} icon={Medal} />
                 <StatCard label="Difficulty Score" value={stats.opponentDifficultyScore?.toFixed(2) || "—"} icon={BarChart3} />
               </div>
+
+              <PlayerStatsRadar stats={stats} />
 
               <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
