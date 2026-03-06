@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3 } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
@@ -29,6 +29,8 @@ import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { CalendarView, TimelineView, GroupedView } from "@/components/SessionViews";
+import { addWeeks, addMonths } from "date-fns";
 
 const CATEGORIES = [
   { value: "A1", label: "A1 (Elite)" },
@@ -477,6 +479,11 @@ export default function Sessions() {
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"cards" | "calendar" | "timeline" | "grouped">(() => {
+    const saved = localStorage.getItem("sessionsViewMode");
+    return (saved as any) || "cards";
+  });
+  const [timeRange, setTimeRange] = useState<"all" | "week" | "2weeks" | "month">("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [detailsSession, setDetailsSession] = useState<any>(null);
@@ -655,11 +662,49 @@ export default function Sessions() {
   );
 
   const filteredSessions = useMemo(() => {
-    if (statusFilter === "upcoming") return upcomingSessions;
-    if (statusFilter === "live") return liveSessions;
-    if (statusFilter === "past") return pastSessions;
-    return [...liveSessions, ...upcomingSessions];
-  }, [statusFilter, upcomingSessions, liveSessions, pastSessions]);
+    let result: typeof upcomingSessions;
+    if (statusFilter === "upcoming") result = upcomingSessions;
+    else if (statusFilter === "live") result = liveSessions;
+    else if (statusFilter === "past") result = pastSessions;
+    else result = [...liveSessions, ...upcomingSessions];
+
+    if (timeRange !== "all") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (statusFilter === "past") {
+        let start: Date;
+        if (timeRange === "week") start = addWeeks(today, -1);
+        else if (timeRange === "2weeks") start = addWeeks(today, -2);
+        else start = addMonths(today, -1);
+
+        result = result.filter(s => {
+          const d = new Date(s.date);
+          return d >= start && d <= today;
+        });
+      } else {
+        let end: Date;
+        if (timeRange === "week") end = addWeeks(today, 1);
+        else if (timeRange === "2weeks") end = addWeeks(today, 2);
+        else end = addMonths(today, 1);
+
+        result = result.filter(s => {
+          const d = new Date(s.date);
+          return d >= today && d <= end;
+        });
+      }
+    }
+
+    return result;
+  }, [statusFilter, upcomingSessions, liveSessions, pastSessions, timeRange]);
+
+  useEffect(() => {
+    localStorage.setItem("sessionsViewMode", viewMode);
+  }, [viewMode]);
+
+  const handleSessionClickFromView = (session: any) => {
+    setLocation(`/sessions/${session.id}`);
+  };
 
   // Group sessions by club for super user view
   const sessionsByClub = sessions?.reduce((acc, session) => {
@@ -797,7 +842,49 @@ export default function Sessions() {
         </div>
       </div>
 
-      {canManageSessions && filteredSessions && filteredSessions.length > 0 && (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+          {([
+            { key: "cards" as const, icon: LayoutGrid, label: "Cards" },
+            { key: "calendar" as const, icon: CalendarDays, label: "Calendar" },
+            { key: "timeline" as const, icon: AlignJustify, label: "Timeline" },
+            { key: "grouped" as const, icon: Layers, label: "Grouped" },
+          ]).map(v => (
+            <Button
+              key={v.key}
+              variant={viewMode === v.key ? "default" : "ghost"}
+              size="sm"
+              className={`h-8 px-2.5 gap-1.5 text-xs ${viewMode === v.key ? "" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setViewMode(v.key)}
+              data-testid={`button-view-${v.key}`}
+            >
+              <v.icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{v.label}</span>
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          {([
+            { key: "all" as const, label: "All" },
+            { key: "week" as const, label: statusFilter === "past" ? "Last Week" : "This Week" },
+            { key: "2weeks" as const, label: statusFilter === "past" ? "Last 2 Weeks" : "2 Weeks" },
+            { key: "month" as const, label: statusFilter === "past" ? "Last Month" : "1 Month" },
+          ]).map(r => (
+            <Button
+              key={r.key}
+              variant={timeRange === r.key ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setTimeRange(r.key)}
+              data-testid={`button-range-${r.key}`}
+            >
+              {r.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {canManageSessions && viewMode === "cards" && filteredSessions && filteredSessions.length > 0 && (
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Checkbox
@@ -824,7 +911,32 @@ export default function Sessions() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {viewMode === "calendar" && filteredSessions && (
+        <CalendarView
+          sessions={filteredSessions}
+          clubs={clubs || []}
+          onSessionClick={handleSessionClickFromView}
+        />
+      )}
+
+      {viewMode === "timeline" && filteredSessions && (
+        <TimelineView
+          sessions={filteredSessions}
+          clubs={clubs || []}
+          onSessionClick={handleSessionClickFromView}
+        />
+      )}
+
+      {viewMode === "grouped" && filteredSessions && (
+        <GroupedView
+          sessions={filteredSessions}
+          clubs={clubs || []}
+          onSessionClick={handleSessionClickFromView}
+        />
+      )}
+
+      {viewMode === "cards" && (
+        <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
         {filteredSessions?.map((session) => (
@@ -1093,6 +1205,7 @@ export default function Sessions() {
           </div>
         ))}
       </div>
+      )}
 
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <DialogContent>
