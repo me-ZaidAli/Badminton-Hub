@@ -131,28 +131,49 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
   );
 }
 
-function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-primary" }: {
-  label: string; value: string | number; icon: any; trend?: number; subtitle?: string; color?: string;
+function MiniSparkline({ color = "#22d3ee" }: { color?: string }) {
+  const points = useMemo(() => {
+    const pts = [];
+    let y = 30 + Math.random() * 20;
+    for (let i = 0; i < 8; i++) {
+      y = Math.max(5, Math.min(55, y + (Math.random() - 0.4) * 15));
+      pts.push(`${i * 10},${60 - y}`);
+    }
+    return pts.join(" ");
+  }, []);
+  return (
+    <svg viewBox="0 0 70 60" className="w-16 h-10 opacity-60">
+      <defs>
+        <linearGradient id={`spark-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-cyan-400", sparkColor }: {
+  label: string; value: string | number; icon: any; trend?: number; subtitle?: string; color?: string; sparkColor?: string;
 }) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm border border-border/30 rounded-2xl p-4 flex flex-col gap-1.5 group hover:border-primary/30 transition-all duration-300" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
+    <div className="relative overflow-hidden bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] rounded-2xl p-4 flex flex-col gap-1.5 group hover:border-cyan-500/30 transition-all duration-300" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-cyan-500/3 to-transparent rounded-bl-full" />
       <div className="flex items-center justify-between relative z-10">
-        <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
-        <div className={`${color} p-1.5 rounded-lg bg-current/10`}>
-          <Icon className="h-3.5 w-3.5" />
-        </div>
+        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">{label}</span>
+        <MiniSparkline color={sparkColor || "#22d3ee"} />
       </div>
       <div className="flex items-end gap-2 relative z-10">
-        <span className="text-2xl font-bold tracking-tight">{value}</span>
+        <span className="text-2xl font-bold tracking-tight text-white">{value}</span>
         {trend !== undefined && (
-          <span className={`text-xs flex items-center gap-0.5 mb-0.5 ${trend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+          <span className={`text-[11px] flex items-center gap-0.5 mb-0.5 ${trend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
             {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {Math.abs(trend)}%
           </span>
         )}
       </div>
-      {subtitle && <span className="text-[11px] text-muted-foreground/80">{subtitle}</span>}
+      {subtitle && <span className="text-[10px] text-slate-500">{subtitle}</span>}
     </div>
   );
 }
@@ -169,20 +190,20 @@ function AchievementBadge({ badge }: { badge: any }) {
     <div
       className={`relative rounded-2xl p-4 text-center transition-all duration-300 ${
         isLocked
-          ? "bg-muted/10 border border-dashed border-border/30 opacity-40"
-          : "bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+          ? "bg-[#0c1322]/50 border border-dashed border-[#1e293b] opacity-40"
+          : "bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/5"
       }`}
       data-testid={`badge-${badge.achievementName?.replace(/\s+/g, '-')}`}
     >
-      {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-muted-foreground" />}
-      <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-muted/20" : "bg-primary/10"}`}>
-        <Icon className={`h-6 w-6 ${isLocked ? "text-muted-foreground" : "text-primary"}`} />
+      {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-slate-500" />}
+      <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-slate-800/50" : "bg-cyan-500/10"}`}>
+        <Icon className={`h-6 w-6 ${isLocked ? "text-slate-500" : "text-cyan-400"}`} />
       </div>
-      <p className="text-xs font-semibold truncate">{badge.achievementName}</p>
-      {badge.description && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{badge.description}</p>}
+      <p className="text-xs font-semibold truncate text-slate-200">{badge.achievementName}</p>
+      {badge.description && <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{badge.description}</p>}
       {badge.progress !== undefined && (
-        <div className="mt-2 h-1.5 bg-muted/30 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all" style={{ width: `${Math.min(badge.progress, 100)}%` }} />
+        <div className="mt-2 h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-full transition-all" style={{ width: `${Math.min(badge.progress, 100)}%` }} />
         </div>
       )}
     </div>
@@ -204,45 +225,50 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
       onClick={onSelect}
       className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left ${
         isSelected
-          ? "bg-primary/10 border border-primary/30 shadow-lg shadow-primary/5"
-          : "border border-transparent hover:bg-card/60 hover:border-border/30"
+          ? "bg-cyan-500/10 border border-cyan-500/30 shadow-lg shadow-cyan-500/5"
+          : "border border-transparent hover:bg-[#0f1729]/60 hover:border-[#1e293b]"
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
       <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm truncate ${isSelected ? "text-primary" : ""}`}>{player.fullName}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
+        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-300" : "text-slate-300"}`}>{player.fullName}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
       </div>
-      {isSelected && <ChevronRight className="h-4 w-4 text-primary shrink-0" />}
+      {isSelected && <ChevronRight className="h-4 w-4 text-cyan-400 shrink-0" />}
     </button>
   );
 }
 
 function PerformanceChart({ data }: { data: any[] }) {
-  if (!data || data.length === 0) return <p className="text-muted-foreground text-sm text-center py-8">No performance data yet</p>;
+  if (!data || data.length === 0) return <p className="text-slate-500 text-sm text-center py-8">No performance data yet</p>;
   return (
-    <ResponsiveContainer width="100%" height={250}>
+    <ResponsiveContainer width="100%" height={280}>
       <AreaChart data={data}>
         <defs>
-          <linearGradient id="winRateGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+          <linearGradient id="winRateGradientCyan" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.02} />
+          </linearGradient>
+          <linearGradient id="winRateGradientPurple" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
-        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
-        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" domain={[0, 100]} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" domain={[0, 100]} axisLine={false} />
         <Tooltip
           contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
+            backgroundColor: "#0f172a",
+            border: "1px solid #1e293b",
             borderRadius: "12px",
             fontSize: "12px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            color: "#e2e8f0",
           }}
         />
-        <Area type="monotone" dataKey="winRate" stroke="hsl(var(--primary))" fill="url(#winRateGradient)" strokeWidth={2.5} name="Win Rate %" dot={{ r: 3, fill: "hsl(var(--primary))" }} />
+        <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#winRateGradientCyan)" strokeWidth={2.5} name="Win Rate %" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -256,21 +282,32 @@ function DifficultyChart({ data }: { data: any }) {
     { level: "Lower", wins: data.vsLower?.wins || 0, losses: data.vsLower?.losses || 0 },
   ];
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={chartData} barGap={4}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
-        <XAxis dataKey="level" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
-        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
-        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }} />
-        <Bar dataKey="wins" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Wins" />
-        <Bar dataKey="losses" fill="hsl(var(--destructive))" radius={[6, 6, 0, 0]} name="Losses" />
-      </BarChart>
+    <ResponsiveContainer width="100%" height={220}>
+      <AreaChart data={chartData}>
+        <defs>
+          <linearGradient id="winsGradientFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.5} />
+            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.05} />
+          </linearGradient>
+          <linearGradient id="lossesGradientFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+        <XAxis dataKey="level" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+        <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }} />
+        <Legend wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }} />
+        <Area type="monotone" dataKey="wins" stroke="#22d3ee" fill="url(#winsGradientFill)" strokeWidth={2.5} name="Wins" dot={{ r: 4, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
+        <Area type="monotone" dataKey="losses" stroke="#a78bfa" fill="url(#lossesGradientFill)" strokeWidth={2.5} name="Losses" dot={{ r: 4, fill: "#a78bfa", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#a78bfa", stroke: "#0f172a", strokeWidth: 2 }} />
+      </AreaChart>
     </ResponsiveContainer>
   );
 }
 
 function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
-  if (!evaluations || evaluations.length === 0) return <p className="text-muted-foreground text-sm text-center py-8">No skill evaluations yet</p>;
+  if (!evaluations || evaluations.length === 0) return <p className="text-slate-500 text-sm text-center py-8">No skill evaluations yet</p>;
   const categoryMap: Record<string, { total: number; count: number }> = {};
   evaluations.forEach((e: any) => {
     const cat = e.categoryName || "Other";
@@ -286,10 +323,10 @@ function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <RadarChart data={radarData} cx="50%" cy="50%">
-        <PolarGrid stroke="hsl(var(--border))" opacity={0.3} />
-        <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
-        <Radar name="Skill" dataKey="rating" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} strokeWidth={2} />
+        <PolarGrid stroke="#1e293b" opacity={0.5} />
+        <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: "#64748b" }} />
+        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} />
+        <Radar name="Skill" dataKey="rating" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.15} strokeWidth={2} />
       </RadarChart>
     </ResponsiveContainer>
   );
@@ -355,21 +392,21 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
   ];
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/30 p-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-blue-400/5" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
         <div className="flex items-center justify-center gap-6 relative z-10">
           <div className="text-center">
             <PlayerAvatar name={player1.fullName} id={player1.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player1.profilePictureUrl} gender={player1.playerProfiles[0]?.gender} grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category} />
-            <p className="font-bold text-sm">{player1.fullName}</p>
+            <p className="font-bold text-sm text-slate-200">{player1.fullName}</p>
           </div>
           <div className="flex flex-col items-center">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-muted/30 to-muted/10 flex items-center justify-center border border-border/30 shadow-lg">
-              <span className="text-lg font-black text-muted-foreground">VS</span>
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f1729] flex items-center justify-center border border-[#1e293b] shadow-lg">
+              <span className="text-lg font-black text-slate-500">VS</span>
             </div>
           </div>
           <div className="text-center">
             <PlayerAvatar name={player2.fullName} id={player2.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player2.profilePictureUrl} gender={player2.playerProfiles[0]?.gender} grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category} />
-            <p className="font-bold text-sm">{player2.fullName}</p>
+            <p className="font-bold text-sm text-slate-200">{player2.fullName}</p>
           </div>
         </div>
       </div>
@@ -381,15 +418,15 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
           const total = m.n1 + m.n2;
           const p1Pct = total > 0 ? (m.n1 / total) * 100 : 50;
           return (
-            <div key={m.label} className="space-y-1.5 bg-card/30 rounded-xl p-3 border border-border/20">
+            <div key={m.label} className="space-y-1.5 bg-[#0c1322]/60 rounded-xl p-3 border border-[#1e293b]">
               <div className="flex justify-between text-sm">
-                <span className={p1Better && !equal ? "font-bold text-primary" : ""}>{m.v1}</span>
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">{m.label}</span>
-                <span className={!p1Better && !equal ? "font-bold text-blue-400" : ""}>{m.v2}</span>
+                <span className={p1Better && !equal ? "font-bold text-cyan-300" : "text-slate-300"}>{m.v1}</span>
+                <span className="text-slate-500 text-xs font-medium uppercase tracking-wider">{m.label}</span>
+                <span className={!p1Better && !equal ? "font-bold text-purple-400" : "text-slate-300"}>{m.v2}</span>
               </div>
-              <div className="flex h-2 rounded-full overflow-hidden bg-muted/20">
-                <div className="bg-gradient-to-r from-primary to-primary/70 rounded-l-full transition-all duration-500" style={{ width: `${p1Pct}%` }} />
-                <div className="bg-gradient-to-l from-blue-400 to-blue-400/70 rounded-r-full transition-all duration-500" style={{ width: `${100 - p1Pct}%` }} />
+              <div className="flex h-2 rounded-full overflow-hidden bg-slate-800/50">
+                <div className="bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-l-full transition-all duration-500" style={{ width: `${p1Pct}%` }} />
+                <div className="bg-gradient-to-l from-purple-400 to-purple-500/70 rounded-r-full transition-all duration-500" style={{ width: `${100 - p1Pct}%` }} />
               </div>
             </div>
           );
@@ -397,42 +434,38 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
       </div>
 
       {h2h && (
-        <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Swords className="h-4 w-4 text-primary" />
-              Head-to-Head Record
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center py-2">
-              <div>
-                <p className="text-3xl font-black text-primary">{h2h.player1Wins || 0}</p>
-                <p className="text-[11px] text-muted-foreground font-medium">Wins</p>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-muted-foreground/50">{h2h.totalMatches || 0}</p>
-                <p className="text-[11px] text-muted-foreground font-medium">Total</p>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-blue-400">{h2h.player2Wins || 0}</p>
-                <p className="text-[11px] text-muted-foreground font-medium">Wins</p>
-              </div>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+          <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <Swords className="h-4 w-4 text-cyan-400" />
+            Head-to-Head Record
+          </h4>
+          <div className="grid grid-cols-3 gap-4 text-center py-2">
+            <div>
+              <p className="text-3xl font-black text-cyan-400">{h2h.player1Wins || 0}</p>
+              <p className="text-[11px] text-slate-500 font-medium">Wins</p>
             </div>
-            {h2h.recentResults && h2h.recentResults.length > 0 && (
-              <div className="mt-4 space-y-1.5">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Recent Results</p>
-                {h2h.recentResults.slice(0, 5).map((r: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between text-xs bg-muted/10 rounded-lg px-3 py-2 border border-border/20">
-                    <span className={r.player1Score > r.player2Score ? "font-bold text-primary" : ""}>{r.player1Score ?? "?"}</span>
-                    <span className="text-muted-foreground">{r.date ? new Date(r.date).toLocaleDateString() : ""}</span>
-                    <span className={r.player2Score > r.player1Score ? "font-bold text-blue-400" : ""}>{r.player2Score ?? "?"}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            <div>
+              <p className="text-3xl font-black text-slate-600">{h2h.totalMatches || 0}</p>
+              <p className="text-[11px] text-slate-500 font-medium">Total</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-purple-400">{h2h.player2Wins || 0}</p>
+              <p className="text-[11px] text-slate-500 font-medium">Wins</p>
+            </div>
+          </div>
+          {h2h.recentResults && h2h.recentResults.length > 0 && (
+            <div className="mt-4 space-y-1.5">
+              <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium mb-2">Recent Results</p>
+              {h2h.recentResults.slice(0, 5).map((r: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-xs bg-[#0c1322]/80 rounded-lg px-3 py-2 border border-[#1e293b]">
+                  <span className={r.player1Score > r.player2Score ? "font-bold text-cyan-300" : "text-slate-400"}>{r.player1Score ?? "?"}</span>
+                  <span className="text-slate-500">{r.date ? new Date(r.date).toLocaleDateString() : ""}</span>
+                  <span className={r.player2Score > r.player1Score ? "font-bold text-purple-400" : "text-slate-400"}>{r.player2Score ?? "?"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -522,8 +555,8 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
+        <h3 className="font-semibold flex items-center gap-2 text-slate-200">
+          <Target className="h-5 w-5 text-cyan-400" />
           Skill Assessment
         </h3>
         {isOwnProfile && !requestHistory.some((r: any) => r.status === "PENDING" || r.status === "ACCEPTED") && (
@@ -544,22 +577,22 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             const avg = Math.round(catEvals.reduce((s: number, e: any) => s + e.rating, 0) / catEvals.length);
             const Icon = CATEGORY_ICONS[cat.iconName] || Target;
             return (
-              <div key={cat.id} className="bg-card/30 border border-border/20 rounded-2xl p-4">
+              <div key={cat.id} className="bg-[#0c1322]/60 border border-[#1e293b] rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Icon className="h-4 w-4 text-primary" />
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                    <Icon className="h-4 w-4 text-cyan-400" />
                     {cat.name}
                   </span>
-                  <Badge variant="outline" className="rounded-lg">{avg}%</Badge>
+                  <Badge variant="outline" className="rounded-lg border-[#1e293b] text-cyan-300">{avg}%</Badge>
                 </div>
                 <div className="space-y-2">
                   {catEvals.map((e: any) => (
                     <div key={e.skillId || e.id} className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-32 truncate">{e.skillName}</span>
-                      <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all" style={{ width: `${e.rating}%` }} />
+                      <span className="text-xs text-slate-500 w-32 truncate">{e.skillName}</span>
+                      <div className="flex-1 h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/60 rounded-full transition-all" style={{ width: `${e.rating}%` }} />
                       </div>
-                      <span className="text-xs font-bold w-8 text-right">{e.rating}%</span>
+                      <span className="text-xs font-bold w-8 text-right text-slate-300">{e.rating}%</span>
                     </div>
                   ))}
                 </div>
@@ -570,15 +603,13 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
       )}
 
       {isAdmin && pendingRequests && (pendingRequests as any[]).filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED").length > 0 && (
-        <Card className="border-border/30 rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Pending Review Requests</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+          <h4 className="text-sm font-semibold text-slate-300 mb-3">Pending Review Requests</h4>
+          <div className="space-y-2">
             {(pendingRequests as any[])
               .filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED")
               .map((r: any) => (
-                <div key={r.id} className="flex items-center justify-between bg-muted/10 rounded-xl p-3 border border-border/20">
+                <div key={r.id} className="flex items-center justify-between bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
                   <div>
                     <p className="text-sm font-medium">{r.playerName || `Player #${r.playerId}`}</p>
                     <Badge variant={r.status === "PENDING" ? "secondary" : "default"} className="text-[10px] rounded-lg">{r.status}</Badge>
@@ -597,44 +628,40 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                   </div>
                 </div>
               ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      <Card className="border-border/30 rounded-2xl">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-primary" />
-            Coach Notes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isAdmin && (
-            <div className="flex gap-2 mb-4">
-              <Textarea
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Add a coach note..."
-                className="min-h-[60px] rounded-xl"
-                data-testid="textarea-coach-note"
-              />
-              <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-          <div className="space-y-3">
-            {(coachNotes as any[])?.map((n: any) => (
-              <div key={n.id} className="bg-muted/10 rounded-xl p-3 border border-border/20">
-                <p className="text-sm">{n.note}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            )) || <p className="text-sm text-muted-foreground">No coach notes yet</p>}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+        <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-cyan-400" />
+          Coach Notes
+        </h4>
+        {isAdmin && (
+          <div className="flex gap-2 mb-4">
+            <Textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add a coach note..."
+              className="min-h-[60px] rounded-xl bg-[#0c1322] border-[#1e293b] text-slate-200 placeholder:text-slate-600"
+              data-testid="textarea-coach-note"
+            />
+            <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        <div className="space-y-3">
+          {(coachNotes as any[])?.map((n: any) => (
+            <div key={n.id} className="bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
+              <p className="text-sm text-slate-300">{n.note}</p>
+              <p className="text-[10px] text-slate-500 mt-1">
+                {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          )) || <p className="text-sm text-slate-500">No coach notes yet</p>}
+        </div>
+      </div>
 
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
         <DialogContent className="rounded-2xl">
@@ -643,8 +670,8 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             <DialogDescription>A coach will evaluate your skills across all categories. The cost is £20.</DialogDescription>
           </DialogHeader>
           <div className="py-4 text-center">
-            <div className="text-3xl font-bold text-primary">£20</div>
-            <p className="text-sm text-muted-foreground mt-2">Comprehensive skill assessment by a qualified coach</p>
+            <div className="text-3xl font-bold text-cyan-400">£20</div>
+            <p className="text-sm text-slate-400 mt-2">Comprehensive skill assessment by a qualified coach</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRequestDialog(false)} className="rounded-xl">Cancel</Button>
@@ -670,7 +697,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                 return (
                   <div key={cat.id} className="space-y-2">
                     <h4 className="font-medium text-sm flex items-center gap-2">
-                      {(() => { const I = CATEGORY_ICONS[cat.iconName] || Target; return <I className="h-4 w-4 text-primary" />; })()}
+                      {(() => { const I = CATEGORY_ICONS[cat.iconName] || Target; return <I className="h-4 w-4 text-cyan-400" />; })()}
                       {cat.name}
                     </h4>
                     {catSkills.map((skill: any) => (
@@ -751,7 +778,7 @@ function AIStyleBadge({ playerId }: { playerId: number }) {
         <Brain className="h-3 w-3 mr-1" />
         {data.style} Player
       </Badge>
-      {data.explanation && <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{data.explanation}</p>}
+      {data.explanation && <p className="text-[11px] text-slate-500 leading-relaxed">{data.explanation}</p>}
     </div>
   );
 }
@@ -797,9 +824,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card/80 to-card/40 border border-border/30 p-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent" />
-        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/8 to-transparent rounded-bl-full" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-cyan-500/5 to-transparent rounded-bl-full" />
         <div className="relative z-10 flex items-start gap-5">
           <div className="relative">
             <PlayerAvatar
@@ -815,13 +842,13 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
             </div>
           </div>
           <div className="flex-1 min-w-0 pt-1">
-            <h2 className="text-2xl font-black tracking-tight">{player.fullName}</h2>
+            <h2 className="text-2xl font-black tracking-tight text-white">{player.fullName}</h2>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-              <span className="text-sm text-muted-foreground font-medium">{clubName}</span>
+              <span className="text-sm text-slate-400 font-medium">{clubName}</span>
               {profile && (
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Trophy className="h-3.5 w-3.5 text-yellow-500" />
-                  <span className="font-semibold">{profile.rankingPoints}</span> pts
+                <span className="text-sm text-slate-400 flex items-center gap-1">
+                  <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="font-semibold text-amber-300">{profile.rankingPoints}</span> pts
                 </span>
               )}
             </div>
@@ -830,30 +857,30 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
             {stats && (
               <div className="flex items-center gap-4 mt-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/15 flex items-center justify-center">
+                    <Trophy className="h-4 w-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-none text-white">{stats.matchesWon || 0}</p>
+                    <p className="text-[10px] text-slate-500">Wins</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                    <XCircle className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black leading-none text-white">{stats.matchesLost || 0}</p>
+                    <p className="text-[10px] text-slate-500">Losses</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                    <Trophy className="h-4 w-4 text-emerald-400" />
+                    <Star className="h-4 w-4 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-lg font-black leading-none">{stats.matchesWon || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Wins</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center">
-                    <XCircle className="h-4 w-4 text-red-400" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-black leading-none">{stats.matchesLost || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Losses</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                    <Star className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-black leading-none">{stats.winRate || 0}%</p>
-                    <p className="text-[10px] text-muted-foreground">Win Rate</p>
+                    <p className="text-lg font-black leading-none text-white">{stats.winRate || 0}%</p>
+                    <p className="text-[10px] text-slate-500">Win Rate</p>
                   </div>
                 </div>
               </div>
@@ -863,14 +890,14 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
       </div>
 
       <Tabs value={dashTab} onValueChange={setDashTab}>
-        <TabsList className="w-full bg-card/40 border border-border/30 rounded-xl p-1">
-          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-overview">
+        <TabsList className="w-full bg-[#0c1322] border border-[#1e293b] rounded-xl p-1">
+          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-overview">
             <Activity className="h-4 w-4 mr-1" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-achievements">
+          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-achievements">
             <Award className="h-4 w-4 mr-1" /> Badges
           </TabsTrigger>
-          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-skills">
+          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
           </TabsTrigger>
         </TabsList>
@@ -883,68 +910,60 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
           ) : stats ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatCard label="Matches" value={stats.matchesPlayed || 0} icon={Swords} subtitle={`${stats.matchesWon || 0}W - ${stats.matchesLost || 0}L`} />
-                <StatCard label="Win Rate" value={`${stats.winRate || 0}%`} icon={TrendingUp} color={stats.winRate >= 50 ? "text-emerald-400" : "text-red-400"} />
-                <StatCard label="Points Scored" value={stats.pointsScored || 0} icon={Target} subtitle={`${stats.pointsConceded || 0} conceded`} />
-                <StatCard label="Sessions" value={stats.sessionsAttended || 0} icon={Clock} subtitle={`${stats.totalHoursPlayed?.toFixed(1) || 0}h played`} />
-                <StatCard label="Impact Score" value={stats.sessionImpactScore || "0"} icon={Zap} color="text-yellow-400" />
-                <StatCard label="Opponents" value={stats.uniqueOpponents || 0} icon={Users} />
-                <StatCard label="30-Day Sessions" value={stats.sessions30d || 0} icon={Medal} />
-                <StatCard label="Difficulty Score" value={stats.opponentDifficultyScore?.toFixed(2) || "—"} icon={BarChart3} />
+                <StatCard label="Matches" value={stats.matchesPlayed || 0} icon={Swords} subtitle={`${stats.matchesWon || 0}W - ${stats.matchesLost || 0}L`} sparkColor="#22d3ee" />
+                <StatCard label="Win Rate" value={`${stats.winRate || 0}%`} icon={TrendingUp} color={stats.winRate >= 50 ? "text-emerald-400" : "text-red-400"} sparkColor="#10b981" />
+                <StatCard label="Points Scored" value={stats.pointsScored || 0} icon={Target} subtitle={`${stats.pointsConceded || 0} conceded`} sparkColor="#a78bfa" />
+                <StatCard label="Sessions" value={stats.sessionsAttended || 0} icon={Clock} subtitle={`${stats.totalHoursPlayed?.toFixed(1) || 0}h played`} sparkColor="#f59e0b" />
+                <StatCard label="Impact Score" value={stats.sessionImpactScore || "0"} icon={Zap} color="text-yellow-400" sparkColor="#eab308" />
+                <StatCard label="Opponents" value={stats.uniqueOpponents || 0} icon={Users} sparkColor="#22d3ee" />
+                <StatCard label="30-Day Sessions" value={stats.sessions30d || 0} icon={Medal} sparkColor="#10b981" />
+                <StatCard label="Difficulty Score" value={stats.opponentDifficultyScore?.toFixed(2) || "—"} icon={BarChart3} sparkColor="#a78bfa" />
               </div>
 
               <PlayerStatsRadar stats={stats} />
 
-              <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    Performance Over Time
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PerformanceChart data={perfHistory?.monthlyWinRate || []} />
-                </CardContent>
-              </Card>
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                  <TrendingUp className="h-4 w-4 text-cyan-400" />
+                  Performance Analytics
+                  <span className="ml-auto text-[10px] text-slate-500 font-normal">Win Rate %</span>
+                </h4>
+                <PerformanceChart data={perfHistory?.monthlyWinRate || []} />
+              </div>
 
-              <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-primary" />
-                    Performance by Opponent Difficulty
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DifficultyChart data={perfHistory?.difficultyPerformance} />
-                </CardContent>
-              </Card>
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                  <Swords className="h-4 w-4 text-cyan-400" />
+                  Wins vs Losses by Difficulty
+                </h4>
+                <DifficultyChart data={perfHistory?.difficultyPerformance} />
+              </div>
 
               {perfHistory?.monthlyHours && perfHistory.monthlyHours.length > 0 && (
-                <Card className="border-border/30 bg-card/40 backdrop-blur rounded-2xl overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-primary" />
-                      Hours Per Month
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={perfHistory.monthlyHours}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.15} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
-                        <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="transparent" />
-                        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }} />
-                        <Bar dataKey="hours" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                    <Clock className="h-4 w-4 text-cyan-400" />
+                    Hours Per Month
+                  </h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={perfHistory.monthlyHours}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }} />
+                      <Bar dataKey="hours" fill="#22d3ee" radius={[6, 6, 0, 0]} fillOpacity={0.8} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </>
           ) : (
-            <div className="text-center py-16 text-muted-foreground">
+            <div className="text-center py-16 text-slate-500">
               <Activity className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No analytics data available yet</p>
+              <p className="font-medium text-slate-400">No analytics data available yet</p>
               <p className="text-sm mt-1">Play some matches to see your stats!</p>
             </div>
           )}
@@ -958,9 +977,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 text-muted-foreground">
+            <div className="text-center py-16 text-slate-500">
               <Award className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No achievements yet</p>
+              <p className="font-medium text-slate-400">No achievements yet</p>
               <p className="text-sm mt-1">Keep playing to unlock badges!</p>
             </div>
           )}
@@ -1039,7 +1058,7 @@ export default function PlayerIntelligence() {
   const playerList = (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-muted-foreground">{filteredPlayers.length} players</span>
+        <span className="text-sm font-semibold text-slate-500">{filteredPlayers.length} players</span>
         {clubs && clubs.length > 1 && (
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
             <SelectTrigger className="w-auto h-7 text-xs rounded-lg border-border/30 bg-transparent gap-1 px-2" data-testid="select-club-filter">
@@ -1055,10 +1074,10 @@ export default function PlayerIntelligence() {
         )}
       </div>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
         <Input
           placeholder="Search players..."
-          className="pl-10 bg-card/30 border-border/20 rounded-xl h-9 text-sm"
+          className="pl-10 bg-[#0c1322]/60 border-[#1e293b] rounded-xl h-9 text-sm text-slate-200 placeholder:text-slate-600"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid="input-search-players"
@@ -1076,7 +1095,7 @@ export default function PlayerIntelligence() {
             </div>
           ))
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground">
+          <div className="text-center py-10 text-slate-500">
             <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">No players found</p>
           </div>
@@ -1106,24 +1125,24 @@ export default function PlayerIntelligence() {
   if (!isPremium) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="max-w-md text-center p-8 rounded-2xl">
-          <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-bold mb-2">Premium Feature</h2>
-          <p className="text-muted-foreground">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
-        </Card>
+        <div className="max-w-md text-center p-8 rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+          <Lock className="h-12 w-12 mx-auto mb-4 text-slate-500" />
+          <h2 className="text-xl font-bold mb-2 text-slate-200">Premium Feature</h2>
+          <p className="text-slate-400">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex gap-0 min-h-[calc(100vh-140px)]">
-      <div className="hidden lg:block w-72 shrink-0 border-r border-border/20 pr-4">
+      <div className="hidden lg:block w-72 shrink-0 border-r border-[#1e293b] pr-4">
         <div className="sticky top-4">
           <div className="flex items-center gap-2 mb-5">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Activity className="h-4 w-4 text-primary" />
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-cyan-400" />
             </div>
-            <h1 className="text-base font-bold">Players</h1>
+            <h1 className="text-base font-bold text-slate-200">Players</h1>
           </div>
           {playerList}
         </div>
@@ -1144,8 +1163,8 @@ export default function PlayerIntelligence() {
               <div className="mt-4">{playerList}</div>
             </SheetContent>
           </Sheet>
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
+          <h1 className="text-lg font-bold flex items-center gap-2 text-slate-200">
+            <Activity className="h-5 w-5 text-cyan-400" />
             Player Intelligence
           </h1>
         </div>
@@ -1165,7 +1184,7 @@ export default function PlayerIntelligence() {
             {compareMode ? "Exit Compare" : "Compare Players"}
           </Button>
           {compareMode && !comparePlayer && selectedPlayer && (
-            <span className="text-sm text-muted-foreground animate-pulse">Select a second player to compare</span>
+            <span className="text-sm text-slate-500 animate-pulse">Select a second player to compare</span>
           )}
         </div>
 
@@ -1187,11 +1206,11 @@ export default function PlayerIntelligence() {
           />
         ) : (
           <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="text-center text-muted-foreground">
-              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-muted/10 flex items-center justify-center">
+            <div className="text-center text-slate-500">
+              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-[#0f1729]/50 flex items-center justify-center border border-[#1e293b]">
                 <Users className="h-10 w-10 opacity-30" />
               </div>
-              <h2 className="text-lg font-bold mb-1">Select a Player</h2>
+              <h2 className="text-lg font-bold mb-1 text-slate-300">Select a Player</h2>
               <p className="text-sm">Choose a player from the list to view their analytics</p>
             </div>
           </div>
