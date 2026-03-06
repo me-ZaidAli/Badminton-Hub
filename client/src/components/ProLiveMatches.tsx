@@ -562,34 +562,6 @@ function CourtCard({
       <div className="px-3 pb-1">
         <CourtView match={match} />
       </div>
-      <div className="px-4 pb-2 flex items-start justify-between gap-2">
-        <div className="flex flex-col min-w-0">
-          {match.teamAPlayer1 && (
-            <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
-              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
-              style={{ color: courtColor.ring }} />
-          )}
-          {match.teamAPlayer2 && (
-            <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
-              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
-              style={{ color: courtColor.ring }} />
-          )}
-        </div>
-        <div className="flex flex-col items-end min-w-0">
-          {match.teamBPlayer1 && (
-            <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
-              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold text-blue-400 truncate" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} />
-          )}
-          {match.teamBPlayer2 && (
-            <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
-              availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
-              className="text-[10px] font-semibold text-blue-400 truncate" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} />
-          )}
-        </div>
-      </div>
       {isOrganiser && (
         <div className="px-4 pb-2">
           <div className="flex items-center justify-center gap-3">
