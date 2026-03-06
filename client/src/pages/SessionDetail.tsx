@@ -19,6 +19,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
 import { CompactMatchView } from "@/components/CompactMatchView";
+import { ProLiveMatches } from "@/components/ProLiveMatches";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { CrowdControlPanel } from "@/components/CrowdControlPanel";
@@ -2623,38 +2624,24 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-primary" />
-                Live Courts
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {Array.from({ length: courtsToUse }, (_, i) => i + 1).map(courtNum => {
-                  const match = liveMatches.find(m => m.courtNumber === courtNum) || null;
-                  return (
-                    <BadmintonCourt
-                      key={courtNum}
-                      courtNumber={courtNum}
-                      courtName={courtNamesState[courtNum - 1]}
-                      match={match}
-                      availablePlayers={availablePlayers}
-                      isOrganiser={isOrganiser}
-                      isSignedUp={isSignedUp}
-                      currentPlayerProfileId={currentPlayerProfileId}
-                      onStartMatch={(matchId, court) => startMatch({ matchId, courtNumber: court })}
-                      onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
-                      onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
-                      onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                      onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
-                      onCourtNameChange={handleCourtNameChange}
-                      onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
-                      onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
-                      defaultPointsToPlayTo={defaultPointsToPlayTo}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+            <ProLiveMatches
+              liveMatches={liveMatches}
+              isOrganiser={isOrganiser}
+              isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId}
+              availablePlayers={availablePlayers}
+              courtNames={courtNamesState}
+              defaultPointsToPlayTo={defaultPointsToPlayTo}
+              sessionMatchCounts={sessionMatchCounts}
+              onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
+              onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
+              onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
+              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+              onCourtNameChange={handleCourtNameChange}
+              onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
+              onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
+              busyPlayerIds={busyPlayerIds}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <MatchQueue
