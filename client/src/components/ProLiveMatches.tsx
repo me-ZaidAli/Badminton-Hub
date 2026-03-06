@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
-  CircleDot
+  CircleDot, Hash
 } from "lucide-react";
 
 type Player = {
@@ -740,7 +740,86 @@ function InlineScorePanel({
   );
 }
 
-type SubView = "court" | "list";
+function ScoreboardView({ match }: { match: CourtMatch }) {
+  const courtColor = getCourtColor(match.courtNumber || 1);
+  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
+  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
+
+  const scoreA = match.scoreA || 0;
+  const scoreB = match.scoreB || 0;
+  const setsWonA = match.setsWonA || 0;
+  const setsWonB = match.setsWonB || 0;
+  const isMultiSet = (match.numberOfSets || 1) > 1;
+
+  const scoreADigits = String(scoreA).padStart(2, "0").split("");
+  const scoreBDigits = String(scoreB).padStart(2, "0").split("");
+  const setsADigit = String(setsWonA);
+  const setsBDigit = String(setsWonB);
+
+  const courtName = match.courtNumber ? `Court ${match.courtNumber}` : "Court";
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden" data-testid={`pro-scoreboard-${match.id}`}>
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
+          <span className="text-xs font-bold text-white/60 uppercase tracking-wider">{courtName}</span>
+        </div>
+        {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
+      </div>
+
+      <div className="px-3 pb-2">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="text-[10px] font-semibold truncate max-w-[40%]" style={{ color: courtColor.ring }}>{teamANames.join(" & ") || "Team A"}</span>
+          <span className="text-[10px] font-semibold text-blue-400 truncate max-w-[40%] text-right">{teamBNames.join(" & ") || "Team B"}</span>
+        </div>
+
+        <div className="relative rounded-xl overflow-hidden border border-white/10" style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)' }}>
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+          <div className="flex items-stretch justify-center py-3 px-2 gap-1.5 sm:gap-2">
+            {scoreADigits.map((d, i) => (
+              <div key={`a-${i}`} className="relative w-10 h-14 sm:w-14 sm:h-20 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: courtColor.bg, border: `1px solid ${courtColor.ring}30` }}>
+                <div className="absolute inset-x-0 top-1/2 h-px bg-black/30" />
+                <span className="text-3xl sm:text-5xl font-black tabular-nums leading-none" style={{ color: courtColor.ring, fontFamily: "'Orbitron', system-ui, monospace", textShadow: `0 0 20px ${courtColor.glow}` }}>{d}</span>
+              </div>
+            ))}
+
+            {isMultiSet && (
+              <div className="flex flex-col items-center justify-center gap-0.5 px-1">
+                <div className="w-7 h-6 sm:w-9 sm:h-9 rounded-md bg-white/[0.08] border border-white/10 flex items-center justify-center">
+                  <span className="text-lg sm:text-2xl font-black text-white/80 tabular-nums leading-none" style={{ fontFamily: "'Orbitron', system-ui, monospace" }}>{setsADigit}</span>
+                </div>
+                <div className="w-7 h-6 sm:w-9 sm:h-9 rounded-md bg-white/[0.08] border border-white/10 flex items-center justify-center">
+                  <span className="text-lg sm:text-2xl font-black text-white/80 tabular-nums leading-none" style={{ fontFamily: "'Orbitron', system-ui, monospace" }}>{setsBDigit}</span>
+                </div>
+              </div>
+            )}
+
+            {scoreBDigits.map((d, i) => (
+              <div key={`b-${i}`} className="relative w-10 h-14 sm:w-14 sm:h-20 rounded-lg overflow-hidden flex items-center justify-center bg-blue-400/10 border border-blue-400/20">
+                <div className="absolute inset-x-0 top-1/2 h-px bg-black/30" />
+                <span className="text-3xl sm:text-5xl font-black text-blue-400 tabular-nums leading-none" style={{ fontFamily: "'Orbitron', system-ui, monospace", textShadow: '0 0 20px rgba(96,165,250,0.5)' }}>{d}</span>
+              </div>
+            ))}
+          </div>
+
+          {isMultiSet && match.setScores && match.setScores.length > 0 && (
+            <div className="flex items-center justify-center gap-2 pb-2">
+              {match.setScores.map((s: any, i: number) => (
+                <span key={i} className="text-[10px] font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded">{s.scoreA}-{s.scoreB}</span>
+              ))}
+            </div>
+          )}
+
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-t from-black/40 to-transparent" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type SubView = "court" | "list" | "score";
 
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
@@ -772,6 +851,7 @@ export function ProLiveMatches({
   const subViews: { key: SubView; label: string; icon: typeof List }[] = [
     { key: "court", label: "Courts", icon: LayoutGrid },
     { key: "list", label: "List", icon: List },
+    { key: "score", label: "Score", icon: Hash },
   ];
 
   if (liveMatches.length === 0) {
@@ -861,6 +941,14 @@ export function ProLiveMatches({
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+            ))}
+          </div>
+        )}
+
+        {subView === "score" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {liveMatches.map(match => (
+              <ScoreboardView key={match.id} match={match} />
             ))}
           </div>
         )}
