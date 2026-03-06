@@ -3,13 +3,11 @@ import { useClubs, useFilteredLeaderboard, type LeaderboardFilters, type Leaderb
 import { useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Trophy, Search, ArrowUp, ArrowDown,
-  Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, TrendingUp, Percent, Swords, Info, ArrowUpDown,
+  Trophy, Search, Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, TrendingUp, Percent, Swords, Info, ArrowUpDown,
   Crown, Shield, Sparkles
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -132,6 +130,96 @@ function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string
   const badges = new Map<number, { icon: any; label: string; color: string; bgColor: string }>();
   holders.forEach(h => badges.set(h.id, { icon: h.icon, label: h.label, color: h.color, bgColor: h.bgColor }));
   return badges;
+}
+
+function PodiumCard({
+  player,
+  place,
+  computePoints,
+  isMe,
+  onClick,
+}: {
+  player: any;
+  place: 1 | 2 | 3;
+  computePoints: (p: LeaderboardPlayer) => number;
+  isMe: boolean;
+  onClick: () => void;
+}) {
+  const crownColors = {
+    1: { main: "#FFD700", glow: "rgba(255,215,0,0.4)", gradient: "from-amber-400 to-yellow-500" },
+    2: { main: "#C0C0C0", glow: "rgba(192,192,192,0.3)", gradient: "from-slate-300 to-gray-400" },
+    3: { main: "#CD7F32", glow: "rgba(205,127,50,0.3)", gradient: "from-amber-600 to-orange-700" },
+  }[place];
+
+  const pedestalHeight = place === 1 ? "h-28" : place === 2 ? "h-20" : "h-16";
+  const pedestalOrder = place === 1 ? "order-2" : place === 2 ? "order-1" : "order-3";
+  const avatarSize = place === 1 ? "h-16 w-16" : "h-12 w-12";
+  const crownSize = place === 1 ? "h-10 w-10" : "h-7 w-7";
+  const nameSize = place === 1 ? "text-sm" : "text-xs";
+
+  return (
+    <div
+      className={`flex flex-col items-center ${pedestalOrder} cursor-pointer group`}
+      onClick={onClick}
+      data-testid={`podium-${place}`}
+    >
+      <div className="relative mb-1">
+        <div
+          className="absolute -top-5 left-1/2 -translate-x-1/2 z-20"
+          style={{ filter: `drop-shadow(0 2px 6px ${crownColors.glow})` }}
+        >
+          <Crown className={crownSize} style={{ color: crownColors.main }} fill={crownColors.main} />
+        </div>
+        <div className="relative">
+          <div
+            className="absolute -inset-1 rounded-full"
+            style={{
+              background: `linear-gradient(135deg, ${crownColors.main}40, transparent 60%)`,
+              filter: `blur(3px)`,
+            }}
+          />
+          <Avatar className={`${avatarSize} border-2 relative z-10`} style={{ borderColor: crownColors.main }}>
+            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+            <AvatarFallback className="bg-[#1a2744] text-white text-xs">
+              {player.fullName.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+
+      <p className={`${nameSize} font-bold text-white mt-1 text-center truncate max-w-[100px]`}>
+        {player.displayName || player.fullName}
+        {isMe && <span className="text-cyan-400 ml-1 text-[10px]">(You)</span>}
+      </p>
+
+      <div className="flex items-center gap-1 mt-0.5">
+        <span className="text-[10px] font-bold text-emerald-400">{player.winPercentage}%</span>
+        <span className="text-[10px] text-slate-500">·</span>
+        <span className="text-[10px] text-slate-400">{player.matchesPlayed} played</span>
+        <span className="text-[10px] text-slate-500">·</span>
+        <span className="text-[10px] text-slate-400">{computePoints(player)} pts</span>
+      </div>
+
+      <div
+        className={`${pedestalHeight} w-24 sm:w-28 mt-2 rounded-t-xl flex items-center justify-center relative overflow-hidden group-hover:brightness-110 transition-all`}
+        style={{
+          background: `linear-gradient(180deg, ${crownColors.main}15 0%, #0c1322 40%, #0a0f1e 100%)`,
+          border: `1px solid ${crownColors.main}30`,
+          borderBottom: "none",
+        }}
+      >
+        <span
+          className="text-4xl font-black"
+          style={{
+            color: `${crownColors.main}15`,
+            textShadow: `0 0 20px ${crownColors.main}08`,
+          }}
+        >
+          {place === 1 ? "1st" : place === 2 ? "2nd" : "3rd"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function PlayerRankings() {
@@ -264,6 +352,9 @@ export default function PlayerRankings() {
     setSearchQuery("");
   };
 
+  const top3 = rankedLeaderboard.slice(0, 3);
+  const remaining = rankedLeaderboard.slice(3);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
@@ -290,369 +381,404 @@ export default function PlayerRankings() {
         </Popover>
       </div>
 
-      {badgeHolders.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-semibold">Badge Guide</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {badgeHolders.map((badge) => (
-                <div key={badge.label} className="flex items-center gap-3 p-2 rounded-md bg-muted/30" data-testid={`badge-holder-${badge.label.toLowerCase().replace(/\s/g, '-')}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${badge.bgColor} shrink-0`}>
-                    <badge.icon className={`w-4 h-4 ${badge.color}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{badge.label}</div>
-                    <div className="text-xs text-muted-foreground truncate">{badge.holderName}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-border">
-              <div className="text-xs font-medium mb-2 text-muted-foreground">Achievement Badges</div>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-orange-500" />
-                  <span className="text-xs text-muted-foreground">5+ Wins</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs text-muted-foreground">10+ Matches</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-purple-500" />
-                  <span className="text-xs text-muted-foreground">Top Performer (75%+ win rate)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-green-500" />
-                  <span className="text-xs text-muted-foreground">First Win</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Medal className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs text-muted-foreground">Undefeated (3+ matches)</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {myStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent pointer-events-none" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-amber-500/15 flex items-center justify-center">
                 <Trophy className="h-5 w-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Your Rank</p>
-                <p className="text-xl font-bold" data-testid="text-my-rank">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Your Rank</p>
+                <p className="text-xl font-black text-white" data-testid="text-my-rank">
                   {myRank ? `#${myRank}` : "-"}
                 </p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-green-500" />
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent pointer-events-none" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-emerald-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Wins / Losses</p>
-                <p className="text-xl font-bold" data-testid="text-my-wins">
-                  <span className="text-green-600">{myStats.matchesWon}</span>
-                  <span className="text-muted-foreground"> / </span>
-                  <span className="text-red-500">{myStats.matchesLost}</span>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Wins / Losses</p>
+                <p className="text-xl font-black" data-testid="text-my-wins">
+                  <span className="text-emerald-400">{myStats.matchesWon}</span>
+                  <span className="text-slate-600"> / </span>
+                  <span className="text-red-400">{myStats.matchesLost}</span>
                 </p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Percent className="h-5 w-5 text-blue-500" />
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-cyan-500/15 flex items-center justify-center">
+                <Percent className="h-5 w-5 text-cyan-400" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Win Rate</p>
-                <p className="text-xl font-bold" data-testid="text-my-winrate">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Win Rate</p>
+                <p className="text-xl font-black text-white" data-testid="text-my-winrate">
                   {myStats.winPercentage}%
                 </p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                <Swords className="h-5 w-5 text-purple-500" />
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent pointer-events-none" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-purple-500/15 flex items-center justify-center">
+                <Swords className="h-5 w-5 text-purple-400" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Matches Played</p>
-                <p className="text-xl font-bold" data-testid="text-my-matches">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Matches Played</p>
+                <p className="text-xl font-black text-white" data-testid="text-my-matches">
                   {myStats.matchesPlayed}
                 </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1">
-              <Button
-                variant={clubScope === "my" ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
-                data-testid="button-scope-my-clubs"
-              >
-                My Clubs
-              </Button>
-              <Button
-                variant={clubScope === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
-                data-testid="button-scope-all-clubs"
-              >
-                All Clubs
-              </Button>
-            </div>
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search players or clubs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-rankings"
-              />
-            </div>
-            {displayClubs.length > 0 && (
-              <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-                <SelectTrigger className="w-[180px]" data-testid="select-club-filter-rankings">
-                  <SelectValue placeholder="All Clubs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clubs</SelectItem>
-                  {displayClubs.map(club => (
-                    <SelectItem key={club.id} value={club.id.toString()}>
-                      {club.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-[130px]" data-testid="select-category-filter-rankings">
-                <SelectValue placeholder="All Grades" />
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+        <div className="relative z-10 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button
+              variant={clubScope === "my" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
+              className={clubScope === "my" ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border-cyan-500/30" : "border-[#1e293b] text-slate-400 hover:bg-[#1e293b]/50"}
+              data-testid="button-scope-my-clubs"
+            >
+              My Clubs
+            </Button>
+            <Button
+              variant={clubScope === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
+              className={clubScope === "all" ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border-cyan-500/30" : "border-[#1e293b] text-slate-400 hover:bg-[#1e293b]/50"}
+              data-testid="button-scope-all-clubs"
+            >
+              All Clubs
+            </Button>
+          </div>
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Input
+              placeholder="Search players or clubs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-[#0a0f1e] border-[#1e293b] text-slate-300 placeholder:text-slate-600"
+              data-testid="input-search-rankings"
+            />
+          </div>
+          {displayClubs.length > 0 && (
+            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-[180px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-club-filter-rankings">
+                <SelectValue placeholder="All Clubs" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Grades</SelectItem>
-                {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
-                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                <SelectItem value="all">All Clubs</SelectItem>
+                {displayClubs.map(club => (
+                  <SelectItem key={club.id} value={club.id.toString()}>
+                    {club.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger className="w-[130px]" data-testid="select-gender-filter-rankings">
-                <SelectValue placeholder="All Players" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Players</SelectItem>
-                <SelectItem value="MALE">Male</SelectItem>
-                <SelectItem value="FEMALE">Female</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={matchType} onValueChange={setMatchType}>
-              <SelectTrigger className="w-[130px]" data-testid="select-match-type-rankings">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="SINGLES">Singles</SelectItem>
-                <SelectItem value="DOUBLES">Doubles</SelectItem>
-                <SelectItem value="MIXED">Mixed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={timePeriod} onValueChange={setTimePeriod}>
-              <SelectTrigger className="w-[150px]" data-testid="select-time-rankings">
-                <SelectValue placeholder="All Time" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="last30">Last 30 Days</SelectItem>
-                <SelectItem value="thisMonth">This Month</SelectItem>
-                <SelectItem value="thisSeason">This Season</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[170px]" data-testid="select-sort-by">
-                <ArrowUpDown className="h-4 w-4 mr-1 shrink-0" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">Default (Wins)</SelectItem>
-                <SelectItem value="grade">Grade (High to Low)</SelectItem>
-                <SelectItem value="winpct">Win % (High to Low)</SelectItem>
-                <SelectItem value="matches">Matches (Most to Least)</SelectItem>
-                <SelectItem value="points">Points (High to Low)</SelectItem>
-              </SelectContent>
-            </Select>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={resetFilters} data-testid="button-reset-ranking-filters">
-                <RotateCcw className="h-4 w-4 mr-1" /> Reset
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
-        <Table>
-          <TableHeader className="bg-muted/50">
-            <TableRow>
-              <TableHead className="w-[70px] text-center">Rank</TableHead>
-              <TableHead>Player</TableHead>
-              {selectedClubId === "all" && (
-                <TableHead className="hidden md:table-cell">Club</TableHead>
-              )}
-              <TableHead className="text-center w-[80px]">Grade</TableHead>
-              <TableHead className="text-right w-[80px]">Played</TableHead>
-              <TableHead className="text-right w-[100px]">W / L</TableHead>
-              <TableHead className="text-right w-[80px]">Win %</TableHead>
-              <TableHead className="text-right w-[80px]">Points</TableHead>
-              <TableHead className="hidden lg:table-cell w-[140px]">Achievements</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              [1, 2, 3, 4, 5].map(i => (
-                <TableRow key={i}>
-                  <TableCell className="h-14"><div className="w-8 h-4 bg-muted animate-pulse rounded mx-auto" /></TableCell>
-                  <TableCell><div className="w-32 h-4 bg-muted animate-pulse rounded" /></TableCell>
-                  {selectedClubId === "all" && <TableCell className="hidden md:table-cell" />}
-                  <TableCell colSpan={6} />
-                </TableRow>
-              ))
-            ) : rankedLeaderboard.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={selectedClubId === "all" ? 9 : 8} className="text-center py-12 text-muted-foreground">
-                  <Target className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">No players found</p>
-                  <p className="text-sm mt-1">
-                    {hasActiveFilters
-                      ? "Try adjusting your filters to see more results."
-                      : clubScope === "my" && myClubs.length === 0
-                        ? "Join a club to see rankings here."
-                        : "Complete some matches to appear on the leaderboard."}
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : rankedLeaderboard.map((player) => {
-              const achievements = getAchievements(player);
-              const isMe = myProfile?.id === player.id;
-              const isNewEntry = player.matchesPlayed <= 3;
-              const uniqueBadge = uniqueBadgesMap.get(player.id);
-
-              return (
-                <TableRow
-                  key={player.id}
-                  className={`cursor-pointer transition-colors ${isMe ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/30"}`}
-                  onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
-                  data-testid={`ranking-row-${player.id}`}
-                >
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {player.rank <= 3 ? (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                          player.rank === 1 ? "bg-amber-500 text-white" :
-                          player.rank === 2 ? "bg-gray-400 text-white" :
-                          "bg-amber-700 text-white"
-                        }`}>
-                          {player.rank}
-                        </div>
-                      ) : (
-                        <span className={`text-lg font-bold ${player.isTied ? "text-muted-foreground" : "text-foreground"}`}>
-                          {player.isTied ? `=${player.rank}` : player.rank}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {uniqueBadge && (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${uniqueBadge.bgColor}`} title={uniqueBadge.label} data-testid={`badge-unique-${player.id}`}>
-                          <uniqueBadge.icon className={`w-6 h-6 ${uniqueBadge.color}`} />
-                        </div>
-                      )}
-                      <Avatar className="h-9 w-9 border border-border">
-                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-                        <AvatarFallback>{player.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate flex items-center gap-1.5">
-                          {player.fullName}
-                          {isMe && <Badge variant="outline" className="text-[10px] py-0">You</Badge>}
-                          {isNewEntry && (
-                            <Badge variant="secondary" className="text-[10px] py-0 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
-                              New
-                            </Badge>
-                          )}
-                        </div>
-                        {player.gender && (
-                          <span className="text-xs text-muted-foreground">
-                            {player.gender === "MALE" ? "M" : "F"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  {selectedClubId === "all" && (
-                    <TableCell className="hidden md:table-cell">
-                      <span className="text-sm text-muted-foreground truncate">{player.clubName}</span>
-                    </TableCell>
-                  )}
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className="font-mono">{(player as any).grade || player.category || "?"}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {player.matchesPlayed}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    <span className="text-green-600">{player.matchesWon}</span>
-                    <span className="text-muted-foreground"> / </span>
-                    <span className="text-red-500">{player.matchesLost}</span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={`font-bold text-lg ${player.winPercentage >= 50 ? "text-green-600" : "text-muted-foreground"}`}>
-                      {player.winPercentage}%
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-bold text-base" data-testid={`text-points-${player.id}`}>
-                      {player.totalPoints}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    <div className="flex items-center gap-1">
-                      {achievements.slice(0, 3).map((a, i) => (
-                        <div key={i} title={a.label}>
-                          <a.icon className={`w-4 h-4 ${a.color}`} />
-                        </div>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+          )}
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-category-filter-rankings">
+              <SelectValue placeholder="All Grades" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Grades</SelectItem>
+              {["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].map((g) => (
+                <SelectItem key={g} value={g}>{g}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={gender} onValueChange={setGender}>
+            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-gender-filter-rankings">
+              <SelectValue placeholder="All Players" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Players</SelectItem>
+              <SelectItem value="MALE">Male</SelectItem>
+              <SelectItem value="FEMALE">Female</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={matchType} onValueChange={setMatchType}>
+            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-match-type-rankings">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="SINGLES">Singles</SelectItem>
+              <SelectItem value="DOUBLES">Doubles</SelectItem>
+              <SelectItem value="MIXED">Mixed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={timePeriod} onValueChange={setTimePeriod}>
+            <SelectTrigger className="w-[150px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-time-rankings">
+              <SelectValue placeholder="All Time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="last30">Last 30 Days</SelectItem>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="thisSeason">This Season</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[170px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-sort-by">
+              <ArrowUpDown className="h-4 w-4 mr-1 shrink-0" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default (Wins)</SelectItem>
+              <SelectItem value="grade">Grade (High to Low)</SelectItem>
+              <SelectItem value="winpct">Win % (High to Low)</SelectItem>
+              <SelectItem value="matches">Matches (Most to Least)</SelectItem>
+              <SelectItem value="points">Points (High to Low)</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-slate-400 hover:text-white" data-testid="button-reset-ranking-filters">
+              <RotateCcw className="h-4 w-4 mr-1" /> Reset
+            </Button>
+          )}
+        </div>
       </div>
 
+      {badgeHolders.length > 0 && (
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Info className="h-4 w-4 text-slate-500" />
+            <h4 className="text-sm font-semibold text-slate-300">Badge Guide</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {badgeHolders.map((badge) => (
+              <div key={badge.label} className="flex items-center gap-3 p-2 rounded-md bg-[#1e293b]/30" data-testid={`badge-holder-${badge.label.toLowerCase().replace(/\s/g, '-')}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${badge.bgColor} shrink-0`}>
+                  <badge.icon className={`w-4 h-4 ${badge.color}`} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-slate-200">{badge.label}</div>
+                  <div className="text-xs text-slate-500 truncate">{badge.holderName}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#1e293b]">
+            <div className="text-xs font-medium mb-2 text-slate-500">Achievement Badges</div>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-orange-500" />
+                <span className="text-xs text-slate-400">5+ Wins</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-amber-500" />
+                <span className="text-xs text-slate-400">10+ Matches</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-purple-500" />
+                <span className="text-xs text-slate-400">Top Performer (75%+ win rate)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-slate-400">First Win</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Medal className="w-4 h-4 text-yellow-500" />
+                <span className="text-xs text-slate-400">Undefeated (3+ matches)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-end justify-center gap-4 py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+        </div>
+      ) : rankedLeaderboard.length === 0 ? (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] py-16 text-center">
+          <Target className="w-10 h-10 mx-auto mb-3 text-slate-600" />
+          <p className="font-medium text-slate-400">No players found</p>
+          <p className="text-sm mt-1 text-slate-500">
+            {hasActiveFilters
+              ? "Try adjusting your filters to see more results."
+              : clubScope === "my" && myClubs.length === 0
+                ? "Join a club to see rankings here."
+                : "Complete some matches to appear on the leaderboard."}
+          </p>
+        </div>
+      ) : (
+        <>
+          {top3.length > 0 && (
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+              <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-purple-500/5 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-amber-500/3 pointer-events-none" />
+              <div className="relative z-10 pt-12 pb-4 px-4">
+                <div className="flex items-end justify-center gap-2 sm:gap-6">
+                  {top3.length >= 2 && (
+                    <PodiumCard
+                      player={top3[1]}
+                      place={2}
+                      computePoints={computePoints}
+                      isMe={myProfile?.id === top3[1].id}
+                      onClick={() => { setStatsPlayerId(top3[1].id); setStatsOpen(true); }}
+                    />
+                  )}
+                  {top3.length >= 1 && (
+                    <PodiumCard
+                      player={top3[0]}
+                      place={1}
+                      computePoints={computePoints}
+                      isMe={myProfile?.id === top3[0].id}
+                      onClick={() => { setStatsPlayerId(top3[0].id); setStatsOpen(true); }}
+                    />
+                  )}
+                  {top3.length >= 3 && (
+                    <PodiumCard
+                      player={top3[2]}
+                      place={3}
+                      computePoints={computePoints}
+                      isMe={myProfile?.id === top3[2].id}
+                      onClick={() => { setStatsPlayerId(top3[2].id); setStatsOpen(true); }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {remaining.length > 0 && (
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+              <div className="relative z-10 overflow-x-auto">
+                <table className="w-full text-left" data-testid="rankings-table">
+                  <thead>
+                    <tr className="border-b border-[#1e293b]">
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 w-[60px]">Rank</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Player</th>
+                      {selectedClubId === "all" && (
+                        <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:table-cell">Club</th>
+                      )}
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Grade</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Played</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[80px]">Win %</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[90px]">W / L</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Points</th>
+                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden lg:table-cell w-[120px]">Badges</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {remaining.map((player) => {
+                      const achievements = getAchievements(player);
+                      const isMe = myProfile?.id === player.id;
+                      const isNewEntry = player.matchesPlayed <= 3;
+                      const uniqueBadge = uniqueBadgesMap.get(player.id);
+
+                      return (
+                        <tr
+                          key={player.id}
+                          className={`border-b border-[#1e293b]/50 cursor-pointer transition-colors ${isMe ? "bg-cyan-500/5 border-l-2 border-l-cyan-500" : "hover:bg-[#1e293b]/30"}`}
+                          onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
+                          data-testid={`ranking-row-${player.id}`}
+                        >
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-base font-bold ${player.isTied ? "text-slate-500" : "text-slate-300"}`}>
+                              {player.isTied ? `=${player.rank}` : player.rank}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {uniqueBadge && (
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${uniqueBadge.bgColor}`} title={uniqueBadge.label} data-testid={`badge-unique-${player.id}`}>
+                                  <uniqueBadge.icon className={`w-4 h-4 ${uniqueBadge.color}`} />
+                                </div>
+                              )}
+                              <Avatar className="h-8 w-8 border border-[#1e293b]">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+                                <AvatarFallback className="bg-[#1a2744] text-slate-300 text-xs">
+                                  {player.fullName.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-sm text-slate-200 truncate flex items-center gap-1.5">
+                                  {player.displayName || player.fullName}
+                                  {isMe && <span className="text-[10px] text-cyan-400 font-bold px-1 py-0 bg-cyan-500/10 rounded">You</span>}
+                                  {isNewEntry && (
+                                    <span className="text-[10px] text-emerald-400 font-bold px-1 py-0 bg-emerald-500/10 rounded">New</span>
+                                  )}
+                                </div>
+                                {player.gender && (
+                                  <span className="text-[10px] text-slate-500">
+                                    {player.gender === "MALE" ? "Male" : "Female"}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          {selectedClubId === "all" && (
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <span className="text-xs text-slate-500 truncate">{player.clubName}</span>
+                            </td>
+                          )}
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-xs font-mono font-bold text-slate-300 bg-[#1e293b]/50 px-2 py-0.5 rounded">
+                              {(player as any).grade || player.category || "?"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-sm font-medium text-slate-300">{player.matchesPlayed}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-sm font-bold ${player.winPercentage >= 50 ? "text-emerald-400" : "text-slate-400"}`}>
+                              {player.winPercentage}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-sm font-medium">
+                              <span className="text-emerald-400">{player.matchesWon}</span>
+                              <span className="text-slate-600"> / </span>
+                              <span className="text-red-400">{player.matchesLost}</span>
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-sm font-bold text-white" data-testid={`text-points-${player.id}`}>
+                              {player.totalPoints}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            <div className="flex items-center gap-1">
+                              {achievements.slice(0, 3).map((a, i) => (
+                                <div key={i} title={a.label}>
+                                  <a.icon className={`w-3.5 h-3.5 ${a.color}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {rankedLeaderboard.length > 0 && (
-        <div className="text-sm text-muted-foreground text-center">
+        <div className="text-sm text-slate-500 text-center">
           Showing {rankedLeaderboard.length} player{rankedLeaderboard.length !== 1 ? 's' : ''}
         </div>
       )}
