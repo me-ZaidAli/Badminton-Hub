@@ -232,7 +232,7 @@ function LiveMatchRow({
         role="button"
         tabIndex={canInteract ? 0 : -1}
         aria-expanded={expanded}
-        className={cn("relative z-10 flex items-center gap-4 px-5 py-4 select-none", canInteract ? "cursor-pointer" : "cursor-default")}
+        className={cn("relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-5 px-5 py-5 select-none", canInteract ? "cursor-pointer" : "cursor-default")}
         onClick={() => { if (canInteract) { setExpanded(!expanded); if (expanded) resetForm(); } }}
         onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && canInteract) { e.preventDefault(); setExpanded(!expanded); } }}
         data-testid={`pro-live-toggle-${match.id}`}
@@ -263,7 +263,7 @@ function LiveMatchRow({
               {isOrganiser && <Pencil className="w-2.5 h-2.5 ml-1 inline-block opacity-50" />}
             </span>
           )}
-          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-400/20 bg-emerald-400/5" data-testid={`pro-live-badge-${match.id}`}>LIVE</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-400/20 bg-emerald-400/5" data-testid={`pro-live-badge-${match.id}`}>LIVE</span>
         </div>
 
         <div className="flex-1 min-w-0 flex items-center gap-3">
@@ -384,44 +384,44 @@ function LiveMatchRow({
               </div>
             </div>
           ) : (
-            <div className="space-y-4 pt-3">
-              <div className="flex items-center gap-3">
+            <div className="space-y-5 pt-3">
+              <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] uppercase tracking-widest text-emerald-400 mb-1 block font-bold">Team A</label>
-                  <p className="text-[10px] text-white/30 mb-1.5 truncate">{teamANames.join(" & ") || "Team A"}</p>
-                  <div className="flex items-center gap-1">
-                    <button className="w-8 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                  <label className="text-[10px] uppercase tracking-widest text-emerald-400 mb-1.5 block font-bold">Team A</label>
+                  <p className="text-[10px] text-white/30 mb-2 truncate">{teamANames.join(" & ") || "Team A"}</p>
+                  <div className="flex items-center gap-2">
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1))); }} data-testid={`pro-score-a-minus-${match.id}`}>
-                      <Minus className="w-3.5 h-3.5" />
+                      <Minus className="w-4 h-4" />
                     </button>
                     <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-slate-800/80 border-emerald-500/20 text-white text-center text-xl font-mono h-10 focus:border-emerald-400/40 focus:ring-emerald-400/20"
+                      className="bg-slate-800/80 border-emerald-500/20 text-white text-center text-xl font-mono h-11 focus:border-emerald-400/40 focus:ring-emerald-400/20"
                       style={{ fontFamily: "'Orbitron', monospace" }}
                       placeholder="0" data-testid={`pro-score-a-${match.id}`} />
-                    <button className="w-8 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreA(String((parseInt(scoreA) || 0) + 1)); }} data-testid={`pro-score-a-plus-${match.id}`}>
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
                 <div className="text-white/15 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] uppercase tracking-widest text-blue-400 mb-1 block font-bold">Team B</label>
-                  <p className="text-[10px] text-white/30 mb-1.5 truncate">{teamBNames.join(" & ") || "Team B"}</p>
-                  <div className="flex items-center gap-1">
-                    <button className="w-8 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                  <label className="text-[10px] uppercase tracking-widest text-blue-400 mb-1.5 block font-bold">Team B</label>
+                  <p className="text-[10px] text-white/30 mb-2 truncate">{teamBNames.join(" & ") || "Team B"}</p>
+                  <div className="flex items-center gap-2">
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1))); }} data-testid={`pro-score-b-minus-${match.id}`}>
-                      <Minus className="w-3.5 h-3.5" />
+                      <Minus className="w-4 h-4" />
                     </button>
                     <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-slate-800/80 border-blue-500/20 text-white text-center text-xl font-mono h-10 focus:border-blue-400/40 focus:ring-blue-400/20"
+                      className="bg-slate-800/80 border-blue-500/20 text-white text-center text-xl font-mono h-11 focus:border-blue-400/40 focus:ring-blue-400/20"
                       style={{ fontFamily: "'Orbitron', monospace" }}
                       placeholder="0" data-testid={`pro-score-b-${match.id}`} />
-                    <button className="w-8 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreB(String((parseInt(scoreB) || 0) + 1)); }} data-testid={`pro-score-b-plus-${match.id}`}>
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -429,19 +429,19 @@ function LiveMatchRow({
               {scoreA && scoreB && scoreA === scoreB && (
                 <p className="text-[11px] text-red-400 text-center">Scores cannot be tied</p>
               )}
-              <div className="flex gap-2">
+              <div className="flex gap-3 pt-1">
                 {isOrganiser && onCancelMatch && (
-                  <button className="px-4 py-2 text-sm font-medium rounded-full border border-red-500/20 text-red-400/80 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all duration-300"
+                  <button className="px-5 py-2.5 text-sm font-medium rounded-full border border-red-500/20 text-red-400/80 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all duration-300"
                     onClick={(e) => { e.stopPropagation(); onCancelMatch(match.id); }} data-testid={`pro-match-cancel-${match.id}`}>
-                    <XCircle className="w-3.5 h-3.5 mr-1 inline" />Cancel
+                    <XCircle className="w-4 h-4 mr-1.5 inline" />Cancel
                   </button>
                 )}
-                <button className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 animate-pulse active:scale-95 transition-all duration-300"
+                <button className="flex-1 px-5 py-3 text-sm font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 animate-pulse active:scale-95 transition-all duration-300"
                   style={{ animationDuration: '3s' }}
                   onClick={(e) => { e.stopPropagation(); handleSubmitScore(); }}
                   disabled={!scoreA || !scoreB || scoreA === scoreB || submitting}
                   data-testid={`pro-match-end-${match.id}`}>
-                  <Trophy className="w-3.5 h-3.5 mr-1.5 inline" />
+                  <Trophy className="w-4 h-4 mr-1.5 inline" />
                   {isMultiSet ? `End Set ${currentSet}` : "End Match"}
                 </button>
               </div>
@@ -630,7 +630,165 @@ function TimelineView({ match }: { match: CourtMatch }) {
   );
 }
 
-type SubView = "list" | "court" | "stats" | "timeline";
+function InlineScorePanel({
+  match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
+  onCompleteMatch, onEndSet, onCancelMatch,
+}: {
+  match: CourtMatch;
+  isOrganiser: boolean;
+  isSignedUp: boolean;
+  currentPlayerProfileId?: number | null;
+  defaultPointsToPlayTo?: number;
+  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCancelMatch?: (matchId: number) => void;
+}) {
+  const [scoreA, setScoreA] = useState("");
+  const [scoreB, setScoreB] = useState("");
+  const [step, setStep] = useState<"input" | "confirm" | "success">("input");
+  const [submitting, setSubmitting] = useState(false);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const matchSets = match.numberOfSets || 1;
+  const isMultiSet = matchSets > 1;
+  const currentSet = match.currentSet || 1;
+  const courtColor = getCourtColor(match.courtNumber || 1);
+
+  const isPlayerInMatch = currentPlayerProfileId && (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  );
+  const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
+
+  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
+  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
+
+  useEffect(() => {
+    return () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); };
+  }, []);
+
+  const resetForm = () => { setStep("input"); setScoreA(""); setScoreB(""); };
+
+  const handleSubmitScore = useCallback(async () => {
+    const a = parseInt(scoreA);
+    const b = parseInt(scoreB);
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0 || a === b) return;
+    if (step === "input") { setStep("confirm"); return; }
+    setSubmitting(true);
+    try {
+      if (isMultiSet) await onEndSet(match.id, currentSet, a, b);
+      else await onCompleteMatch(match.id, a, b);
+      setStep("success");
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => resetForm(), 1500);
+    } catch { setStep("input"); } finally { setSubmitting(false); }
+  }, [scoreA, scoreB, step, isMultiSet, currentSet, match.id, onCompleteMatch, onEndSet]);
+
+  if (!canInteract) return null;
+
+  if (step === "success") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-3 border-t border-white/[0.05]">
+        <CheckCircle className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+        <span className="text-xs font-semibold text-white">Score Saved</span>
+      </div>
+    );
+  }
+
+  if (step === "confirm") {
+    return (
+      <div className="border-t border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[10px] text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
+        <div className="flex items-center justify-center gap-6">
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Team A</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</div>
+            <p className="text-[9px] text-white/30 mt-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
+          </div>
+          <Swords className="w-4 h-4 text-white/20" />
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Team B</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
+            <p className="text-[9px] text-white/30 mt-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button className="flex-1 px-3 py-2 text-xs font-medium rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300"
+            onClick={() => setStep("input")} data-testid={`pro-inline-back-${match.id}`}>Back</button>
+          <button className="flex-1 px-3 py-2 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-500/20 active:scale-95 transition-all duration-300"
+            onClick={handleSubmitScore} disabled={submitting} data-testid={`pro-inline-confirm-${match.id}`}>
+            {submitting ? "Saving..." : "Confirm"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <label className="text-[9px] uppercase tracking-widest text-emerald-400 mb-1 block font-bold">Team A</label>
+          <div className="flex items-center gap-1">
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+              onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
+              <Minus className="w-3 h-3" />
+            </button>
+            <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
+              className="bg-slate-800/80 border-emerald-500/20 text-white text-center text-lg font-mono h-9 focus:border-emerald-400/40 focus:ring-emerald-400/20"
+              style={{ fontFamily: "'Orbitron', monospace" }}
+              placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+              onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+        <div className="text-white/15 font-bold text-xs mt-4">vs</div>
+        <div className="flex-1 min-w-0">
+          <label className="text-[9px] uppercase tracking-widest text-blue-400 mb-1 block font-bold">Team B</label>
+          <div className="flex items-center gap-1">
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+              onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
+              <Minus className="w-3 h-3" />
+            </button>
+            <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
+              className="bg-slate-800/80 border-blue-500/20 text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
+              style={{ fontFamily: "'Orbitron', monospace" }}
+              placeholder="0" data-testid={`pro-inline-b-score-${match.id}`} />
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+              onClick={() => setScoreB(String((parseInt(scoreB) || 0) + 1))} data-testid={`pro-inline-b-plus-${match.id}`}>
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+      {scoreA && scoreB && scoreA === scoreB && (
+        <p className="text-[10px] text-red-400 text-center">Scores cannot be tied</p>
+      )}
+      <div className="flex gap-2">
+        {isOrganiser && onCancelMatch && (
+          <button className="px-3 py-2 text-xs font-medium rounded-full border border-red-500/20 text-red-400/80 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all duration-300"
+            onClick={() => onCancelMatch(match.id)} data-testid={`pro-inline-cancel-${match.id}`}>
+            <XCircle className="w-3 h-3 mr-1 inline" />Cancel
+          </button>
+        )}
+        <button className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 animate-pulse active:scale-95 transition-all duration-300"
+          style={{ animationDuration: '3s' }}
+          onClick={handleSubmitScore}
+          disabled={!scoreA || !scoreB || scoreA === scoreB || submitting}
+          data-testid={`pro-inline-end-${match.id}`}>
+          <Trophy className="w-3 h-3 mr-1 inline" />
+          {isMultiSet ? `End Set ${currentSet}` : "End Match"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type SubView = "court" | "list" | "stats" | "timeline";
 
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
@@ -657,11 +815,11 @@ export function ProLiveMatches({
   onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
-  const [subView, setSubView] = useState<SubView>("list");
+  const [subView, setSubView] = useState<SubView>("court");
 
   const subViews: { key: SubView; label: string; icon: typeof List }[] = [
+    { key: "court", label: "Courts", icon: LayoutGrid },
     { key: "list", label: "List", icon: List },
-    { key: "court", label: "Court", icon: LayoutGrid },
     { key: "stats", label: "Stats", icon: BarChart3 },
     { key: "timeline", label: "Timeline", icon: Activity },
   ];
@@ -700,28 +858,28 @@ export function ProLiveMatches({
             <span className="text-xs font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
           </div>
 
-          <div className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.03] p-0.5" data-testid="pro-live-view-toggle">
+          <div className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.03] p-1" data-testid="pro-live-view-toggle">
             {subViews.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => setSubView(key)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-full transition-all duration-300 active:scale-95",
+                  "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-full transition-all duration-300 active:scale-95",
                   subView === key
                     ? "bg-white/10 text-white shadow-sm"
                     : "text-white/30 hover:text-white/60"
                 )}
                 data-testid={`pro-live-tab-${key}`}
               >
-                <Icon className="w-3 h-3" />
-                <span className="hidden sm:inline">{label}</span>
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
               </button>
             ))}
           </div>
         </div>
 
         {subView === "list" && (
-          <div className="space-y-2">
+          <div className="space-y-4">
             {liveMatches.map(match => (
               <LiveMatchRow
                 key={match.id}
@@ -747,49 +905,61 @@ export function ProLiveMatches({
         )}
 
         {subView === "court" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {liveMatches.map(match => (
-              <div key={match.id} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
+              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
                   <span className="text-xs font-bold text-white/60 uppercase tracking-wider">
                     {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
                   </span>
+                  {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
                 </div>
-                <CourtView match={match} />
+                <div className="px-3 pb-3">
+                  <CourtView match={match} />
+                </div>
+                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
               </div>
             ))}
           </div>
         )}
 
         {subView === "stats" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {liveMatches.map(match => (
-              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2">
-                <div className="flex items-center gap-2 px-3 pt-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
-                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 pt-3">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
+                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">
                     {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
                   </span>
                   {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
                 </div>
                 <StatsView match={match} />
+                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
               </div>
             ))}
           </div>
         )}
 
         {subView === "timeline" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {liveMatches.map(match => (
-              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-2">
-                <div className="flex items-center gap-2 px-3 pt-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
-                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+              <div key={match.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 pt-3">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCourtColor(match.courtNumber || 1).ring }} />
+                  <span className="text-xs font-bold text-white/40 uppercase tracking-wider">
                     {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
                   </span>
                 </div>
                 <TimelineView match={match} />
+                <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+                  currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+                  onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
               </div>
             ))}
           </div>
