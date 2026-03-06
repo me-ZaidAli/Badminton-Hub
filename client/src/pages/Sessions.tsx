@@ -477,6 +477,7 @@ export default function Sessions() {
   const [, setLocation] = useLocation();
   const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [sessionTypeFilter, setSessionTypeFilter] = useState<"all" | "grouped" | "single">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"cards" | "calendar" | "timeline" | "grouped">(() => {
@@ -632,8 +633,13 @@ export default function Sessions() {
       if (isScheduled) return false;
       return true;
     });
+    if (sessionTypeFilter === "grouped") {
+      result = result.filter(s => !!(s as any).recurringEventId);
+    } else if (sessionTypeFilter === "single") {
+      result = result.filter(s => !(s as any).recurringEventId);
+    }
     return result;
-  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin]);
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin, sessionTypeFilter]);
 
   const scheduledSessions = useMemo(() => {
     let result = sessions;
@@ -837,6 +843,16 @@ export default function Sessions() {
             </SelectContent>
           </Select>
         )}
+        <Select value={sessionTypeFilter} onValueChange={(v) => setSessionTypeFilter(v as "all" | "grouped" | "single")}>
+          <SelectTrigger className="w-[150px] sm:w-[180px]" data-testid="select-session-type-filter">
+            <SelectValue placeholder="All Sessions" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sessions</SelectItem>
+            <SelectItem value="grouped">Grouped Only</SelectItem>
+            <SelectItem value="single">Single Only</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}
