@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -23355,6 +23355,1089 @@ Keep it to about 300 words. Be encouraging but honest.`;
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === PLAYER SKILL REVIEW SYSTEM ===
+
+  // GET /api/players/skill-categories - List skill categories
+  app.get("/api/players/skill-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      let categories;
+      if (clubId) {
+        categories = await db.select().from(playerSkillCategories)
+          .where(or(eq(playerSkillCategories.clubId, clubId), sql`${playerSkillCategories.clubId} IS NULL`))
+          .orderBy(playerSkillCategories.displayOrder);
+      } else {
+        categories = await db.select().from(playerSkillCategories)
+          .orderBy(playerSkillCategories.displayOrder);
+      }
+      res.json(categories);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/players/skill-categories - Admin: create category
+  app.post("/api/players/skill-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const clubId = req.body.clubId ? Number(req.body.clubId) : null;
+      if (clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skill categories" });
+        const plan = await getClubPlanStatus(clubId);
+        if (!isClubPremium(plan.planStatus) && user.role !== "OWNER") {
+          return res.status(403).json({ message: "This feature requires a Premium plan.", requiresPremium: true });
+        }
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can create default categories" });
+      }
+      const { name, displayOrder, iconName } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      const [category] = await db.insert(playerSkillCategories).values({
+        name,
+        displayOrder: displayOrder || 0,
+        iconName: iconName || null,
+        clubId,
+      }).returning();
+      res.json(category);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/players/skill-categories/:id - Admin: update category
+  app.patch("/api/players/skill-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid category ID" });
+    try {
+      const [existing] = await db.select().from(playerSkillCategories).where(eq(playerSkillCategories.id, id));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+      if (existing.clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, existing.clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skill categories" });
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can update default categories" });
+      }
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.displayOrder !== undefined) updates.displayOrder = req.body.displayOrder;
+      if (req.body.iconName !== undefined) updates.iconName = req.body.iconName;
+      const [updated] = await db.update(playerSkillCategories).set(updates).where(eq(playerSkillCategories.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/players/skill-categories/:id - Admin: delete category
+  app.delete("/api/players/skill-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid category ID" });
+    try {
+      const [existing] = await db.select().from(playerSkillCategories).where(eq(playerSkillCategories.id, id));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+      if (existing.clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, existing.clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skill categories" });
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can delete default categories" });
+      }
+      await db.delete(playerSkillEvaluations).where(
+        inArray(playerSkillEvaluations.skillId,
+          db.select({ id: playerSkills.id }).from(playerSkills).where(eq(playerSkills.categoryId, id))
+        )
+      );
+      await db.delete(playerSkills).where(eq(playerSkills.categoryId, id));
+      await db.delete(playerSkillCategories).where(eq(playerSkillCategories.id, id));
+      res.json({ message: "Category deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/players/skills - List skills
+  app.get("/api/players/skills", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const categoryId = req.query.categoryId ? Number(req.query.categoryId) : null;
+      let conditions: any[] = [];
+      if (clubId) {
+        conditions.push(or(eq(playerSkills.clubId, clubId), sql`${playerSkills.clubId} IS NULL`));
+      }
+      if (categoryId) {
+        conditions.push(eq(playerSkills.categoryId, categoryId));
+      }
+      const skills = conditions.length > 0
+        ? await db.select().from(playerSkills).where(and(...conditions)).orderBy(playerSkills.displayOrder)
+        : await db.select().from(playerSkills).orderBy(playerSkills.displayOrder);
+      res.json(skills);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/players/skills - Admin: create skill
+  app.post("/api/players/skills", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const clubId = req.body.clubId ? Number(req.body.clubId) : null;
+      if (clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skills" });
+        const plan = await getClubPlanStatus(clubId);
+        if (!isClubPremium(plan.planStatus) && user.role !== "OWNER") {
+          return res.status(403).json({ message: "This feature requires a Premium plan.", requiresPremium: true });
+        }
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can create default skills" });
+      }
+      const { name, categoryId, displayOrder } = req.body;
+      if (!name || !categoryId) return res.status(400).json({ message: "Name and categoryId are required" });
+      const [skill] = await db.insert(playerSkills).values({
+        name,
+        categoryId: Number(categoryId),
+        displayOrder: displayOrder || 0,
+        clubId,
+      }).returning();
+      res.json(skill);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/players/skills/:id - Admin: update skill
+  app.patch("/api/players/skills/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid skill ID" });
+    try {
+      const [existing] = await db.select().from(playerSkills).where(eq(playerSkills.id, id));
+      if (!existing) return res.status(404).json({ message: "Skill not found" });
+      if (existing.clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, existing.clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skills" });
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can update default skills" });
+      }
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.displayOrder !== undefined) updates.displayOrder = req.body.displayOrder;
+      if (req.body.categoryId !== undefined) updates.categoryId = Number(req.body.categoryId);
+      const [updated] = await db.update(playerSkills).set(updates).where(eq(playerSkills.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/players/skills/:id - Admin: delete skill
+  app.delete("/api/players/skills/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid skill ID" });
+    try {
+      const [existing] = await db.select().from(playerSkills).where(eq(playerSkills.id, id));
+      if (!existing) return res.status(404).json({ message: "Skill not found" });
+      if (existing.clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, existing.clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can manage skills" });
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Only super admins can delete default skills" });
+      }
+      await db.delete(playerSkillEvaluations).where(eq(playerSkillEvaluations.skillId, id));
+      await db.delete(playerSkills).where(eq(playerSkills.id, id));
+      res.json({ message: "Skill deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/players/skill-review/request - Player requests coach feedback
+  app.post("/api/players/skill-review/request", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const { playerId, clubId, paymentMethod } = req.body;
+      if (!playerId || !clubId) return res.status(400).json({ message: "playerId and clubId are required" });
+      const plan = await getClubPlanStatus(Number(clubId));
+      if (!isClubPremium(plan.planStatus) && user.role !== "OWNER") {
+        return res.status(403).json({ message: "This feature requires a Premium plan.", requiresPremium: true });
+      }
+      const profile = await storage.getPlayerProfileById(Number(playerId));
+      if (!profile) return res.status(404).json({ message: "Player profile not found" });
+      if (profile.userId !== user.id && user.role !== "OWNER") {
+        const isAdmin = await hasAdminAccess(user.id, user.role, Number(clubId));
+        if (!isAdmin) return res.status(403).json({ message: "You can only request reviews for yourself" });
+      }
+      const existing = await db.select().from(playerSkillReviewRequests)
+        .where(and(
+          eq(playerSkillReviewRequests.playerId, Number(playerId)),
+          eq(playerSkillReviewRequests.clubId, Number(clubId)),
+          or(
+            eq(playerSkillReviewRequests.status, "PENDING"),
+            eq(playerSkillReviewRequests.status, "ACCEPTED")
+          )
+        ));
+      if (existing.length > 0) {
+        return res.status(400).json({ message: "You already have an active review request" });
+      }
+      const [request] = await db.insert(playerSkillReviewRequests).values({
+        playerId: Number(playerId),
+        clubId: Number(clubId),
+        status: "PENDING",
+        paymentMethod: paymentMethod || null,
+        paymentConfirmed: false,
+      }).returning();
+      res.json(request);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/players/skill-review/requests - Admin: list all requests
+  app.get("/api/players/skill-review/requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      if (clubId) {
+        const isAdmin = await hasAdminAccess(user.id, user.role, clubId);
+        if (!isAdmin) return res.status(403).json({ message: "Only admins can view review requests" });
+      } else if (user.role !== "OWNER") {
+        return res.status(403).json({ message: "Club context required" });
+      }
+      let requests;
+      if (clubId) {
+        requests = await db.select({
+          request: playerSkillReviewRequests,
+          player: playerProfiles,
+          user: users,
+        }).from(playerSkillReviewRequests)
+          .innerJoin(playerProfiles, eq(playerSkillReviewRequests.playerId, playerProfiles.id))
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .where(eq(playerSkillReviewRequests.clubId, clubId))
+          .orderBy(desc(playerSkillReviewRequests.requestedAt));
+      } else {
+        requests = await db.select({
+          request: playerSkillReviewRequests,
+          player: playerProfiles,
+          user: users,
+        }).from(playerSkillReviewRequests)
+          .innerJoin(playerProfiles, eq(playerSkillReviewRequests.playerId, playerProfiles.id))
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .orderBy(desc(playerSkillReviewRequests.requestedAt));
+      }
+      res.json(requests.map(r => ({
+        ...r.request,
+        player: { ...r.player, user: r.user },
+      })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/players/skill-review/requests/:id/accept - Admin accepts request
+  app.patch("/api/players/skill-review/requests/:id/accept", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid request ID" });
+    try {
+      const [existing] = await db.select().from(playerSkillReviewRequests).where(eq(playerSkillReviewRequests.id, id));
+      if (!existing) return res.status(404).json({ message: "Review request not found" });
+      const isAdmin = await hasAdminAccess(user.id, user.role, existing.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can accept review requests" });
+      if (existing.status !== "PENDING") {
+        return res.status(400).json({ message: `Request is already ${existing.status}` });
+      }
+      const paymentConfirmed = req.body.paymentConfirmed !== undefined ? req.body.paymentConfirmed : false;
+      const [updated] = await db.update(playerSkillReviewRequests).set({
+        status: "ACCEPTED",
+        acceptedAt: new Date(),
+        acceptedByUserId: user.id,
+        paymentConfirmed,
+      }).where(eq(playerSkillReviewRequests.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/players/skill-review/evaluate - Admin submits skill evaluations
+  app.post("/api/players/skill-review/evaluate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const { reviewRequestId, evaluations } = req.body;
+      if (!reviewRequestId || !evaluations || !Array.isArray(evaluations)) {
+        return res.status(400).json({ message: "reviewRequestId and evaluations array are required" });
+      }
+      const [request] = await db.select().from(playerSkillReviewRequests).where(eq(playerSkillReviewRequests.id, Number(reviewRequestId)));
+      if (!request) return res.status(404).json({ message: "Review request not found" });
+      const isAdmin = await hasAdminAccess(user.id, user.role, request.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can evaluate players" });
+      if (request.status !== "ACCEPTED") {
+        return res.status(400).json({ message: "Request must be accepted before evaluation" });
+      }
+      const insertedEvals = [];
+      for (const evaluation of evaluations) {
+        const { skillId, rating, comment } = evaluation;
+        if (!skillId || rating === undefined) continue;
+        const clampedRating = Math.max(0, Math.min(100, Number(rating)));
+        const [inserted] = await db.insert(playerSkillEvaluations).values({
+          reviewRequestId: Number(reviewRequestId),
+          playerId: request.playerId,
+          skillId: Number(skillId),
+          rating: clampedRating,
+          comment: comment || null,
+          evaluatedByUserId: user.id,
+        }).returning();
+        insertedEvals.push(inserted);
+      }
+      await db.update(playerSkillReviewRequests).set({
+        status: "COMPLETED",
+        completedAt: new Date(),
+      }).where(eq(playerSkillReviewRequests.id, Number(reviewRequestId)));
+      res.json({ message: "Evaluations submitted", evaluations: insertedEvals });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/players/skill-review/:playerId - Get player's skill evaluations
+  app.get("/api/players/skill-review/:playerId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const playerId = Number(req.params.playerId);
+    if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+    try {
+      const evaluations = await db.select({
+        evaluation: playerSkillEvaluations,
+        skill: playerSkills,
+        category: playerSkillCategories,
+        evaluator: users,
+      }).from(playerSkillEvaluations)
+        .innerJoin(playerSkills, eq(playerSkillEvaluations.skillId, playerSkills.id))
+        .innerJoin(playerSkillCategories, eq(playerSkills.categoryId, playerSkillCategories.id))
+        .innerJoin(users, eq(playerSkillEvaluations.evaluatedByUserId, users.id))
+        .where(eq(playerSkillEvaluations.playerId, playerId))
+        .orderBy(desc(playerSkillEvaluations.evaluatedAt));
+
+      const requests = await db.select().from(playerSkillReviewRequests)
+        .where(eq(playerSkillReviewRequests.playerId, playerId))
+        .orderBy(desc(playerSkillReviewRequests.requestedAt));
+
+      res.json({
+        evaluations: evaluations.map(e => ({
+          ...e.evaluation,
+          skill: e.skill,
+          category: e.category,
+          evaluatedBy: { id: e.evaluator.id, fullName: e.evaluator.fullName },
+        })),
+        requests,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/players/coach-notes - Admin: add coach note
+  app.post("/api/players/coach-notes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const { playerId, clubId, note } = req.body;
+      if (!playerId || !clubId || !note) {
+        return res.status(400).json({ message: "playerId, clubId, and note are required" });
+      }
+      const isAdmin = await hasAdminAccess(user.id, user.role, Number(clubId));
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can add coach notes" });
+      const [inserted] = await db.insert(playerCoachNotes).values({
+        playerId: Number(playerId),
+        clubId: Number(clubId),
+        note,
+        createdByUserId: user.id,
+      }).returning();
+      res.json(inserted);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/players/coach-notes/:playerId - Get coach notes timeline
+  app.get("/api/players/coach-notes/:playerId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const playerId = Number(req.params.playerId);
+    if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+    try {
+      const notes = await db.select({
+        note: playerCoachNotes,
+        author: users,
+      }).from(playerCoachNotes)
+        .innerJoin(users, eq(playerCoachNotes.createdByUserId, users.id))
+        .where(eq(playerCoachNotes.playerId, playerId))
+        .orderBy(desc(playerCoachNotes.createdAt));
+      res.json(notes.map(n => ({
+        ...n.note,
+        createdBy: { id: n.author.id, fullName: n.author.fullName },
+      })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === PLAYER ANALYTICS ENDPOINTS ===
+
+  app.get("/api/players/analytics/:playerId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+
+      const profileResult = await db.select({
+        profile: playerProfiles,
+        user: users,
+        club: clubs,
+      }).from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+        .where(eq(playerProfiles.id, playerId))
+        .limit(1);
+
+      if (profileResult.length === 0) return res.status(404).json({ message: "Player not found" });
+      const { profile, user, club } = profileResult[0];
+
+      const allMatches = await db.select({
+        id: matches.id,
+        sessionId: matches.sessionId,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        isCompleted: matches.isCompleted,
+        completedAt: matches.completedAt,
+        startedAt: matches.startedAt,
+      }).from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, playerId),
+            eq(matches.teamAPlayer2Id, playerId),
+            eq(matches.teamBPlayer1Id, playerId),
+            eq(matches.teamBPlayer2Id, playerId)
+          )
+        ));
+
+      let wins = 0;
+      let losses = 0;
+      let pointsScored = 0;
+      let pointsConceded = 0;
+      const opponentIds = new Set<number>();
+
+      for (const m of allMatches) {
+        const isTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
+        const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+        pointsScored += myScore;
+        pointsConceded += oppScore;
+
+        if (myScore > oppScore) wins++;
+        else losses++;
+
+        const opponents = isTeamA
+          ? [m.teamBPlayer1Id, m.teamBPlayer2Id]
+          : [m.teamAPlayer1Id, m.teamAPlayer2Id];
+        opponents.filter(Boolean).forEach(id => opponentIds.add(id!));
+      }
+
+      const matchesPlayed = allMatches.length;
+      const winRate = matchesPlayed > 0 ? Math.round((wins / matchesPlayed) * 100) : 0;
+
+      const signups = await db.select({
+        id: sessionSignups.id,
+        sessionId: sessionSignups.sessionId,
+        attendanceStatus: sessionSignups.attendanceStatus,
+        sessionDate: sessions.date,
+        durationMinutes: sessions.durationMinutes,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(eq(sessionSignups.playerId, playerId));
+
+      const sessionsAttended = signups.filter(s => s.attendanceStatus === "ATTENDED").length;
+      const totalHoursPlayed = signups
+        .filter(s => s.attendanceStatus === "ATTENDED")
+        .reduce((sum, s) => sum + (s.durationMinutes || 120) / 60, 0);
+
+      const last30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const last90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const sessions30d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last30d && s.attendanceStatus === "ATTENDED").length;
+      const sessions90d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last90d && s.attendanceStatus === "ATTENDED").length;
+
+      let opponentDifficultyScore = 0;
+      if (opponentIds.size > 0) {
+        const opponentProfiles = await db.select({
+          id: playerProfiles.id,
+          grade: playerProfiles.grade,
+        }).from(playerProfiles).where(inArray(playerProfiles.id, Array.from(opponentIds)));
+
+        const GRADE_VALUES: Record<string, number> = { "C3": 1, "C2": 2, "C1": 3, "B3": 4, "B2": 5, "B1": 6, "A3": 7, "A2": 8, "A1": 9 };
+        const myGradeVal = GRADE_VALUES[profile.grade || "C3"] || 1;
+        let totalDiff = 0;
+        for (const opp of opponentProfiles) {
+          const oppVal = GRADE_VALUES[opp.grade || "C3"] || 1;
+          totalDiff += oppVal - myGradeVal;
+        }
+        opponentDifficultyScore = opponentProfiles.length > 0 ? totalDiff / opponentProfiles.length : 0;
+      }
+
+      const pointsContribution = matchesPlayed > 0 ? pointsScored / (pointsScored + pointsConceded || 1) : 0;
+      const sessionImpactScore = Math.round(
+        ((winRate / 100) * 0.4 + pointsContribution * 0.3 + Math.min(Math.max((opponentDifficultyScore + 5) / 10, 0), 1) * 0.3) * 100
+      );
+
+      res.json({
+        player: {
+          id: profile.id,
+          userId: user.id,
+          fullName: user.fullName,
+          grade: profile.grade,
+          category: profile.category,
+          gender: profile.gender,
+          clubId: club.id,
+          clubName: club.name,
+          profilePictureUrl: user.profilePictureUrl,
+          rankingPoints: profile.rankingPoints,
+          joinedAt: profile.joinedAt,
+        },
+        stats: {
+          matchesPlayed,
+          matchesWon: wins,
+          matchesLost: losses,
+          winRate,
+          pointsScored,
+          pointsConceded,
+          sessionsAttended,
+          totalHoursPlayed: Math.round(totalHoursPlayed * 10) / 10,
+          sessions30d,
+          sessions90d,
+          sessionImpactScore,
+          opponentDifficultyScore: Math.round(opponentDifficultyScore * 100) / 100,
+          uniqueOpponents: opponentIds.size,
+        },
+      });
+    } catch (err: any) {
+      console.error("Player analytics error:", err);
+      res.status(500).json({ message: "Failed to compute player analytics" });
+    }
+  });
+
+  app.get("/api/players/analytics/:playerId/performance-history", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+
+      const playerMatches = await db.select({
+        id: matches.id,
+        sessionId: matches.sessionId,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        completedAt: matches.completedAt,
+        sessionDate: sessions.date,
+        durationMinutes: sessions.durationMinutes,
+      }).from(matches)
+        .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, playerId),
+            eq(matches.teamAPlayer2Id, playerId),
+            eq(matches.teamBPlayer1Id, playerId),
+            eq(matches.teamBPlayer2Id, playerId)
+          )
+        ))
+        .orderBy(sessions.date);
+
+      const GRADE_VALUES: Record<string, number> = { "C3": 1, "C2": 2, "C1": 3, "B3": 4, "B2": 5, "B1": 6, "A3": 7, "A2": 8, "A1": 9 };
+
+      const monthlyData = new Map<string, { wins: number; total: number; hours: number }>();
+      const difficultyPerformance = { higher: { wins: 0, total: 0 }, same: { wins: 0, total: 0 }, lower: { wins: 0, total: 0 } };
+
+      const [playerProfile] = await db.select({ grade: playerProfiles.grade })
+        .from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      const myGradeVal = GRADE_VALUES[playerProfile?.grade || "C3"] || 1;
+
+      const opponentProfileIds = new Set<number>();
+      for (const m of playerMatches) {
+        const isTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
+        const opponents = isTeamA
+          ? [m.teamBPlayer1Id, m.teamBPlayer2Id]
+          : [m.teamAPlayer1Id, m.teamAPlayer2Id];
+        opponents.filter(Boolean).forEach(id => opponentProfileIds.add(id!));
+      }
+
+      const opponentGradeMap = new Map<number, number>();
+      if (opponentProfileIds.size > 0) {
+        const oppProfiles = await db.select({ id: playerProfiles.id, grade: playerProfiles.grade })
+          .from(playerProfiles).where(inArray(playerProfiles.id, Array.from(opponentProfileIds)));
+        for (const op of oppProfiles) {
+          opponentGradeMap.set(op.id, GRADE_VALUES[op.grade || "C3"] || 1);
+        }
+      }
+
+      for (const m of playerMatches) {
+        const date = m.sessionDate || m.completedAt;
+        if (!date) continue;
+        const monthKey = `${new Date(date).getFullYear()}-${String(new Date(date).getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyData.has(monthKey)) monthlyData.set(monthKey, { wins: 0, total: 0, hours: 0 });
+        const monthEntry = monthlyData.get(monthKey)!;
+        monthEntry.total++;
+
+        const isTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
+        const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+        const won = myScore > oppScore;
+        if (won) monthEntry.wins++;
+        monthEntry.hours += (m.durationMinutes || 120) / 60 / 4;
+
+        const opponents = isTeamA
+          ? [m.teamBPlayer1Id, m.teamBPlayer2Id]
+          : [m.teamAPlayer1Id, m.teamAPlayer2Id];
+        const avgOppGrade = opponents.filter(Boolean).reduce((s, id) => s + (opponentGradeMap.get(id!) || myGradeVal), 0) / Math.max(opponents.filter(Boolean).length, 1);
+
+        if (avgOppGrade > myGradeVal + 0.5) {
+          difficultyPerformance.higher.total++;
+          if (won) difficultyPerformance.higher.wins++;
+        } else if (avgOppGrade < myGradeVal - 0.5) {
+          difficultyPerformance.lower.total++;
+          if (won) difficultyPerformance.lower.wins++;
+        } else {
+          difficultyPerformance.same.total++;
+          if (won) difficultyPerformance.same.wins++;
+        }
+      }
+
+      const winRateOverTime = Array.from(monthlyData.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, data]) => ({
+          month,
+          winRate: data.total > 0 ? Math.round((data.wins / data.total) * 100) : 0,
+          matchesPlayed: data.total,
+          hours: Math.round(data.hours * 10) / 10,
+        }));
+
+      const signups = await db.select({
+        sessionDate: sessions.date,
+        durationMinutes: sessions.durationMinutes,
+        attendanceStatus: sessionSignups.attendanceStatus,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(eq(sessionSignups.playerId, playerId), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+
+      const hoursPerMonth = new Map<string, number>();
+      for (const s of signups) {
+        if (!s.sessionDate) continue;
+        const key = `${new Date(s.sessionDate).getFullYear()}-${String(new Date(s.sessionDate).getMonth() + 1).padStart(2, '0')}`;
+        hoursPerMonth.set(key, (hoursPerMonth.get(key) || 0) + (s.durationMinutes || 120) / 60);
+      }
+
+      const hoursOverTime = Array.from(hoursPerMonth.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, hours]) => ({ month, hours: Math.round(hours * 10) / 10 }));
+
+      res.json({
+        winRateOverTime,
+        hoursOverTime,
+        difficultyPerformance: {
+          vsHigher: { ...difficultyPerformance.higher, winRate: difficultyPerformance.higher.total > 0 ? Math.round((difficultyPerformance.higher.wins / difficultyPerformance.higher.total) * 100) : 0 },
+          vsSame: { ...difficultyPerformance.same, winRate: difficultyPerformance.same.total > 0 ? Math.round((difficultyPerformance.same.wins / difficultyPerformance.same.total) * 100) : 0 },
+          vsLower: { ...difficultyPerformance.lower, winRate: difficultyPerformance.lower.total > 0 ? Math.round((difficultyPerformance.lower.wins / difficultyPerformance.lower.total) * 100) : 0 },
+        },
+      });
+    } catch (err: any) {
+      console.error("Performance history error:", err);
+      res.status(500).json({ message: "Failed to compute performance history" });
+    }
+  });
+
+  app.get("/api/players/analytics/:playerId/achievements", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+
+      const earned = await db.select().from(playerAchievements)
+        .where(eq(playerAchievements.playerId, playerId))
+        .orderBy(desc(playerAchievements.earnedAt));
+
+      const completedMatches = await db.select({ count: sql<number>`count(*)` })
+        .from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, playerId),
+            eq(matches.teamAPlayer2Id, playerId),
+            eq(matches.teamBPlayer1Id, playerId),
+            eq(matches.teamBPlayer2Id, playerId)
+          )
+        ));
+      const totalMatches = Number(completedMatches[0]?.count || 0);
+
+      const attendedSessions = await db.select({ count: sql<number>`count(*)` })
+        .from(sessionSignups)
+        .where(and(eq(sessionSignups.playerId, playerId), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+      const totalSessions = Number(attendedSessions[0]?.count || 0);
+
+      const dynamicBadges = [];
+
+      if (totalMatches >= 1) dynamicBadges.push({ type: "MATCHES", name: "First Rally", description: "Played your first match", unlocked: true });
+      if (totalMatches >= 10) dynamicBadges.push({ type: "MATCHES", name: "Getting Started", description: "Played 10 matches", unlocked: true });
+      if (totalMatches >= 50) dynamicBadges.push({ type: "MATCHES", name: "Match Veteran", description: "Played 50 matches", unlocked: true });
+      if (totalMatches >= 100) dynamicBadges.push({ type: "MATCHES", name: "Century Player", description: "Played 100 matches", unlocked: true });
+      if (totalMatches >= 500) dynamicBadges.push({ type: "MATCHES", name: "Legendary Competitor", description: "Played 500 matches", unlocked: true });
+
+      if (totalSessions >= 1) dynamicBadges.push({ type: "ATTENDANCE", name: "Session Debut", description: "Attended your first session", unlocked: true });
+      if (totalSessions >= 10) dynamicBadges.push({ type: "ATTENDANCE", name: "Regular", description: "Attended 10 sessions", unlocked: true });
+      if (totalSessions >= 25) dynamicBadges.push({ type: "ATTENDANCE", name: "Dedicated", description: "Attended 25 sessions", unlocked: true });
+      if (totalSessions >= 50) dynamicBadges.push({ type: "ATTENDANCE", name: "Iron Will", description: "Attended 50 sessions", unlocked: true });
+      if (totalSessions >= 100) dynamicBadges.push({ type: "ATTENDANCE", name: "Session Legend", description: "Attended 100 sessions", unlocked: true });
+
+      const lockedBadges = [];
+      if (totalMatches < 1) lockedBadges.push({ type: "MATCHES", name: "First Rally", description: "Play your first match", unlocked: false, progress: totalMatches, target: 1 });
+      else if (totalMatches < 10) lockedBadges.push({ type: "MATCHES", name: "Getting Started", description: "Play 10 matches", unlocked: false, progress: totalMatches, target: 10 });
+      else if (totalMatches < 50) lockedBadges.push({ type: "MATCHES", name: "Match Veteran", description: "Play 50 matches", unlocked: false, progress: totalMatches, target: 50 });
+      else if (totalMatches < 100) lockedBadges.push({ type: "MATCHES", name: "Century Player", description: "Play 100 matches", unlocked: false, progress: totalMatches, target: 100 });
+      else if (totalMatches < 500) lockedBadges.push({ type: "MATCHES", name: "Legendary Competitor", description: "Play 500 matches", unlocked: false, progress: totalMatches, target: 500 });
+
+      if (totalSessions < 1) lockedBadges.push({ type: "ATTENDANCE", name: "Session Debut", description: "Attend your first session", unlocked: false, progress: totalSessions, target: 1 });
+      else if (totalSessions < 10) lockedBadges.push({ type: "ATTENDANCE", name: "Regular", description: "Attend 10 sessions", unlocked: false, progress: totalSessions, target: 10 });
+      else if (totalSessions < 25) lockedBadges.push({ type: "ATTENDANCE", name: "Dedicated", description: "Attend 25 sessions", unlocked: false, progress: totalSessions, target: 25 });
+      else if (totalSessions < 50) lockedBadges.push({ type: "ATTENDANCE", name: "Iron Will", description: "Attend 50 sessions", unlocked: false, progress: totalSessions, target: 50 });
+      else if (totalSessions < 100) lockedBadges.push({ type: "ATTENDANCE", name: "Session Legend", description: "Attend 100 sessions", unlocked: false, progress: totalSessions, target: 100 });
+
+      res.json({
+        earned,
+        dynamicBadges,
+        lockedBadges,
+        totalMatches,
+        totalSessions,
+      });
+    } catch (err: any) {
+      console.error("Achievements error:", err);
+      res.status(500).json({ message: "Failed to fetch achievements" });
+    }
+  });
+
+  app.get("/api/players/analytics/compare/:player1Id/:player2Id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const player1Id = parseInt(req.params.player1Id);
+      const player2Id = parseInt(req.params.player2Id);
+      if (isNaN(player1Id) || isNaN(player2Id)) return res.status(400).json({ message: "Invalid player IDs" });
+
+      async function getPlayerStats(pid: number) {
+        const profileResult = await db.select({
+          profile: playerProfiles,
+          user: users,
+          club: clubs,
+        }).from(playerProfiles)
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
+          .where(eq(playerProfiles.id, pid))
+          .limit(1);
+
+        if (profileResult.length === 0) return null;
+        const { profile, user, club } = profileResult[0];
+
+        const playerMatches = await db.select({
+          scoreA: matches.scoreA,
+          scoreB: matches.scoreB,
+          teamAPlayer1Id: matches.teamAPlayer1Id,
+          teamAPlayer2Id: matches.teamAPlayer2Id,
+          teamBPlayer1Id: matches.teamBPlayer1Id,
+          teamBPlayer2Id: matches.teamBPlayer2Id,
+        }).from(matches)
+          .where(and(
+            eq(matches.isCompleted, true),
+            or(
+              eq(matches.teamAPlayer1Id, pid),
+              eq(matches.teamAPlayer2Id, pid),
+              eq(matches.teamBPlayer1Id, pid),
+              eq(matches.teamBPlayer2Id, pid)
+            )
+          ));
+
+        let wins = 0, pointsScored = 0, pointsConceded = 0;
+        for (const m of playerMatches) {
+          const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
+          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+          pointsScored += myScore;
+          pointsConceded += oppScore;
+          if (myScore > oppScore) wins++;
+        }
+
+        const sessionsResult = await db.select({ count: sql<number>`count(*)` })
+          .from(sessionSignups)
+          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+        const sessionsAttended = Number(sessionsResult[0]?.count || 0);
+
+        const hoursResult = await db.select({ total: sql<number>`COALESCE(SUM(${sessions.durationMinutes}), 0)` })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+        const totalHours = Number(hoursResult[0]?.total || 0) / 60;
+
+        return {
+          player: {
+            id: profile.id,
+            fullName: user.fullName,
+            grade: profile.grade,
+            category: profile.category,
+            gender: profile.gender,
+            clubName: club.name,
+            profilePictureUrl: user.profilePictureUrl,
+            rankingPoints: profile.rankingPoints,
+          },
+          stats: {
+            matchesPlayed: playerMatches.length,
+            matchesWon: wins,
+            matchesLost: playerMatches.length - wins,
+            winRate: playerMatches.length > 0 ? Math.round((wins / playerMatches.length) * 100) : 0,
+            pointsScored,
+            pointsConceded,
+            sessionsAttended,
+            totalHoursPlayed: Math.round(totalHours * 10) / 10,
+          },
+        };
+      }
+
+      const [stats1, stats2] = await Promise.all([getPlayerStats(player1Id), getPlayerStats(player2Id)]);
+      if (!stats1 || !stats2) return res.status(404).json({ message: "One or both players not found" });
+
+      res.json({ player1: stats1, player2: stats2 });
+    } catch (err: any) {
+      console.error("Compare error:", err);
+      res.status(500).json({ message: "Failed to compare players" });
+    }
+  });
+
+  app.get("/api/players/analytics/head-to-head/:player1Id/:player2Id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const player1Id = parseInt(req.params.player1Id);
+      const player2Id = parseInt(req.params.player2Id);
+      if (isNaN(player1Id) || isNaN(player2Id)) return res.status(400).json({ message: "Invalid player IDs" });
+
+      const h2hMatches = await db.select({
+        id: matches.id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+        completedAt: matches.completedAt,
+        sessionDate: sessions.date,
+        sessionTitle: sessions.title,
+      }).from(matches)
+        .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            and(
+              or(eq(matches.teamAPlayer1Id, player1Id), eq(matches.teamAPlayer2Id, player1Id)),
+              or(eq(matches.teamBPlayer1Id, player2Id), eq(matches.teamBPlayer2Id, player2Id))
+            ),
+            and(
+              or(eq(matches.teamAPlayer1Id, player2Id), eq(matches.teamAPlayer2Id, player2Id)),
+              or(eq(matches.teamBPlayer1Id, player1Id), eq(matches.teamBPlayer2Id, player1Id))
+            )
+          )
+        ))
+        .orderBy(desc(sessions.date));
+
+      let p1Wins = 0, p2Wins = 0;
+      let p1Points = 0, p2Points = 0;
+      const recentResults: any[] = [];
+
+      for (const m of h2hMatches) {
+        const p1IsTeamA = m.teamAPlayer1Id === player1Id || m.teamAPlayer2Id === player1Id;
+        const p1Score = p1IsTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const p2Score = p1IsTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+
+        p1Points += p1Score;
+        p2Points += p2Score;
+
+        if (p1Score > p2Score) p1Wins++;
+        else p2Wins++;
+
+        if (recentResults.length < 10) {
+          recentResults.push({
+            matchId: m.id,
+            date: m.sessionDate || m.completedAt,
+            sessionTitle: m.sessionTitle,
+            player1Score: p1Score,
+            player2Score: p2Score,
+            winner: p1Score > p2Score ? player1Id : player2Id,
+          });
+        }
+      }
+
+      const totalH2H = h2hMatches.length;
+
+      res.json({
+        totalMatches: totalH2H,
+        player1Wins: p1Wins,
+        player2Wins: p2Wins,
+        player1WinRate: totalH2H > 0 ? Math.round((p1Wins / totalH2H) * 100) : 0,
+        player2WinRate: totalH2H > 0 ? Math.round((p2Wins / totalH2H) * 100) : 0,
+        player1TotalPoints: p1Points,
+        player2TotalPoints: p2Points,
+        recentResults,
+      });
+    } catch (err: any) {
+      console.error("H2H error:", err);
+      res.status(500).json({ message: "Failed to compute head-to-head stats" });
+    }
+  });
+
+  app.post("/api/players/avatar", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { avatarStyle } = req.body;
+      const validStyles = ["neutral", "ready", "smash", "defensive", "running", "jumping"];
+      if (!avatarStyle || !validStyles.includes(avatarStyle)) {
+        return res.status(400).json({ message: "Invalid avatar style" });
+      }
+
+      const userId = req.user!.id;
+      const existing = await db.select().from(playerAvatarSelections)
+        .where(eq(playerAvatarSelections.userId, userId)).limit(1);
+
+      if (existing.length > 0) {
+        const [updated] = await db.update(playerAvatarSelections)
+          .set({ avatarStyle: avatarStyle as any })
+          .where(eq(playerAvatarSelections.userId, userId))
+          .returning();
+        return res.json(updated);
+      }
+
+      const [created] = await db.insert(playerAvatarSelections)
+        .values({ userId, avatarStyle: avatarStyle as any })
+        .returning();
+      res.json(created);
+    } catch (err: any) {
+      console.error("Avatar save error:", err);
+      res.status(500).json({ message: "Failed to save avatar" });
+    }
+  });
+
+  app.get("/api/players/avatar/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+
+      const [avatar] = await db.select().from(playerAvatarSelections)
+        .where(eq(playerAvatarSelections.userId, userId)).limit(1);
+
+      res.json(avatar || { userId, avatarStyle: "neutral" });
+    } catch (err: any) {
+      console.error("Avatar fetch error:", err);
+      res.status(500).json({ message: "Failed to fetch avatar" });
+    }
+  });
+
+  app.get("/api/players/analytics/:playerId/ai-style", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      if (isNaN(playerId)) return res.status(400).json({ message: "Invalid player ID" });
+
+      const playerMatches = await db.select({
+        matchId: matches.id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        teamAPlayer1Id: matches.teamAPlayer1Id,
+        teamAPlayer2Id: matches.teamAPlayer2Id,
+        teamBPlayer1Id: matches.teamBPlayer1Id,
+        teamBPlayer2Id: matches.teamBPlayer2Id,
+        isCompleted: matches.isCompleted,
+      }).from(matches)
+        .where(
+          and(
+            eq(matches.isCompleted, true),
+            or(
+              eq(matches.teamAPlayer1Id, playerId),
+              eq(matches.teamAPlayer2Id, playerId),
+              eq(matches.teamBPlayer1Id, playerId),
+              eq(matches.teamBPlayer2Id, playerId)
+            )
+          )
+        )
+        .limit(50);
+
+      if (playerMatches.length < 3) {
+        return res.json({ style: "Unknown", explanation: "Not enough match data to determine playing style. Play at least 3 matches." });
+      }
+
+      let wins = 0, losses = 0, totalScored = 0, totalConceded = 0, closeGames = 0;
+      for (const m of playerMatches) {
+        const onTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
+        const sA = m.scoreA || 0;
+        const sB = m.scoreB || 0;
+        const won = onTeamA ? sA > sB : sB > sA;
+        const scored = onTeamA ? sA : sB;
+        const conceded = onTeamA ? sB : sA;
+        if (won) wins++; else losses++;
+        totalScored += scored;
+        totalConceded += conceded;
+        if (Math.abs(scored - conceded) <= 3) closeGames++;
+      }
+
+      const prompt = `Analyze this badminton player's style based on their match statistics:
+- Matches: ${playerMatches.length} (${wins} wins, ${losses} losses)
+- Win rate: ${Math.round((wins / playerMatches.length) * 100)}%
+- Points scored: ${totalScored}, conceded: ${totalConceded}
+- Average points per match: ${(totalScored / playerMatches.length).toFixed(1)} scored, ${(totalConceded / playerMatches.length).toFixed(1)} conceded
+- Close games (within 3 points): ${closeGames} out of ${playerMatches.length}
+
+Classify as ONE of: Attacking, Defensive, Tactical, Balanced, Power, Control.
+Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengths and areas to improve>"}`;
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 200,
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || '{"style":"Balanced","explanation":"Balanced all-round player."}');
+      res.json(result);
+    } catch (err: any) {
+      console.error("AI style analysis error:", err);
+      res.json({ style: "Balanced", explanation: "Unable to perform AI analysis at this time." });
     }
   });
 

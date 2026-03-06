@@ -83,6 +83,7 @@ const InactiveMembers = lazy(() => import("@/pages/admin/InactiveMembers"));
 const AllRankings = lazy(() => import("@/pages/AllRankings"));
 const PlayerRankings = lazy(() => import("@/pages/PlayerRankings"));
 const LeaguePage = lazy(() => import("@/pages/League"));
+const PlayerIntelligence = lazy(() => import("@/pages/PlayerIntelligence"));
 const Juniors = lazy(() => import("@/pages/Juniors"));
 const JuniorDashboard = lazy(() => import("@/pages/JuniorDashboard"));
 const CoachJuniorSkillsDashboard = lazy(() => import("@/pages/coach/CoachJuniorSkillsDashboard"));
@@ -405,6 +406,9 @@ function Router() {
       </Route>
       <Route path="/rankings">
         <PrivateRoute component={PlayerRankings} />
+      </Route>
+      <Route path="/player-intelligence">
+        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><PlayerIntelligence /></Suspense>} />
       </Route>
       <Route path="/all-rankings">
         <StrictAdminRoute component={AllRankings} />

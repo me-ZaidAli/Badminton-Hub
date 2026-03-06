@@ -2082,3 +2082,103 @@ export type InsertCard = z.infer<typeof insertCardSchema>;
 export const insertUserCardSchema = createInsertSchema(userCards).omit({ id: true, issuedAt: true });
 export type UserCardRecord = typeof userCards.$inferSelect;
 export type InsertUserCard = z.infer<typeof insertUserCardSchema>;
+
+// === PLAYER INTELLIGENCE & ANALYTICS SYSTEM ===
+
+export const avatarStyleEnum = pgEnum("avatar_style", ["neutral", "ready", "smash", "defensive", "running", "jumping"]);
+export const skillReviewStatusEnum = pgEnum("skill_review_status", ["PENDING", "ACCEPTED", "COMPLETED", "CANCELLED"]);
+
+export const playerAvatarSelections = pgTable("player_avatar_selections", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  avatarStyle: avatarStyleEnum("avatar_style").default("neutral").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const playerSkillCategories = pgTable("player_skill_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  iconName: text("icon_name"),
+  clubId: integer("club_id").references(() => clubs.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const playerSkills = pgTable("player_skills", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").references(() => playerSkillCategories.id).notNull(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const playerSkillReviewRequests = pgTable("player_skill_review_requests", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  status: skillReviewStatusEnum("status").default("PENDING").notNull(),
+  paymentMethod: text("payment_method"),
+  paymentConfirmed: boolean("payment_confirmed").default(false).notNull(),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  completedAt: timestamp("completed_at"),
+  acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+});
+
+export const playerSkillEvaluations = pgTable("player_skill_evaluations", {
+  id: serial("id").primaryKey(),
+  reviewRequestId: integer("review_request_id").references(() => playerSkillReviewRequests.id).notNull(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  skillId: integer("skill_id").references(() => playerSkills.id).notNull(),
+  rating: integer("rating").default(0).notNull(),
+  comment: text("comment"),
+  evaluatedByUserId: integer("evaluated_by_user_id").references(() => users.id).notNull(),
+  evaluatedAt: timestamp("evaluated_at").defaultNow().notNull(),
+});
+
+export const playerAchievements = pgTable("player_achievements_record", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  achievementType: text("achievement_type").notNull(),
+  achievementName: text("achievement_name").notNull(),
+  description: text("description"),
+  earnedAt: timestamp("earned_at").defaultNow().notNull(),
+});
+
+export const playerCoachNotes = pgTable("player_coach_notes", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  note: text("note").notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPlayerAvatarSchema = createInsertSchema(playerAvatarSelections).omit({ id: true, createdAt: true });
+export type PlayerAvatarSelection = typeof playerAvatarSelections.$inferSelect;
+export type InsertPlayerAvatar = z.infer<typeof insertPlayerAvatarSchema>;
+
+export const insertPlayerSkillCategorySchema = createInsertSchema(playerSkillCategories).omit({ id: true, createdAt: true });
+export type PlayerSkillCategory = typeof playerSkillCategories.$inferSelect;
+export type InsertPlayerSkillCategory = z.infer<typeof insertPlayerSkillCategorySchema>;
+
+export const insertPlayerSkillSchema = createInsertSchema(playerSkills).omit({ id: true, createdAt: true });
+export type PlayerSkill = typeof playerSkills.$inferSelect;
+export type InsertPlayerSkill = z.infer<typeof insertPlayerSkillSchema>;
+
+export const insertPlayerSkillReviewRequestSchema = createInsertSchema(playerSkillReviewRequests).omit({ id: true, requestedAt: true, acceptedAt: true, completedAt: true });
+export type PlayerSkillReviewRequest = typeof playerSkillReviewRequests.$inferSelect;
+export type InsertPlayerSkillReviewRequest = z.infer<typeof insertPlayerSkillReviewRequestSchema>;
+
+export const insertPlayerSkillEvaluationSchema = createInsertSchema(playerSkillEvaluations).omit({ id: true, evaluatedAt: true });
+export type PlayerSkillEvaluation = typeof playerSkillEvaluations.$inferSelect;
+export type InsertPlayerSkillEvaluation = z.infer<typeof insertPlayerSkillEvaluationSchema>;
+
+export const insertPlayerAchievementSchema = createInsertSchema(playerAchievements).omit({ id: true, earnedAt: true });
+export type PlayerAchievementRecord = typeof playerAchievements.$inferSelect;
+export type InsertPlayerAchievement = z.infer<typeof insertPlayerAchievementSchema>;
+
+export const insertPlayerCoachNoteSchema = createInsertSchema(playerCoachNotes).omit({ id: true, createdAt: true });
+export type PlayerCoachNote = typeof playerCoachNotes.$inferSelect;
+export type InsertPlayerCoachNote = z.infer<typeof insertPlayerCoachNoteSchema>;
