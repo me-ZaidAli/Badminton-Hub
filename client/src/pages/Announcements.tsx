@@ -17,7 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from "date-fns";
 import {
   Megaphone, Plus, Archive, ArchiveRestore, Trash2, Pencil, Image as ImageIcon,
-  Link as LinkIcon, Loader2, ExternalLink, Calendar, User, Building2, Eye
+  Link as LinkIcon, Loader2, ExternalLink, Calendar, User, Building2, Eye,
+  MessageCircle, SmilePlus, Send, Reply, ChevronDown, ChevronUp, X
 } from "lucide-react";
 
 interface AnnouncementWithAuthor {
@@ -32,6 +33,22 @@ interface AnnouncementWithAuthor {
   authorId: number;
   createdAt: string;
   author: { id: number; fullName: string; role: string; profilePictureUrl?: string };
+}
+
+interface ReactionGroup {
+  emoji: string;
+  count: number;
+  userIds: number[];
+}
+
+interface CommentWithUser {
+  id: number;
+  announcementId: number;
+  userId: number;
+  content: string;
+  parentId: number | null;
+  createdAt: string;
+  user: { id: number; fullName: string; profilePictureUrl: string | null };
 }
 
 export default function Announcements() {
@@ -159,6 +176,7 @@ export default function Announcements() {
               onEdit={() => setEditingAnnouncement(announcement)}
               onDelete={() => setDeleteTarget(announcement.id)}
               archiving={archiveMutation.isPending}
+              userId={user?.id}
             />
           ))}
         </div>
@@ -194,8 +212,10 @@ export default function Announcements() {
   );
 }
 
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "👏", "🔥"];
+
 function AnnouncementCard({
-  announcement, isAdmin, isArchived, clubs, onArchive, onUnarchive, onEdit, onDelete, archiving
+  announcement, isAdmin, isArchived, clubs, onArchive, onUnarchive, onEdit, onDelete, archiving, userId
 }: {
   announcement: AnnouncementWithAuthor;
   isAdmin: boolean;
@@ -206,8 +226,39 @@ function AnnouncementCard({
   onEdit: () => void;
   onDelete: () => void;
   archiving: boolean;
+  userId: number | undefined;
 }) {
   const clubName = announcement.clubId ? clubs?.find(c => c.id === announcement.clubId)?.name : null;
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+
+  const { data: reactions } = useQuery<ReactionGroup[]>({
+    queryKey: ["/api/announcements", announcement.id, "reactions"],
+    queryFn: async () => {
+      const res = await fetch(`/api/announcements/${announcement.id}/reactions`);
+      return res.json();
+    },
+  });
+
+  const { data: comments } = useQuery<CommentWithUser[]>({
+    queryKey: ["/api/announcements", announcement.id, "comments"],
+    queryFn: async () => {
+      const res = await fetch(`/api/announcements/${announcement.id}/comments`);
+      return res.json();
+    },
+  });
+
+  const reactionMutation = useMutation({
+    mutationFn: async (emoji: string) => {
+      await apiRequest("POST", `/api/announcements/${announcement.id}/reactions`, { emoji });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements", announcement.id, "reactions"] });
+    },
+  });
+
+  const commentCount = comments?.length || 0;
+  const totalReactions = (reactions || []).reduce((sum, r) => sum + r.count, 0);
 
   return (
     <Card className="overflow-visible" data-testid={`announcement-card-${announcement.id}`}>
@@ -292,10 +343,263 @@ function AnnouncementCard({
                 </a>
               </div>
             )}
+
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(reactions || []).map((r) => (
+                  <button
+                    key={r.emoji}
+                    onClick={() => userId && reactionMutation.mutate(r.emoji)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                      userId && r.userIds.includes(userId)
+                        ? "bg-primary/10 border-primary/30 text-primary"
+                        : "bg-muted/50 border-border/40 text-muted-foreground hover:bg-muted"
+                    }`}
+                    data-testid={`reaction-${r.emoji}-${announcement.id}`}
+                  >
+                    <span>{r.emoji}</span>
+                    <span>{r.count}</span>
+                  </button>
+                ))}
+
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 rounded-full text-muted-foreground"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    data-testid={`button-add-reaction-${announcement.id}`}
+                  >
+                    <SmilePlus className="h-3.5 w-3.5" />
+                  </Button>
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-full left-0 mb-1 bg-popover border border-border rounded-lg shadow-lg p-1.5 flex items-center gap-0.5 z-20">
+                      {REACTION_EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => {
+                            if (userId) reactionMutation.mutate(emoji);
+                            setShowEmojiPicker(false);
+                          }}
+                          className="hover:bg-muted rounded p-1 text-base transition-colors"
+                          data-testid={`emoji-pick-${emoji}-${announcement.id}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1" />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs text-muted-foreground px-2"
+                  onClick={() => setCommentsOpen(!commentsOpen)}
+                  data-testid={`button-toggle-comments-${announcement.id}`}
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {commentCount > 0 && <span>{commentCount}</span>}
+                  {commentsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </Button>
+              </div>
+            </div>
+
+            {commentsOpen && (
+              <CommentsSection
+                announcementId={announcement.id}
+                comments={comments || []}
+                userId={userId}
+                isAdmin={isAdmin}
+              />
+            )}
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function CommentsSection({
+  announcementId, comments, userId, isAdmin
+}: {
+  announcementId: number;
+  comments: CommentWithUser[];
+  userId: number | undefined;
+  isAdmin: boolean;
+}) {
+  const { toast } = useToast();
+  const [newComment, setNewComment] = useState("");
+  const [replyTo, setReplyTo] = useState<{ id: number; userName: string } | null>(null);
+
+  const addCommentMutation = useMutation({
+    mutationFn: async ({ content, parentId }: { content: string; parentId: number | null }) => {
+      await apiRequest("POST", `/api/announcements/${announcementId}/comments`, { content, parentId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements", announcementId, "comments"] });
+      setNewComment("");
+      setReplyTo(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to post comment", variant: "destructive" });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId: number) => {
+      await apiRequest("DELETE", `/api/announcements/comments/${commentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements", announcementId, "comments"] });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!newComment.trim() || !userId) return;
+    addCommentMutation.mutate({ content: newComment.trim(), parentId: replyTo?.id || null });
+  };
+
+  const topLevelComments = comments.filter(c => !c.parentId);
+  const repliesMap = new Map<number, CommentWithUser[]>();
+  for (const c of comments) {
+    if (c.parentId) {
+      if (!repliesMap.has(c.parentId)) repliesMap.set(c.parentId, []);
+      repliesMap.get(c.parentId)!.push(c);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-3" data-testid={`comments-section-${announcementId}`}>
+      {topLevelComments.length > 0 && (
+        <div className="space-y-2">
+          {topLevelComments.map((comment) => (
+            <CommentItem
+              key={comment.id}
+              comment={comment}
+              replies={repliesMap.get(comment.id) || []}
+              userId={userId}
+              isAdmin={isAdmin}
+              onReply={(id, name) => setReplyTo({ id, userName: name })}
+              onDelete={(id) => deleteCommentMutation.mutate(id)}
+              announcementId={announcementId}
+              repliesMap={repliesMap}
+            />
+          ))}
+        </div>
+      )}
+
+      {userId && (
+        <div className="space-y-2">
+          {replyTo && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-1.5">
+              <Reply className="h-3 w-3" />
+              <span>Replying to <strong>{replyTo.userName}</strong></span>
+              <button onClick={() => setReplyTo(null)} className="ml-auto"><X className="h-3 w-3" /></button>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Avatar className="h-7 w-7 shrink-0">
+              <AvatarFallback className="text-[10px]">You</AvatarFallback>
+            </Avatar>
+            <Input
+              placeholder={replyTo ? `Reply to ${replyTo.userName}...` : "Write a comment..."}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+              className="h-8 text-sm"
+              data-testid={`input-comment-${announcementId}`}
+            />
+            <Button
+              size="sm"
+              className="h-8 px-3 shrink-0"
+              onClick={handleSubmit}
+              disabled={!newComment.trim() || addCommentMutation.isPending}
+              data-testid={`button-send-comment-${announcementId}`}
+            >
+              {addCommentMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentItem({
+  comment, replies, userId, isAdmin, onReply, onDelete, announcementId, repliesMap, depth = 0
+}: {
+  comment: CommentWithUser;
+  replies: CommentWithUser[];
+  userId: number | undefined;
+  isAdmin: boolean;
+  onReply: (id: number, name: string) => void;
+  onDelete: (id: number) => void;
+  announcementId: number;
+  repliesMap: Map<number, CommentWithUser[]>;
+  depth?: number;
+}) {
+  const canDelete = userId === comment.userId || isAdmin;
+  const initials = comment.user.fullName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  return (
+    <div className={depth > 0 ? "ml-6 sm:ml-8" : ""}>
+      <div className="flex items-start gap-2 group" data-testid={`comment-${comment.id}`}>
+        <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+          <AvatarFallback className="text-[9px] bg-muted">{initials}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="bg-muted/40 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold" data-testid={`text-comment-author-${comment.id}`}>{comment.user.fullName}</span>
+              <span className="text-[10px] text-muted-foreground">{format(new Date(comment.createdAt), "MMM d, h:mm a")}</span>
+            </div>
+            <p className="text-sm mt-0.5 whitespace-pre-wrap" data-testid={`text-comment-content-${comment.id}`}>{comment.content}</p>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 ml-1">
+            {userId && (
+              <button
+                onClick={() => onReply(comment.id, comment.user.fullName)}
+                className="text-[11px] text-muted-foreground hover:text-foreground font-medium"
+                data-testid={`button-reply-${comment.id}`}
+              >
+                Reply
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => onDelete(comment.id)}
+                className="text-[11px] text-muted-foreground hover:text-red-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                data-testid={`button-delete-comment-${comment.id}`}
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {replies.length > 0 && (
+        <div className="mt-1.5 space-y-1.5">
+          {replies.map((reply) => (
+            <CommentItem
+              key={reply.id}
+              comment={reply}
+              replies={repliesMap.get(reply.id) || []}
+              userId={userId}
+              isAdmin={isAdmin}
+              onReply={onReply}
+              onDelete={onDelete}
+              announcementId={announcementId}
+              repliesMap={repliesMap}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -635,6 +635,24 @@ export const announcementArchives = pgTable("announcement_archives", {
   archivedAt: timestamp("archived_at").defaultNow().notNull(),
 });
 
+// === ANNOUNCEMENT REACTIONS & COMMENTS ===
+export const announcementReactions = pgTable("announcement_reactions", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").references(() => announcements.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  emoji: text("emoji").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const announcementComments = pgTable("announcement_comments", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").references(() => announcements.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  parentId: integer("parent_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === INTERNAL MESSAGES ===
 export const internalMessages = pgTable("internal_messages", {
   id: serial("id").primaryKey(),
@@ -854,6 +872,8 @@ export type SessionSignup = typeof sessionSignups.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type AnnouncementArchive = typeof announcementArchives.$inferSelect;
+export type AnnouncementReaction = typeof announcementReactions.$inferSelect;
+export type AnnouncementComment = typeof announcementComments.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentCategory = typeof tournamentCategories.$inferSelect;

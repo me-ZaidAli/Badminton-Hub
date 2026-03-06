@@ -45,6 +45,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection for unhiding.
 - **Premium Recognition Cards System**: Admin-gifted recognition cards (12 types, 5 rarity levels) with 3D flippable cards, Premium Wallet display, and full-screen carousel viewer. Specific cards unlock exclusive theme tiers.
 - **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with up to 4 customizable shortcut icons and a "More" button opening a full menu sheet.
+- **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions (toggle on/off, visible counts on cards) and leave threaded comments with reply support. Comments expand/collapse via a comment icon on the card. Admins and comment owners can delete comments (with cascading reply deletion). Tables: `announcement_reactions`, `announcement_comments`.
 
 ## External Dependencies
 

@@ -1,6 +1,6 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, announcements, announcementArchives, memberships, clubs, venues,
+  users, playerProfiles, sessions, sessionSignups, matches, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   creditLedger, inventoryMovements,
@@ -14,7 +14,8 @@ import {
   type Coach, type InsertCoach, type CoachSeekerMembership, type InsertCoachSeekerMembership,
   type Review, type InsertReview, type ContactMessage, type InsertContactMessage,
   type Notification, type InsertNotification,
-  type PolicyAcceptance, type InsertPolicyAcceptance
+  type PolicyAcceptance, type InsertPolicyAcceptance,
+  type AnnouncementComment
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -91,6 +92,11 @@ export interface IStorage {
   getArchivedAnnouncementIds(userId: number): Promise<number[]>;
   archiveAnnouncement(announcementId: number, userId: number): Promise<void>;
   unarchiveAnnouncement(announcementId: number, userId: number): Promise<void>;
+  getAnnouncementReactions(announcementId: number): Promise<{ emoji: string; count: number; userIds: number[] }[]>;
+  toggleAnnouncementReaction(announcementId: number, userId: number, emoji: string): Promise<void>;
+  getAnnouncementComments(announcementId: number): Promise<(AnnouncementComment & { user: { id: number; fullName: string; profilePictureUrl: string | null } })[]>;
+  createAnnouncementComment(data: { announcementId: number; userId: number; content: string; parentId: number | null }): Promise<AnnouncementComment>;
+  deleteAnnouncementComment(id: number): Promise<void>;
 
   // Admin
   getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]>;
@@ -756,6 +762,64 @@ export class DatabaseStorage implements IStorage {
     await db.delete(announcementArchives).where(
       and(eq(announcementArchives.announcementId, announcementId), eq(announcementArchives.userId, userId))
     );
+  }
+
+  async getAnnouncementReactions(announcementId: number): Promise<{ emoji: string; count: number; userIds: number[] }[]> {
+    const rows = await db.select({
+      emoji: announcementReactions.emoji,
+      userId: announcementReactions.userId,
+    }).from(announcementReactions).where(eq(announcementReactions.announcementId, announcementId));
+    const map = new Map<string, number[]>();
+    for (const r of rows) {
+      if (!map.has(r.emoji)) map.set(r.emoji, []);
+      map.get(r.emoji)!.push(r.userId);
+    }
+    return Array.from(map.entries()).map(([emoji, userIds]) => ({ emoji, count: userIds.length, userIds }));
+  }
+
+  async toggleAnnouncementReaction(announcementId: number, userId: number, emoji: string): Promise<void> {
+    const existing = await db.select().from(announcementReactions).where(
+      and(eq(announcementReactions.announcementId, announcementId), eq(announcementReactions.userId, userId), eq(announcementReactions.emoji, emoji))
+    ).limit(1);
+    if (existing.length > 0) {
+      await db.delete(announcementReactions).where(eq(announcementReactions.id, existing[0].id));
+    } else {
+      await db.insert(announcementReactions).values({ announcementId, userId, emoji });
+    }
+  }
+
+  async getAnnouncementComments(announcementId: number): Promise<(AnnouncementComment & { user: { id: number; fullName: string; profilePictureUrl: string | null } })[]> {
+    const rows = await db.select({
+      id: announcementComments.id,
+      announcementId: announcementComments.announcementId,
+      userId: announcementComments.userId,
+      content: announcementComments.content,
+      parentId: announcementComments.parentId,
+      createdAt: announcementComments.createdAt,
+      userFullName: users.fullName,
+      userProfilePictureUrl: users.profilePictureUrl,
+    }).from(announcementComments)
+      .innerJoin(users, eq(announcementComments.userId, users.id))
+      .where(eq(announcementComments.announcementId, announcementId))
+      .orderBy(asc(announcementComments.createdAt));
+    return rows.map(r => ({
+      id: r.id,
+      announcementId: r.announcementId,
+      userId: r.userId,
+      content: r.content,
+      parentId: r.parentId,
+      createdAt: r.createdAt,
+      user: { id: r.userId, fullName: r.userFullName, profilePictureUrl: r.userProfilePictureUrl },
+    }));
+  }
+
+  async createAnnouncementComment(data: { announcementId: number; userId: number; content: string; parentId: number | null }): Promise<AnnouncementComment> {
+    const [comment] = await db.insert(announcementComments).values(data).returning();
+    return comment;
+  }
+
+  async deleteAnnouncementComment(id: number): Promise<void> {
+    await db.delete(announcementComments).where(eq(announcementComments.id, id));
   }
 
   async getAllSignups(): Promise<(SessionSignup & { player: PlayerProfile & { user: User }, session: Session })[]> {

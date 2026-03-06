@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -5544,6 +5544,55 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const id = parseInt(req.params.id);
     await storage.unarchiveAnnouncement(id, req.user!.id);
+    res.sendStatus(204);
+  });
+
+  app.get("/api/announcements/:id/reactions", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const reactions = await storage.getAnnouncementReactions(id);
+    res.json(reactions);
+  });
+
+  app.post("/api/announcements/:id/reactions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = parseInt(req.params.id);
+    const { emoji } = req.body;
+    if (!emoji || typeof emoji !== "string") return res.status(400).json({ message: "emoji required" });
+    await storage.toggleAnnouncementReaction(id, req.user!.id, emoji);
+    const reactions = await storage.getAnnouncementReactions(id);
+    res.json(reactions);
+  });
+
+  app.get("/api/announcements/:id/comments", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const comments = await storage.getAnnouncementComments(id);
+    res.json(comments);
+  });
+
+  app.post("/api/announcements/:id/comments", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = parseInt(req.params.id);
+    const { content, parentId } = req.body;
+    if (!content || typeof content !== "string" || !content.trim()) return res.status(400).json({ message: "content required" });
+    const comment = await storage.createAnnouncementComment({
+      announcementId: id,
+      userId: req.user!.id,
+      content: content.trim(),
+      parentId: parentId ? parseInt(parentId) : null,
+    });
+    res.status(201).json(comment);
+  });
+
+  app.delete("/api/announcements/comments/:commentId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const commentId = parseInt(req.params.commentId);
+    const [comment] = await db.select({ userId: announcementComments.userId }).from(announcementComments).where(eq(announcementComments.id, commentId)).limit(1);
+    if (!comment) return res.sendStatus(404);
+    if (comment.userId !== req.user!.id && !["OWNER", "ADMIN"].includes(req.user!.role)) {
+      return res.sendStatus(403);
+    }
+    await db.delete(announcementComments).where(eq(announcementComments.parentId, commentId));
+    await storage.deleteAnnouncementComment(commentId);
     res.sendStatus(204);
   });
 
