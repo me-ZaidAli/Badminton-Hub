@@ -3,6 +3,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
+import { useMyAdminClubs } from "@/hooks/use-clubs";
+import { useUpdateSession } from "@/hooks/use-sessions";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2075,7 +2077,14 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
 function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: { juniors: any[] | undefined; selectedChildId: number | null; setSelectedChildId: (id: number | null) => void }) {
   const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/sessions"] });
   const { data: user } = useUser();
+  const { data: adminClubs } = useMyAdminClubs();
+  const { toast } = useToast();
   const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past">("upcoming");
+  const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
+
+  const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const managedClubIds = useMemo(() => new Set(adminClubs?.map((c: any) => c.id) || []), [adminClubs]);
+  const isAdmin = isPlatformAdmin || managedClubIds.size > 0;
 
   const activeChildId = selectedChildId || (juniors && juniors.length === 1 ? juniors[0].id : null);
 
@@ -2084,12 +2093,72 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
     enabled: !!activeChildId && sessionsTab === "past",
   });
 
+  const deleteSingleMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("DELETE", `/api/sessions/${sessionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Session Deleted", description: "The session has been deleted." });
+      setDeleteSession(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteRecurringMutation = useMutation({
+    mutationFn: async ({ recurringEventId, fromDate }: { recurringEventId: number; fromDate?: string }) => {
+      const url = fromDate
+        ? `/api/recurring-events/${recurringEventId}?fromDate=${encodeURIComponent(fromDate)}`
+        : `/api/recurring-events/${recurringEventId}`;
+      const res = await apiRequest("DELETE", url);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Sessions Deleted", description: data.message });
+      setDeleteSession(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const publishNowMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      await apiRequest("PATCH", `/api/sessions/${sessionId}`, { publishAt: null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Published", description: "Session is now open for signups." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const juniorSessions = useMemo(() => {
     if (!sessions) return [];
     return sessions
       .filter((s: any) => s.sessionType === "JUNIORS_ONLY" && s.status !== "CANCELLED")
+      .filter((s: any) => {
+        const isScheduled = s.publishAt && new Date(s.publishAt) > new Date();
+        return !isScheduled;
+      })
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [sessions]);
+
+  const scheduledJuniorSessions = useMemo(() => {
+    if (!sessions || !isAdmin) return [];
+    return sessions
+      .filter((s: any) => s.sessionType === "JUNIORS_ONLY" && s.status !== "CANCELLED")
+      .filter((s: any) => {
+        const isScheduled = s.publishAt && new Date(s.publishAt) > new Date();
+        return isScheduled && (isPlatformAdmin || managedClubIds.has(s.clubId));
+      })
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [sessions, isAdmin, isPlatformAdmin, managedClubIds]);
 
   const upcomingSessions = useMemo(() => juniorSessions.filter((s: any) => s.status !== "COMPLETED"), [juniorSessions]);
 
@@ -2141,6 +2210,66 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
           </Button>
         ))}
       </div>
+
+      {sessionsTab === "upcoming" && isAdmin && scheduledJuniorSessions.length > 0 && (
+        <div className="space-y-3 mb-6" data-testid="section-scheduled-junior-sessions">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <h4 className="font-semibold text-sm">Scheduled Sessions</h4>
+            <Badge variant="secondary" className="text-xs">{scheduledJuniorSessions.length}</Badge>
+            <span className="text-xs text-muted-foreground">Only visible to admins</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {scheduledJuniorSessions.map((session: any) => (
+              <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-junior-${session.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{session.title}</h4>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
+                      </div>
+                      {session.startTime && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          <Clock className="h-3 w-3" />
+                          <span>{session.startTime}</span>
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Opens {format(new Date(session.publishAt), "MMM d")}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
+                      onClick={() => publishNowMutation.mutate(session.id)}
+                      disabled={publishNowMutation.isPending}
+                      data-testid={`button-publish-junior-${session.id}`}
+                    >
+                      <Send className="h-3 w-3 mr-1" />
+                      Publish Now
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
+                      data-testid={`button-delete-scheduled-junior-${session.id}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sessionsTab === "upcoming" && (
         <>
@@ -2196,11 +2325,24 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                         </div>
                       )}
                       {user && (
-                        <Link href={`/sessions/${session.id}`}>
-                          <Button size="sm" className="mt-3 w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
-                            View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                          </Button>
-                        </Link>
+                        <div className="flex items-center gap-2 mt-3">
+                          <Link href={`/sessions/${session.id}`} className="flex-1">
+                            <Button size="sm" className="w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
+                              View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                            </Button>
+                          </Link>
+                          {isAdmin && (isPlatformAdmin || managedClubIds.has(session.clubId)) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
+                              data-testid={`button-delete-junior-session-${session.id}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -2325,6 +2467,54 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
           )}
         </div>
       )}
+
+      <Dialog open={!!deleteSession} onOpenChange={(open) => { if (!open) setDeleteSession(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Session</DialogTitle>
+            <DialogDescription>
+              {deleteSession?.recurringEventId
+                ? "This session is part of a recurring series. Choose how to delete:"
+                : "Are you sure you want to delete this session? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteSession(null)} data-testid="button-cancel-junior-delete">Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteSession && deleteSingleMutation.mutate(deleteSession.id)}
+              disabled={deleteSingleMutation.isPending || deleteRecurringMutation.isPending}
+              data-testid="button-delete-junior-this"
+            >
+              {deleteSingleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {deleteSession?.recurringEventId ? "Delete This Session Only" : "Delete Session"}
+            </Button>
+            {deleteSession?.recurringEventId && (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId, fromDate: deleteSession.date || undefined })}
+                  disabled={deleteRecurringMutation.isPending || deleteSingleMutation.isPending}
+                  data-testid="button-delete-junior-future"
+                >
+                  {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Delete This & Future Sessions
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="bg-red-700 hover:bg-red-800"
+                  onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId })}
+                  disabled={deleteRecurringMutation.isPending || deleteSingleMutation.isPending}
+                  data-testid="button-delete-junior-series"
+                >
+                  {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Delete Entire Series
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

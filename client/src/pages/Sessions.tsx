@@ -627,8 +627,31 @@ export default function Sessions() {
       const q = searchQuery.toLowerCase();
       result = result.filter(s => s.title.toLowerCase().includes(q));
     }
+    result = result.filter(s => {
+      const isScheduled = (s as any).publishAt && new Date((s as any).publishAt) > new Date();
+      if (isScheduled) return false;
+      return true;
+    });
     return result;
   }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin]);
+
+  const scheduledSessions = useMemo(() => {
+    let result = sessions;
+    if (!result) return [];
+    result = result.filter(s => (s as any).sessionType !== "JUNIORS_ONLY");
+    result = result.filter(s => {
+      const isScheduled = (s as any).publishAt && new Date((s as any).publishAt) > new Date();
+      return isScheduled && (isPlatformAdmin || managedClubIds.has(s.clubId));
+    });
+    if (selectedClubId !== "all") {
+      result = result.filter(s => s.clubId === Number(selectedClubId));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => s.title.toLowerCase().includes(q));
+    }
+    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [sessions, selectedClubId, searchQuery, managedClubIds, isPlatformAdmin]);
 
   const now = useMemo(() => {
     const d = new Date();
@@ -841,6 +864,83 @@ export default function Sessions() {
           </Button>
         </div>
       </div>
+
+      {canManageSessions && scheduledSessions.length > 0 && (
+        <div className="space-y-3" data-testid="section-scheduled-sessions">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <h3 className="font-semibold text-sm">Scheduled Sessions</h3>
+            <Badge variant="secondary" className="text-xs">{scheduledSessions.length}</Badge>
+            <span className="text-xs text-muted-foreground">Only visible to admins</span>
+          </div>
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {scheduledSessions.map((session) => (
+              <Card key={session.id} className="border-amber-200/50 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/10" data-testid={`card-scheduled-session-${session.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{session.title}</h4>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span>{format(new Date(session.date), "EEE, d MMM yyyy")}</span>
+                      </div>
+                      {session.startTime && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <span>{session.startTime}</span>
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 flex-shrink-0">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Opens {format(new Date((session as any).publishAt), "MMM d")}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {session.maxPlayers} max
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <CircleDot className="h-3 w-3" />
+                      {session.courtsAvailable} courts
+                    </span>
+                    {session.sessionFee != null && (
+                      <span className="flex items-center gap-1">
+                        <PoundSterling className="h-3 w-3" />
+                        £{(session.sessionFee / 100).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900"
+                      onClick={() => publishNowMutation.mutate(session.id)}
+                      disabled={publishNowMutation.isPending}
+                      data-testid={`button-publish-now-${session.id}`}
+                    >
+                      <Send className="h-3 w-3 mr-1" />
+                      Publish Now
+                    </Button>
+                    <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      onClick={() => setDeleteSession({ id: session.id, recurringEventId: (session as any).recurringEventId || null, date: session.date || null })}
+                      data-testid={`button-delete-scheduled-${session.id}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
@@ -1240,7 +1340,7 @@ export default function Sessions() {
                 : "Are you sure you want to delete this session? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteSession(null)} data-testid="button-cancel-delete">Cancel</Button>
             <Button
               variant="destructive"
@@ -1252,17 +1352,29 @@ export default function Sessions() {
               {deleteSession?.recurringEventId ? "Delete This Session Only" : "Delete Session"}
             </Button>
             {deleteSession?.recurringEventId && (
-              <Button
-                variant="destructive"
-                onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId, fromDate: deleteSession.date || undefined })}
-                disabled={deleteRecurringMutation.isPending || deleteSingleSessionMutation.isPending}
-                data-testid="button-delete-future-recurring"
-              >
-                {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Delete This & Future Sessions
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId, fromDate: deleteSession.date || undefined })}
+                  disabled={deleteRecurringMutation.isPending || deleteSingleSessionMutation.isPending}
+                  data-testid="button-delete-future-recurring"
+                >
+                  {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Delete This & Future Sessions
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="bg-red-700 hover:bg-red-800"
+                  onClick={() => deleteSession.recurringEventId && deleteRecurringMutation.mutate({ recurringEventId: deleteSession.recurringEventId })}
+                  disabled={deleteRecurringMutation.isPending || deleteSingleSessionMutation.isPending}
+                  data-testid="button-delete-entire-series"
+                >
+                  {deleteRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Delete Entire Series
+                </Button>
+              </>
             )}
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2391,6 +2503,23 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
   const [editWeeksBefore, setEditWeeksBefore] = useState(1);
+  const [showSeriesConfirm, setShowSeriesConfirm] = useState(false);
+
+  const applyToSeriesMutation = useMutation({
+    mutationFn: async ({ recurringEventId, fromDate, updates }: { recurringEventId: number; fromDate?: string; updates: any }) => {
+      const res = await apiRequest("PATCH", `/api/recurring-events/${recurringEventId}/apply-to-series`, { fromDate, updates });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Series Updated", description: data.message || "All sessions updated." });
+      setOpen(false);
+      setShowSeriesConfirm(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message || "Failed to update series", variant: "destructive" });
+    },
+  });
 
   const updateInviteesMutation = useMutation({
     mutationFn: async (inviteePlayerIds: number[]) => {
@@ -2456,42 +2585,66 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
     setInviteesLoaded(true);
   };
 
-  const handleSave = () => {
+  const getUpdatesPayload = () => {
     const publishAt = editScheduleEnabled ? computePublishAt(editDate, editWeeksBefore) : null;
+    return {
+      clubId: editClubId,
+      title: editTitle,
+      date: editDate,
+      startTime: editStartTime,
+      durationMinutes: editDuration,
+      courtsAvailable: editCourts,
+      maxPlayers: editMaxPlayers,
+      matchMode: editMatchMode,
+      playersPerSide: editPlayersPerSide,
+      matchGenderType: editMatchGenderType,
+      genderRestriction: editGenderRestriction,
+      isPrivate: editIsPrivate,
+      sessionType: editSessionType,
+      juniorAgeGroups: editJuniorAgeGroups,
+      allowedCategories: editCategories,
+      sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
+      shuttlecockType: editShuttlecockType || null,
+      defaultPointsToPlayTo: editDefaultPoints,
+      numberOfSets: editNumberOfSets,
+      venueId: editVenueId,
+      liveStreamUrl: editLiveStreamUrl || "",
+      shuttleTubesUsed: editShuttleTubes,
+      publishAt: publishAt?.toISOString() || null,
+      scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
+    };
+  };
+
+  const handleSave = () => {
+    if (session.recurringEventId) {
+      setShowSeriesConfirm(true);
+      return;
+    }
+    saveThisOnly();
+  };
+
+  const saveThisOnly = () => {
+    const updates = getUpdatesPayload();
     updateSession({
       sessionId: session.id,
-      updates: {
-        clubId: editClubId,
-        title: editTitle,
-        date: editDate,
-        startTime: editStartTime,
-        durationMinutes: editDuration,
-        courtsAvailable: editCourts,
-        maxPlayers: editMaxPlayers,
-        matchMode: editMatchMode,
-        playersPerSide: editPlayersPerSide,
-        matchGenderType: editMatchGenderType,
-        genderRestriction: editGenderRestriction,
-        isPrivate: editIsPrivate,
-        sessionType: editSessionType,
-        juniorAgeGroups: editJuniorAgeGroups,
-        allowedCategories: editCategories,
-        sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
-        shuttlecockType: editShuttlecockType || null,
-        defaultPointsToPlayTo: editDefaultPoints,
-        numberOfSets: editNumberOfSets,
-        venueId: editVenueId,
-        liveStreamUrl: editLiveStreamUrl || "",
-        shuttleTubesUsed: editShuttleTubes,
-        publishAt: publishAt?.toISOString() || null,
-      }
+      updates,
     }, {
       onSuccess: () => {
         if (inviteesLoaded) {
           updateInviteesMutation.mutate(Array.from(editInvitees));
         }
         setOpen(false);
+        setShowSeriesConfirm(false);
       }
+    });
+  };
+
+  const saveAllFuture = () => {
+    const { date, clubId, ...seriesUpdates } = getUpdatesPayload();
+    applyToSeriesMutation.mutate({
+      recurringEventId: session.recurringEventId,
+      fromDate: session.date,
+      updates: seriesUpdates,
     });
   };
 
@@ -2844,12 +2997,53 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
           <Button
             className="w-full"
             onClick={handleSave}
-            disabled={isPending || editCategories.length === 0 || !editTitle.trim()}
+            disabled={isPending || applyToSeriesMutation.isPending || editCategories.length === 0 || !editTitle.trim()}
             data-testid="button-save-edit-session"
           >
-            {isPending ? "Saving..." : "Save Changes"}
+            {isPending || applyToSeriesMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>
+
+        {showSeriesConfirm && (
+          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6 rounded-lg">
+            <div className="space-y-4 text-center max-w-sm">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Repeat className="h-5 w-5 text-primary" />
+                <h4 className="font-semibold">Recurring Session</h4>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This session is part of a recurring series. How would you like to apply your changes?
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={saveThisOnly}
+                  disabled={isPending}
+                  variant="outline"
+                  data-testid="button-save-this-only"
+                >
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Apply to This Session Only
+                </Button>
+                <Button
+                  onClick={saveAllFuture}
+                  disabled={applyToSeriesMutation.isPending}
+                  data-testid="button-save-all-future"
+                >
+                  {applyToSeriesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Apply to All Future Sessions
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSeriesConfirm(false)}
+                  data-testid="button-cancel-series-confirm"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

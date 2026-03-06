@@ -3488,6 +3488,72 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/recurring-events/:id/apply-to-series", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const recurringEventId = Number(req.params.id);
+      const [event] = await db.select().from(recurringEvents).where(eq(recurringEvents.id, recurringEventId));
+      if (!event) return res.status(404).json({ message: "Recurring event not found" });
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, event.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const { fromDate, updates: rawUpdates } = req.body;
+      if (!rawUpdates || typeof rawUpdates !== "object") {
+        return res.status(400).json({ message: "Updates object is required" });
+      }
+
+      const linkedSessions = await db.select().from(sessions).where(eq(sessions.recurringEventId, recurringEventId));
+      const fromDateObj = fromDate ? new Date(fromDate) : null;
+      const sessionsToUpdate = fromDateObj
+        ? linkedSessions.filter(s => new Date(s.date) >= fromDateObj)
+        : linkedSessions;
+
+      const allowedFields = [
+        "title", "startTime", "durationMinutes", "courtsAvailable", "maxPlayers",
+        "matchMode", "playersPerSide", "matchGenderType", "genderRestriction",
+        "isPrivate", "sessionType", "juniorAgeGroups", "allowedCategories",
+        "sessionFee", "shuttlecockType", "defaultPointsToPlayTo", "numberOfSets",
+        "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt"
+      ];
+
+      const updates: any = {};
+      for (const key of allowedFields) {
+        if (rawUpdates[key] !== undefined) {
+          if (key === "date") continue;
+          if (key === "publishAt") {
+            updates[key] = rawUpdates[key] ? new Date(rawUpdates[key]) : null;
+          } else if (key === "sessionFee") {
+            updates[key] = rawUpdates[key] !== null ? Number(rawUpdates[key]) : null;
+          } else if (key === "venueId") {
+            updates[key] = rawUpdates[key] !== null ? Number(rawUpdates[key]) : null;
+          } else {
+            updates[key] = rawUpdates[key];
+          }
+        }
+      }
+
+      let updatedCount = 0;
+      for (const session of sessionsToUpdate) {
+        const sessionUpdates = { ...updates };
+        if (rawUpdates.publishAt !== undefined && rawUpdates.scheduleWeeksBefore) {
+          const weeks = Number(rawUpdates.scheduleWeeksBefore);
+          const sessionDate = new Date(session.date);
+          sessionDate.setDate(sessionDate.getDate() - weeks * 7);
+          sessionUpdates.publishAt = sessionDate;
+        }
+        await storage.updateSession(session.id, sessionUpdates);
+        updatedCount++;
+      }
+
+      console.log(`[AUDIT] RECURRING_SERIES_UPDATE: recurringEventId=${recurringEventId} updatedSessions=${updatedCount} by userId=${req.user!.id} at ${new Date().toISOString()}`);
+      res.json({ updated: updatedCount, message: `Updated ${updatedCount} session(s)` });
+    } catch (err: any) {
+      console.error("Error updating recurring series:", err);
+      res.status(500).json({ message: err.message || "Failed to update series" });
+    }
+  });
+
   app.post("/api/sessions/:id/restart", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 

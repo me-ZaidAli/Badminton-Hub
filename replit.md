@@ -28,7 +28,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Dynamic Leaderboard System**: Computes player rankings from completed matches.
 - **Financial Intelligence System**: Multi-view financial dashboard with 5 views (Classic, Analytics, Profitability, Cashflow, Reports), Smart Insights with auto-detected alerts and Revenue Forecast, localStorage view persistence. Components in `client/src/components/financial/` with shared types. Includes credit management and donation system.
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
-- **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
+- **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing. Scheduled (unpublished) sessions are shown in a separate admin-only section and move to the main listing when published. Editing a recurring session offers "Apply to This Session Only" or "Apply to All Future Sessions". Deleting offers "This Only", "This & Future", or "Entire Series" options. The same structure is used in both the main Sessions page and the Junior Sessions panel.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.
 - **Coach Directory & Marketplace**: Manages and lists public coach profiles.
 - **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts.
