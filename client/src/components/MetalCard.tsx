@@ -368,29 +368,27 @@ export function MetalCardFront({
   const IconComponent = CARD_ICONS[pattern || ""] || Award;
 
   const sizeConfig = {
-    compact: { label: "text-[6px]", title: "text-[11px]", serial: "text-[6px]", chip: "w-7 h-5", icon: "h-3 w-3", pad: "p-3", divW: "w-6" },
-    normal: { label: "text-[7px]", title: "text-sm", serial: "text-[7px]", chip: "w-9 h-6", icon: "h-3.5 w-3.5", pad: "p-4", divW: "w-8" },
-    large: { label: "text-[9px]", title: "text-lg", serial: "text-[9px]", chip: "w-12 h-8", icon: "h-5 w-5", pad: "p-6", divW: "w-10" },
+    compact: { headerText: "text-[8px]", title: "text-[9px]", serial: "text-[5px]", icon: "h-8 w-8", pad: "p-2", headerPad: "px-2 py-1", emblemSize: 0.5 },
+    normal: { headerText: "text-[10px]", title: "text-xs", serial: "text-[6px]", icon: "h-12 w-12", pad: "p-2.5", headerPad: "px-3 py-1.5", emblemSize: 0.65 },
+    large: { headerText: "text-sm", title: "text-base", serial: "text-[8px]", icon: "h-16 w-16", pad: "p-3", headerPad: "px-4 py-2", emblemSize: 0.85 },
   }[size];
 
   return (
     <div
-      className={`absolute inset-0 ${sizeConfig.pad} flex flex-col justify-between`}
+      className="absolute inset-0 flex flex-col"
       style={{
-        borderRadius: "20px",
+        borderRadius: "16px",
         background: mat.base,
-        boxShadow: `${mat.edgeHighlight}, 0 25px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
+        boxShadow: `${mat.edgeHighlight}, 0 0 20px ${mat.shimmerColor}, 0 25px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
         backfaceVisibility: "hidden",
         overflow: "hidden",
+        border: `2px solid ${mat.shimmerColor}`,
       }}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.texture }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.texture }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.lighting }} />
 
-      <EmblemOverlay cardId={cardId} />
-
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.lighting }} />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: "20px" }}>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: "14px" }}>
         <div
           className="metal-card-shimmer"
           style={{
@@ -404,56 +402,63 @@ export function MetalCardFront({
         />
       </div>
 
-      <div className="relative z-10 flex justify-between items-start">
-        <div>
-          <p
-            className={`${sizeConfig.label} font-bold uppercase tracking-[0.15em]`}
-            style={{
-              color: mat.textSub,
-              textShadow: `0 1px 2px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.08)`,
-            }}
-          >
-            Private Recognition Series
-          </p>
-        </div>
-        <IconComponent
-          className={sizeConfig.icon}
-          style={{ color: mat.textSub, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.4))" }}
-        />
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center space-y-1.5">
+      <div
+        className={`relative z-10 ${sizeConfig.headerPad} flex items-center justify-between mx-2 mt-2 rounded-lg`}
+        style={{
+          background: "rgba(0,0,0,0.35)",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05)",
+          border: `1px solid rgba(255,255,255,0.08)`,
+        }}
+      >
         <h3
-          className={`${sizeConfig.title} font-bold uppercase tracking-wide text-center leading-tight`}
+          className={`${sizeConfig.headerText} font-bold uppercase tracking-wider truncate`}
           style={{
             color: mat.textMain,
-            textShadow: `0 1px 0 rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3), 0 -1px 0 rgba(255,255,255,0.06), 0 0 2px rgba(255,255,255,0.05)`,
+            textShadow: "0 1px 2px rgba(0,0,0,0.5)",
           }}
         >
           {cardName}
         </h3>
-
-        <div className={sizeConfig.divW} style={{ height: "1px", background: mat.divider }} />
+        <IconComponent
+          className="h-3.5 w-3.5 shrink-0 ml-1"
+          style={{ color: mat.textMain, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.4))" }}
+        />
       </div>
 
-      <div className="relative z-10 flex justify-between items-end">
-        <div>
-          <p
-            className={`${sizeConfig.serial} font-mono uppercase tracking-wider`}
+      <div className="relative z-10 flex-1 flex items-center justify-center">
+        <div className="relative">
+          <div
+            className="absolute inset-0 rounded-full"
             style={{
-              color: mat.textSub,
-              textShadow: `0 1px 2px rgba(0,0,0,0.5)`,
+              background: `radial-gradient(circle, ${mat.shimmerColor} 0%, transparent 70%)`,
+              transform: "scale(2.5)",
             }}
-          >
-            {serialNumber || `CM-${String(cardId).padStart(3, "0")}`}
-          </p>
+          />
+          <EmblemOverlay cardId={cardId} />
+          <IconComponent
+            className={sizeConfig.icon}
+            style={{
+              color: mat.textMain,
+              filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5)) drop-shadow(0 0 8px ${mat.shimmerColor})`,
+              position: "relative",
+              zIndex: 10,
+            }}
+          />
         </div>
+      </div>
+
+      <div
+        className={`relative z-10 ${sizeConfig.pad} flex justify-between items-end`}
+      >
         <p
-          className={`${sizeConfig.serial} font-bold uppercase tracking-[0.2em]`}
-          style={{
-            color: mat.textSub,
-            textShadow: `0 1px 2px rgba(0,0,0,0.5)`,
-          }}
+          className={`${sizeConfig.serial} font-mono uppercase tracking-wider`}
+          style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+        >
+          {serialNumber || `CM-${String(cardId).padStart(3, "0")}`}
+        </p>
+        <p
+          className={`${sizeConfig.serial} font-bold uppercase tracking-[0.15em]`}
+          style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
         >
           Club Master
         </p>
@@ -463,12 +468,51 @@ export function MetalCardFront({
         <div
           className="absolute -inset-2 pointer-events-none metal-glow-aura"
           style={{
-            borderRadius: "24px",
+            borderRadius: "20px",
             background: `radial-gradient(ellipse at center, ${mat.shimmerColor}, transparent 70%)`,
             zIndex: -1,
           }}
         />
       )}
+    </div>
+  );
+}
+
+const RARITY_STARS: Record<string, number> = {
+  Standard: 1,
+  Rare: 2,
+  Epic: 3,
+  Legendary: 4,
+  Mythic: 5,
+};
+
+const RARITY_POWER: Record<string, { rarity: number; honor: number; prestige: number }> = {
+  Standard: { rarity: 20, honor: 30, prestige: 15 },
+  Rare: { rarity: 40, honor: 50, prestige: 35 },
+  Epic: { rarity: 60, honor: 70, prestige: 55 },
+  Legendary: { rarity: 80, honor: 85, prestige: 75 },
+  Mythic: { rarity: 100, honor: 100, prestige: 95 },
+};
+
+function StatBar({ label, value, color, size }: { label: string; value: number; color: string; size: "compact" | "normal" | "large" }) {
+  const labelSize = size === "compact" ? "text-[6px]" : size === "normal" ? "text-[7px]" : "text-[9px]";
+  const barH = size === "compact" ? "h-1" : size === "normal" ? "h-1.5" : "h-2";
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between items-center">
+        <span className={`${labelSize} font-bold uppercase tracking-wider`} style={{ color: "rgba(255,255,255,0.7)" }}>{label}</span>
+        <span className={`${labelSize} font-mono`} style={{ color: "rgba(255,255,255,0.5)" }}>{value}%</span>
+      </div>
+      <div className={`${barH} w-full rounded-full overflow-hidden`} style={{ background: "rgba(0,0,0,0.4)" }}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${value}%`,
+            background: `linear-gradient(90deg, ${color} 0%, ${color}cc 100%)`,
+            boxShadow: `0 0 6px ${color}60`,
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -481,6 +525,7 @@ export function MetalCardBack({
   issuerName,
   issuedAt,
   rarityLabel,
+  cardCategory,
   size = "normal",
 }: {
   cardId: number;
@@ -490,83 +535,127 @@ export function MetalCardBack({
   issuerName?: string | null;
   issuedAt?: string;
   rarityLabel?: string;
+  cardCategory?: string | null;
   size?: "compact" | "normal" | "large";
 }) {
   const mat = METAL_MATERIALS[cardId] || DEFAULT_MATERIAL;
+  const stars = RARITY_STARS[rarityLabel || "Standard"] || 1;
+  const power = RARITY_POWER[rarityLabel || "Standard"] || RARITY_POWER.Standard;
 
   const sizeConfig = {
-    compact: { label: "text-[7px]", body: "text-[8px]", pad: "p-3", gap: "space-y-1.5" },
-    normal: { label: "text-[8px]", body: "text-[9px]", pad: "p-4", gap: "space-y-2" },
-    large: { label: "text-xs", body: "text-sm", pad: "p-6", gap: "space-y-3" },
+    compact: { headerText: "text-[7px]", label: "text-[5px]", body: "text-[6px]", pad: "p-2", starSize: "text-[6px]", headerPad: "px-2 py-0.5", gap: "gap-1" },
+    normal: { headerText: "text-[9px]", label: "text-[7px]", body: "text-[7px]", pad: "p-2.5", starSize: "text-[8px]", headerPad: "px-3 py-1", gap: "gap-1.5" },
+    large: { headerText: "text-sm", label: "text-[10px]", body: "text-xs", pad: "p-3", starSize: "text-sm", headerPad: "px-4 py-1.5", gap: "gap-2" },
   }[size];
+
+  const categoryDisplay = cardCategory === "admin_gifted" ? "Admin Award" : cardCategory === "milestone" ? "Milestone" : cardCategory || "Recognition";
 
   return (
     <div
-      className={`absolute inset-0 ${sizeConfig.pad} flex flex-col justify-between`}
+      className="absolute inset-0 flex flex-col"
       style={{
-        borderRadius: "20px",
+        borderRadius: "16px",
         background: mat.base,
-        boxShadow: `${mat.edgeHighlight}, 0 25px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
+        boxShadow: `${mat.edgeHighlight}, 0 0 20px ${mat.shimmerColor}, 0 25px 60px rgba(0,0,0,0.6), 0 8px 20px rgba(0,0,0,0.4)`,
         backfaceVisibility: "hidden",
         transform: "rotateY(180deg)",
         overflow: "hidden",
+        border: `2px solid ${mat.shimmerColor}`,
       }}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.texture }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.texture }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.lighting }} />
 
-      <EmblemOverlay cardId={cardId} side="back" />
-
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "20px", background: mat.lighting }} />
-
-      <div className={`relative z-10 ${sizeConfig.gap}`}>
-        <p
-          className={`${sizeConfig.label} font-bold uppercase tracking-wider`}
-          style={{ color: mat.textMain, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-        >
-          {cardName}
-        </p>
-        <div style={{ height: "1px", background: mat.divider }} />
-        <p
-          className={`${sizeConfig.body} leading-relaxed`}
-          style={{ color: mat.textSub }}
-        >
-          {description}
-        </p>
-      </div>
-
-      <div className={`relative z-10 ${sizeConfig.gap}`}>
-        {customReason && (
+      <div className={`relative z-10 flex flex-col ${sizeConfig.pad} h-full`}>
+        <div className="space-y-1.5 mb-auto">
           <div
-            className="rounded-md p-2"
-            style={{ background: "rgba(0,0,0,0.2)", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.3)" }}
+            className={`${sizeConfig.headerPad} rounded-lg flex items-center justify-between`}
+            style={{
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4)",
+            }}
           >
-            <p className={`${sizeConfig.label} font-semibold uppercase tracking-wider mb-0.5`} style={{ color: mat.textSub }}>
-              Personal Note
-            </p>
-            <p className={`${sizeConfig.body} leading-relaxed line-clamp-2`} style={{ color: mat.textMain }}>
-              {customReason}
-            </p>
-          </div>
-        )}
-        {issuerName && (
-          <p className={sizeConfig.label} style={{ color: mat.textSub }}>
-            Awarded by {issuerName}
-          </p>
-        )}
-        <div className="flex justify-between items-end">
-          {issuedAt && (
-            <p className={sizeConfig.label} style={{ color: mat.textSub }}>
-              {issuedAt}
-            </p>
-          )}
-          {rarityLabel && (
-            <p
-              className={`${sizeConfig.label} font-bold uppercase tracking-widest`}
+            <span
+              className={`${sizeConfig.headerText} font-bold uppercase tracking-wider truncate`}
               style={{ color: mat.textMain, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
             >
-              {rarityLabel}
+              {cardName}
+            </span>
+            {rarityLabel && (
+              <span
+                className={`${sizeConfig.label} font-bold uppercase tracking-widest shrink-0 ml-1`}
+                style={{ color: mat.textMain, textShadow: `0 0 6px ${mat.shimmerColor}` }}
+              >
+                {rarityLabel}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1 px-0.5">
+            <StatBar label="Rarity" value={power.rarity} color={mat.shimmerColor.replace(/[\d.]+\)$/, "0.9)")} size={size} />
+            <StatBar label="Honor" value={power.honor} color="#f0c040" size={size} />
+            <StatBar label="Prestige" value={power.prestige} color="#c084fc" size={size} />
+          </div>
+
+          <div
+            className={`${sizeConfig.headerPad} rounded-lg flex items-center justify-between`}
+            style={{
+              background: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <span
+              className={`${sizeConfig.label} font-semibold uppercase tracking-wider`}
+              style={{ color: mat.textSub }}
+            >
+              {categoryDisplay}
+            </span>
+            <span className={sizeConfig.starSize} style={{ color: "#f0c040", textShadow: "0 0 4px rgba(240,192,64,0.5)", letterSpacing: "1px" }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span key={i} style={{ opacity: i < stars ? 1 : 0.2 }}>★</span>
+              ))}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-auto space-y-1">
+          <div
+            className="rounded-lg p-1.5"
+            style={{
+              background: "rgba(0,0,0,0.25)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              boxShadow: "inset 0 1px 3px rgba(0,0,0,0.3)",
+            }}
+          >
+            <p
+              className={`${sizeConfig.body} leading-relaxed`}
+              style={{ color: mat.textSub }}
+            >
+              {customReason || description}
             </p>
-          )}
+          </div>
+
+          <div className="flex justify-between items-end px-0.5">
+            <div>
+              {issuerName && (
+                <p className={sizeConfig.label} style={{ color: mat.textSub }}>
+                  By {issuerName}
+                </p>
+              )}
+              {issuedAt && (
+                <p className={sizeConfig.label} style={{ color: `${mat.textSub}` }}>
+                  {issuedAt}
+                </p>
+              )}
+            </div>
+            <p
+              className={`${sizeConfig.label} font-bold uppercase tracking-[0.15em]`}
+              style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+            >
+              Club Master
+            </p>
+          </div>
         </div>
       </div>
     </div>

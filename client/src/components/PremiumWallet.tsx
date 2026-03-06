@@ -77,6 +77,7 @@ function RecognitionCard3D({ card, onClick, compact = false }: { card: UserCard;
           issuerName={card.issuerName}
           issuedAt={format(new Date(card.issuedAt), "dd MMM yyyy")}
           rarityLabel={rarity.label}
+          cardCategory={card.cardCategory}
           size={size}
         />
       </motion.div>
@@ -141,6 +142,7 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
                     issuerName={currentCard.issuerName}
                     issuedAt={format(new Date(currentCard.issuedAt), "dd MMMM yyyy")}
                     rarityLabel={rarity.label}
+                    cardCategory={currentCard.cardCategory}
                     size="large"
                   />
                 </motion.div>
