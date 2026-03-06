@@ -4,6 +4,7 @@ import { useClubs } from "@/hooks/use-clubs";
 import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { getAvatarUrl } from "@/components/AvatarPicker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,6 +50,7 @@ type PlayerData = {
   email: string;
   role: string;
   profilePictureUrl?: string | null;
+  selectedAvatar?: string | null;
   playerProfiles: ProfileData[];
 };
 
@@ -82,27 +84,14 @@ const CATEGORY_ICONS: Record<string, any> = {
   heart: Heart, dumbbell: Dumbbell,
 };
 
-function getRealisticAvatarUrl(name: string, id?: number, gender?: string | null) {
-  if (gender === "FEMALE") {
-    const idx = ((id || 0) % 50) + 1;
-    return `https://randomuser.me/api/portraits/women/${idx}.jpg`;
-  }
-  if (gender === "MALE") {
-    const idx = ((id || 0) % 50) + 1;
-    return `https://randomuser.me/api/portraits/men/${idx}.jpg`;
-  }
-  const seed = encodeURIComponent(name);
-  const idx = (id || 0) % 70;
-  return `https://i.pravatar.cc/300?u=${seed}-${idx}`;
-}
-
-function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl, gender, grade }: {
-  name: string; id?: number; size?: "sm" | "md" | "lg" | "xl" | "hero"; className?: string; profilePictureUrl?: string | null; gender?: string | null; grade?: string | null;
+function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl, selectedAvatar, gender, grade }: {
+  name: string; id?: number; size?: "sm" | "md" | "lg" | "xl" | "hero"; className?: string; profilePictureUrl?: string | null; selectedAvatar?: string | null; gender?: string | null; grade?: string | null;
 }) {
   const sizeMap = { sm: "h-8 w-8", md: "h-12 w-12", lg: "h-20 w-20", xl: "h-24 w-24", hero: "h-32 w-32" };
   const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-lg", xl: "text-2xl", hero: "text-4xl" };
+  const silhouetteSize = { sm: "h-5 w-5", md: "h-7 w-7", lg: "h-12 w-12", xl: "h-14 w-14", hero: "h-20 w-20" };
   const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-  const avatarSrc = profilePictureUrl || getRealisticAvatarUrl(name, id, gender);
+  const avatarSrc = profilePictureUrl || getAvatarUrl(selectedAvatar) || null;
 
   const gradeGradient = grade && GRADE_COLORS[grade]
     ? GRADE_COLORS[grade]
@@ -119,9 +108,13 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
     <div className={`relative inline-flex ${className}`}>
       <div className={`rounded-full bg-gradient-to-br ${gradeGradient} ${outerPadding[size]} ${glowSize} ${glowColor}`}>
         <Avatar className={`${sizeMap[size]} border-2 border-background`}>
-          <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
-          <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-primary/20 to-primary/5 font-bold`}>
-            {initials}
+          {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
+          <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-slate-800 to-slate-900 font-bold`}>
+            {avatarSrc ? initials : (
+              <svg className={`${silhouetteSize[size]} text-slate-500`} viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+              </svg>
+            )}
           </AvatarFallback>
         </Avatar>
       </div>
@@ -132,26 +125,11 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
   );
 }
 
-function MiniSparkline({ color = "#22d3ee" }: { color?: string }) {
-  const points = useMemo(() => {
-    const pts = [];
-    let y = 30 + Math.random() * 20;
-    for (let i = 0; i < 8; i++) {
-      y = Math.max(5, Math.min(55, y + (Math.random() - 0.4) * 15));
-      pts.push(`${i * 10},${60 - y}`);
-    }
-    return pts.join(" ");
-  }, []);
+function StatIcon({ icon: Icon, color = "#22d3ee" }: { icon: any; color?: string }) {
   return (
-    <svg viewBox="0 0 70 60" className="w-16 h-10 opacity-60">
-      <defs>
-        <linearGradient id={`spark-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+      <Icon className="h-4 w-4" style={{ color }} />
+    </div>
   );
 }
 
@@ -163,7 +141,7 @@ function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-cya
       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-cyan-500/3 to-transparent rounded-bl-full" />
       <div className="flex items-center justify-between relative z-10">
         <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">{label}</span>
-        <MiniSparkline color={sparkColor || "#22d3ee"} />
+        <StatIcon icon={Icon} color={sparkColor || "#22d3ee"} />
       </div>
       <div className="flex items-end gap-2 relative z-10">
         <span className="text-2xl font-bold tracking-tight text-white">{value}</span>
@@ -231,7 +209,7 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
-      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
+      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} selectedAvatar={player.selectedAvatar} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
       <div className="flex-1 min-w-0">
         <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-300" : "text-slate-300"}`}>{player.fullName}</p>
         <p className="text-[11px] text-slate-500 mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
@@ -435,7 +413,7 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
         <div className="flex items-center justify-center gap-6 relative z-10">
           <div className="text-center">
-            <PlayerAvatar name={player1.fullName} id={player1.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player1.profilePictureUrl} gender={player1.playerProfiles[0]?.gender} grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category} />
+            <PlayerAvatar name={player1.fullName} id={player1.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player1.profilePictureUrl} selectedAvatar={player1.selectedAvatar} gender={player1.playerProfiles[0]?.gender} grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category} />
             <p className="font-bold text-sm text-slate-200">{player1.fullName}</p>
           </div>
           <div className="flex flex-col items-center">
@@ -444,7 +422,7 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
             </div>
           </div>
           <div className="text-center">
-            <PlayerAvatar name={player2.fullName} id={player2.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player2.profilePictureUrl} gender={player2.playerProfiles[0]?.gender} grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category} />
+            <PlayerAvatar name={player2.fullName} id={player2.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player2.profilePictureUrl} selectedAvatar={player2.selectedAvatar} gender={player2.playerProfiles[0]?.gender} grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category} />
             <p className="font-bold text-sm text-slate-200">{player2.fullName}</p>
           </div>
         </div>
@@ -947,6 +925,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               id={player.id}
               size="hero"
               profilePictureUrl={player.profilePictureUrl}
+              selectedAvatar={player.selectedAvatar}
               gender={profile?.gender}
               grade={grade}
             />
