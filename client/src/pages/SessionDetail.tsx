@@ -2387,7 +2387,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     <div className="flex items-center rounded-full border border-white/10 bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
                       <button
                         className={cn(
-                          "relative z-10 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center gap-1.5 active:scale-95",
+                          "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
                           activeMode === "SOCIAL"
                             ? "text-white"
                             : "text-white/40 hover:text-white/70"
@@ -2399,14 +2399,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                         data-testid="button-mode-social"
                       >
                         <span className={cn(
-                          "w-2 h-2 rounded-full transition-all duration-500",
+                          "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
                           activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
                         )} />
                         Social
                       </button>
                       <button
                         className={cn(
-                          "relative z-10 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center gap-1.5 active:scale-95",
+                          "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
                           activeMode === "COMPETITIVE"
                             ? "text-white"
                             : "text-white/40 hover:text-white/70"
@@ -2418,7 +2418,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                         data-testid="button-mode-competitive"
                       >
                         <span className={cn(
-                          "w-2 h-2 rounded-full transition-all duration-500",
+                          "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
                           activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
                         )} />
                         Competitive
@@ -2426,7 +2426,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       <div
                         className={cn(
                           "absolute top-0.5 bottom-0.5 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 shadow-[0_0_16px_rgba(96,165,250,0.3)]",
-                          activeMode === "SOCIAL" ? "left-0.5 w-[calc(50%-2px)]" : "left-[calc(50%+2px)] w-[calc(50%-2px)]"
+                          activeMode === "SOCIAL" ? "left-0.5 right-[50%]" : "left-[50%] right-0.5"
                         )}
                         style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                       />
