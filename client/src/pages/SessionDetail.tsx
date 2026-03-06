@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -848,66 +848,81 @@ export default function SessionDetail() {
 
         <Card className="min-w-[300px] border-primary/20 bg-primary/5">
           <CardContent className="p-4 sm:p-6">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-muted-foreground">Capacity</span>
-              {editingCapacity && isOrganiser ? (
-                <div className="flex items-center gap-1">
-                  <span className="text-sm text-muted-foreground">{confirmedSignups.length} /</span>
-                  <Input
-                    type="number"
-                    min={2}
-                    max={100}
-                    value={capacityValue}
-                    onChange={(e) => setCapacityValue(Number(e.target.value))}
-                    className="w-16 h-8 text-center text-sm"
-                    data-testid="input-edit-capacity"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const val = Math.max(2, Math.min(100, capacityValue));
-                        updateSession({ sessionId: id, updates: { maxPlayers: val } });
-                        setEditingCapacity(false);
-                      } else if (e.key === "Escape") {
-                        setEditingCapacity(false);
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      const val = Math.max(2, Math.min(100, capacityValue));
-                      updateSession({ sessionId: id, updates: { maxPlayers: val } });
-                      setEditingCapacity(false);
-                    }}
-                    data-testid="button-save-capacity"
-                  >
-                    <CheckCircle className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setEditingCapacity(false)}
-                    data-testid="button-cancel-capacity"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="font-bold">{confirmedSignups.length} / {session.maxPlayers}</span>
-                  {isOrganiser && (
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-muted-foreground text-sm">Capacity</span>
+                {editingCapacity && isOrganiser ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">{confirmedSignups.length} /</span>
+                    <Input
+                      type="number"
+                      min={2}
+                      max={100}
+                      value={capacityValue}
+                      onChange={(e) => setCapacityValue(Number(e.target.value))}
+                      className="w-16 h-8 text-center text-sm"
+                      data-testid="input-edit-capacity"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const val = Math.max(2, Math.min(100, capacityValue));
+                          updateSession({ sessionId: id, updates: { maxPlayers: val } });
+                          setEditingCapacity(false);
+                        } else if (e.key === "Escape") {
+                          setEditingCapacity(false);
+                        }
+                      }}
+                    />
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => { setCapacityValue(session.maxPlayers); setEditingCapacity(true); }}
-                      data-testid="button-edit-capacity"
+                      onClick={() => {
+                        const val = Math.max(2, Math.min(100, capacityValue));
+                        updateSession({ sessionId: id, updates: { maxPlayers: val } });
+                        setEditingCapacity(false);
+                      }}
+                      data-testid="button-save-capacity"
                     >
-                      <Pencil className="w-3 h-3" />
+                      <CheckCircle className="w-3 h-3" />
                     </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setEditingCapacity(false)}
+                      data-testid="button-cancel-capacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-sm">{confirmedSignups.length} / {session.maxPlayers}</span>
+                    {isOrganiser && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => { setCapacityValue(session.maxPlayers); setEditingCapacity(true); }}
+                        data-testid="button-edit-capacity"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="w-full h-2 rounded-full bg-muted/50 overflow-hidden" data-testid="capacity-progress-bar">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    (session as any).autoGenerateActive
+                      ? "bg-gradient-to-r from-rose-500 to-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
+                      : confirmedSignups.length >= session.maxPlayers
+                        ? "bg-gradient-to-r from-amber-500 to-amber-400"
+                        : "bg-gradient-to-r from-emerald-500 to-emerald-400"
                   )}
-                </div>
-              )}
+                  style={{ width: `${Math.min(100, (confirmedSignups.length / session.maxPlayers) * 100)}%` }}
+                />
+              </div>
             </div>
             {session.genderRestriction === "FEMALE_ONLY" && (
               <p className="text-sm text-pink-600 dark:text-pink-400 mb-2">This session is for female players only.</p>
@@ -1022,53 +1037,72 @@ export default function SessionDetail() {
                 {isJoining ? "Joining..." : "Join Session"}
               </Button>
             )}
-            {isOrganiser && session.status !== "COMPLETED" && !(session as any).autoGenerateActive && (
-              <Button 
-                className="w-full gap-2 mt-3 bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/25" 
-                onClick={() => {
-                  updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
-                  smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: (session as any).queueTargetSize || 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
-                }}
-                data-testid="button-start-session-main"
-              >
-                <PlayCircle className="w-5 h-5" />
-                Start Session
-              </Button>
-            )}
             {isOrganiser && session.status !== "COMPLETED" && (
-              <div className="space-y-2 mt-3">
-                <Button
-                  variant="destructive"
-                  className="w-full gap-2"
-                  onClick={() => {
-                    stopAllMatchesParent({ sessionId: id });
-                  }}
-                  disabled={isStoppingAllParent || (parentLiveCount === 0 && parentQueuedCount === 0)}
-                  data-testid="button-stop-all-matches-top"
-                >
-                  <OctagonX className="w-4 h-4" />
-                  {isStoppingAllParent ? "Stopping..." : "Stop All Matches"}
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => setEndSessionModalOpenParent(true)}
-                  disabled={parentLiveCount > 0}
-                  data-testid="button-end-session-top"
-                >
-                  <Trophy className="w-4 h-4" />
-                  End Session
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full gap-2 text-destructive"
-                  onClick={() => setRestartDialogOpen(true)}
-                  disabled={isRestarting}
-                  data-testid="button-restart-session"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  {isRestarting ? "Restarting..." : "Restart Session"}
-                </Button>
+              <div className="flex flex-col items-center gap-3 mt-4">
+                {!(session as any).autoGenerateActive ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
+                        smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: (session as any).queueTargetSize || 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
+                      }}
+                      className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:shadow-[0_0_40px_rgba(16,185,129,0.65)] active:scale-95 transition-all duration-500"
+                      data-testid="button-start-session-main"
+                    >
+                      <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/20" />
+                      <Play className="w-8 h-8 text-white relative z-10 ml-1" strokeWidth={2.5} />
+                    </button>
+                    <span className="text-[10px] font-semibold tracking-widest uppercase text-emerald-400">Start Session</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          stopAllMatchesParent({ sessionId: id });
+                        }}
+                        disabled={isStoppingAllParent || (parentLiveCount === 0 && parentQueuedCount === 0)}
+                        className="relative w-20 h-20 rounded-full bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.5)] hover:shadow-[0_0_40px_rgba(244,63,94,0.65)] active:scale-95 transition-all duration-500 disabled:opacity-50"
+                        data-testid="button-stop-all-matches-top"
+                      >
+                        <div className="absolute inset-0 rounded-full animate-pulse bg-rose-500/20" />
+                        <Square className="w-7 h-7 text-white relative z-10" strokeWidth={2.5} />
+                      </button>
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4 z-20">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-background" />
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold tracking-widest uppercase text-rose-400">
+                      {isStoppingAllParent ? "Stopping..." : "Live"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 w-full">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 rounded-full transition-all duration-300"
+                    onClick={() => setEndSessionModalOpenParent(true)}
+                    disabled={parentLiveCount > 0}
+                    data-testid="button-end-session-top"
+                  >
+                    <Trophy className="w-3.5 h-3.5" />
+                    End
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1 gap-1.5 rounded-full text-destructive transition-all duration-300"
+                    onClick={() => setRestartDialogOpen(true)}
+                    disabled={isRestarting}
+                    data-testid="button-restart-session"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    {isRestarting ? "Restarting..." : "Restart"}
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1868,6 +1902,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
   const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
+  const [generateSuccess, setGenerateSuccess] = useState(false);
   const manualGenInFlight = useRef(false);
 
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
@@ -2099,6 +2134,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         } else {
           setAutoGenWaiting(false);
           setPairConstraintMessage(null);
+          setGenerateSuccess(true);
+          setTimeout(() => setGenerateSuccess(false), 1200);
         }
       },
       onError: (err: any) => {
@@ -2264,7 +2301,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   return (
     <div className="space-y-6">
       {(isOrganiser || isSignedUp) && (
-        <Card>
+        <Card className="border-white/10 bg-slate-900/80 backdrop-blur-xl">
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center flex-wrap gap-4">
@@ -2358,16 +2395,19 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Badge variant="outline" data-testid="badge-live-count">
-                    {liveMatches.length} Live
-                  </Badge>
-                  <Badge variant="outline" data-testid="badge-queued-count">
-                    {queuedMatches.length} Queued
-                  </Badge>
-                  <Badge variant="outline" data-testid="badge-completed-count">
-                    {completedCount} Completed
-                  </Badge>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
+                    <span className={cn("w-2 h-2 rounded-full", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse" : "bg-emerald-400/40")} />
+                    <span className="text-foreground/80">{liveMatches.length} Live</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
+                    <span className={cn("w-2 h-2 rounded-full", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" : "bg-amber-400/40")} />
+                    <span className="text-foreground/80">{queuedMatches.length} Queued</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
+                    <span className={cn("w-2 h-2 rounded-full", completedCount > 0 ? "bg-blue-400" : "bg-blue-400/40")} />
+                    <span className="text-foreground/80">{completedCount} Done</span>
+                  </span>
                   {!isOrganiser && <MatchAlgorithmInfoButton />}
                   {isOrganiser && (
                     <Button
@@ -2429,18 +2469,25 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     <button
                       onClick={handleSmartGenerate}
                       disabled={isSmartGenerating}
-                      className="neon-power-btn group relative"
+                      className={cn(
+                        "neon-power-btn group relative active:scale-95 transition-transform duration-300",
+                        generateSuccess && "ring-2 ring-emerald-400/60"
+                      )}
                       style={{ width: '72px', height: '72px' }}
                       data-testid="button-generate-matches"
                     >
-                      <div className="neon-power-outer" />
+                      <div className={cn("neon-power-outer", generateSuccess && "!border-emerald-500/50")} />
                       <div className="neon-power-ring" />
-                      <div className={`neon-power-ring-pulse ${isSmartGenerating ? "neon-heartbeat" : ""}`} />
-                      <div className={`neon-power-glow ${isSmartGenerating ? "neon-heartbeat" : ""}`} />
+                      <div className={cn("neon-power-ring-pulse", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/30")} />
+                      <div className={cn("neon-power-glow", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/20")} />
                       <div className="neon-power-inner">
                         {isSmartGenerating ? (
                           <div className="neon-power-icon neon-vibrate">
-                            <Power className="h-6 w-6" strokeWidth={2.5} />
+                            <Power className="h-6 w-6 animate-spin" strokeWidth={2.5} style={{ animationDuration: '2s' }} />
+                          </div>
+                        ) : generateSuccess ? (
+                          <div className="neon-power-icon">
+                            <CheckCircle className="h-6 w-6 text-emerald-400" strokeWidth={2.5} />
                           </div>
                         ) : (
                           <div className="neon-power-icon">
@@ -2450,8 +2497,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       </div>
                       <div className="neon-power-circuit-ring" />
                     </button>
-                    <span className={`text-[10px] font-medium tracking-wider uppercase ${isSmartGenerating ? "text-cyan-400 neon-text-pulse" : "text-muted-foreground"}`}>
-                      {isSmartGenerating ? "Generating..." : "Generate"}
+                    <span className={cn(
+                      "text-[10px] font-medium tracking-wider uppercase transition-colors duration-500",
+                      isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-muted-foreground"
+                    )}>
+                      {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
                     </span>
                   </div>
 

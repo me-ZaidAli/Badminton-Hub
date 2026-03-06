@@ -335,7 +335,7 @@ export function BadmintonCourt({
   const displayName = courtName || `Court ${courtNumber}`;
 
   return (
-    <Card className="overflow-hidden border-2 border-primary/20" data-testid={`court-${courtNumber}`}>
+    <Card className="overflow-hidden border border-white/10 bg-card/80 backdrop-blur-sm shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1),0_0_20px_rgba(0,0,0,0.15)]" data-testid={`court-${courtNumber}`}>
       <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-3 flex items-center justify-between gap-2 border-b border-border/50 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {isEditingName ? (
@@ -443,9 +443,12 @@ export function BadmintonCourt({
 
       <CardContent className="p-0">
         {!match ? (
-          <div className="p-8 text-center text-muted-foreground bg-muted/20">
-            <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>No match assigned</p>
+          <div className="p-10 text-center text-muted-foreground/60 bg-muted/10 border border-dashed border-muted-foreground/10 rounded-lg m-3">
+            <div className="relative mx-auto w-16 h-16 mb-3">
+              <div className="absolute inset-0 rounded-full border-2 border-dashed border-muted-foreground/15 animate-[spin_20s_linear_infinite]" />
+              <Users className="w-8 h-8 absolute inset-0 m-auto opacity-20" />
+            </div>
+            <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground/40">Awaiting match</p>
           </div>
         ) : (
           <>
