@@ -81,28 +81,53 @@ const CATEGORY_ICONS: Record<string, any> = {
   heart: Heart, dumbbell: Dumbbell,
 };
 
-function getRealisticAvatarUrl(name: string, id?: number) {
+function getRealisticAvatarUrl(name: string, id?: number, gender?: string | null) {
+  if (gender === "FEMALE") {
+    const idx = ((id || 0) % 50) + 1;
+    return `https://randomuser.me/api/portraits/women/${idx}.jpg`;
+  }
+  if (gender === "MALE") {
+    const idx = ((id || 0) % 50) + 1;
+    return `https://randomuser.me/api/portraits/men/${idx}.jpg`;
+  }
   const seed = encodeURIComponent(name);
   const idx = (id || 0) % 70;
-  return `https://i.pravatar.cc/150?u=${seed}-${idx}`;
+  return `https://i.pravatar.cc/300?u=${seed}-${idx}`;
 }
 
-function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl }: {
-  name: string; id?: number; size?: "sm" | "md" | "lg" | "xl" | "hero"; className?: string; profilePictureUrl?: string | null;
+function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl, gender, grade }: {
+  name: string; id?: number; size?: "sm" | "md" | "lg" | "xl" | "hero"; className?: string; profilePictureUrl?: string | null; gender?: string | null; grade?: string | null;
 }) {
-  const sizeMap = { sm: "h-8 w-8", md: "h-11 w-11", lg: "h-16 w-16", xl: "h-20 w-20", hero: "h-28 w-28" };
-  const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-base", xl: "text-xl", hero: "text-3xl" };
-  const ringSize = { sm: "ring-1", md: "ring-2", lg: "ring-2", xl: "ring-[3px]", hero: "ring-[3px]" };
+  const sizeMap = { sm: "h-8 w-8", md: "h-12 w-12", lg: "h-20 w-20", xl: "h-24 w-24", hero: "h-32 w-32" };
+  const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-lg", xl: "text-2xl", hero: "text-4xl" };
   const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-  const avatarSrc = profilePictureUrl || getRealisticAvatarUrl(name, id);
+  const avatarSrc = profilePictureUrl || getRealisticAvatarUrl(name, id, gender);
+
+  const gradeGradient = grade && GRADE_COLORS[grade]
+    ? GRADE_COLORS[grade]
+    : "from-primary to-primary/70";
+
+  const isHeroOrXl = size === "hero" || size === "xl";
+  const isLarge = size === "lg" || isHeroOrXl;
+
+  const outerPadding = { sm: "p-[2px]", md: "p-[2px]", lg: "p-[3px]", xl: "p-[3px]", hero: "p-[3px]" };
+  const glowSize = isHeroOrXl ? "shadow-xl" : isLarge ? "shadow-lg" : "shadow-md";
+  const glowColor = grade ? (GRADE_GLOW[grade] || "shadow-primary/10") : "shadow-primary/10";
 
   return (
-    <Avatar className={`${sizeMap[size]} ${ringSize[size]} ring-primary/40 ${className}`}>
-      <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
-      <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-primary/20 to-primary/5 font-bold`}>
-        {initials}
-      </AvatarFallback>
-    </Avatar>
+    <div className={`relative inline-flex ${className}`}>
+      <div className={`rounded-full bg-gradient-to-br ${gradeGradient} ${outerPadding[size]} ${glowSize} ${glowColor}`}>
+        <Avatar className={`${sizeMap[size]} border-2 border-background`}>
+          <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
+          <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-primary/20 to-primary/5 font-bold`}>
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+      </div>
+      {isHeroOrXl && (
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+      )}
+    </div>
   );
 }
 
@@ -184,7 +209,7 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
-      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} />
+      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
       <div className="flex-1 min-w-0">
         <p className={`font-semibold text-sm truncate ${isSelected ? "text-primary" : ""}`}>{player.fullName}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
@@ -288,16 +313,16 @@ function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-blue-400/5" />
         <div className="flex items-center justify-center gap-6 relative z-10">
           <div className="text-center">
-            <PlayerAvatar name={player1.fullName} id={player1.id} size="lg" className="mx-auto mb-2 ring-primary/60" profilePictureUrl={player1.profilePictureUrl} />
+            <PlayerAvatar name={player1.fullName} id={player1.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player1.profilePictureUrl} gender={player1.playerProfiles[0]?.gender} grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category} />
             <p className="font-bold text-sm">{player1.fullName}</p>
           </div>
           <div className="flex flex-col items-center">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted/30 to-muted/10 flex items-center justify-center border border-border/30">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-muted/30 to-muted/10 flex items-center justify-center border border-border/30 shadow-lg">
               <span className="text-lg font-black text-muted-foreground">VS</span>
             </div>
           </div>
           <div className="text-center">
-            <PlayerAvatar name={player2.fullName} id={player2.id} size="lg" className="mx-auto mb-2 ring-blue-400/60" profilePictureUrl={player2.profilePictureUrl} />
+            <PlayerAvatar name={player2.fullName} id={player2.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player2.profilePictureUrl} gender={player2.playerProfiles[0]?.gender} grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category} />
             <p className="font-bold text-sm">{player2.fullName}</p>
           </div>
         </div>
@@ -735,10 +760,11 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               name={player.fullName}
               id={player.id}
               size="hero"
-              className="ring-primary/50 shadow-2xl shadow-primary/10"
               profilePictureUrl={player.profilePictureUrl}
+              gender={profile?.gender}
+              grade={grade}
             />
-            <div className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""}`}>
+            <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""} border border-white/20`}>
               {grade}
             </div>
           </div>
