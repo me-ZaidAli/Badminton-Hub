@@ -493,7 +493,7 @@ function DashboardContent({
                       </div>
                     </div>
                     {announcement.imageUrl && (
-                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
+                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     )}
                   </div>
                 </Link>

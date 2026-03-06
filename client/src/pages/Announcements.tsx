@@ -273,6 +273,7 @@ function AnnouncementCard({
                   alt={announcement.title}
                   className="rounded-md max-h-64 w-auto object-cover"
                   data-testid={`img-announcement-${announcement.id}`}
+                  onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
                 />
               </div>
             )}
