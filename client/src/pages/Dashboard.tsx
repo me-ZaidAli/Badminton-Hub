@@ -235,6 +235,22 @@ function DashboardContent({
     return upcoming[0] || upcomingLeagueMatches[0];
   }, [upcomingLeagueMatches]);
 
+  const [leagueCountdown, setLeagueCountdown] = useState({ days: 0, hours: 0, minutes: 0 });
+  useEffect(() => {
+    if (!nextLeagueMatch) return;
+    const tick = () => {
+      const diff = Math.max(0, new Date(nextLeagueMatch.matchDatetime).getTime() - Date.now());
+      setLeagueCountdown({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        minutes: Math.floor((diff % 3600000) / 60000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [nextLeagueMatch]);
+
   const { data: allAnnouncements } = useQuery<any[]>({
     queryKey: ["/api/announcements"],
   });
@@ -734,6 +750,21 @@ function DashboardContent({
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 sm:gap-3 px-4 py-2" data-testid="league-match-countdown">
+                {[
+                  { value: leagueCountdown.days, label: "DAYS" },
+                  { value: leagueCountdown.hours, label: "HRS" },
+                  { value: leagueCountdown.minutes, label: "MIN" },
+                ].map((unit) => (
+                  <div key={unit.label} className="flex flex-col items-center">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center">
+                      <span className="text-white font-bold text-lg sm:text-xl tabular-nums">{String(unit.value).padStart(2, "0")}</span>
+                    </div>
+                    <span className="text-white/40 text-[8px] sm:text-[9px] font-semibold tracking-widest mt-1">{unit.label}</span>
+                  </div>
+                ))}
               </div>
 
               <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 pb-2 flex-wrap">
