@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, Pencil, Users, Target, Check, Minus, Plus,
-  CircleDot, Hash
+  CircleDot, Hash, Monitor
 } from "lucide-react";
 
 type Player = {
@@ -740,6 +740,214 @@ function InlineScorePanel({
   );
 }
 
+function BroadcastTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const startTime = new Date(startedAt).getTime();
+    const update = () => setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  return (
+    <span className="font-mono text-3xl sm:text-4xl font-black tracking-tight text-white tabular-nums" style={{ textShadow: '0 0 15px rgba(255,255,255,0.3)' }}>
+      {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+    </span>
+  );
+}
+
+function BroadcastCard({
+  match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
+  onCompleteMatch, onEndSet, onCancelMatch,
+}: {
+  match: CourtMatch;
+  isOrganiser: boolean;
+  isSignedUp: boolean;
+  currentPlayerProfileId?: number | null;
+  defaultPointsToPlayTo?: number;
+  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCancelMatch?: (matchId: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const courtColor = getCourtColor(match.courtNumber || 1);
+
+  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
+  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
+  const teamALabel = teamANames.length > 0 ? teamANames[0]?.split(" ").pop()?.toUpperCase() || "TEAM A" : "TEAM A";
+  const teamBLabel = teamBNames.length > 0 ? teamBNames[0]?.split(" ").pop()?.toUpperCase() || "TEAM B" : "TEAM B";
+
+  const scoreA = match.scoreA || 0;
+  const scoreB = match.scoreB || 0;
+  const setsWonA = match.setsWonA || 0;
+  const setsWonB = match.setsWonB || 0;
+  const totalSets = match.numberOfSets || 1;
+  const isMultiSet = totalSets > 1;
+  const currentSet = match.currentSet || 1;
+
+  const isPlayerInMatch = currentPlayerProfileId && (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  );
+  const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
+
+  const gameIndicatorsA = Array.from({ length: totalSets > 1 ? totalSets : 3 }, (_, i) => i < setsWonA);
+  const gameIndicatorsB = Array.from({ length: totalSets > 1 ? totalSets : 3 }, (_, i) => i < setsWonB);
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-broadcast-${match.id}`}>
+      <div className="relative" style={{ background: 'linear-gradient(135deg, #0c1a0c 0%, #0a1e1e 30%, #0d1a0d 60%, #0a1a10 100%)' }}>
+        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px), repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px)' }} />
+        <div className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none overflow-hidden">
+          <span className="text-[3rem] font-black tracking-[0.3em] uppercase whitespace-nowrap origin-center -rotate-90 select-none" style={{ color: `${courtColor.ring}12`, WebkitTextStroke: `1px ${courtColor.ring}08` }}>{teamALabel}</span>
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none overflow-hidden">
+          <span className="text-[3rem] font-black tracking-[0.3em] uppercase whitespace-nowrap origin-center rotate-90 select-none" style={{ color: 'rgba(250,204,21,0.07)', WebkitTextStroke: '1px rgba(250,204,21,0.03)' }}>{teamBLabel}</span>
+        </div>
+
+        <div className="relative z-10 px-4 sm:px-6 py-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0" style={{ backgroundColor: `${courtColor.ring}20`, border: `2px solid ${courtColor.ring}40`, color: courtColor.ring }}>
+                {teamALabel.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex gap-0.5 mb-0.5">
+                  {gameIndicatorsA.map((won, i) => (
+                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? courtColor.ring : 'rgba(255,255,255,0.08)' }} />
+                  ))}
+                </div>
+                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center px-2 sm:px-4 shrink-0">
+              {match.startedAt ? <BroadcastTimer startedAt={match.startedAt} /> : (
+                <span className="font-mono text-3xl sm:text-4xl font-black text-white/30 tabular-nums">00:00</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+              <div className="min-w-0 text-right">
+                <div className="flex gap-0.5 justify-end mb-0.5">
+                  {gameIndicatorsB.map((won, i) => (
+                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.08)' }} />
+                  ))}
+                </div>
+                <span className="text-sm sm:text-base font-black uppercase tracking-wide truncate block text-amber-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
+              </div>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-amber-400/20 border-2 border-amber-400/40 text-amber-400">
+                {teamBLabel.charAt(0)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 px-4 sm:px-6 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 flex items-center justify-start">
+              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl" style={{ color: courtColor.ring, textShadow: `0 0 30px ${courtColor.glow}, 0 4px 20px rgba(0,0,0,0.5)` }} data-testid={`broadcast-score-a-${match.id}`}>{scoreA}</span>
+            </div>
+
+            <div className="flex flex-col items-center px-3 sm:px-5 shrink-0">
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-[3px] flex flex-col items-center justify-center" style={{ borderColor: `${courtColor.ring}40`, background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.9) 100%)', boxShadow: `0 0 20px ${courtColor.ring}15, inset 0 2px 4px rgba(255,255,255,0.5)` }}>
+                <span className="text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Game</span>
+                <span className="text-2xl sm:text-3xl font-black text-gray-900 leading-none tabular-nums" data-testid={`broadcast-game-${match.id}`}>{isMultiSet ? currentSet : 1}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-1.5">
+                <div className="flex items-center">
+                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreA > scoreB ? courtColor.ring : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
+                </div>
+                <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">lead</span>
+                <div className="flex items-center">
+                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreB > scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-end">
+              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl text-amber-400" style={{ textShadow: '0 0 30px rgba(250,204,21,0.4), 0 4px 20px rgba(0,0,0,0.5)' }} data-testid={`broadcast-score-b-${match.id}`}>{scoreB}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 px-4 sm:px-6 pb-3">
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-3">
+            <div className="space-y-1">
+              {teamANames.map((name, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-white/[0.04]">
+                  <span className="text-[10px] sm:text-xs font-semibold truncate" style={{ color: courtColor.ring }} data-testid={`broadcast-player-a-${match.id}-${i}`}>{name}</span>
+                </div>
+              ))}
+              {isMultiSet && match.setScores && match.setScores.length > 0 && (
+                <div className="space-y-0.5 mt-1.5">
+                  {match.setScores.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.03]">
+                      <span className="text-[9px] text-white/25 font-medium">G{i + 1}</span>
+                      <span className="text-[10px] font-mono font-bold ml-auto tabular-nums" style={{ color: s.scoreA > s.scoreB ? courtColor.ring : 'rgba(255,255,255,0.3)' }}>{s.scoreA}-{s.scoreB}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-1.5 px-1">
+              <div className="rounded-lg px-3 py-1.5 text-center" style={{ backgroundColor: `${courtColor.ring}10`, border: `1px solid ${courtColor.ring}25` }}>
+                <span className="text-[8px] font-bold uppercase tracking-wider text-white/40 block">Aces</span>
+                <span className="text-sm font-black tabular-nums" style={{ color: courtColor.ring }}>0</span>
+              </div>
+              <div className="rounded-lg bg-amber-400/10 border border-amber-400/25 px-3 py-1.5 text-center">
+                <span className="text-[8px] font-bold uppercase tracking-wider text-white/40 block">Aces</span>
+                <span className="text-sm font-black text-amber-400 tabular-nums">0</span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {teamBNames.map((name, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-white/[0.04]">
+                  <span className="text-[10px] sm:text-xs font-semibold text-amber-400 truncate ml-auto" data-testid={`broadcast-player-b-${match.id}-${i}`}>{name}</span>
+                </div>
+              ))}
+              {isMultiSet && match.setScores && match.setScores.length > 0 && (
+                <div className="space-y-0.5 mt-1.5">
+                  {match.setScores.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.03]">
+                      <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.scoreB > s.scoreA ? 'rgb(250,204,21)' : 'rgba(255,255,255,0.3)' }}>{s.scoreB}-{s.scoreA}</span>
+                      <span className="text-[9px] text-white/25 font-medium ml-auto">G{i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {canInteract && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/[0.03] border-t border-white/[0.05] text-white/40 transition-all duration-300 hover-elevate"
+            data-testid={`pro-broadcast-expand-${match.id}`}
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
+            <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
+          </button>
+          {expanded && (
+            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ScoreboardCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
   onCompleteMatch, onEndSet, onCancelMatch,
@@ -863,7 +1071,7 @@ function ScoreboardCard({
   );
 }
 
-type SubView = "court" | "list" | "score";
+type SubView = "court" | "list" | "score" | "broadcast";
 
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
@@ -896,6 +1104,7 @@ export function ProLiveMatches({
     { key: "court", label: "Courts", icon: LayoutGrid },
     { key: "list", label: "List", icon: List },
     { key: "score", label: "Score", icon: Hash },
+    { key: "broadcast", label: "Broadcast", icon: Monitor },
   ];
 
   if (liveMatches.length === 0) {
@@ -993,6 +1202,16 @@ export function ProLiveMatches({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {liveMatches.map(match => (
               <ScoreboardCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+                currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+                onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+            ))}
+          </div>
+        )}
+
+        {subView === "broadcast" && (
+          <div className="grid grid-cols-1 gap-5">
+            {liveMatches.map(match => (
+              <BroadcastCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
             ))}
