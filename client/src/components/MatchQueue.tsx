@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -249,6 +249,7 @@ export function MatchQueue({
   const { mutate: createEmptyMatch, isPending: isCreatingEmpty } = useCreateEmptyMatch();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
+  const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
 
   const computedBusyIds = (() => {
     if (busyPlayerIds && busyPlayerIds.size > 0) return busyPlayerIds;
@@ -285,43 +286,51 @@ export function MatchQueue({
     .filter(m => m.status === "QUEUED")
     .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
 
+  const toggleActions = (matchId: number) => {
+    setExpandedActions(prev => ({ ...prev, [matchId]: !prev[matchId] }));
+  };
+
   return (
     <>
-      <Card className={queuedMatches.length === 0 ? "border-dashed" : ""}>
-        <CardHeader className="pb-3">
+      <div className="rounded-xl bg-background/80 dark:bg-[#0D1117] border border-border/50 overflow-visible">
+        <div className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 dark:bg-[#161B22]/80 border-b border-border/40 rounded-t-xl px-4 py-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <GripVertical className="w-5 h-5" />
-              Match Queue ({queuedMatches.length} pending)
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+              <h3 className="text-base font-semibold" data-testid="text-queue-title">Match Queue</h3>
+              <Badge variant="secondary" className="text-xs font-mono">
+                {queuedMatches.length} pending
+              </Badge>
+            </div>
             {isOrganiser && (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {onQueueTargetSizeChange && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Max:</span>
-                    <Select
-                      value={String(queueTargetSize ?? 3)}
-                      onValueChange={(v) => onQueueTargetSizeChange(Number(v))}
+                  <Select
+                    value={String(queueTargetSize ?? 3)}
+                    onValueChange={(v) => onQueueTargetSizeChange(Number(v))}
+                  >
+                    <SelectTrigger
+                      className="rounded-full border-border/60 text-xs gap-1"
+                      data-testid="select-queue-size-inline"
                     >
-                      <SelectTrigger className="w-[52px]" data-testid="select-queue-size-inline">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="4">4</SelectItem>
-                        <SelectItem value="5">5</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <span className="text-muted-foreground">Max:</span>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                      <SelectItem value="4">4</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                    </SelectContent>
+                  </Select>
                 )}
                 {isOrganiser && onGenerateMatch && (
                   <Button
                     size="sm"
-                    variant="outline"
                     onClick={onGenerateMatch}
                     disabled={isGenerating}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/15"
                     data-testid="button-generate-match-queue"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
@@ -330,66 +339,86 @@ export function MatchQueue({
                 )}
                 {isOrganiser && sessionId && (
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     onClick={() => createEmptyMatch({ sessionId })}
                     disabled={isCreatingEmpty}
                     data-testid="button-create-empty-match"
+                    title="Create empty match"
                   >
-                    {isCreatingEmpty ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Users className="w-4 h-4 mr-1" />}
-                    Empty Match
+                    {isCreatingEmpty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
                   </Button>
                 )}
                 {onClearQueue && queuedMatches.length > 0 && (
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     onClick={onClearQueue}
                     data-testid="button-clear-queue"
+                    title="Clear queue"
                   >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Clear
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 )}
               </div>
             )}
           </div>
-        </CardHeader>
+        </div>
+
         {notEnoughPlayersMessage && (
-          <div className="mx-4 mb-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2" data-testid="not-enough-players-message">
+          <div className="mx-4 mt-3 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-start gap-2" data-testid="not-enough-players-message">
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-amber-700 dark:text-amber-400">{notEnoughPlayersMessage}</p>
           </div>
         )}
+
         {queuedMatches.length === 0 ? (
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>No matches in queue</p>
-            <p className="text-sm">Generate matches to fill the queue</p>
-          </CardContent>
+          <div className="p-10 text-center text-muted-foreground">
+            <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">No matches in queue</p>
+            <p className="text-sm mt-1 opacity-70">Generate matches to fill the queue</p>
+          </div>
         ) : (
-        <CardContent className="p-0">
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-3 p-4">
+          <ScrollArea className="h-[420px]">
+            <div className="relative pl-8 pr-4 py-4">
+              <div className="absolute left-[1.35rem] top-4 bottom-4 w-px bg-border/60 dark:bg-border/40" />
+
               {queuedMatches.map((match, index) => {
                 const matchTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
+                const isActionsExpanded = expandedActions[match.id] || false;
+
                 return (
                   <div
                     key={match.id}
-                    className="p-3 sm:p-4 bg-muted/30 rounded-lg border border-border/50"
+                    className={cn("relative", index < queuedMatches.length - 1 && "mb-4")}
                     data-testid={`queue-match-${match.id}`}
                   >
-                    {/* --- MOBILE LAYOUT (< sm) --- */}
-                    <div className="sm:hidden">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0">
-                          {index + 1}
-                        </div>
-                        <span className="text-xs text-muted-foreground font-medium">Match {index + 1}</span>
-                      </div>
+                    <div className="absolute -left-[1.05rem] top-3 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground font-bold text-xs shadow-md shadow-primary/30">
+                      {index + 1}
+                    </div>
 
-                      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 p-2.5">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <div className="rounded-2xl bg-card dark:bg-[#161B22] border border-border/50 shadow-sm overflow-visible">
+                      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 flex-wrap">
+                        <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
+                          Match {index + 1}
+                        </span>
+                        <EditableTarget
+                          matchId={match.id}
+                          value={matchTarget}
+                          isOrganiser={isOrganiser}
+                          onUpdate={updateTarget}
+                        />
+                      </div>
+                      {match.numberOfSets && match.numberOfSets > 1 && (
+                        <div className="px-4 pb-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {match.numberOfSets === 3 ? "Best of 3" : "2 Sets"}
+                          </Badge>
+                        </div>
+                      )}
+
+                      <div className="flex items-stretch min-h-[80px] px-2 pb-2">
+                        <div className="flex-1 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
                           <PlayerBadge
                             player={match.teamAPlayer1}
                             position="teamAPlayer1Id"
@@ -399,24 +428,26 @@ export function MatchQueue({
                             onSwap={onSwapPlayer}
                             isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
                           />
-                          <PlayerBadge
-                            player={match.teamAPlayer2 || null}
-                            position="teamAPlayer2Id"
-                            matchId={match.id}
-                            availablePlayers={availablePlayers}
-                            isOrganiser={isOrganiser}
-                            onSwap={onSwapPlayer}
-                            isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
-                          />
+                          {(match.teamAPlayer2 || isOrganiser) && (
+                            <PlayerBadge
+                              player={match.teamAPlayer2 || null}
+                              position="teamAPlayer2Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                              isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
+                            />
+                          )}
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-center my-1.5">
-                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-0.5 rounded-full bg-muted">VS</span>
-                      </div>
+                        <div className="flex items-center justify-center px-1.5 shrink-0">
+                          <span className="flex items-center justify-center w-9 h-9 rounded-full bg-muted dark:bg-muted/60 text-xs font-black uppercase tracking-widest text-muted-foreground shadow-inner">
+                            VS
+                          </span>
+                        </div>
 
-                      <div className="rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 p-2.5">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <div className="flex-1 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
                           <PlayerBadge
                             player={match.teamBPlayer1}
                             position="teamBPlayer1Id"
@@ -426,26 +457,28 @@ export function MatchQueue({
                             onSwap={onSwapPlayer}
                             isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
                           />
-                          <PlayerBadge
-                            player={match.teamBPlayer2 || null}
-                            position="teamBPlayer2Id"
-                            matchId={match.id}
-                            availablePlayers={availablePlayers}
-                            isOrganiser={isOrganiser}
-                            onSwap={onSwapPlayer}
-                            isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
-                          />
+                          {(match.teamBPlayer2 || isOrganiser) && (
+                            <PlayerBadge
+                              player={match.teamBPlayer2 || null}
+                              position="teamBPlayer2Id"
+                              matchId={match.id}
+                              availablePlayers={availablePlayers}
+                              isOrganiser={isOrganiser}
+                              onSwap={onSwapPlayer}
+                              isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
+                            />
+                          )}
                         </div>
                       </div>
 
                       {isOrganiser && availableCourts.length > 0 && (
-                        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                        <div className="px-3 pb-2 flex gap-2 flex-wrap">
                           {availableCourts.map(court => (
                             <Button
                               key={court}
                               size="sm"
                               onClick={() => onAssignToCourt(match.id, court)}
-                              className="gap-1.5 bg-green-600 text-white font-semibold shadow-md"
+                              className="flex-1 gap-1.5 bg-emerald-600 text-white font-semibold shadow-md"
                               data-testid={`button-assign-${match.id}-court-${court}`}
                             >
                               <Play className="w-3.5 h-3.5" />
@@ -455,22 +488,25 @@ export function MatchQueue({
                         </div>
                       )}
 
-                      <div className="mt-3 pt-2.5 border-t border-border/40 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <EditableTarget
-                            matchId={match.id}
-                            value={matchTarget}
-                            isOrganiser={isOrganiser}
-                            onUpdate={updateTarget}
-                          />
-                          {match.numberOfSets && match.numberOfSets > 1 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {match.numberOfSets === 3 ? "Best of 3" : "2 Sets"}
-                            </Badge>
-                          )}
-                        </div>
-                        {isOrganiser && (
-                          <div className="flex items-center gap-1 flex-wrap">
+                      {isOrganiser && (
+                        <div className="border-t border-border/30 dark:border-border/20 px-3 py-1.5">
+                          <div className="flex items-center justify-end">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => toggleActions(match.id)}
+                              data-testid={`button-toggle-actions-${match.id}`}
+                              title="More actions"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div
+                            className={cn(
+                              "flex items-center gap-1 flex-wrap transition-all duration-200",
+                              isActionsExpanded ? "max-h-40 opacity-100 pb-1" : "max-h-0 opacity-0 overflow-hidden"
+                            )}
+                          >
                             <Button
                               size="icon"
                               variant="ghost"
@@ -544,182 +580,11 @@ export function MatchQueue({
                               <Trash2 className="w-4 h-4 text-destructive" />
                             </Button>
                           </div>
-                        )}
-                      </div>
-                      {reshuffleErrors[match.id] && (
-                        <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-${match.id}`}>
-                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{reshuffleErrors[match.id]}</span>
                         </div>
                       )}
-                    </div>
 
-                    {/* --- DESKTOP/TABLET LAYOUT (>= sm) --- */}
-                    <div className="hidden sm:block">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0">
-                          {index + 1}
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
-                          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5">
-                            <PlayerBadge
-                              player={match.teamAPlayer1}
-                              position="teamAPlayer1Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                              isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
-                            />
-                            {(match.teamAPlayer2 || isOrganiser) && (
-                              <>
-                                {match.teamAPlayer2 && <span className="text-muted-foreground text-xs">&</span>}
-                                <PlayerBadge
-                                  player={match.teamAPlayer2 || null}
-                                  position="teamAPlayer2Id"
-                                  matchId={match.id}
-                                  availablePlayers={availablePlayers}
-                                  isOrganiser={isOrganiser}
-                                  onSwap={onSwapPlayer}
-                                  isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
-                                />
-                              </>
-                            )}
-                          </div>
-
-                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted shrink-0">vs</span>
-
-                          <div className="flex items-center gap-1.5 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 px-2.5 py-1.5">
-                            <PlayerBadge
-                              player={match.teamBPlayer1}
-                              position="teamBPlayer1Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                              isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
-                            />
-                            {(match.teamBPlayer2 || isOrganiser) && (
-                              <>
-                                {match.teamBPlayer2 && <span className="text-muted-foreground text-xs">&</span>}
-                                <PlayerBadge
-                                  player={match.teamBPlayer2 || null}
-                                  position="teamBPlayer2Id"
-                                  matchId={match.id}
-                                  availablePlayers={availablePlayers}
-                                  isOrganiser={isOrganiser}
-                                  onSwap={onSwapPlayer}
-                                  isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
-                                />
-                              </>
-                            )}
-                          </div>
-
-                          <EditableTarget
-                            matchId={match.id}
-                            value={matchTarget}
-                            isOrganiser={isOrganiser}
-                            onUpdate={updateTarget}
-                          />
-                          {match.numberOfSets && match.numberOfSets > 1 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {match.numberOfSets === 3 ? "Best of 3" : "2 Sets"}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {isOrganiser && (
-                        <div className="flex items-center gap-1.5 mt-2 ml-11 flex-wrap">
-                          {availableCourts.length > 0 && availableCourts.map(court => (
-                            <Button
-                              key={court}
-                              size="sm"
-                              onClick={() => onAssignToCourt(match.id, court)}
-                              className="gap-1 bg-green-600 text-white font-semibold shadow-md"
-                              data-testid={`button-assign-${match.id}-court-${court}`}
-                            >
-                              <Play className="w-3 h-3" />
-                              Court {court}
-                            </Button>
-                          ))}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id, "female_only")}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-female-desktop-${match.id}`}
-                            title="Female only"
-                            className="text-pink-500"
-                          >
-                            <IoFemale className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id, "male_only")}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-male-desktop-${match.id}`}
-                            title="Male only"
-                            className="text-blue-500"
-                          >
-                            <IoMale className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id, "mixed")}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-mixed-desktop-${match.id}`}
-                            title="Mixed (male + female pair)"
-                            className="text-purple-500"
-                          >
-                            <IoMaleFemale className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id, "high_grade")}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-high-desktop-${match.id}`}
-                            title="High grade (A/B)"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id, "low_grade")}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-low-desktop-${match.id}`}
-                            title="Low grade (C/D)"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleFilteredReshuffle(match.id)}
-                            disabled={isReshuffling}
-                            data-testid={`button-reshuffle-random-desktop-${match.id}`}
-                            title="Random reshuffle"
-                          >
-                            <Shuffle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setDeleteConfirm(match)}
-                            data-testid={`button-delete-queued-desktop-${match.id}`}
-                            title="Remove match"
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      )}
                       {reshuffleErrors[match.id] && (
-                        <div className="flex items-center gap-1.5 mt-2 ml-11 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-desktop-${match.id}`}>
+                        <div className="px-3 pb-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400" data-testid={`reshuffle-error-${match.id}`}>
                           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                           <span>{reshuffleErrors[match.id]}</span>
                         </div>
@@ -730,9 +595,8 @@ export function MatchQueue({
               })}
             </div>
           </ScrollArea>
-        </CardContent>
         )}
-      </Card>
+      </div>
 
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <DialogContent>
