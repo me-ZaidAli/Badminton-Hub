@@ -850,7 +850,7 @@ export default function PlayerIntelligence() {
   const { data: players, isLoading } = usePlayers();
   const { data: clubs } = useClubs();
   const adminClubId = useAdminClubId();
-  const { planStatus } = useClubPlan(adminClubId);
+  const { isPremium: clubIsPremium, isSuperAdmin } = useClubPlan(adminClubId);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
@@ -860,7 +860,7 @@ export default function PlayerIntelligence() {
   const [mobileListOpen, setMobileListOpen] = useState(false);
 
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
-  const isPremium = planStatus === "premium" || user?.role === "OWNER";
+  const isPremium = clubIsPremium || isSuperAdmin;
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
