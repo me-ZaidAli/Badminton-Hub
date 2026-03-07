@@ -24036,21 +24036,25 @@ Keep it to about 300 words. Be encouraging but honest.`;
         id: sessionSignups.id,
         sessionId: sessionSignups.sessionId,
         attendanceStatus: sessionSignups.attendanceStatus,
+        signupStatus: sessionSignups.signupStatus,
         sessionDate: sessions.date,
+        sessionStatus: sessions.status,
         durationMinutes: sessions.durationMinutes,
       }).from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
         .where(eq(sessionSignups.playerId, playerId));
 
-      const sessionsAttended = signups.filter(s => s.attendanceStatus === "ATTENDED").length;
+      const attendedStatuses = ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"];
+      const didAttend = (s: any) => attendedStatuses.includes(s.attendanceStatus) || (s.signupStatus === "CONFIRMED" && s.sessionStatus === "COMPLETED");
+      const sessionsAttended = signups.filter(didAttend).length;
       const totalHoursPlayed = signups
-        .filter(s => s.attendanceStatus === "ATTENDED")
+        .filter(didAttend)
         .reduce((sum, s) => sum + (s.durationMinutes || 120) / 60, 0);
 
       const last30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const last90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-      const sessions30d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last30d && s.attendanceStatus === "ATTENDED").length;
-      const sessions90d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last90d && s.attendanceStatus === "ATTENDED").length;
+      const sessions30d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last30d && didAttend(s)).length;
+      const sessions90d = signups.filter(s => s.sessionDate && new Date(s.sessionDate) >= last90d && didAttend(s)).length;
 
       let opponentDifficultyScore = 0;
       if (opponentIds.size > 0) {
@@ -24403,7 +24407,14 @@ Keep it to about 300 words. Be encouraging but honest.`;
 
       const attendedSessions = await db.select({ count: sql<number>`count(*)` })
         .from(sessionSignups)
-        .where(and(eq(sessionSignups.playerId, playerId), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(
+          eq(sessionSignups.playerId, playerId),
+          or(
+            inArray(sessionSignups.attendanceStatus, ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"]),
+            and(eq(sessionSignups.signupStatus, "CONFIRMED"), eq(sessions.status, "COMPLETED"))
+          )
+        ));
       const totalSessions = Number(attendedSessions[0]?.count || 0);
 
       const dynamicBadges = [];
@@ -24498,13 +24509,26 @@ Keep it to about 300 words. Be encouraging but honest.`;
 
         const sessionsResult = await db.select({ count: sql<number>`count(*)` })
           .from(sessionSignups)
-          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(
+            eq(sessionSignups.playerId, pid),
+            or(
+              inArray(sessionSignups.attendanceStatus, ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"]),
+              and(eq(sessionSignups.signupStatus, "CONFIRMED"), eq(sessions.status, "COMPLETED"))
+            )
+          ));
         const sessionsAttended = Number(sessionsResult[0]?.count || 0);
 
         const hoursResult = await db.select({ total: sql<number>`COALESCE(SUM(${sessions.durationMinutes}), 0)` })
           .from(sessionSignups)
           .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
-          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+          .where(and(
+            eq(sessionSignups.playerId, pid),
+            or(
+              inArray(sessionSignups.attendanceStatus, ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"]),
+              and(eq(sessionSignups.signupStatus, "CONFIRMED"), eq(sessions.status, "COMPLETED"))
+            )
+          ));
         const totalHours = Number(hoursResult[0]?.total || 0) / 60;
 
         return {
@@ -24604,13 +24628,26 @@ Keep it to about 300 words. Be encouraging but honest.`;
 
         const sessionsResult = await db.select({ count: sql<number>`count(*)` })
           .from(sessionSignups)
-          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(and(
+            eq(sessionSignups.playerId, pid),
+            or(
+              inArray(sessionSignups.attendanceStatus, ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"]),
+              and(eq(sessionSignups.signupStatus, "CONFIRMED"), eq(sessions.status, "COMPLETED"))
+            )
+          ));
         const sessionsAttended = Number(sessionsResult[0]?.count || 0);
 
         const hoursResult = await db.select({ total: sql<number>`COALESCE(SUM(${sessions.durationMinutes}), 0)` })
           .from(sessionSignups)
           .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
-          .where(and(eq(sessionSignups.playerId, pid), eq(sessionSignups.attendanceStatus, "ATTENDED")));
+          .where(and(
+            eq(sessionSignups.playerId, pid),
+            or(
+              inArray(sessionSignups.attendanceStatus, ["ATTENDED", "PARTIAL_ATTENDANCE", "LATE_ARRIVAL"]),
+              and(eq(sessionSignups.signupStatus, "CONFIRMED"), eq(sessions.status, "COMPLETED"))
+            )
+          ));
         const totalHours = Number(hoursResult[0]?.total || 0) / 60;
 
         const avgMargin = margins.length > 0 ? (margins.reduce((a, b) => a + b, 0) / margins.length).toFixed(1) : "0";

@@ -159,12 +159,16 @@ function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-cya
 
 function AchievementBadge({ badge }: { badge: any }) {
   const iconMap: Record<string, any> = {
+    MATCHES: Swords, ATTENDANCE: Clock, WINS: Trophy,
     match_milestone: Swords, win_milestone: Trophy, session_milestone: Clock,
     streak: Flame, grade_promotion: TrendingUp, perfect_session: Star,
     social: Users, default: Award,
   };
-  const Icon = iconMap[badge.achievementType] || iconMap.default;
-  const isLocked = badge.locked;
+  const badgeName = badge.name || badge.achievementName;
+  const badgeType = badge.type || badge.achievementType;
+  const isLocked = badge.unlocked === false || badge.locked === true;
+  const progressPercent = badge.target ? Math.min((badge.progress / badge.target) * 100, 100) : badge.progress;
+  const Icon = iconMap[badgeType] || iconMap.default;
   return (
     <div
       className={`relative rounded-2xl p-4 text-center transition-all duration-300 ${
@@ -172,17 +176,17 @@ function AchievementBadge({ badge }: { badge: any }) {
           ? "bg-[#0c1322]/50 border border-dashed border-[#1e293b] opacity-40"
           : "bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/5"
       }`}
-      data-testid={`badge-${badge.achievementName?.replace(/\s+/g, '-')}`}
+      data-testid={`badge-${badgeName?.replace(/\s+/g, '-')}`}
     >
       {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-slate-500" />}
       <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-slate-800/50" : "bg-cyan-500/10"}`}>
         <Icon className={`h-6 w-6 ${isLocked ? "text-slate-500" : "text-cyan-400"}`} />
       </div>
-      <p className="text-xs font-semibold truncate text-slate-200">{badge.achievementName}</p>
+      <p className="text-xs font-semibold truncate text-slate-200">{badgeName}</p>
       {badge.description && <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{badge.description}</p>}
-      {badge.progress !== undefined && (
+      {progressPercent !== undefined && isLocked && (
         <div className="mt-2 h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-full transition-all" style={{ width: `${Math.min(badge.progress, 100)}%` }} />
+          <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-full transition-all" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
         </div>
       )}
     </div>
@@ -1218,19 +1222,27 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
         </TabsContent>
 
         <TabsContent value="achievements" className="mt-5">
-          {achievements && (achievements as any[]).length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {(achievements as any[]).map((b: any, i: number) => (
-                <AchievementBadge key={i} badge={b} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 text-slate-500">
-              <Award className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-slate-400">No achievements yet</p>
-              <p className="text-sm mt-1">Keep playing to unlock badges!</p>
-            </div>
-          )}
+          {(() => {
+            const achData = achievements as any;
+            const allBadges = [
+              ...(achData?.dynamicBadges || []),
+              ...(achData?.lockedBadges || []),
+              ...(Array.isArray(achData) ? achData : []),
+            ];
+            return allBadges.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {allBadges.map((b: any, i: number) => (
+                  <AchievementBadge key={i} badge={b} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-500">
+                <Award className="h-14 w-14 mx-auto mb-3 opacity-30" />
+                <p className="font-medium text-slate-400">No achievements yet</p>
+                <p className="text-sm mt-1">Keep playing to unlock badges!</p>
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="skills" className="mt-5">
