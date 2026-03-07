@@ -858,6 +858,32 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/user/change-password", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+      if (typeof newPassword !== "string" || newPassword.length < 6) {
+        return res.status(400).json({ message: "New password must be at least 6 characters" });
+      }
+      const [userRecord] = await db.select({ password: users.password }).from(users).where(eq(users.id, req.user!.id));
+      if (!userRecord) return res.status(404).json({ message: "User not found" });
+
+      const valid = await comparePasswords(currentPassword, userRecord.password);
+      if (!valid) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      const hashed = await hashPassword(newPassword);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, req.user!.id));
+      res.json({ message: "Password updated successfully" });
+    } catch (err: any) {
+      console.error("Error changing password:", err);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   app.patch("/api/user/display-preferences", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

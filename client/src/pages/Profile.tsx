@@ -1686,6 +1686,24 @@ export default function Profile() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ fullName: "", phone: "", dateOfBirth: "", city: "", country: "" });
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const changePasswordMutation = useMutation({
+    mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
+      const res = await apiRequest("POST", "/api/user/change-password", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Password Changed", description: data.message });
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setChangePwOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed", description: err.message || "Could not change password", variant: "destructive" });
+    },
+  });
 
   const { data: creditBalances } = useQuery<{ clubId: number; clubName: string; balance: number }[]>({ queryKey: ["/api/my-credits"], enabled: !!user });
   const { data: creditHistory } = useQuery<any[]>({ queryKey: ["/api/my-credits/history"], enabled: !!user });
@@ -2736,6 +2754,85 @@ export default function Profile() {
                 <Pencil className="h-4 w-4 mr-1" />
                 Edit Profile
               </Button>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Change Password */}
+      <CollapsibleSection title="Change Password" icon={Lock} testId="card-change-password">
+        <div className="space-y-4">
+          {!changePwOpen ? (
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">Update your account password. You'll need to enter your current password first.</p>
+              <Button variant="outline" size="sm" onClick={() => setChangePwOpen(true)} data-testid="button-open-change-password">
+                <Lock className="h-4 w-4 mr-1" />
+                Change Password
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <div className="relative">
+                  <Input
+                    id="currentPassword"
+                    type={showCurrentPw ? "text" : "password"}
+                    value={pwForm.currentPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+                    placeholder="Enter current password"
+                    className="pr-10"
+                    data-testid="input-current-password"
+                  />
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 hover:bg-transparent" onClick={() => setShowCurrentPw(!showCurrentPw)} data-testid="button-toggle-current-pw">
+                    {showCurrentPw ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showNewPw ? "text" : "password"}
+                    value={pwForm.newPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
+                    placeholder="Min 6 characters"
+                    className="pr-10"
+                    data-testid="input-new-password"
+                  />
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 hover:bg-transparent" onClick={() => setShowNewPw(!showNewPw)} data-testid="button-toggle-new-pw">
+                    {showNewPw ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmNewPassword"
+                  type={showNewPw ? "text" : "password"}
+                  value={pwForm.confirmPassword}
+                  onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+                  placeholder="Confirm new password"
+                  data-testid="input-confirm-new-password"
+                />
+                {pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword && (
+                  <p className="text-xs text-destructive mt-1">Passwords do not match</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => changePasswordMutation.mutate({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword })}
+                  disabled={changePasswordMutation.isPending || pwForm.newPassword.length < 6 || pwForm.newPassword !== pwForm.confirmPassword || !pwForm.currentPassword}
+                  data-testid="button-save-password"
+                >
+                  {changePasswordMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Update Password
+                </Button>
+                <Button variant="outline" onClick={() => { setChangePwOpen(false); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); }} data-testid="button-cancel-password">
+                  Cancel
+                </Button>
+              </div>
             </div>
           )}
         </div>
