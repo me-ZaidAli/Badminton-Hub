@@ -1011,7 +1011,8 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="Matches" value={stats.matchesPlayed || 0} icon={Swords} subtitle={`${stats.matchesWon || 0}W - ${stats.matchesLost || 0}L`} sparkColor="#22d3ee" />
                 <StatCard label="Win Rate" value={`${stats.winRate || 0}%`} icon={TrendingUp} color={stats.winRate >= 50 ? "text-emerald-400" : "text-red-400"} sparkColor="#10b981" />
-                <StatCard label="Points Scored" value={stats.pointsScored || 0} icon={Target} subtitle={`${stats.pointsConceded || 0} conceded`} sparkColor="#a78bfa" />
+                <StatCard label="Points" value={stats.pointsScored || 0} icon={Target} subtitle={`${stats.pointsConceded || 0} conceded`} sparkColor="#a78bfa" />
+                <StatCard label="Sets Won" value={stats.setsWon || 0} icon={Trophy} sparkColor="#f472b6" />
                 <StatCard label="Sessions" value={stats.sessionsAttended || 0} icon={Clock} subtitle={`${stats.totalHoursPlayed?.toFixed(1) || 0}h played`} sparkColor="#f59e0b" />
                 <StatCard label="Impact Score" value={stats.sessionImpactScore || "0"} icon={Zap} color="text-yellow-400" sparkColor="#eab308" />
                 <StatCard label="Opponents" value={stats.uniqueOpponents || 0} icon={Users} sparkColor="#22d3ee" />

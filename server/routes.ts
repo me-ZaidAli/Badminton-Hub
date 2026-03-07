@@ -23992,6 +23992,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
         teamBPlayer2Id: matches.teamBPlayer2Id,
         scoreA: matches.scoreA,
         scoreB: matches.scoreB,
+        numberOfSets: matches.numberOfSets,
+        setsWonA: matches.setsWonA,
+        setsWonB: matches.setsWonB,
+        setScores: matches.setScores,
+        status: matches.status,
         isCompleted: matches.isCompleted,
         completedAt: matches.completedAt,
         startedAt: matches.startedAt,
@@ -24011,16 +24016,38 @@ Keep it to about 300 words. Be encouraging but honest.`;
       let losses = 0;
       let pointsScored = 0;
       let pointsConceded = 0;
+      let setsWon = 0;
       const opponentIds = new Set<number>();
 
       for (const m of allMatches) {
         const isTeamA = m.teamAPlayer1Id === playerId || m.teamAPlayer2Id === playerId;
-        const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
-        const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
-        pointsScored += myScore;
-        pointsConceded += oppScore;
+        const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+        const setScoresArr = (m.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+        const teamAWon = hasMultiSets
+          ? (m.setsWonA || 0) > (m.setsWonB || 0)
+          : (m.scoreA ?? 0) > (m.scoreB ?? 0);
 
-        if (myScore > oppScore) wins++;
+        if (setScoresArr.length > 0) {
+          for (const setScore of setScoresArr) {
+            if (isTeamA) {
+              pointsScored += setScore.scoreA;
+              pointsConceded += setScore.scoreB;
+              if (setScore.scoreA > setScore.scoreB) setsWon++;
+            } else {
+              pointsScored += setScore.scoreB;
+              pointsConceded += setScore.scoreA;
+              if (setScore.scoreB > setScore.scoreA) setsWon++;
+            }
+          }
+        } else {
+          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+          pointsScored += myScore;
+          pointsConceded += oppScore;
+          if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) setsWon++;
+        }
+
+        if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) wins++;
         else losses++;
 
         const opponents = isTeamA
@@ -24099,6 +24126,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
           winRate,
           pointsScored,
           pointsConceded,
+          setsWon,
           sessionsAttended,
           totalHoursPlayed: Math.round(totalHoursPlayed * 10) / 10,
           sessions30d,
