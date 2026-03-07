@@ -542,7 +542,7 @@ export default function Financials() {
   useEffect(() => {
     try { localStorage.setItem("financialDashboardView", dashboardView); } catch {}
   }, [dashboardView]);
-  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past">("upcoming");
+  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past" | "missing-invoice">("upcoming");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
@@ -872,11 +872,12 @@ export default function Financials() {
     return Object.fromEntries(sorted);
   }, [filteredData]);
 
-  const { upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups } = useMemo(() => {
+  const { upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, missingInvoiceSessionGroups } = useMemo(() => {
     const today = startOfDay(new Date());
     const upcoming: Record<number, FinancialEntry[]> = {};
     const outstanding: Record<number, FinancialEntry[]> = {};
     const past: Record<number, FinancialEntry[]> = {};
+    const missingInvoice: Record<number, FinancialEntry[]> = {};
     Object.entries(sessionGroups).forEach(([sessionIdStr, entries]) => {
       const sessionDate = entries[0]?.sessionDate ? startOfDay(new Date(entries[0].sessionDate)) : null;
       if (!sessionDate || sessionDate >= today) {
@@ -888,13 +889,17 @@ export default function Financials() {
         } else {
           past[Number(sessionIdStr)] = entries;
         }
+        const hasInvoice = entries[0]?.invoiceNumber;
+        if (!hasInvoice) {
+          missingInvoice[Number(sessionIdStr)] = entries;
+        }
       }
     });
-    return { upcomingSessionGroups: upcoming, outstandingSessionGroups: outstanding, pastSessionGroups: past };
+    return { upcomingSessionGroups: upcoming, outstandingSessionGroups: outstanding, pastSessionGroups: past, missingInvoiceSessionGroups: missingInvoice };
   }, [sessionGroups]);
 
   const activeSessionGroupsList = useMemo(() => {
-    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : sessionTimeTab === "outstanding" ? outstandingSessionGroups : pastSessionGroups;
+    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : sessionTimeTab === "outstanding" ? outstandingSessionGroups : sessionTimeTab === "missing-invoice" ? missingInvoiceSessionGroups : pastSessionGroups;
     const entries: [string, FinancialEntry[]][] = Object.entries(base);
     entries.sort(([, a], [, b]) => {
       if (sessionSortOrder === "az") {
@@ -907,7 +912,7 @@ export default function Financials() {
       return sessionSortOrder === "oldest" ? aDate - bDate : bDate - aDate;
     });
     return entries;
-  }, [sessionTimeTab, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, sessionSortOrder]);
+  }, [sessionTimeTab, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, missingInvoiceSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
     const data = playerSearchQuery
@@ -2460,6 +2465,16 @@ export default function Financials() {
                 <History className="h-4 w-4 mr-1" />
                 Past ({Object.keys(pastSessionGroups).length})
               </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "missing-invoice" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("missing-invoice"); setSelectedSessions(new Set()); }}
+                className={sessionTimeTab !== "missing-invoice" && Object.keys(missingInvoiceSessionGroups).length > 0 ? "border-red-300 text-red-600" : ""}
+                data-testid="button-missing-invoice-sessions"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Missing Invoice ({Object.keys(missingInvoiceSessionGroups).length})
+              </Button>
             </div>
             <div className="flex items-center gap-1 flex-wrap">
               <Select value={sessionSortOrder} onValueChange={(v) => setSessionSortOrder(v as "recent" | "oldest" | "az")}>
@@ -2559,7 +2574,7 @@ export default function Financials() {
           {activeSessionGroupsList.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
-                No {sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : "past"} sessions found for the selected filters.
+                No {sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : sessionTimeTab === "missing-invoice" ? "missing invoice" : "past"} sessions found for the selected filters.
               </CardContent>
             </Card>
           ) : (
