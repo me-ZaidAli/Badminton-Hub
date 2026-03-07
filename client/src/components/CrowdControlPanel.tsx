@@ -458,7 +458,7 @@ function PGSInfoModal({ open, onClose }: { open: boolean; onClose: () => void })
               <Shield className="w-5 h-5" style={{ color: PGS.green }} />
             </div>
             <div>
-              <h2 className="text-base font-bold" style={{ color: PGS.heading }}>What is the PGS Competitive Balance Engine™?</h2>
+              <h2 className="text-base font-bold" style={{ color: PGS.heading }}>What is the BPG Competitive Balance Engine™?</h2>
               <p className="text-xs" style={{ color: PGS.muted }}>Badminton Performance Group · Proprietary Model</p>
             </div>
           </div>
@@ -1080,7 +1080,7 @@ export function CrowdControlPanel({
                   <Activity className="w-4.5 h-4.5" style={{ color: PGS.green }} />
                 </div>
                 <div>
-                  <span style={{ color: PGS.heading }}>PGS Competitive Balance Engine</span>
+                  <span style={{ color: PGS.heading }}>BPG Competitive Balance Engine</span>
                   <span className="text-[10px] align-top" style={{ color: PGS.muted }}>™</span>
                 </div>
               </DialogTitle>
