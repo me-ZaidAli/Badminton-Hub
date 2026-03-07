@@ -1276,7 +1276,7 @@ export default function PlayerIntelligence() {
   const [mobileListOpen, setMobileListOpen] = useState(false);
 
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
-  const isPremium = clubIsPremium || isSuperAdmin;
+  const isPremium = clubIsPremium || isSuperAdmin || isAdmin;
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];

@@ -285,7 +285,13 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
   const adminClubId = useAdminClubId();
   const { isPremium, isSuperAdmin, isLoading: planLoading } = useClubPlan(adminClubId);
 
-  if (isLoading || clubsLoading || planLoading) {
+  const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+
+  if (isLoading || clubsLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
+
+  if (!isPlatformAdmin && planLoading) {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
 
@@ -296,7 +302,6 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   const isSuperUser = user?.role === "OWNER";
-  const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
 
   if (!isPlatformAdmin || (!isSuperUser && !hasClubAdminAccess)) {
     setLocation("/dashboard");

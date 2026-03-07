@@ -187,8 +187,8 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
         { href: "/juniors", label: "Juniors", icon: Baby },
         { href: "/league", label: "League", icon: Swords },
         { href: "/rankings", label: "Rankings", icon: Trophy },
-        ...(isAdminOrOwner ? [{ href: "/player-intelligence", label: "Player Intel", icon: Activity }] : []),
-      ],
+        { href: "/player-intelligence", label: "Player Intel", icon: Activity, adminOnly: true },
+      ].filter(item => !(item as any).adminOnly || isAdminOrOwner),
     },
     {
       label: "My Club",
