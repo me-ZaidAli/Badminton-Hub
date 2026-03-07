@@ -303,7 +303,7 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
     return null;
   }
 
-  if (!isPremium && !isSuperAdmin) {
+  if (!isPremium && !isSuperAdmin && !isPlatformAdmin) {
     return (
       <AuthenticatedShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
