@@ -4444,9 +4444,63 @@ export async function registerRoutes(
             }))
           );
 
+          for (const s of eligibleSignups) {
+            if (!playerMatchCounts.has(s.player.id)) {
+              playerMatchCounts.set(s.player.id, 0);
+            }
+          }
+
+          const autoMatchHistory = existingMatches.map(m => ({
+            id: m.id, status: m.status,
+            teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id,
+            scoreA: m.scoreA, scoreB: m.scoreB,
+            startedAt: m.startedAt, completedAt: m.completedAt,
+          }));
+          const autoAllPlayers = eligibleSignups.map(s => ({
+            id: s.player.id, gender: s.player.gender,
+            grade: s.player.grade || s.player.category || "C3",
+            isPaused: s.isPaused, genderOverride: s.genderOverride,
+          }));
+          const autoMetrics = computeSessionMetrics(autoMatchHistory, autoAllPlayers);
+
+          const autoPriorityIds: number[] = [];
+          for (const w of autoMetrics.warnings) {
+            if ((w.type === "IDLE_PLAYER" || w.type === "LONG_REST") && players.some(p => p.id === w.playerId)) {
+              if (!autoPriorityIds.includes(w.playerId)) autoPriorityIds.push(w.playerId);
+            }
+          }
+          for (const pm of autoMetrics.playerMetrics) {
+            if (pm.matchesPlayed === 0 && players.some(p => p.id === pm.playerId) && !autoPriorityIds.includes(pm.playerId)) {
+              autoPriorityIds.push(pm.playerId);
+            }
+          }
+          const autoMatchCountVals = Array.from(playerMatchCounts.values());
+          const autoGlobalMin = autoMatchCountVals.length > 0 ? Math.min(...autoMatchCountVals) : 0;
+          for (const p of players) {
+            const count = playerMatchCounts.get(p.id) || 0;
+            if (count <= autoGlobalMin && !autoPriorityIds.includes(p.id)) {
+              autoPriorityIds.push(p.id);
+            }
+          }
+
+          const autoFatigueIds = new Set<number>();
+          for (const w of autoMetrics.warnings) {
+            if (w.type === "FATIGUE" && w.severity === "HIGH") {
+              autoFatigueIds.add(w.playerId);
+            }
+          }
+          let autoActivePlayers = players;
+          if (autoFatigueIds.size > 0) {
+            const nonFatigued = players.filter(p => !autoFatigueIds.has(p.id));
+            if (nonFatigued.length >= playersPerMatch) {
+              autoActivePlayers = nonFatigued;
+            }
+          }
+
           const generated = generateSmartMatches({
             mode: matchMode as "SOCIAL" | "COMPETITIVE",
-            players,
+            players: autoActivePlayers,
             playersPerSide: playersPerSide as 1 | 2,
             genderType: gType,
             queueTarget: 1,
@@ -4454,6 +4508,7 @@ export async function registerRoutes(
             recentOpponents,
             playerMatchCounts,
             fixedPairs: extractFixedPairs(signups),
+            priorityPlayerIds: autoPriorityIds.length > 0 ? autoPriorityIds : undefined,
           });
 
           const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5051,35 +5106,82 @@ export async function registerRoutes(
       const clubPlan = await getClubPlanStatus(session.clubId);
       const useAIBrain = session.aiBrainEnabled && isClubPremium(clubPlan.planStatus);
 
+      const matchHistory = existingMatches.map(m => ({
+        id: m.id,
+        status: m.status,
+        teamAPlayer1Id: m.teamAPlayer1Id,
+        teamAPlayer2Id: m.teamAPlayer2Id,
+        teamBPlayer1Id: m.teamBPlayer1Id,
+        teamBPlayer2Id: m.teamBPlayer2Id,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        startedAt: m.startedAt,
+        completedAt: m.completedAt,
+      }));
+
+      const allSessionPlayers = eligibleSignups.map(s => ({
+        id: s.player.id,
+        gender: s.player.gender,
+        grade: s.player.grade || s.player.category || "C3",
+        isPaused: s.isPaused,
+        genderOverride: s.genderOverride,
+      }));
+      const sessionMetrics = computeSessionMetrics(matchHistory, allSessionPlayers);
+
+      const priorityPlayerIds: number[] = [];
+      const fatiguePlayerIds = new Set<number>();
+      for (const w of sessionMetrics.warnings) {
+        if (w.type === "IDLE_PLAYER" || w.type === "LONG_REST") {
+          if (players.some(p => p.id === w.playerId)) {
+            priorityPlayerIds.push(w.playerId);
+          }
+        }
+        if (w.type === "FATIGUE" && w.severity === "HIGH") {
+          fatiguePlayerIds.add(w.playerId);
+        }
+      }
+
+      for (const pm of sessionMetrics.playerMetrics) {
+        if (pm.matchesPlayed === 0 && players.some(p => p.id === pm.playerId) && !priorityPlayerIds.includes(pm.playerId)) {
+          priorityPlayerIds.push(pm.playerId);
+        }
+      }
+
+      const matchCounts = Array.from(playerMatchCounts.values());
+      const globalMin = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
+      for (const p of players) {
+        const count = playerMatchCounts.get(p.id) || 0;
+        if (count <= globalMin && !priorityPlayerIds.includes(p.id)) {
+          priorityPlayerIds.push(p.id);
+        }
+      }
+
+      let activePlayers = players;
+      if (fatiguePlayerIds.size > 0) {
+        const nonFatigued = players.filter(p => !fatiguePlayerIds.has(p.id));
+        if (nonFatigued.length >= playersPerMatch) {
+          activePlayers = nonFatigued;
+        }
+      }
+
       let generated: any;
       if (useAIBrain) {
         generated = applyAIBrainLayer({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
-          players,
+          players: activePlayers,
           playersPerSide: playersPerSide as 1 | 2,
           genderType: gType,
           queueTarget: finalTarget,
-          matchHistory: existingMatches.map(m => ({
-            id: m.id,
-            status: m.status,
-            teamAPlayer1Id: m.teamAPlayer1Id,
-            teamAPlayer2Id: m.teamAPlayer2Id,
-            teamBPlayer1Id: m.teamBPlayer1Id,
-            teamBPlayer2Id: m.teamBPlayer2Id,
-            scoreA: m.scoreA,
-            scoreB: m.scoreB,
-            startedAt: m.startedAt,
-            completedAt: m.completedAt,
-          })),
+          matchHistory,
           fixedPairs: extractFixedPairs(eligibleSignups),
-          priorityPlayerIds: undefined,
+          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
           sessionDurationMinutes: session.durationMinutes || 120,
           elapsedMinutes: session.date ? Math.max(0, Math.round((Date.now() - new Date(session.date).getTime()) / 60000)) : undefined,
         });
       } else {
         generated = generateSmartMatches({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
-          players,
+          players: activePlayers,
           playersPerSide: playersPerSide as 1 | 2,
           genderType: gType,
           queueTarget: finalTarget,
@@ -5087,6 +5189,7 @@ export async function registerRoutes(
           recentOpponents,
           playerMatchCounts,
           fixedPairs: extractFixedPairs(eligibleSignups),
+          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
         });
       }
 
