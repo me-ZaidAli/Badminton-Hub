@@ -6303,6 +6303,7 @@ export async function registerRoutes(
         }).from(matches).where(
           and(
             eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
             or(
               eq(matches.teamAPlayer1Id, priId), eq(matches.teamAPlayer2Id, priId),
               eq(matches.teamBPlayer1Id, priId), eq(matches.teamBPlayer2Id, priId)
@@ -6658,6 +6659,7 @@ export async function registerRoutes(
             }).from(matches).where(
               and(
                 eq(matches.isCompleted, true),
+                isNull(matches.deletedAt),
                 or(eq(matches.teamAPlayer1Id, priId), eq(matches.teamAPlayer2Id, priId), eq(matches.teamBPlayer1Id, priId), eq(matches.teamBPlayer2Id, priId))
               )
             );
@@ -10078,6 +10080,7 @@ export async function registerRoutes(
         const profileIds = profileRows.map(p => p.profileId);
         const matchConditions: any[] = [
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           eq(matches.status, "COMPLETED"),
         ];
         if (req.query.dateFrom) matchConditions.push(sql`${matches.completedAt} >= ${new Date(req.query.dateFrom as string)}`);
@@ -10182,6 +10185,7 @@ export async function registerRoutes(
 
       const matchQueryConditions: any[] = [
         eq(matches.isCompleted, true),
+        isNull(matches.deletedAt),
         eq(matches.status, "COMPLETED"),
       ];
 
@@ -20874,6 +20878,7 @@ export async function registerRoutes(
       ? await db.select().from(matches).where(
           and(
             eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
             or(
               inArray(matches.teamAPlayer1Id, profileIds),
               inArray(matches.teamAPlayer2Id, profileIds),
@@ -20979,6 +20984,7 @@ export async function registerRoutes(
         and(
           inArray(matches.sessionId, sessionIds),
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             inArray(matches.teamAPlayer1Id, profileIds),
             inArray(matches.teamAPlayer2Id, profileIds),
@@ -23992,6 +23998,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       }).from(matches)
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             eq(matches.teamAPlayer1Id, playerId),
             eq(matches.teamAPlayer2Id, playerId),
@@ -24119,8 +24126,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         if (membership.length === 0) return res.status(403).json({ message: "Not authorized" });
       }
 
-      const club = await db.select({ id: clubs.id, plan: clubs.plan }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
-      if (club.length > 0 && club[0].plan !== "premium" && currentUser.role !== "OWNER") {
+      const club = await db.select({ id: clubs.id, planStatus: clubs.planStatus }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      if (club.length > 0 && club[0].planStatus !== "ACTIVE_PREMIUM" && currentUser.role !== "OWNER") {
         return res.status(403).json({ message: "Premium feature" });
       }
 
@@ -24139,6 +24146,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       }).from(matches)
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             eq(matches.teamAPlayer1Id, playerId),
             eq(matches.teamAPlayer2Id, playerId),
@@ -24257,6 +24265,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         .innerJoin(sessions, eq(matches.sessionId, sessions.id))
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             eq(matches.teamAPlayer1Id, playerId),
             eq(matches.teamAPlayer2Id, playerId),
@@ -24382,6 +24391,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         .from(matches)
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             eq(matches.teamAPlayer1Id, playerId),
             eq(matches.teamAPlayer2Id, playerId),
@@ -24467,6 +24477,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         }).from(matches)
           .where(and(
             eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
             or(
               eq(matches.teamAPlayer1Id, pid),
               eq(matches.teamAPlayer2Id, pid),
@@ -24562,6 +24573,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         }).from(matches)
           .where(and(
             eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
             or(
               eq(matches.teamAPlayer1Id, pid),
               eq(matches.teamAPlayer2Id, pid),
@@ -24637,6 +24649,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       }).from(matches)
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             and(
               or(eq(matches.teamAPlayer1Id, player1Id), eq(matches.teamAPlayer2Id, player1Id)),
@@ -24882,6 +24895,7 @@ Write 5-7 detailed paragraphs. Be specific with numbers. Be opinionated but fair
         .where(
           and(
             eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
             or(
               eq(matches.teamAPlayer1Id, playerId),
               eq(matches.teamAPlayer2Id, playerId),
