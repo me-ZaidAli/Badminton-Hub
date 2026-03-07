@@ -347,7 +347,7 @@ export default function RecognitionCards() {
                                   {uc.serialNumber} · Issued {format(new Date(uc.issuedAt), "dd MMM yyyy")}
                                   {uc.issuerName && ` by ${uc.issuerName}`}
                                 </p>
-                                {uc.customReason && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{uc.customReason}</p>}
+                                {uc.customReason && <p className="text-xs text-muted-foreground italic mt-0.5">{uc.customReason}</p>}
                                 {uc.revokedAt && <p className="text-xs text-destructive mt-0.5">Revoked {format(new Date(uc.revokedAt), "dd MMM yyyy")}</p>}
                               </div>
                               {!uc.revokedAt && (

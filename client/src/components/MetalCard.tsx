@@ -582,8 +582,8 @@ export function MetalCardBack({
             }}
           >
             <span
-              className={`${sizeConfig.headerText} font-bold uppercase tracking-wider truncate`}
-              style={{ color: mat.textMain, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+              className={`${sizeConfig.headerText} font-bold uppercase tracking-wider ${vertical ? "" : "truncate"}`}
+              style={{ color: mat.textMain, textShadow: "0 1px 2px rgba(0,0,0,0.5)", minWidth: 0 }}
             >
               {cardName}
             </span>
@@ -626,12 +626,17 @@ export function MetalCardBack({
 
         <div className={`mt-auto ${vertical ? "space-y-3" : "space-y-1"}`}>
           <div
-            className={`rounded-xl ${vertical ? "p-4" : "p-1.5"}`}
+            className={`rounded-xl ${vertical ? "p-4" : "p-1.5"} scrollable-card-text`}
             style={{
               background: "rgba(0,0,0,0.25)",
               border: "1px solid rgba(255,255,255,0.06)",
               boxShadow: "inset 0 1px 3px rgba(0,0,0,0.3)",
+              maxHeight: vertical ? "120px" : size === "large" ? "60px" : size === "normal" ? "36px" : "24px",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
+            onClick={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
           >
             <p
               className={`${sizeConfig.body} leading-relaxed`}

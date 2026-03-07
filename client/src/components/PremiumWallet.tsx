@@ -99,8 +99,8 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm sm:max-w-md p-0 bg-black/95 border-none overflow-hidden" data-testid="dialog-card-carousel">
-        <div className="relative flex flex-col items-center justify-center min-h-[520px] p-4 sm:p-6">
+      <DialogContent className="max-w-sm sm:max-w-md p-0 bg-black/95 border-none overflow-hidden max-h-[95vh]" data-testid="dialog-card-carousel">
+        <div className="relative flex flex-col items-center justify-center min-h-[520px] p-4 sm:p-6 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
           <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-white/70 z-50" onClick={onClose} data-testid="button-close-carousel">
             <X className="h-5 w-5" />
           </Button>
@@ -121,8 +121,8 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
               style={{ perspective: "1200px" }}
               onClick={() => setIsFlipped(!isFlipped)}
               animate={{
-                width: isFlipped ? "280px" : "280px",
-                height: isFlipped ? "400px" : "176px",
+                width: "280px",
+                height: isFlipped ? "440px" : "176px",
               }}
               transition={{ duration: 0.5, ease: "easeInOut" }}
             >

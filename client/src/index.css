@@ -6938,6 +6938,11 @@ html.theme-transitioning * {
 .metal-glow-aura {
   animation: metal-glow-pulse 3s ease-in-out infinite;
 }
+.scrollable-card-text::-webkit-scrollbar { width: 3px; }
+.scrollable-card-text::-webkit-scrollbar-track { background: transparent; }
+.scrollable-card-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.scrollable-card-text::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+.scrollable-card-text { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
 .phantom-luxe ::-webkit-scrollbar { width: 5px; }
 .phantom-luxe ::-webkit-scrollbar-track { background: hsl(240 10% 2%); }
 .phantom-luxe ::-webkit-scrollbar-thumb { background: hsl(0 0% 16%); border-radius: 3px; }
