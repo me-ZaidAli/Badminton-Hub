@@ -146,7 +146,8 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
   }
 
-  const showPremium = isPremium || isSuperAdmin;
+  const isAdminRole = user?.role === "OWNER" || user?.role === "ADMIN";
+  const showPremium = isPremium || isSuperAdmin || isAdminRole;
   const filteredItems = items.filter(item => {
     if (item.hidden) return false;
     if (!item.premiumOnly) return true;
