@@ -107,7 +107,7 @@ export default function Login() {
           </Form>
           <div className="mt-2 text-right">
             <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-forgot-password">
-              Forgot password?
+              Forgot password? Request reset
             </Link>
           </div>
           <div className="mt-4 text-center text-sm">
