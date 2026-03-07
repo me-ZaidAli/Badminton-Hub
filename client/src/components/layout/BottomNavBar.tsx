@@ -6,6 +6,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import {
+  Activity,
   Calendar,
   CalendarCheck,
   Settings,
@@ -58,6 +59,7 @@ const ALL_NAV_OPTIONS: { id: string; label: string; href: string; icon: any }[] 
   { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
   { id: "rankings", label: "Rankings", href: "/rankings", icon: Trophy },
   { id: "league", label: "League", href: "/league", icon: Swords },
+  { id: "player-intel", label: "Player Intel", href: "/player-intelligence", icon: Activity },
   { id: "juniors", label: "Juniors", href: "/juniors", icon: Baby },
   { id: "referrals", label: "Refer & Earn", href: "/referrals", icon: Gift },
   { id: "rewards", label: "My Rewards", href: "/rewards", icon: Award },
@@ -185,6 +187,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
         { href: "/juniors", label: "Juniors", icon: Baby },
         { href: "/league", label: "League", icon: Swords },
         { href: "/rankings", label: "Rankings", icon: Trophy },
+        ...(isAdminOrOwner ? [{ href: "/player-intelligence", label: "Player Intel", icon: Activity }] : []),
       ],
     },
     {
