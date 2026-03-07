@@ -24737,6 +24737,7 @@ Write 5-7 detailed paragraphs. Be specific with numbers. Be opinionated but fair
         .innerJoin(sessions, eq(matches.sessionId, sessions.id))
         .where(and(
           eq(matches.isCompleted, true),
+          isNull(matches.deletedAt),
           or(
             and(
               or(eq(matches.teamAPlayer1Id, player1Id), eq(matches.teamAPlayer2Id, player1Id)),
