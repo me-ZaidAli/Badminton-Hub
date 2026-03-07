@@ -8700,6 +8700,7 @@ export async function registerRoutes(
           sessionType: sessions.sessionType,
           matchMode: sessions.matchMode,
           sessionFee: sessions.sessionFee,
+          invoiceNumber: sessions.invoiceNumber,
           clubId: sessions.clubId,
           clubName: clubs.name,
           clubSessionFee: clubs.sessionFee,
@@ -8728,6 +8729,31 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching financial summary:", err);
       res.status(500).json({ message: "Failed to fetch financial summary" });
+    }
+  });
+
+  app.patch("/api/admin/sessions/:id/invoice-number", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const sessionId = Number(req.params.id);
+    const rawInvoice = req.body.invoiceNumber;
+    const invoiceNumber = typeof rawInvoice === "string" ? rawInvoice.trim().slice(0, 100) : "";
+
+    try {
+      const [session] = await db.select({ id: sessions.id, clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isOwner = user.role === "OWNER";
+      if (!isOwner) {
+        const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_SESSIONS", session.clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      await db.update(sessions).set({ invoiceNumber: invoiceNumber || null }).where(eq(sessions.id, sessionId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating invoice number:", err);
+      res.status(500).json({ message: "Failed to update invoice number" });
     }
   });
 

@@ -362,6 +362,7 @@ export const sessions = pgTable("sessions", {
   queueTargetSize: integer("queue_target_size").default(3),
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
   publishAt: timestamp("publish_at"),
+  invoiceNumber: text("invoice_number"),
 });
 
 // === SESSION SIGNUPS ===

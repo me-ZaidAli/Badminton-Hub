@@ -55,6 +55,8 @@ import {
   FileText,
   Target,
   Lightbulb,
+  Hash,
+  Check,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -81,6 +83,7 @@ interface FinancialEntry {
   sessionType: string;
   matchMode: string;
   sessionFee: number;
+  invoiceNumber: string | null;
   clubId: number;
   clubName: string;
   clubSessionFee: number | null;
@@ -582,6 +585,8 @@ export default function Financials() {
 
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
+  const [invoiceEditSessionId, setInvoiceEditSessionId] = useState<number | null>(null);
+  const [invoiceEditValue, setInvoiceEditValue] = useState("");
   const [sortPlayersAlpha, setSortPlayersAlpha] = useState(false);
   const [sessionPaymentView, setSessionPaymentView] = useState<"all" | "paid" | "unpaid" | "grouped">("all");
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
@@ -1181,6 +1186,20 @@ export default function Financials() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
+    },
+  });
+
+  const updateInvoiceNumber = useMutation({
+    mutationFn: async ({ sessionId, invoiceNumber }: { sessionId: number; invoiceNumber: string }) => {
+      await apiRequest("PATCH", `/api/admin/sessions/${sessionId}/invoice-number`, { invoiceNumber });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/admin/financial-summary") || (q.queryKey[0] as string).startsWith("/api/admin/financial-dashboard")) });
+      toast({ title: "Invoice Updated", description: "Invoice number has been saved." });
+      setInvoiceEditSessionId(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update invoice number.", variant: "destructive" });
     },
   });
 
@@ -2609,6 +2628,68 @@ export default function Financials() {
                             {first.sessionDate ? format(new Date(first.sessionDate), "MMM d, yyyy") : "N/A"}
                             {" "}/{" "}{first.clubName}{" "}/{" "}{entries.length} players
                           </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {invoiceEditSessionId === sessionId ? (
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <Input
+                                  className="h-6 w-36 text-xs px-1.5"
+                                  placeholder="Invoice number..."
+                                  value={invoiceEditValue}
+                                  onChange={(e) => setInvoiceEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
+                                    } else if (e.key === "Escape") {
+                                      setInvoiceEditSessionId(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                  data-testid={`input-invoice-${sessionId}`}
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
+                                  }}
+                                  disabled={updateInvoiceNumber.isPending}
+                                  data-testid={`button-save-invoice-${sessionId}`}
+                                >
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={(e) => { e.stopPropagation(); setInvoiceEditSessionId(null); }}
+                                  data-testid={`button-cancel-invoice-${sessionId}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-transparent border-0 cursor-pointer p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setInvoiceEditSessionId(sessionId);
+                                  setInvoiceEditValue(first.invoiceNumber || "");
+                                }}
+                                data-testid={`button-edit-invoice-${sessionId}`}
+                              >
+                                <Hash className="h-3 w-3" />
+                                {first.invoiceNumber ? (
+                                  <span>Inv: {first.invoiceNumber}</span>
+                                ) : (
+                                  <span className="italic opacity-60">Add invoice no.</span>
+                                )}
+                                <Pencil className="h-2.5 w-2.5 opacity-50" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 flex-wrap">
