@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, X, Smartphone, Share } from "lucide-react";
+import { Download, X, Smartphone, Share, Plus, ArrowUp } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -15,6 +15,11 @@ function isIos() {
 
 function isInStandaloneMode() {
   return window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+}
+
+function isSafari() {
+  const ua = navigator.userAgent;
+  return /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua) && !/FxiOS/.test(ua);
 }
 
 export function usePwaInstall() {
@@ -107,7 +112,7 @@ export function PwaInstallBanner() {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold leading-tight">Install App</p>
             <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-              {isIosDevice ? "Add to home screen via Safari" : "Add to your home screen for quick access"}
+              {isIosDevice ? "Add to home screen for the best experience" : "Add to your home screen for quick access"}
             </p>
           </div>
         </div>
@@ -127,50 +132,150 @@ export function PwaInstallBanner() {
 }
 
 function IosInstallGuide({ onClose }: { onClose: () => void }) {
+  const usingChrome = /CriOS/.test(navigator.userAgent);
+  const usingFirefox = /FxiOS/.test(navigator.userAgent);
+  const notSafari = usingChrome || usingFirefox || !isSafari();
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
-        className="w-full max-w-md mx-4 mb-8 rounded-2xl bg-card border border-border p-5 shadow-2xl space-y-3"
+        className="w-full max-w-md mx-4 mb-8 rounded-2xl bg-card border border-border p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom-5 duration-300"
         onClick={(e) => e.stopPropagation()}
         data-testid="ios-install-guide"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold">Install Club Master</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted transition-colors">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Smartphone className="h-5 w-5 text-primary" />
+            </div>
+            <h3 className="text-base font-bold">Install Club Master</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted transition-colors" data-testid="button-close-ios-guide-x">
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {notSafari && (
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3" data-testid="safari-warning">
+            <p className="text-xs text-amber-400 font-medium">
+              Open this page in <strong>Safari</strong> to install the app. {usingChrome ? "Chrome" : usingFirefox ? "Firefox" : "This browser"} on iPhone/iPad doesn't support app installation.
+            </p>
+            <p className="text-[11px] text-amber-400/70 mt-1">
+              Copy this URL and paste it in Safari to continue.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="flex items-start gap-3" data-testid="ios-step-1">
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
               <span className="text-xs font-bold text-primary">1</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Tap the <Share className="inline h-4 w-4 mx-0.5 align-text-bottom" /> <strong>Share</strong> button in Safari's toolbar
-            </p>
+            <div>
+              <p className="text-sm font-medium">Tap the Share button</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Look for the <Share className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> icon at the bottom of Safari
+              </p>
+            </div>
           </div>
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="flex items-start gap-3" data-testid="ios-step-2">
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
               <span className="text-xs font-bold text-primary">2</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Scroll down and tap <strong>"Add to Home Screen"</strong>
-            </p>
+            <div>
+              <p className="text-sm font-medium">Tap "Add to Home Screen"</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Scroll down in the share menu to find <Plus className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> <strong>Add to Home Screen</strong>
+              </p>
+            </div>
           </div>
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="flex items-start gap-3" data-testid="ios-step-3">
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
               <span className="text-xs font-bold text-primary">3</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Tap <strong>"Add"</strong> to install Club Master on your home screen
-            </p>
+            <div>
+              <p className="text-sm font-medium">Tap "Add"</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Club Master will appear on your home screen like a native app
+              </p>
+            </div>
           </div>
         </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <ArrowUp className="h-4 w-4 text-muted-foreground animate-bounce" />
+          <p className="text-[11px] text-muted-foreground">The app will work offline and open in full screen</p>
+        </div>
+
         <Button size="sm" className="w-full" onClick={onClose} data-testid="button-close-ios-guide">
           Got it
         </Button>
       </div>
     </div>
+  );
+}
+
+export function IosFirstVisitPrompt() {
+  const [show, setShow] = useState(false);
+  const { isIosDevice, showIosGuide, setShowIosGuide } = usePwaInstall();
+
+  useEffect(() => {
+    if (!isIosDevice || isInStandaloneMode()) return;
+    const seen = localStorage.getItem("ios-install-prompt-seen");
+    if (!seen) {
+      const timer = setTimeout(() => setShow(true), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isIosDevice]);
+
+  if (!show || isInStandaloneMode()) return null;
+
+  return (
+    <>
+      <div
+        className="fixed bottom-4 left-4 right-4 z-[90] max-w-md mx-auto rounded-2xl bg-card border border-primary/30 p-4 shadow-2xl animate-in slide-in-from-bottom-5 duration-500"
+        style={{
+          background: "linear-gradient(135deg, hsl(var(--card)), hsl(var(--primary) / 0.05))",
+        }}
+        data-testid="ios-first-visit-prompt"
+      >
+        <button
+          className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => {
+            setShow(false);
+            localStorage.setItem("ios-install-prompt-seen", "true");
+          }}
+          data-testid="button-dismiss-ios-prompt"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="flex items-center gap-3 pr-4">
+          <div className="p-2 rounded-xl bg-primary/10 shrink-0">
+            <Smartphone className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold">Install Club Master</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Add to your home screen for the best experience — works like a native app!
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          className="w-full mt-3 gap-2"
+          onClick={() => {
+            setShow(false);
+            localStorage.setItem("ios-install-prompt-seen", "true");
+            setShowIosGuide(true);
+          }}
+          data-testid="button-ios-prompt-install"
+        >
+          <Share className="h-4 w-4" />
+          Show Me How
+        </Button>
+      </div>
+      {showIosGuide && <IosInstallGuide onClose={() => setShowIosGuide(false)} />}
+    </>
   );
 }
 

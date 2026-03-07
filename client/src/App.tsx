@@ -13,6 +13,7 @@ import { Loader2, Lock } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense, useEffect } from "react";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
+import { IosFirstVisitPrompt } from "@/components/PwaInstallPrompt";
 import { useBackground } from "@/hooks/use-background";
 import { useTypography } from "@/hooks/use-typography";
 
@@ -661,6 +662,7 @@ function ThemeWrapper() {
         <ThemeSync />
         <Toaster />
         <Router />
+        <IosFirstVisitPrompt />
       </TooltipProvider>
     </ThemeContext.Provider>
   );
