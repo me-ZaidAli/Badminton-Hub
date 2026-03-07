@@ -24509,6 +24509,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
         const playerMatches = await db.select({
           scoreA: matches.scoreA,
           scoreB: matches.scoreB,
+          numberOfSets: matches.numberOfSets,
+          setsWonA: matches.setsWonA,
+          setsWonB: matches.setsWonB,
+          setScores: matches.setScores,
+          status: matches.status,
           teamAPlayer1Id: matches.teamAPlayer1Id,
           teamAPlayer2Id: matches.teamAPlayer2Id,
           teamBPlayer1Id: matches.teamBPlayer1Id,
@@ -24525,14 +24530,34 @@ Keep it to about 300 words. Be encouraging but honest.`;
             )
           ));
 
-        let wins = 0, pointsScored = 0, pointsConceded = 0;
+        let wins = 0, pointsScored = 0, pointsConceded = 0, setsWon = 0;
         for (const m of playerMatches) {
           const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
-          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
-          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
-          pointsScored += myScore;
-          pointsConceded += oppScore;
-          if (myScore > oppScore) wins++;
+          const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+          const setScoresArr = (m.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+          const teamAWon = hasMultiSets
+            ? (m.setsWonA || 0) > (m.setsWonB || 0)
+            : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+
+          if (setScoresArr.length > 0) {
+            for (const setScore of setScoresArr) {
+              if (isTeamA) {
+                pointsScored += setScore.scoreA;
+                pointsConceded += setScore.scoreB;
+                if (setScore.scoreA > setScore.scoreB) setsWon++;
+              } else {
+                pointsScored += setScore.scoreB;
+                pointsConceded += setScore.scoreA;
+                if (setScore.scoreB > setScore.scoreA) setsWon++;
+              }
+            }
+          } else {
+            pointsScored += isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+            pointsConceded += isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+            if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) setsWon++;
+          }
+
+          if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) wins++;
         }
 
         const sessionsResult = await db.select({ count: sql<number>`count(*)` })
@@ -24577,6 +24602,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
             winRate: playerMatches.length > 0 ? Math.round((wins / playerMatches.length) * 100) : 0,
             pointsScored,
             pointsConceded,
+            setsWon,
             sessionsAttended,
             totalHoursPlayed: Math.round(totalHours * 10) / 10,
           },
@@ -24617,6 +24643,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
         const playerMatches = await db.select({
           scoreA: matches.scoreA,
           scoreB: matches.scoreB,
+          numberOfSets: matches.numberOfSets,
+          setsWonA: matches.setsWonA,
+          setsWonB: matches.setsWonB,
+          setScores: matches.setScores,
+          status: matches.status,
           teamAPlayer1Id: matches.teamAPlayer1Id,
           teamAPlayer2Id: matches.teamAPlayer2Id,
           teamBPlayer1Id: matches.teamBPlayer1Id,
@@ -24640,18 +24671,44 @@ Keep it to about 300 words. Be encouraging but honest.`;
         const recentMatches = playerMatches.slice(-5);
         for (const m of playerMatches) {
           const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
-          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
-          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
-          pointsScored += myScore;
-          pointsConceded += oppScore;
-          margins.push(myScore - oppScore);
-          if (myScore > oppScore) wins++;
+          const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+          const setScoresArr = (m.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+          const teamAWon = hasMultiSets
+            ? (m.setsWonA || 0) > (m.setsWonB || 0)
+            : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+
+          if (setScoresArr.length > 0) {
+            let myTotal = 0, oppTotal = 0;
+            for (const setScore of setScoresArr) {
+              if (isTeamA) {
+                myTotal += setScore.scoreA;
+                oppTotal += setScore.scoreB;
+              } else {
+                myTotal += setScore.scoreB;
+                oppTotal += setScore.scoreA;
+              }
+            }
+            pointsScored += myTotal;
+            pointsConceded += oppTotal;
+            margins.push(myTotal - oppTotal);
+          } else {
+            const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+            const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+            pointsScored += myScore;
+            pointsConceded += oppScore;
+            margins.push(myScore - oppScore);
+          }
+
+          if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) wins++;
         }
         for (const m of recentMatches) {
           const isTeamA = m.teamAPlayer1Id === pid || m.teamAPlayer2Id === pid;
-          const myScore = isTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
-          const oppScore = isTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
-          if (myScore > oppScore) recentWins++;
+          const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+          const setScoresArr = (m.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+          const teamAWon = hasMultiSets
+            ? (m.setsWonA || 0) > (m.setsWonB || 0)
+            : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+          if ((isTeamA && teamAWon) || (!isTeamA && !teamAWon)) recentWins++;
         }
 
         const sessionsResult = await db.select({ count: sql<number>`count(*)` })
@@ -24707,6 +24764,10 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const h2hMatches = await db.select({
         scoreA: matches.scoreA,
         scoreB: matches.scoreB,
+        numberOfSets: matches.numberOfSets,
+        setsWonA: matches.setsWonA,
+        setsWonB: matches.setsWonB,
+        setScores: matches.setScores,
         teamAPlayer1Id: matches.teamAPlayer1Id,
         teamAPlayer2Id: matches.teamAPlayer2Id,
         teamBPlayer1Id: matches.teamBPlayer1Id,
@@ -24730,9 +24791,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
       let h2hP1Wins = 0, h2hP2Wins = 0;
       for (const m of h2hMatches) {
         const p1IsTeamA = m.teamAPlayer1Id === player1Id || m.teamAPlayer2Id === player1Id;
-        const p1Score = p1IsTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
-        const p2Score = p1IsTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
-        if (p1Score > p2Score) h2hP1Wins++;
+        const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+        const teamAWon = hasMultiSets
+          ? (m.setsWonA || 0) > (m.setsWonB || 0)
+          : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+        if ((p1IsTeamA && teamAWon) || (!p1IsTeamA && !teamAWon)) h2hP1Wins++;
         else h2hP2Wins++;
       }
 
