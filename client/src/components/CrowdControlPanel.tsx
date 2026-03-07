@@ -951,7 +951,7 @@ function AIIntelligenceMonitor({ sessionId, refreshKey }: { sessionId: number; r
             <AlertTriangle className="w-3.5 h-3.5" style={{ color: PGS.amber }} />
             <span className="text-[10px] font-semibold" style={{ color: PGS.amber }}>WARNINGS ({metrics.warnings.length})</span>
           </div>
-          {metrics.warnings.slice(0, 5).map((warning: string, i: number) => (
+          {metrics.warnings.slice(0, 5).map((warning: any, i: number) => (
             <div
               key={i}
               className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]"
@@ -959,7 +959,7 @@ function AIIntelligenceMonitor({ sessionId, refreshKey }: { sessionId: number; r
               data-testid={`ai-warning-${i}`}
             >
               <span className="text-[8px] mt-0.5" style={{ color: PGS.amber }}>●</span>
-              {warning}
+              {typeof warning === "string" ? warning : warning?.message || String(warning)}
             </div>
           ))}
         </div>
