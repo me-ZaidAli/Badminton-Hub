@@ -191,7 +191,7 @@ export default function IncidentReports() {
   });
 
   const { data: clubMembers = [] } = useQuery<any[]>({
-    queryKey: ["/api/clubs", formData.clubId, "members"],
+    queryKey: ["/api/clubs", formData.clubId, "members-list"],
     enabled: !!formData.clubId && !formData.sessionId,
   });
 
@@ -331,7 +331,7 @@ export default function IncidentReports() {
 
   const membersList = formData.sessionId
     ? (sessionSignups || []).map((s: any) => ({ id: s.playerId || s.id, name: s.playerName || s.fullName || `Player ${s.id}` }))
-    : (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.name || `Member ${m.id}` }));
+    : (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.user?.fullName || m.name || `Member ${m.userId || m.id}` }));
 
   const [memberSearch, setMemberSearch] = useState("");
   const filteredMembers = membersList.filter((m: any) =>

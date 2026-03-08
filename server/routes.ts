@@ -27178,6 +27178,21 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     },
   });
 
+  app.get("/api/clubs/:clubId/members-list", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    try {
+      const members = await db
+        .select({ userId: playerProfiles.userId, fullName: users.fullName })
+        .from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), isNull(playerProfiles.deletedAt)));
+      res.json(members);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.post("/api/incidents/upload", uploadIncidentAttachment.array("files", 5), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
