@@ -2408,7 +2408,7 @@ export async function registerRoutes(
       console.error("[SESSION WITHDRAW] Failed to remove user from session chat:", chatErr);
     }
 
-    // Auto-promote first waiting list player
+    // Auto-promote from waiting list — paid members get priority
     const session = await storage.getSession(sessionId);
     if (session) {
       const allSignups = await storage.getSessionSignups(sessionId);
@@ -2416,7 +2416,19 @@ export async function registerRoutes(
       if (confirmedCount < session.maxPlayers) {
         const waitingPlayers = allSignups
           .filter((s: any) => s.signupStatus === "WAITING")
-          .sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          .sort((a: any, b: any) => {
+            const paidStatuses = ["PAID"];
+            const pendingStatuses = ["PENDING"];
+            const aIsPaid = paidStatuses.includes(a.paymentStatus);
+            const bIsPaid = paidStatuses.includes(b.paymentStatus);
+            const aIsPending = pendingStatuses.includes(a.paymentStatus);
+            const bIsPending = pendingStatuses.includes(b.paymentStatus);
+            if (aIsPaid && !bIsPaid) return -1;
+            if (!aIsPaid && bIsPaid) return 1;
+            if (aIsPending && !bIsPending) return -1;
+            if (!aIsPending && bIsPending) return 1;
+            return (a.waitingListPosition || 0) - (b.waitingListPosition || 0);
+          });
         if (waitingPlayers.length > 0) {
           await storage.updateSessionSignupStatus(waitingPlayers[0].id, {
             signupStatus: "CONFIRMED",
@@ -9965,6 +9977,16 @@ export async function registerRoutes(
           createdById: user.id,
         })
         .returning();
+
+      const coversFullFee = cappedAmount >= totalFee;
+      for (const su of userSignups) {
+        await db.update(sessionSignups)
+          .set({
+            paymentStatus: coversFullFee ? "PAID" : "PENDING",
+            paymentMethod: "MEMBERSHIP_CREDIT",
+          })
+          .where(eq(sessionSignups.id, su.id));
+      }
 
       const newBalanceResult = await db
         .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })

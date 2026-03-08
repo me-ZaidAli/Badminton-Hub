@@ -1732,7 +1732,7 @@ function JoinSessionModal({
 }) {
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set([user?.id]));
-  const [paymentOption, setPaymentOption] = useState<"bank_transfer" | "cash" | "credit" | "pay_later">("pay_later");
+  const [paymentOption, setPaymentOption] = useState<"paid" | "payment_sent" | "cash" | "credit" | "pay_later">("pay_later");
   const [creditMode, setCreditMode] = useState<"none" | "full" | "partial">("none");
   const [partialCreditAmount, setPartialCreditAmount] = useState("");
 
@@ -1785,7 +1785,9 @@ function JoinSessionModal({
 
   const getPaymentFields = () => {
     switch (paymentOption) {
-      case "bank_transfer":
+      case "paid":
+        return { paymentMethod: "BANK_TRANSFER", paymentStatus: "PAID" };
+      case "payment_sent":
         return { paymentMethod: "BANK_TRANSFER", paymentStatus: "PENDING" };
       case "cash":
         return { paymentMethod: "CASH", paymentStatus: "PENDING" };
@@ -1937,62 +1939,75 @@ function JoinSessionModal({
 
           {selectedIds.size > 0 && (
             <div className="space-y-2" data-testid="payment-method-picker">
-              <span className="text-sm font-medium">How will you pay?</span>
+              <span className="text-sm font-medium">Payment Status</span>
               <div className="grid grid-cols-2 gap-2">
                 <div
                   className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
-                    paymentOption === "bank_transfer" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                    paymentOption === "paid" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : "border-border hover-elevate"
                   }`}
-                  onClick={() => { setPaymentOption("bank_transfer"); setCreditMode("none"); }}
-                  data-testid="payment-option-bank-transfer"
+                  onClick={() => { setPaymentOption("paid"); setCreditMode("none"); }}
+                  data-testid="payment-option-paid"
                 >
-                  <Checkbox checked={paymentOption === "bank_transfer"} onCheckedChange={() => { setPaymentOption("bank_transfer"); setCreditMode("none"); }} />
+                  <Checkbox checked={paymentOption === "paid"} onCheckedChange={() => { setPaymentOption("paid"); setCreditMode("none"); }} />
                   <div>
-                    <p className="text-sm font-medium">Bank Transfer</p>
-                    <p className="text-[10px] text-muted-foreground">Pay via bank transfer</p>
+                    <p className="text-sm font-medium">Paid</p>
+                    <p className="text-[10px] text-muted-foreground">Bank transfer verified</p>
                   </div>
                 </div>
                 <div
                   className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
-                    paymentOption === "cash" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                    paymentOption === "payment_sent" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => { setPaymentOption("payment_sent"); setCreditMode("none"); }}
+                  data-testid="payment-option-payment-sent"
+                >
+                  <Checkbox checked={paymentOption === "payment_sent"} onCheckedChange={() => { setPaymentOption("payment_sent"); setCreditMode("none"); }} />
+                  <div>
+                    <p className="text-sm font-medium">Payment Sent</p>
+                    <p className="text-[10px] text-muted-foreground">Pending verification</p>
+                  </div>
+                </div>
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                    paymentOption === "cash" ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-border hover-elevate"
                   }`}
                   onClick={() => { setPaymentOption("cash"); setCreditMode("none"); }}
                   data-testid="payment-option-cash"
                 >
                   <Checkbox checked={paymentOption === "cash"} onCheckedChange={() => { setPaymentOption("cash"); setCreditMode("none"); }} />
                   <div>
-                    <p className="text-sm font-medium">Cash</p>
+                    <p className="text-sm font-medium">Cash Pending</p>
                     <p className="text-[10px] text-muted-foreground">Pay cash at session</p>
                   </div>
                 </div>
-                {!creditLoading && creditBalance > 0 && (
-                  <div
-                    className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
-                      paymentOption === "credit" ? "border-primary bg-primary/5" : "border-border hover-elevate"
-                    }`}
-                    onClick={() => { setPaymentOption("credit"); setCreditMode("full"); }}
-                    data-testid="payment-option-credit"
-                  >
-                    <Checkbox checked={paymentOption === "credit"} onCheckedChange={() => { setPaymentOption("credit"); setCreditMode("full"); }} />
-                    <div>
-                      <p className="text-sm font-medium">Credit</p>
-                      <p className="text-[10px] text-muted-foreground">£{(creditBalance / 100).toFixed(2)} available</p>
-                    </div>
-                  </div>
-                )}
                 <div
                   className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
-                    paymentOption === "pay_later" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                    paymentOption === "pay_later" ? "border-red-500 bg-red-50 dark:bg-red-950/30" : "border-border hover-elevate"
                   }`}
                   onClick={() => { setPaymentOption("pay_later"); setCreditMode("none"); }}
                   data-testid="payment-option-pay-later"
                 >
                   <Checkbox checked={paymentOption === "pay_later"} onCheckedChange={() => { setPaymentOption("pay_later"); setCreditMode("none"); }} />
                   <div>
-                    <p className="text-sm font-medium">Pay Later</p>
+                    <p className="text-sm font-medium">Unpaid</p>
                     <p className="text-[10px] text-muted-foreground">Settle payment later</p>
                   </div>
                 </div>
+                {!creditLoading && creditBalance > 0 && (
+                  <div
+                    className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors col-span-2 ${
+                      paymentOption === "credit" ? "border-purple-500 bg-purple-50 dark:bg-purple-950/30" : "border-border hover-elevate"
+                    }`}
+                    onClick={() => { setPaymentOption("credit"); setCreditMode("full"); }}
+                    data-testid="payment-option-credit"
+                  >
+                    <Checkbox checked={paymentOption === "credit"} onCheckedChange={() => { setPaymentOption("credit"); setCreditMode("full"); }} />
+                    <div>
+                      <p className="text-sm font-medium">Credit Used</p>
+                      <p className="text-[10px] text-muted-foreground">£{(creditBalance / 100).toFixed(2)} available in wallet</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
