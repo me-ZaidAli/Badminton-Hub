@@ -57,6 +57,7 @@ import {
   Lightbulb,
   Hash,
   Check,
+  List,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -544,7 +545,7 @@ export default function Financials() {
   useEffect(() => {
     try { localStorage.setItem("financialDashboardView", dashboardView); } catch {}
   }, [dashboardView]);
-  const [sessionTimeTab, setSessionTimeTab] = useState<"upcoming" | "outstanding" | "past" | "missing-invoice">("upcoming");
+  const [sessionTimeTab, setSessionTimeTab] = useState<"all" | "upcoming" | "outstanding" | "past" | "missing-invoice">("all");
   const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
@@ -916,7 +917,7 @@ export default function Financials() {
   }, [sessionGroups]);
 
   const activeSessionGroupsList = useMemo(() => {
-    const base = sessionTimeTab === "upcoming" ? upcomingSessionGroups : sessionTimeTab === "outstanding" ? outstandingSessionGroups : sessionTimeTab === "missing-invoice" ? missingInvoiceSessionGroups : pastSessionGroups;
+    const base = sessionTimeTab === "all" ? sessionGroups : sessionTimeTab === "upcoming" ? upcomingSessionGroups : sessionTimeTab === "outstanding" ? outstandingSessionGroups : sessionTimeTab === "missing-invoice" ? missingInvoiceSessionGroups : pastSessionGroups;
     const entries: [string, FinancialEntry[]][] = Object.entries(base);
     entries.sort(([, a], [, b]) => {
       if (sessionSortOrder === "az") {
@@ -929,7 +930,7 @@ export default function Financials() {
       return sessionSortOrder === "oldest" ? aDate - bDate : bDate - aDate;
     });
     return entries;
-  }, [sessionTimeTab, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, missingInvoiceSessionGroups, sessionSortOrder]);
+  }, [sessionTimeTab, sessionGroups, upcomingSessionGroups, outstandingSessionGroups, pastSessionGroups, missingInvoiceSessionGroups, sessionSortOrder]);
 
   const playerGroups = useMemo(() => {
     const data = playerSearchQuery
@@ -2520,6 +2521,15 @@ export default function Financials() {
             <div className="flex items-center gap-1 flex-wrap">
               <Button
                 size="sm"
+                variant={sessionTimeTab === "all" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("all"); setSelectedSessions(new Set()); }}
+                data-testid="button-all-sessions"
+              >
+                <List className="h-4 w-4 mr-1" />
+                All ({Object.keys(sessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
                 variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
                 onClick={() => { setSessionTimeTab("upcoming"); setSelectedSessions(new Set()); }}
                 data-testid="button-upcoming-sessions"
@@ -2655,7 +2665,7 @@ export default function Financials() {
           {activeSessionGroupsList.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
-                No {sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : sessionTimeTab === "missing-invoice" ? "missing invoice" : "past"} sessions found for the selected filters.
+                No {sessionTimeTab === "all" ? "" : sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : sessionTimeTab === "missing-invoice" ? "missing invoice" : "past"} sessions found for the selected filters.
               </CardContent>
             </Card>
           ) : (
