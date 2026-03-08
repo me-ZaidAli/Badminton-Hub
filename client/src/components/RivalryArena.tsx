@@ -11,8 +11,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from "recharts";
-import maleSilhouetteSrc from "@assets/image_1773003848338.png";
-import femaleSilhouetteSrc from "@assets/image_1773003911695.png";
+import maleSilhouetteSrc from "@assets/male_badminton_silhouette.png";
+import femaleSilhouetteSrc from "@assets/female_badminton_silhouette.png";
 
 function getPlayerImage(player: any) {
   return player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
@@ -109,28 +109,28 @@ function HeroBanner({ player1, player2, p1Wins, p2Wins, totalMatches, color1, co
 
       <div className="flex items-end justify-center relative z-10 mt-2">
         <div className="flex-1 flex justify-center">
-          <div className="relative w-full max-w-[180px] sm:max-w-[200px]">
+          <div className="relative w-full max-w-[180px] sm:max-w-[220px]">
             {p1Img ? (
               <img
                 src={p1Img}
                 alt={player1.fullName}
-                className="w-full h-40 sm:h-52 object-cover object-top rounded-t-xl"
-                style={{ maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)" }}
+                className="w-full h-44 sm:h-56 object-cover object-top rounded-t-xl"
+                style={{ maskImage: "linear-gradient(to bottom, black 75%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 75%, transparent 100%)" }}
               />
             ) : (
-              <div className="w-full h-40 sm:h-52 flex items-center justify-center">
+              <div className="w-full h-44 sm:h-56 flex items-end justify-center pb-2">
                 <img
                   src={getGenderSilhouette(p1Gender)}
                   alt="Player silhouette"
-                  className="h-32 sm:h-44 object-contain"
-                  style={{ filter: "brightness(0) invert(0.35)" }}
+                  className="h-36 sm:h-48 object-contain drop-shadow-[0_0_15px_rgba(129,140,248,0.3)]"
+                  style={{ filter: "invert(1) brightness(0.6) sepia(1) hue-rotate(200deg) saturate(2)" }}
                 />
               </div>
             )}
           </div>
         </div>
 
-        <div className="absolute left-1/2 bottom-16 sm:bottom-20 -translate-x-1/2 z-20">
+        <div className="absolute left-1/2 bottom-20 sm:bottom-24 -translate-x-1/2 z-20">
           <div
             className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 shadow-2xl"
             style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)", borderColor: "rgba(255,255,255,0.1)" }}
@@ -140,21 +140,21 @@ function HeroBanner({ player1, player2, p1Wins, p2Wins, totalMatches, color1, co
         </div>
 
         <div className="flex-1 flex justify-center">
-          <div className="relative w-full max-w-[180px] sm:max-w-[200px]">
+          <div className="relative w-full max-w-[180px] sm:max-w-[220px]">
             {p2Img ? (
               <img
                 src={p2Img}
                 alt={player2.fullName}
-                className="w-full h-40 sm:h-52 object-cover object-top rounded-t-xl"
-                style={{ maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)" }}
+                className="w-full h-44 sm:h-56 object-cover object-top rounded-t-xl"
+                style={{ maskImage: "linear-gradient(to bottom, black 75%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 75%, transparent 100%)" }}
               />
             ) : (
-              <div className="w-full h-40 sm:h-52 flex items-center justify-center">
+              <div className="w-full h-44 sm:h-56 flex items-end justify-center pb-2">
                 <img
                   src={getGenderSilhouette(p2Gender)}
                   alt="Player silhouette"
-                  className="h-32 sm:h-44 object-contain"
-                  style={{ filter: "brightness(0) invert(0.35)" }}
+                  className="h-36 sm:h-48 object-contain drop-shadow-[0_0_15px_rgba(192,132,252,0.3)]"
+                  style={{ filter: "invert(1) brightness(0.6) sepia(1) hue-rotate(240deg) saturate(2)" }}
                 />
               </div>
             )}
