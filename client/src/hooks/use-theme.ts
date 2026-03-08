@@ -82,7 +82,7 @@ export const DISPLAY_MODES: readonly ThemeModeInfo[] = [
   { value: "solstice-calm", label: "Solstice Calm", description: "Muted sage, sand, rose and slate with floating panels and calm editorial typography", grade: "Premium", colorFamily: "Emerald", accentHex: "#5A9A6E", gradientStart: "#EFF2ED", gradientEnd: "#5A9A6E", chartColors: ["#5A9A6E", "#C48B6B", "#B87878", "#5A7A8A", "#6B9A50"] },
   { value: "aurora-pulse", label: "Aurora Pulse", description: "Energetic purple-magenta-orange gradients with glow pulse hover effects and lifted glass cards", grade: "Premium", colorFamily: "Amethyst", accentHex: "#9B5DE5", gradientStart: "#140E1C", gradientEnd: "#E84393", chartColors: ["#9B5DE5", "#E84393", "#F97316", "#06B6D4", "#3B82F6"] },
   { value: "atlas-grid", label: "Atlas Grid", description: "Structured flat retro-modern with bold teal, charcoal, crisp strokes and large numeric counters", grade: "Premium", colorFamily: "Blue", accentHex: "#0D9488", gradientStart: "#F5F5F5", gradientEnd: "#0D9488", chartColors: ["#0D9488", "#334155", "#14B8A6", "#64748B", "#5EEAD4"] },
-  { value: "liquid-glass", label: "Liquid Glass", description: "Translucent frosted glass panels with liquid reflections, soft edge glow, and fluid depth on a dark surface", grade: "Premium", colorFamily: "Platinum", accentHex: "#90B4CE", gradientStart: "#0E1117", gradientEnd: "#90B4CE", chartColors: ["#90B4CE", "#6A9AB5", "#4A7A96", "#B0D4E8", "#3A6278"] },
+  { value: "liquid-glass", label: "Liquid Glass", description: "Light blue surface with translucent liquid-drop glass panels, water-like reflections and soft rounded edges", grade: "Premium", colorFamily: "Blue", accentHex: "#4A90B8", gradientStart: "#D6E8F0", gradientEnd: "#4A90B8", chartColors: ["#4A90B8", "#3A7A9E", "#5BA0C8", "#2B6A8E", "#7BB8D8"] },
 ] as const;
 
 export type DisplayMode = string;
@@ -151,7 +151,7 @@ const THEME_CLASSES: Record<string, string[]> = {
   "solstice-calm": ["solstice-calm"],
   "aurora-pulse": ["dark", "aurora-pulse"],
   "atlas-grid": ["atlas-grid"],
-  "liquid-glass": ["dark", "liquid-glass"],
+  "liquid-glass": ["liquid-glass"],
 };
 
 const ALL_THEME_CLASSES = [
@@ -188,7 +188,6 @@ const DARK_THEMES = new Set([
   "phosphor-elite", "adaptive-pro", "royal-indigo",
   "obsidian-frost", "neon-apex", "prism-forge",
   "frosted-titanium", "midnight-voltage", "aurora-pulse",
-  "liquid-glass",
 ]);
 
 function getInitialMode(): DisplayMode {
