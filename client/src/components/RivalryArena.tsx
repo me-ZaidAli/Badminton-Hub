@@ -920,21 +920,39 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
             </div>
           )}
           {aiReview && !aiLoading && (
-            <div className="space-y-2.5" data-testid="text-ai-review">
+            <div className="space-y-1" data-testid="text-ai-review">
               {aiReview.split("\n").filter(line => line.trim()).map((paragraph, i) => {
-                const cleaned = paragraph.replace(/\*\*/g, "");
-                const isHeading = cleaned.match(/^(\d+\.\s*)?[A-Z].*[:—-]\s*/);
-                if (isHeading) {
-                  const parts = cleaned.split(/[:—-]\s*/);
+                const cleaned = paragraph.replace(/\*\*/g, "").replace(/^#+\s*/, "");
+                const isNumberedHeading = cleaned.match(/^(\d+)\.\s+(.+)/);
+                const isSectionHeader = cleaned.match(/^[A-Z][A-Za-z\s&]+[:—]\s*$/) || cleaned.match(/^#{1,3}\s/);
+
+                if (isNumberedHeading) {
                   return (
-                    <div key={i} className="mt-3 first:mt-0">
-                      <h5 className="text-[10px] font-bold text-slate-300 uppercase tracking-wider mb-1">{parts[0]}</h5>
-                      {parts.slice(1).join(": ") && <p className="text-xs leading-relaxed text-slate-400">{parts.slice(1).join(": ")}</p>}
+                    <div key={i} className="mt-4 first:mt-0 flex items-start gap-2.5">
+                      <span className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black mt-0.5"
+                        style={{ background: `linear-gradient(135deg, ${COLOR1}30, ${COLOR2}30)`, color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {isNumberedHeading[1]}
+                      </span>
+                      <div className="flex-1">
+                        <h5 className="text-sm font-bold text-white leading-snug">{isNumberedHeading[2]}</h5>
+                      </div>
                     </div>
                   );
                 }
-                const isBold = paragraph.startsWith("**") || paragraph.match(/^\d+\.\s*\*\*/);
-                return <p key={i} className={`text-xs leading-relaxed ${isBold ? "text-slate-300 font-medium" : "text-slate-500"}`}>{cleaned}</p>;
+
+                if (isSectionHeader) {
+                  return (
+                    <div key={i} className="mt-4 first:mt-0 pt-3 border-t border-white/[0.06] first:border-0 first:pt-0">
+                      <h5 className="text-xs font-bold text-white uppercase tracking-wider">{cleaned.replace(/[:—]\s*$/, "")}</h5>
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={i} className="text-[13px] leading-relaxed text-slate-300 pl-8">
+                    {cleaned}
+                  </p>
+                );
               })}
             </div>
           )}
