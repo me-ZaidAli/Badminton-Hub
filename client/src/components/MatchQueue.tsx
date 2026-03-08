@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame, Lightbulb } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -261,6 +261,7 @@ export function MatchQueue({
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
   const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
+  const [sectionLight, setSectionLight] = useState(false);
 
   const computedBusyIds = (() => {
     if (busyPlayerIds && busyPlayerIds.size > 0) return busyPlayerIds;
@@ -303,7 +304,7 @@ export function MatchQueue({
 
   return (
     <>
-      <div className="rounded-xl bg-background/80 dark:bg-[#0D1117] border border-border/50 overflow-hidden">
+      <div className={cn("rounded-xl bg-background/80 dark:bg-[#0D1117] border border-border/50 overflow-hidden", sectionLight && "force-light-section")}>
         <div className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 dark:bg-[#161B22]/80 border-b border-border/40 rounded-t-xl px-4 py-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -312,6 +313,19 @@ export function MatchQueue({
               <Badge variant="secondary" className="text-xs font-mono">
                 {queuedMatches.length} pending
               </Badge>
+              <button
+                onClick={() => setSectionLight(prev => !prev)}
+                className={cn(
+                  "flex items-center justify-center w-7 h-7 rounded-full transition-all",
+                  sectionLight
+                    ? "bg-amber-100 text-amber-600 shadow-sm"
+                    : "bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-white/40 hover:bg-gray-200 dark:hover:bg-white/[0.12]"
+                )}
+                title={sectionLight ? "Switch to dark" : "Switch to light"}
+                data-testid="button-toggle-light-queue"
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+              </button>
             </div>
             {isOrganiser && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -659,6 +673,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
   const [editSelectedSet, setEditSelectedSet] = useState<number | null>(null);
   const [editSetScoreA, setEditSetScoreA] = useState("");
   const [editSetScoreB, setEditSetScoreB] = useState("");
+  const [sectionLight, setSectionLight] = useState(false);
   const { mutate: editScore, isPending: isEditPending } = useEditMatchScore();
   const { mutate: enterPlayerScore, isPending: isPlayerScorePending } = usePlayerEnterScore();
   const { mutate: removeMatch, isPending: isDeletePending } = useDeleteMatch();
@@ -770,9 +785,24 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
 
   return (
     <>
-      <Card>
+      <Card className={cn(sectionLight && "force-light-section")}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Completed Matches ({completedMatches.length})</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg">Completed Matches ({completedMatches.length})</CardTitle>
+            <button
+              onClick={() => setSectionLight(prev => !prev)}
+              className={cn(
+                "flex items-center justify-center w-7 h-7 rounded-full transition-all",
+                sectionLight
+                  ? "bg-amber-100 text-amber-600 shadow-sm"
+                  : "bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-white/40 hover:bg-gray-200 dark:hover:bg-white/[0.12]"
+              )}
+              title={sectionLight ? "Switch to dark" : "Switch to light"}
+              data-testid="button-toggle-light-completed"
+            >
+              <Lightbulb className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[400px]">

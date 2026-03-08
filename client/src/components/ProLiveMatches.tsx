@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
   Swords, ChevronDown, ChevronLeft, ChevronRight, Pencil, Users, Target, Check, Minus, Plus,
-  CircleDot, Hash, Monitor, Maximize2, X, Flame
+  CircleDot, Hash, Monitor, Maximize2, X, Flame, Lightbulb
 } from "lucide-react";
 
 type Player = {
@@ -1579,6 +1579,7 @@ export function ProLiveMatches({
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
   const [subView, setSubView] = useState<SubView>("overview");
+  const [sectionLight, setSectionLight] = useState(false);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -1635,7 +1636,7 @@ export function ProLiveMatches({
   }
 
   return (
-    <div className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden" data-testid="pro-live-matches">
+    <div className={cn("relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden", sectionLight && "force-light-section")} data-testid="pro-live-matches">
       <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
 
       <div className="relative z-10 space-y-5">
@@ -1649,6 +1650,19 @@ export function ProLiveMatches({
               Live Courts
             </h3>
             <span className="text-xs font-mono text-gray-500 dark:text-white/30 bg-gray-100 dark:bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
+            <button
+              onClick={() => setSectionLight(prev => !prev)}
+              className={cn(
+                "flex items-center justify-center w-7 h-7 rounded-full transition-all",
+                sectionLight
+                  ? "bg-amber-100 text-amber-600 shadow-sm"
+                  : "bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-white/40 hover:bg-gray-200 dark:hover:bg-white/[0.12]"
+              )}
+              title={sectionLight ? "Switch to dark" : "Switch to light"}
+              data-testid="button-toggle-light-live"
+            >
+              <Lightbulb className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <div className="flex items-center gap-1 min-w-0 max-w-full" data-testid="pro-live-view-toggle">
