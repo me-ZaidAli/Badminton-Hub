@@ -8605,6 +8605,55 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password || typeof password !== "string") return res.status(400).json({ message: "Token and password are required" });
+      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+
+      const [targetUser] = await db.select().from(users)
+        .where(and(
+          eq(users.passwordResetToken, token),
+          gt(users.passwordResetExpiry!, new Date())
+        ))
+        .limit(1);
+
+      if (!targetUser) {
+        return res.status(400).json({ message: "Invalid or expired reset link. Please request a new one from your club admin." });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await db.update(users)
+        .set({ password: hashedPassword, passwordResetToken: null, passwordResetExpiry: null })
+        .where(eq(users.id, targetUser.id));
+
+      res.json({ message: "Password has been reset successfully. You can now sign in." });
+    } catch (err: any) {
+      console.error("Error resetting password via token:", err);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  app.post("/api/reset-password/validate", async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) return res.json({ valid: false });
+      const [targetUser] = await db.select({ id: users.id, fullName: users.fullName }).from(users)
+        .where(and(
+          eq(users.passwordResetToken, token),
+          gt(users.passwordResetExpiry!, new Date())
+        ))
+        .limit(1);
+
+      if (!targetUser) {
+        return res.json({ valid: false });
+      }
+      res.json({ valid: true, fullName: targetUser.fullName });
+    } catch (err: any) {
+      res.json({ valid: false });
+    }
+  });
+
   app.post("/api/admin/set-password", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
