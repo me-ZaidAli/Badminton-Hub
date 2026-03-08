@@ -12544,6 +12544,66 @@ export async function registerRoutes(
     }
   });
 
+  // 8b. PATCH /api/membership-requests/:id/move-to-trial
+  app.patch("/api/membership-requests/:id/move-to-trial", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const [request] = await db.select().from(membershipRequests).where(eq(membershipRequests.id, requestId));
+      if (!request) return res.status(404).json({ message: "Request not found" });
+
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", request.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      if (request.status !== "PENDING") {
+        return res.status(400).json({ message: "Only pending requests can be moved to trial" });
+      }
+
+      const existingTrial = await db.select().from(trialPlayers)
+        .where(and(eq(trialPlayers.userId, request.userId), eq(trialPlayers.clubId, request.clubId)))
+        .limit(1);
+      if (existingTrial.length > 0) {
+        return res.status(409).json({ message: "This player already has a trial record for this club" });
+      }
+
+      await storage.createTrialPlayer({
+        userId: request.userId,
+        clubId: request.clubId,
+        selfAssessedLevel: null,
+        experience: null,
+        preferredDays: null,
+        referralId: null,
+        status: "PENDING",
+        assignedSessionId: null,
+        observerUserId: null,
+        adminNotes: null,
+        statusMessage: null,
+        finalDecision: null,
+      });
+
+      await db.update(membershipRequests).set({
+        status: "REJECTED",
+        rejectionReason: "MOVED_TO_TRIAL",
+      }).where(eq(membershipRequests.id, requestId));
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, request.clubId));
+      const clubName = club?.name || "the club";
+
+      await db.insert(notifications).values({
+        userId: request.userId,
+        type: "TRIAL_STATUS",
+        title: "Moved to Trial List",
+        message: `Your membership request for ${clubName} has been moved to the trial list. Please book a trial session to proceed with your application.`,
+        linkUrl: `/trial-dashboard`,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error moving membership request to trial:", err);
+      res.status(500).json({ message: "Failed to move to trial list" });
+    }
+  });
+
   // 9. PATCH /api/membership-requests/:id/reject
   app.patch("/api/membership-requests/:id/reject", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

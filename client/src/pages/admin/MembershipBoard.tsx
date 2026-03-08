@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users, UserPlus, Tag, ExternalLink } from "lucide-react";
+import { Loader2, Plus, Check, X, Calendar, Pencil, Trash2, CreditCard, Search, ArrowLeft, ChevronDown, ChevronRight, Users, UserPlus, Tag, ExternalLink, ClipboardList } from "lucide-react";
 import { Link } from "wouter";
 
 function formatPounds(pence: number): string {
@@ -37,7 +37,10 @@ function getDaysRemainingColor(days: number): string {
   return "text-green-500";
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, rejectionReason?: string | null) {
+  if (status === "REJECTED" && rejectionReason === "MOVED_TO_TRIAL") {
+    return <Badge variant="default" className="bg-blue-500 no-default-hover-elevate">Trial</Badge>;
+  }
   switch (status) {
     case "ACTIVE":
       return <Badge variant="default" className="bg-green-500 no-default-hover-elevate">Active</Badge>;
@@ -76,6 +79,7 @@ interface MembershipRequest {
   clubId: number;
   planId: number;
   status: string;
+  rejectionReason: string | null;
   prorationAmount: number | null;
   createdAt: string;
   fullName: string;
@@ -148,6 +152,8 @@ export default function MembershipBoard() {
 
   const [rejectDialog, setRejectDialog] = useState<{ requestId: number } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  const [trialDialog, setTrialDialog] = useState<{ requestId: number; fullName: string } | null>(null);
 
   const [cancelDialog, setCancelDialog] = useState<{ membershipId: number } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -382,6 +388,24 @@ export default function MembershipBoard() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to reject request.", variant: "destructive" });
+    },
+  });
+
+  const moveToTrialMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("PATCH", `/api/membership-requests/${id}/move-to-trial`, {});
+    },
+    onSuccess: () => {
+      invalidateMemberships();
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = q.queryKey[0];
+        return typeof key === "string" && key.includes("trial");
+      }});
+      setTrialDialog(null);
+      toast({ title: "Moved to Trial", description: "Player has been added to the trial list. They will be notified to book a trial session." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to move to trial list.", variant: "destructive" });
     },
   });
 
@@ -695,6 +719,10 @@ export default function MembershipBoard() {
     setRejectDialog({ requestId });
   };
 
+  const handleMoveToTrial = (requestId: number, fullName: string) => {
+    setTrialDialog({ requestId, fullName });
+  };
+
   const handleEditDates = (membership: ClubMembership) => {
     setEditStartDate(membership.startDate ? format(new Date(membership.startDate), "yyyy-MM-dd") : "");
     setEditEndDate(membership.endDate ? format(new Date(membership.endDate), "yyyy-MM-dd") : "");
@@ -906,7 +934,7 @@ export default function MembershipBoard() {
                           <TableCell data-testid={`text-request-proration-${req.id}`}>
                             {req.prorationAmount != null ? `£${formatPounds(req.prorationAmount)}` : "N/A"}
                           </TableCell>
-                          <TableCell>{getStatusBadge(req.status)}</TableCell>
+                          <TableCell>{getStatusBadge(req.status, req.rejectionReason)}</TableCell>
                           <TableCell>
                             {req.status === "PENDING" && (
                               <div className="flex items-center gap-1 flex-wrap">
@@ -917,6 +945,16 @@ export default function MembershipBoard() {
                                 >
                                   <Check className="h-4 w-4 mr-1" />
                                   Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950"
+                                  onClick={() => handleMoveToTrial(req.id, req.fullName)}
+                                  data-testid={`button-trial-${req.id}`}
+                                >
+                                  <ClipboardList className="h-4 w-4 mr-1" />
+                                  Trial
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1469,6 +1507,39 @@ export default function MembershipBoard() {
             >
               {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!trialDialog} onOpenChange={(open) => !open && setTrialDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move to Trial List</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to move <span className="font-semibold text-foreground">{trialDialog?.fullName}</span> to the trial list?
+            </p>
+            <div className="rounded-md bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 p-3">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                The player will be notified to book a trial session before they can join the club. Their membership request will be put on hold until the trial is completed and evaluated.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrialDialog(null)} data-testid="button-trial-cancel">
+              Cancel
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => trialDialog && moveToTrialMutation.mutate(trialDialog.requestId)}
+              disabled={moveToTrialMutation.isPending}
+              data-testid="button-trial-confirm"
+            >
+              {moveToTrialMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              <ClipboardList className="h-4 w-4 mr-1" />
+              Move to Trial
             </Button>
           </DialogFooter>
         </DialogContent>
