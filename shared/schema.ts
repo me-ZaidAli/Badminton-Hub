@@ -2222,6 +2222,7 @@ export const incidentReports = pgTable("incident_reports", {
   adminNotes: text("admin_notes"),
   status: incidentStatusEnum("status").default("PENDING_REVIEW").notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
+  attachments: jsonb("attachments").$type<string[]>(),
   linkedTicketId: integer("linked_ticket_id").references(() => tickets.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

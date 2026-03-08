@@ -325,6 +325,8 @@ export default function SessionDetail() {
   const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
   const parentQueuedCount = (parentMatches as any[])?.filter((m: any) => m.status === "QUEUED").length || 0;
 
+  const confirmedSignups = signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || [];
+
   const { data: reliabilityData } = useQuery<{ scores: Record<number, { score: number; totalSessions: number; paidOnTime: number; unpaid: number; outstandingAmount: number; preferredMethod: string }> }>({
     queryKey: ["/api/sessions", id, "payment-reliability-bulk"],
     enabled: isOrganiser && !!session && session.status !== "COMPLETED",
@@ -425,7 +427,6 @@ export default function SessionDetail() {
     });
   };
 
-  const confirmedSignups = signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || [];
   const unpairedSignups = signups?.filter(s => !(s as any).pairGroupId) || [];
 
   const pairGroups = new Map<number, typeof signups>();

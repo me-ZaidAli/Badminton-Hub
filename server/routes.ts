@@ -27155,11 +27155,47 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   registerChatRoutes(app);
 
   // === INCIDENT REPORTS ===
+  const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");
+  if (!fs.existsSync(incidentUploadsDir)) {
+    fs.mkdirSync(incidentUploadsDir, { recursive: true });
+  }
+  const incidentAttachmentStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, incidentUploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || ".jpg";
+      cb(null, `incident-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  });
+  const uploadIncidentAttachment = multer({
+    storage: incidentAttachmentStorage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf" || file.mimetype.startsWith("application/msword") || file.mimetype.startsWith("application/vnd.openxmlformats")) {
+        cb(null, true);
+      } else {
+        cb(new Error("Only image and document files are allowed"));
+      }
+    },
+  });
+
+  app.post("/api/incidents/upload", uploadIncidentAttachment.array("files", 5), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
+      const urls = files.map(f => `/uploads/incidents/${f.filename}`);
+      res.json({ urls });
+    } catch (err: any) {
+      console.error("Error uploading incident attachments:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.post("/api/incidents", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
-      const { clubId, sessionId, reporterRole, reporterContact, incidentDate, incidentTime, location, locationOther, incidentType, incidentTypeOther, description, severity, medicalAttentionRequired, hospitalAmbulanceCalled, immediateActions, immediateActionsOther, followUpActions, followUpActionsOther, affectedMembers } = req.body;
+      const { clubId, sessionId, reporterRole, reporterContact, incidentDate, incidentTime, location, locationOther, incidentType, incidentTypeOther, description, severity, medicalAttentionRequired, hospitalAmbulanceCalled, immediateActions, immediateActionsOther, followUpActions, followUpActionsOther, affectedMembers, attachments } = req.body;
 
       if (!clubId || !reporterRole || !incidentDate || !location || !incidentType || !description || !severity) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -27188,6 +27224,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         immediateActionsOther: immediateActionsOther || null,
         followUpActions: followUpActions || null,
         followUpActionsOther: followUpActionsOther || null,
+        attachments: attachments || null,
         status: "PENDING_REVIEW",
         isArchived: false,
       }).returning();
@@ -27301,6 +27338,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         hospitalAmbulanceCalled: incidentReports.hospitalAmbulanceCalled,
         status: incidentReports.status,
         isArchived: incidentReports.isArchived,
+        attachments: incidentReports.attachments,
         linkedTicketId: incidentReports.linkedTicketId,
         createdAt: incidentReports.createdAt,
         updatedAt: incidentReports.updatedAt,

@@ -33,6 +33,10 @@ import {
   ArrowRight,
   X,
   Archive,
+  Upload,
+  Paperclip,
+  Image,
+  Trash2,
 } from "lucide-react";
 
 const SEVERITY_OPTIONS = ["MINOR", "MODERATE", "SERIOUS", "EMERGENCY"] as const;
@@ -130,6 +134,7 @@ interface IncidentFormData {
   immediateActionsOther: string;
   followupActions: string[];
   followupActionsOther: string;
+  attachments: string[];
 }
 
 const initialFormData: IncidentFormData = {
@@ -152,6 +157,7 @@ const initialFormData: IncidentFormData = {
   immediateActionsOther: "",
   followupActions: [],
   followupActionsOther: "",
+  attachments: [],
 };
 
 export default function IncidentReports() {
@@ -205,18 +211,49 @@ export default function IncidentReports() {
     return result;
   }, [incidents, filterStatus, filterSeverity, filterClub, searchQuery]);
 
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  async function handleFileUpload(files: FileList) {
+    if (files.length === 0) return;
+    setUploadingFiles(true);
+    try {
+      const fd = new FormData();
+      Array.from(files).forEach(f => fd.append("files", f));
+      const res = await fetch("/api/incidents/upload", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...data.urls] }));
+      toast({ title: "Uploaded", description: `${data.urls.length} file(s) uploaded.` });
+    } catch (err: any) {
+      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       const payload = {
         ...formData,
         location: formData.location === "Other" ? formData.locationOther : formData.location,
-        type: formData.type === "Other" ? formData.typeOther : formData.type,
+        incidentType: formData.type === "Other" ? formData.typeOther : formData.type,
+        incidentDate: formData.date,
+        incidentTime: formData.time,
+        reporterContact: formData.contactInfo,
+        hospitalAmbulanceCalled: formData.hospitalCalled,
+        followUpActions: formData.followupActions.includes("Other")
+          ? [...formData.followupActions.filter(a => a !== "Other"), formData.followupActionsOther].filter(Boolean)
+          : formData.followupActions,
         immediateActions: formData.immediateActions.includes("Other")
           ? [...formData.immediateActions.filter(a => a !== "Other"), formData.immediateActionsOther].filter(Boolean)
           : formData.immediateActions,
-        followupActions: formData.followupActions.includes("Other")
-          ? [...formData.followupActions.filter(a => a !== "Other"), formData.followupActionsOther].filter(Boolean)
-          : formData.followupActions,
+        affectedMembers: formData.affectedMembers.map(m => ({
+          userId: m.memberId,
+          injuredBodyParts: m.bodyParts,
+          injuryTypes: m.injuryTypes,
+          notes: m.notes,
+        })),
+        attachments: formData.attachments.length > 0 ? formData.attachments : null,
       };
       const res = await apiRequest("POST", "/api/incidents", payload);
       return res.json();
@@ -467,13 +504,13 @@ export default function IncidentReports() {
                         <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {incident.date ? new Date(incident.date).toLocaleDateString() : "N/A"}
+                            {(incident.incidentDate || incident.date) ? new Date(incident.incidentDate || incident.date).toLocaleDateString() : "N/A"}
                           </span>
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
                             {incident.location || "Unknown"}
                           </span>
-                          <span>{incident.type}</span>
+                          <span>{incident.incidentType || incident.type}</span>
                           {incident.affectedMembers?.length > 0 && (
                             <span className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
@@ -722,6 +759,22 @@ export default function IncidentReports() {
         </div>
 
         <div className="space-y-2">
+          <Label>Reporter Name</Label>
+          <Select
+            value={user?.id ? String(user.id) : ""}
+            disabled
+          >
+            <SelectTrigger data-testid="select-reporter-name">
+              <SelectValue placeholder={user?.fullName || "Current user"} />
+            </SelectTrigger>
+            <SelectContent>
+              {user && <SelectItem value={String(user.id)}>{user.fullName}</SelectItem>}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Report is filed under your account</p>
+        </div>
+
+        <div className="space-y-2">
           <Label>Reporter Role *</Label>
           <div className="grid grid-cols-2 gap-2">
             {REPORTER_ROLES.map(role => (
@@ -730,7 +783,7 @@ export default function IncidentReports() {
                 type="button"
                 className={`p-3 rounded-md border text-sm text-left transition-colors ${
                   formData.reporterRole === role
-                    ? "border-primary bg-primary/10"
+                    ? "border-primary bg-primary/10 glass-selection-active"
                     : "border-border"
                 }`}
                 onClick={() => setFormData(prev => ({ ...prev, reporterRole: role }))}
@@ -978,7 +1031,7 @@ export default function IncidentReports() {
                   type="button"
                   className={`p-3 rounded-md border-2 text-sm text-left transition-colors ${
                     formData.severity === sev
-                      ? `${colors[sev]} ${bgColors[sev]}`
+                      ? `${colors[sev]} ${bgColors[sev]} glass-selection-active`
                       : "border-border"
                   }`}
                   onClick={() => setFormData(prev => ({ ...prev, severity: sev }))}
@@ -1054,6 +1107,59 @@ export default function IncidentReports() {
             />
           )}
         </div>
+
+        <div className="space-y-2">
+          <Label>Attachments (photos, documents)</Label>
+          <div
+            className="glass-upload-zone p-6 text-center cursor-pointer"
+            onClick={() => document.getElementById("incident-file-input")?.click()}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("drag-active"); }}
+            onDragLeave={e => { e.currentTarget.classList.remove("drag-active"); }}
+            onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove("drag-active"); if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files); }}
+            data-testid="upload-zone-attachments"
+          >
+            {uploadingFiles ? (
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+            ) : (
+              <>
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Click or drag files here</p>
+                <p className="text-xs text-muted-foreground mt-1">Images and documents up to 10MB (max 5 files)</p>
+              </>
+            )}
+          </div>
+          <input
+            id="incident-file-input"
+            type="file"
+            multiple
+            accept="image/*,.pdf,.doc,.docx"
+            className="hidden"
+            onChange={e => { if (e.target.files) handleFileUpload(e.target.files); e.target.value = ""; }}
+          />
+          {formData.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {formData.attachments.map((url, idx) => (
+                <div key={idx} className="relative group rounded-lg border overflow-hidden" data-testid={`attachment-preview-${idx}`}>
+                  {url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                    <img src={url} alt={`Attachment ${idx + 1}`} className="h-16 w-16 object-cover" />
+                  ) : (
+                    <div className="h-16 w-16 flex items-center justify-center bg-muted">
+                      <Paperclip className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="absolute top-0 right-0 p-0.5 bg-destructive text-destructive-foreground rounded-bl opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setFormData(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))}
+                    data-testid={`button-remove-attachment-${idx}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -1086,11 +1192,11 @@ export default function IncidentReports() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Date</span>
-                <p className="font-medium" data-testid="text-detail-date">{selectedIncident.date ? new Date(selectedIncident.date).toLocaleDateString() : "N/A"}</p>
+                <p className="font-medium" data-testid="text-detail-date">{(selectedIncident.incidentDate || selectedIncident.date) ? new Date(selectedIncident.incidentDate || selectedIncident.date).toLocaleDateString() : "N/A"}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Time</span>
-                <p className="font-medium" data-testid="text-detail-time">{selectedIncident.time || "N/A"}</p>
+                <p className="font-medium" data-testid="text-detail-time">{selectedIncident.incidentTime || selectedIncident.time || "N/A"}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Location</span>
@@ -1098,7 +1204,7 @@ export default function IncidentReports() {
               </div>
               <div>
                 <span className="text-muted-foreground">Type</span>
-                <p className="font-medium" data-testid="text-detail-type">{selectedIncident.type || "N/A"}</p>
+                <p className="font-medium" data-testid="text-detail-type">{selectedIncident.incidentType || selectedIncident.type || "N/A"}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Reporter Role</span>
@@ -1162,6 +1268,28 @@ export default function IncidentReports() {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {selectedIncident.followupActions.map((a: string) => (
                     <Badge key={a} variant="secondary">{a}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedIncident.attachments?.length > 0 && (
+              <div>
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Paperclip className="h-3 w-3" /> Attachments ({selectedIncident.attachments.length})
+                </span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedIncident.attachments.map((url: string, idx: number) => (
+                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block" data-testid={`link-attachment-${idx}`}>
+                      {url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                        <img src={url} alt={`Attachment ${idx + 1}`} className="h-20 w-20 object-cover rounded-lg border hover:opacity-80 transition-opacity" />
+                      ) : (
+                        <div className="h-20 w-20 flex flex-col items-center justify-center rounded-lg border bg-muted hover:bg-muted/80 transition-colors">
+                          <FileText className="h-6 w-6 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground mt-1">Document</span>
+                        </div>
+                      )}
+                    </a>
                   ))}
                 </div>
               </div>
