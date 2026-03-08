@@ -6687,32 +6687,32 @@ html[data-bg].dark {
    ═══════════════════════════════════════════════════════════════════ */
 
 .liquid-glass {
-  --background: 205 35% 82%;
+  --background: 205 40% 80%;
   --foreground: 210 30% 15%;
   --primary: 200 55% 42%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 205 25% 88%;
+  --secondary: 205 30% 85%;
   --secondary-foreground: 210 25% 20%;
-  --accent: 200 20% 85%;
+  --accent: 200 25% 82%;
   --accent-foreground: 210 25% 18%;
-  --muted: 205 22% 87%;
-  --muted-foreground: 210 15% 42%;
-  --card: 205 30% 92%;
+  --muted: 205 25% 84%;
+  --muted-foreground: 210 15% 40%;
+  --card: 205 40% 80%;
   --card-foreground: 210 30% 15%;
-  --popover: 205 28% 93%;
+  --popover: 205 35% 82%;
   --popover-foreground: 210 30% 15%;
-  --border: 200 20% 75%;
-  --input: 205 25% 90%;
+  --border: 200 25% 72%;
+  --input: 205 30% 82%;
   --ring: 200 55% 42%;
   --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
-  --sidebar-background: 205 30% 84%;
+  --sidebar-background: 205 40% 80%;
   --sidebar-foreground: 210 25% 18%;
   --sidebar-primary: 200 55% 42%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 200 22% 88%;
+  --sidebar-accent: 200 30% 85%;
   --sidebar-accent-foreground: 210 25% 18%;
-  --sidebar-border: 200 20% 76%;
+  --sidebar-border: 200 25% 74%;
   --sidebar-ring: 200 55% 42%;
   --radius: 1.25rem;
   --chart-1: 200 55% 42%;
@@ -6721,23 +6721,24 @@ html[data-bg].dark {
   --chart-4: 205 50% 55%;
   --chart-5: 195 48% 45%;
 
-  background-color: hsl(205 35% 82%);
+  background-color: hsl(205 40% 80%) !important;
   background-image:
-    radial-gradient(ellipse at 25% 20%, hsl(200 50% 88% / 0.7) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 80%, hsl(210 40% 78% / 0.5) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsl(200 30% 85% / 0.3) 0%, transparent 60%);
+    radial-gradient(ellipse at 25% 15%, hsl(195 55% 88% / 0.8) 0%, transparent 50%),
+    radial-gradient(ellipse at 78% 85%, hsl(215 45% 75% / 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, hsl(200 35% 84% / 0.4) 0%, transparent 55%) !important;
+  background-attachment: fixed !important;
 }
 
 .liquid-glass [data-slot="card"] {
-  background: hsl(0 0% 100% / 0.25) !important;
-  backdrop-filter: blur(24px) saturate(1.3);
-  -webkit-backdrop-filter: blur(24px) saturate(1.3);
-  border: 1.5px solid hsl(0 0% 100% / 0.55);
+  background: hsl(0 0% 100% / 0.15) !important;
+  backdrop-filter: blur(28px) saturate(1.3);
+  -webkit-backdrop-filter: blur(28px) saturate(1.3);
+  border: 1.5px solid hsl(0 0% 100% / 0.50);
   box-shadow:
-    0 4px 24px hsl(210 30% 50% / 0.10),
-    0 1px 3px hsl(210 30% 50% / 0.06),
-    inset 0 2px 0 hsl(0 0% 100% / 0.50),
-    inset 0 -1px 0 hsl(210 30% 50% / 0.08);
+    0 4px 24px hsl(210 40% 50% / 0.08),
+    0 1px 3px hsl(210 40% 50% / 0.04),
+    inset 0 2px 0 hsl(0 0% 100% / 0.45),
+    inset 0 -1px 0 hsl(210 30% 60% / 0.06);
   border-radius: 22px;
   position: relative;
   overflow: hidden;
@@ -6750,11 +6751,11 @@ html[data-bg].dark {
   border-radius: inherit;
   background: linear-gradient(
     170deg,
-    hsl(0 0% 100% / 0.45) 0%,
-    hsl(0 0% 100% / 0.15) 25%,
+    hsl(0 0% 100% / 0.40) 0%,
+    hsl(0 0% 100% / 0.12) 25%,
     hsl(0 0% 100% / 0.0) 50%,
-    hsl(200 40% 80% / 0.05) 75%,
-    hsl(0 0% 100% / 0.10) 100%
+    hsl(200 40% 80% / 0.04) 75%,
+    hsl(0 0% 100% / 0.08) 100%
   );
   pointer-events: none;
   z-index: 1;
@@ -6763,15 +6764,15 @@ html[data-bg].dark {
 .liquid-glass [data-slot="card"]::after {
   content: "";
   position: absolute;
-  top: 6px;
-  left: 12%;
-  width: 76%;
-  height: 35%;
+  top: 4px;
+  left: 10%;
+  width: 80%;
+  height: 32%;
   background: radial-gradient(
     ellipse at 50% 0%,
-    hsl(0 0% 100% / 0.50) 0%,
-    hsl(0 0% 100% / 0.20) 40%,
-    transparent 70%
+    hsl(0 0% 100% / 0.55) 0%,
+    hsl(0 0% 100% / 0.22) 35%,
+    transparent 65%
   );
   border-radius: 50%;
   pointer-events: none;
@@ -6779,33 +6780,87 @@ html[data-bg].dark {
 }
 
 .liquid-glass [data-slot="card"]:hover {
-  background: hsl(0 0% 100% / 0.32) !important;
+  background: hsl(0 0% 100% / 0.22) !important;
   box-shadow:
-    0 8px 32px hsl(210 30% 50% / 0.14),
-    0 2px 6px hsl(210 30% 50% / 0.08),
-    inset 0 2px 0 hsl(0 0% 100% / 0.55),
-    inset 0 -1px 0 hsl(210 30% 50% / 0.10);
-  border-color: hsl(0 0% 100% / 0.65);
+    0 8px 32px hsl(210 40% 50% / 0.12),
+    0 2px 6px hsl(210 40% 50% / 0.06),
+    inset 0 2px 0 hsl(0 0% 100% / 0.50),
+    inset 0 -1px 0 hsl(210 30% 60% / 0.08);
+  border-color: hsl(0 0% 100% / 0.60);
 }
 
 .liquid-glass [role="dialog"],
 .liquid-glass [data-radix-popper-content-wrapper] > * {
-  background: hsl(0 0% 100% / 0.30) !important;
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
-  border: 1.5px solid hsl(0 0% 100% / 0.50);
+  background: hsl(0 0% 100% / 0.18) !important;
+  backdrop-filter: blur(36px) saturate(1.4);
+  -webkit-backdrop-filter: blur(36px) saturate(1.4);
+  border: 1.5px solid hsl(0 0% 100% / 0.45);
   border-radius: 22px;
   box-shadow:
-    0 16px 60px hsl(210 30% 40% / 0.15),
-    inset 0 2px 0 hsl(0 0% 100% / 0.45);
+    0 16px 60px hsl(210 40% 40% / 0.12),
+    inset 0 2px 0 hsl(0 0% 100% / 0.40);
 }
 
 .liquid-glass [data-slot="sidebar"],
-.liquid-glass aside {
+.liquid-glass aside,
+.liquid-glass .flex.h-screen.w-64.flex-col,
+.liquid-glass nav[class*="fixed"][class*="bottom-0"] {
+  background: hsl(0 0% 100% / 0.12) !important;
+  backdrop-filter: blur(32px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.3) !important;
+  border-color: hsl(0 0% 100% / 0.35) !important;
+}
+
+.liquid-glass .bg-card,
+.liquid-glass .bg-card\/95 {
+  background: hsl(0 0% 100% / 0.12) !important;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+
+.liquid-glass .bg-background {
+  background: transparent !important;
+}
+
+.liquid-glass .bg-background\/95 {
+  background: hsl(0 0% 100% / 0.10) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.liquid-glass .bg-sidebar {
+  background: hsl(0 0% 100% / 0.10) !important;
+}
+
+.liquid-glass .bg-white {
   background: hsl(0 0% 100% / 0.18) !important;
-  backdrop-filter: blur(28px) saturate(1.3);
-  -webkit-backdrop-filter: blur(28px) saturate(1.3);
-  border-right: 1.5px solid hsl(0 0% 100% / 0.40);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.liquid-glass .bg-sidebar-accent,
+.liquid-glass [data-active="true"] {
+  background: hsl(0 0% 100% / 0.18) !important;
+}
+
+.liquid-glass .bg-gray-50,
+.liquid-glass .bg-gray-100,
+.liquid-glass .bg-zinc-800,
+.liquid-glass .bg-zinc-800\/50,
+.liquid-glass .bg-zinc-800\/80,
+.liquid-glass .bg-zinc-900\/80,
+.liquid-glass .bg-slate-900\/95 {
+  background: hsl(0 0% 100% / 0.15) !important;
+}
+
+.liquid-glass .bg-emerald-50,
+.liquid-glass .bg-orange-50 {
+  background: hsl(0 0% 100% / 0.12) !important;
+}
+
+.liquid-glass .bg-muted,
+.liquid-glass .bg-muted\/50 {
+  background: hsl(0 0% 100% / 0.10) !important;
 }
 
 .liquid-glass button,
@@ -6845,13 +6900,23 @@ html[data-bg].dark {
   pointer-events: none;
 }
 
+.liquid-glass button[class*="variant-outline"],
+.liquid-glass button[class*="bg-secondary"],
+.liquid-glass [role="button"][class*="bg-secondary"] {
+  background: hsl(0 0% 100% / 0.15) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid hsl(0 0% 100% / 0.40);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.30);
+}
+
 .liquid-glass input,
 .liquid-glass textarea,
 .liquid-glass select {
-  background: hsl(0 0% 100% / 0.30) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1.5px solid hsl(0 0% 100% / 0.45);
+  background: hsl(0 0% 100% / 0.20) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1.5px solid hsl(0 0% 100% / 0.40);
   border-radius: 14px;
   box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.30);
   transition: all 0.25s ease;
@@ -6863,21 +6928,25 @@ html[data-bg].dark {
   box-shadow:
     0 0 12px hsl(var(--primary) / 0.12),
     inset 0 1px 0 hsl(0 0% 100% / 0.35);
-  background: hsl(0 0% 100% / 0.38) !important;
+  background: hsl(0 0% 100% / 0.28) !important;
 }
 
+.liquid-glass table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
 .liquid-glass table thead th,
 .liquid-glass table thead td {
-  background: hsl(0 0% 100% / 0.20);
+  background: hsl(0 0% 100% / 0.15);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid hsl(0 0% 100% / 0.30);
+  border-bottom: 1px solid hsl(0 0% 100% / 0.25);
 }
 .liquid-glass table tbody tr {
   transition: background 0.2s ease;
 }
 .liquid-glass table tbody tr:hover {
-  background: hsl(0 0% 100% / 0.12);
+  background: hsl(0 0% 100% / 0.10);
 }
 
 .liquid-glass [data-slot="badge"] {
@@ -6891,64 +6960,106 @@ html[data-bg].dark {
 .liquid-glass .compact-match-card-live,
 .liquid-glass .compact-match-card-queued,
 .liquid-glass .compact-match-card-completed {
-  background: hsl(0 0% 100% / 0.22) !important;
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border: 1.5px solid hsl(0 0% 100% / 0.50) !important;
+  background: hsl(0 0% 100% / 0.14) !important;
+  backdrop-filter: blur(24px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
+  border: 1.5px solid hsl(0 0% 100% / 0.45) !important;
   box-shadow:
-    0 4px 20px hsl(210 30% 50% / 0.08),
+    0 4px 20px hsl(210 40% 50% / 0.06),
     inset 0 2px 0 hsl(0 0% 100% / 0.40) !important;
   border-radius: 18px !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .liquid-glass .compact-match-card-live {
-  border-color: hsl(160 50% 55% / 0.40) !important;
+  border-color: hsl(160 50% 55% / 0.35) !important;
   box-shadow:
-    0 4px 20px hsl(210 30% 50% / 0.08),
+    0 4px 20px hsl(210 40% 50% / 0.06),
     inset 0 2px 0 hsl(0 0% 100% / 0.40),
-    0 0 14px hsl(160 50% 55% / 0.10) !important;
+    0 0 14px hsl(160 50% 55% / 0.08) !important;
 }
 
 .liquid-glass .compact-match-card-live:hover {
-  background: hsl(0 0% 100% / 0.30) !important;
+  background: hsl(0 0% 100% / 0.22) !important;
   box-shadow:
-    0 6px 28px hsl(210 30% 50% / 0.12),
+    0 6px 28px hsl(210 40% 50% / 0.10),
     inset 0 2px 0 hsl(0 0% 100% / 0.50),
-    0 0 20px hsl(160 50% 55% / 0.14) !important;
+    0 0 20px hsl(160 50% 55% / 0.12) !important;
 }
 
 .liquid-glass .compact-match-card-queued:hover,
 .liquid-glass .compact-match-card-completed:hover {
-  background: hsl(0 0% 100% / 0.30) !important;
+  background: hsl(0 0% 100% / 0.22) !important;
   box-shadow:
-    0 6px 28px hsl(210 30% 50% / 0.12),
+    0 6px 28px hsl(210 40% 50% / 0.10),
     inset 0 2px 0 hsl(0 0% 100% / 0.50) !important;
 }
 
+.liquid-glass .compact-match-card input,
+.liquid-glass .compact-match-card-live input,
+.liquid-glass .compact-match-card-queued input,
+.liquid-glass .compact-match-card-completed input {
+  background: hsl(0 0% 100% / 0.20) !important;
+  border-color: hsl(0 0% 100% / 0.30) !important;
+}
+
 .liquid-glass .pro-live-row {
-  background: hsl(0 0% 100% / 0.18) !important;
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  background: hsl(0 0% 100% / 0.12) !important;
+  backdrop-filter: blur(20px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
   border: 1.5px solid hsl(0 0% 100% / 0.40);
   border-radius: 16px;
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.35);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.30);
+}
+
+.liquid-glass .rounded-xl,
+.liquid-glass .rounded-2xl,
+.liquid-glass .rounded-lg {
+  position: relative;
+}
+
+.liquid-glass .border-b,
+.liquid-glass .border-t {
+  border-color: hsl(0 0% 100% / 0.30) !important;
+}
+
+.liquid-glass .border-border,
+.liquid-glass .border-border\/40,
+.liquid-glass .border-border\/50,
+.liquid-glass .border-border\/60 {
+  border-color: hsl(0 0% 100% / 0.35) !important;
+}
+
+.liquid-glass .shadow-sm,
+.liquid-glass .shadow-md,
+.liquid-glass .shadow-lg,
+.liquid-glass .shadow-xl,
+.liquid-glass .shadow-2xl {
+  box-shadow:
+    0 4px 20px hsl(210 40% 50% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.25) !important;
+}
+
+.liquid-glass .bg-accent {
+  background: hsl(0 0% 100% / 0.12) !important;
 }
 
 .liquid-glass * {
-  scrollbar-color: hsl(200 30% 65%) hsl(205 25% 88%);
+  scrollbar-color: hsl(200 30% 65%) hsl(205 30% 82%);
 }
 
 .liquid-glass ::-webkit-scrollbar {
   width: 8px;
 }
 .liquid-glass ::-webkit-scrollbar-track {
-  background: hsl(205 25% 88%);
+  background: hsl(0 0% 100% / 0.10);
   border-radius: 4px;
 }
 .liquid-glass ::-webkit-scrollbar-thumb {
-  background: hsl(200 30% 65%);
+  background: hsl(200 30% 65% / 0.5);
   border-radius: 4px;
-  border: 2px solid hsl(205 25% 88%);
+  border: 2px solid transparent;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
