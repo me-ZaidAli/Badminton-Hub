@@ -5438,7 +5438,7 @@ export async function registerRoutes(
           }
         }
 
-        const generated = applyAIBrainLayer({
+        let generated = applyAIBrainLayer({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
           players: allPlayers,
           playersPerSide: playersPerSide as 1 | 2,
@@ -5450,6 +5450,22 @@ export async function registerRoutes(
           sessionDurationMinutes: session.durationMinutes || 120,
           elapsedMinutes: round * 20,
         });
+
+        if (generated.matches.length === 0) {
+          const fallback = generateSmartMatches({
+            mode: matchMode as "SOCIAL" | "COMPETITIVE",
+            players: allPlayers,
+            playersPerSide: playersPerSide as 1 | 2,
+            genderType: gType,
+            queueTarget: matchesPerRound,
+            recentPairings,
+            recentOpponents,
+            playerMatchCounts,
+            priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+            fixedPairs,
+          });
+          generated = { ...generated, matches: fallback.matches };
+        }
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
 

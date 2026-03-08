@@ -766,11 +766,14 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
     };
   }
 
+  const femaleCount = players.filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const applyStrictGender = playersPerSide === 2 && genderType === "MIXED" && femaleCount >= 4;
+
   const qualifiedMatches: MatchResult[] = [];
   const matchQualities: number[] = [];
 
   for (const candidate of standardResult.matches) {
-    if (playersPerSide === 2 && genderType === "MIXED") {
+    if (applyStrictGender) {
       if (isStrictGenderUnfair(candidate, players)) {
         continue;
       }
@@ -788,6 +791,14 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
 
     qualifiedMatches.push(candidate);
     matchQualities.push(quality);
+  }
+
+  if (qualifiedMatches.length === 0 && standardResult.matches.length > 0) {
+    for (const candidate of standardResult.matches) {
+      const quality = computeMatchQualityScore(candidate, players, metricsMap, currentRound);
+      qualifiedMatches.push(candidate);
+      matchQualities.push(quality);
+    }
   }
 
   qualifiedMatches.sort((a, b) => {
