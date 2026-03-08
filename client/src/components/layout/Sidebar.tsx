@@ -128,7 +128,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets", ...(isAdminOrOwner && { secondaryBadgeKey: "pendingTickets" as keyof BadgeCounts }) },
-    { href: "/incidents", label: "Incidents", icon: Shield, group: "comms", badgeKey: "pendingIncidents" },
+    { href: "/incidents", label: "Incidents", icon: Shield, group: "comms", badgeKey: "pendingIncidents", hidden: !isAdminOrOwner },
 
     { href: "/themes", label: "Themes", icon: Palette, group: "design", premiumOnly: true },
     { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon, group: "design" },

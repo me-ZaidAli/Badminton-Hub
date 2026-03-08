@@ -162,7 +162,7 @@ const initialFormData: IncidentFormData = {
 
 export default function IncidentReports() {
   const { toast } = useToast();
-  const { data: user } = useQuery<any>({ queryKey: ["/api/user"] });
+  const { data: user, isLoading: userLoading } = useQuery<any>({ queryKey: ["/api/user"] });
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
 
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -338,6 +338,23 @@ export default function IncidentReports() {
     m.name.toLowerCase().includes(memberSearch.toLowerCase())
   );
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
+
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-3">
+        <Shield className="w-10 h-10 text-muted-foreground" />
+        <p className="text-muted-foreground font-medium" data-testid="text-access-denied">Access restricted to administrators only.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
