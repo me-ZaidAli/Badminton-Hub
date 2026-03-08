@@ -7045,6 +7045,53 @@ html[data-bg].dark {
   background: hsl(0 0% 100% / 0.12) !important;
 }
 
+.liquid-glass [data-testid="mobile-dropdown-menu"] {
+  background: hsl(205 45% 78% / 0.92) !important;
+  backdrop-filter: blur(32px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.4) !important;
+  border-color: hsl(0 0% 100% / 0.40) !important;
+  box-shadow:
+    0 8px 40px hsl(210 40% 40% / 0.15),
+    inset 0 1px 0 hsl(0 0% 100% / 0.40) !important;
+}
+
+.liquid-glass [data-testid="mobile-dropdown-menu"] > div {
+  border-color: hsl(0 0% 100% / 0.30) !important;
+}
+
+.liquid-glass .md\:hidden.sticky {
+  background: transparent !important;
+}
+
+.liquid-glass .md\:hidden.sticky > div:first-child {
+  background: hsl(205 45% 78% / 0.85) !important;
+  backdrop-filter: blur(28px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.3) !important;
+}
+
+.liquid-glass [data-testid="mobile-section-admin-panel"] {
+  background: hsl(160 40% 80% / 0.25) !important;
+  border-color: hsl(160 50% 55% / 0.25) !important;
+}
+
+.liquid-glass .flex.h-screen.w-64.flex-col.bg-card {
+  background: hsl(205 45% 78% / 0.90) !important;
+  backdrop-filter: blur(32px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.4) !important;
+}
+
+.liquid-glass .bg-card\/80 {
+  background: hsl(205 45% 78% / 0.70) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+.liquid-glass .bg-card\/95 {
+  background: hsl(205 45% 78% / 0.88) !important;
+  backdrop-filter: blur(28px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.3) !important;
+}
+
 .liquid-glass * {
   scrollbar-color: hsl(200 30% 65%) hsl(205 30% 82%);
 }
