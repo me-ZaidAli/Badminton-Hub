@@ -708,6 +708,8 @@ export function Sidebar() {
   const { groups: navGroups, isPremium, planStatus } = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
   const { hidden, hide, show } = useSidebarHidden();
+  const { displayMode } = useTheme();
+  const isLiquidGlass = displayMode === "liquid-glass";
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [unlockPanelOpen, setUnlockPanelOpen] = useState(false);
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -746,7 +748,7 @@ export function Sidebar() {
   return (
     <>
     <SidebarPinSetup open={pinDialogOpen} onOpenChange={setPinDialogOpen} />
-    <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex" data-sidebar-desktop="main">
+    <div className={cn("flex h-screen w-64 flex-col border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex", isLiquidGlass ? "bg-[#a8c8dc]" : "bg-card")} data-sidebar-desktop="main">
       <div className="p-5 border-b border-border/50">
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
@@ -965,14 +967,14 @@ export function MobileTopNav() {
   const { displayMode } = useTheme();
   const isLiquidGlass = displayMode === "liquid-glass";
 
-  const lgMenuStyle = isLiquidGlass ? { backgroundColor: '#a8c8dc', color: '#ffffff' } as React.CSSProperties : undefined;
-  const lgTopBarStyle = isLiquidGlass ? { backgroundColor: '#b0cfe0', color: '#ffffff' } as React.CSSProperties : undefined;
-
   if (!user) return null;
 
   return (
     <div className="md:hidden sticky top-0 z-50" data-sidebar-mobile="wrapper">
-      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40" data-sidebar-mobile="topbar" style={lgTopBarStyle}>
+      <div className={cn(
+        "flex items-center justify-between px-4 py-3 border-b border-border/40",
+        isLiquidGlass ? "bg-[#b0cfe0] text-white" : "bg-background"
+      )} data-sidebar-mobile="topbar">
         <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
             <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
@@ -995,7 +997,10 @@ export function MobileTopNav() {
       </div>
 
       {menuOpen && (
-        <div className="bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown" style={lgMenuStyle}>
+        <div className={cn(
+          "border-b border-border shadow-lg max-h-[80vh] overflow-y-auto",
+          isLiquidGlass ? "bg-[#a8c8dc] text-white" : "bg-card"
+        )} data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
           <div className="px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
@@ -1004,8 +1009,8 @@ export function MobileTopNav() {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-semibold text-sm text-foreground" style={isLiquidGlass ? { color: '#ffffff' } : undefined}>{user.fullName}</p>
-                <p className="text-xs text-muted-foreground capitalize" style={isLiquidGlass ? { color: 'rgba(255,255,255,0.7)' } : undefined}>{user.role.toLowerCase()}</p>
+                <p className={cn("font-semibold text-sm", isLiquidGlass ? "text-white" : "text-foreground")}>{user.fullName}</p>
+                <p className={cn("text-xs capitalize", isLiquidGlass ? "text-white/70" : "text-muted-foreground")}>{user.role.toLowerCase()}</p>
               </div>
             </div>
           </div>
@@ -1013,8 +1018,8 @@ export function MobileTopNav() {
             {navGroups.map((group) => (
               <div key={group.key}>
                 {group.key === "admin" ? (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400" style={isLiquidGlass ? { color: '#ef4444' } : undefined}>
+                  <div className={cn("rounded-xl border p-2", isLiquidGlass ? "border-red-400/40 bg-red-500/10" : "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10")} data-testid="mobile-section-admin-panel">
+                    <span className={cn("flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider", isLiquidGlass ? "text-[#ef4444]" : "text-emerald-600 dark:text-emerald-400")}>
                       <ShieldCheck className="w-3 h-3" /> {group.label}
                     </span>
                     {group.items.map((item) => {
@@ -1025,9 +1030,8 @@ export function MobileTopNav() {
                             variant={isActive ? "default" : "ghost"}
                             className={cn(
                               "w-full justify-start gap-3",
-                              isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-emerald-700 dark:text-emerald-400"
+                              isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : isLiquidGlass ? "text-[#ef4444]" : "text-emerald-700 dark:text-emerald-400"
                             )}
-                            style={isLiquidGlass && !isActive ? { color: '#ef4444' } : undefined}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1040,8 +1044,8 @@ export function MobileTopNav() {
                     })}
                   </div>
                 ) : group.key === "godmode" ? (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive" style={isLiquidGlass ? { color: '#facc15' } : undefined}>
+                  <div className={cn("rounded-xl border p-2", isLiquidGlass ? "border-yellow-400/40 bg-yellow-500/10" : "border-destructive/30 bg-destructive/5 dark:bg-destructive/10")} data-testid="mobile-section-god-mode">
+                    <span className={cn("flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider", isLiquidGlass ? "text-[#facc15]" : "text-destructive")}>
                       <Zap className="w-3 h-3" /> Super Admin
                     </span>
                     {group.items.map((item) => {
@@ -1052,9 +1056,8 @@ export function MobileTopNav() {
                             variant={isActive ? "destructive" : "ghost"}
                             className={cn(
                               "w-full justify-start gap-3",
-                              !isActive && "text-destructive"
+                              !isActive && (isLiquidGlass ? "text-[#facc15]" : "text-destructive")
                             )}
-                            style={isLiquidGlass && !isActive ? { color: '#facc15' } : undefined}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1074,8 +1077,7 @@ export function MobileTopNav() {
                         <Link key={item.href} href={item.href}>
                           <Button
                             variant={isActive ? "secondary" : "ghost"}
-                            className="w-full justify-start gap-3 font-semibold"
-                            style={isLiquidGlass ? { color: '#ffffff' } : undefined}
+                            className={cn("w-full justify-start gap-3 font-semibold", isLiquidGlass && "text-white")}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1089,7 +1091,7 @@ export function MobileTopNav() {
                   </div>
                 ) : (
                   <>
-                    <span className="flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60" style={isLiquidGlass ? { color: 'rgba(255,255,255,0.7)' } : undefined}>
+                    <span className={cn("flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider", isLiquidGlass ? "text-white/70" : "text-muted-foreground/60")}>
                       {group.label}
                     </span>
                     <div className="space-y-0.5">
@@ -1102,8 +1104,7 @@ export function MobileTopNav() {
                           <Link key={item.href} href={item.href}>
                             <Button
                               variant={isActive ? "secondary" : "ghost"}
-                              className="w-full justify-start gap-3"
-                              style={isLiquidGlass ? { color: '#ffffff' } : undefined}
+                              className={cn("w-full justify-start gap-3", isLiquidGlass && "text-white")}
                               size="sm"
                               onClick={() => setMenuOpen(false)}
                               data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1133,8 +1134,7 @@ export function MobileTopNav() {
             <Link href="/profile">
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-3"
-                style={isLiquidGlass ? { color: '#ffffff' } : undefined}
+                className={cn("w-full justify-start gap-3", isLiquidGlass && "text-white")}
                 size="sm"
                 onClick={() => setMenuOpen(false)}
                 data-testid="mobile-nav-profile"
@@ -1145,8 +1145,7 @@ export function MobileTopNav() {
             </Link>
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 text-destructive"
-              style={isLiquidGlass ? { color: '#ef4444' } : undefined}
+              className={cn("w-full justify-start gap-3", isLiquidGlass ? "text-[#ef4444]" : "text-destructive")}
               size="sm"
               onClick={() => {
                 setMenuOpen(false);
