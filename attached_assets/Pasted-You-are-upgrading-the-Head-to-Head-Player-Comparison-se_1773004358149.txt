@@ -1,0 +1,301 @@
+You are upgrading the Head-to-Head Player Comparison section of a badminton analytics web app.
+
+The system currently stores only limited data:
+
+• Match results (winner)
+• Match scores (example: 21–18)
+• Number of sessions per player
+
+Even with this limited data, create a modern sports analytics comparison dashboard that derives meaningful insights.
+
+Do NOT change backend data structures. Only build derived statistics, visualization, and UI improvements.
+
+The interface must be mobile-first, modern, and highly visual.
+
+HEAD-TO-HEAD DASHBOARD STRUCTURE
+
+The comparison page should be divided into the following sections:
+
+1 Rivalry Arena Header
+2 Rivalry Scoreboard
+3 Rivalry Analytics
+4 Momentum Timeline
+5 Match Insights
+6 Player Experience Comparison
+
+1 RIVALRY ARENA HEADER
+
+At the top of the page create a visual rivalry header.
+
+Layout:
+
+Player A avatar — VS — Player B avatar
+
+Because there are no player photos, use stylized athletic silhouettes.
+
+Requirements:
+
+• gender-based silhouettes (male / female)
+• circular avatar frame
+• soft grey shadow behind silhouette
+• subtle glow border
+• player accent color
+
+Place a faint badminton court graphic in the background.
+
+Add a subtle breathing animation to avatars.
+
+2 RIVALRY SCOREBOARD
+
+Display the overall head-to-head record.
+
+Example:
+
+HAIDER 1 — 2 TARIK
+
+Features:
+
+• large animated numbers
+• numbers count up on page load
+• highlight the leading player
+• glow effect for winner
+
+Below the score display:
+
+Total Matches Played
+
+Example:
+
+3 Matches Played
+
+3 RIVALRY ANALYTICS (DERIVED FROM MATCH SCORES)
+
+Using match score data, calculate the following advanced metrics.
+
+Total Points Scored
+
+Sum all points from every match.
+
+Example:
+
+Haider: 52 points
+Tarik: 63 points
+
+Display as horizontal comparison bars.
+
+Average Points Per Match
+
+Formula:
+
+Total points / number of matches
+
+Example:
+
+Haider: 17.3
+Tarik: 21.0
+
+Display with small stat cards.
+
+Average Score Margin
+
+Calculate the average difference between scores in each match.
+
+Formula:
+
+|score difference|
+
+Example:
+
+21–18 → margin 3
+21–13 → margin 8
+21–19 → margin 2
+
+Average margin = 4.3
+
+Display this metric with a rivalry intensity label:
+
+Average margin < 3 → Epic rivalry
+3–6 → Competitive rivalry
+
+6 → Dominant rivalry
+
+Biggest Win
+
+Find the match with the largest score margin.
+
+Example:
+
+Biggest Win
+Tarik 21–11
+
+Display in a highlight card.
+
+Closest Match
+
+Find the match with the smallest score margin.
+
+Example:
+
+Closest Match
+Haider 21–19
+
+4 MOMENTUM TIMELINE
+
+Create a horizontal rivalry timeline.
+
+Each match should appear as a node.
+
+Each node includes:
+
+• match date
+• score
+• winner indicator
+
+Example layout:
+
+🔵 21–19 🟣 21–13 🟣 21–18
+
+Color code:
+
+Blue = Player A
+Purple = Player B
+
+Add hover interaction showing full match info.
+
+Timeline should animate from left to right when the section loads.
+
+5 MOMENTUM INDICATOR
+
+Calculate recent match momentum.
+
+Example:
+
+Last 3 matches
+
+🟣 🟣 🔵
+
+Display this visually using colored circles.
+
+Add label:
+
+"Tarik currently holds momentum with 2 wins in the last 3 matches."
+
+6 WIN STREAK
+
+Calculate longest win streak for each player.
+
+Example:
+
+Haider longest streak: 1
+Tarik longest streak: 2
+
+Display as comparison bars.
+
+7 PLAYER EXPERIENCE COMPARISON
+
+Since session data exists, compare experience.
+
+Example:
+
+Haider sessions: 4
+Tarik sessions: 8
+
+Display:
+
+horizontal bars or circular stat rings.
+
+Add insight:
+
+"Tarik has participated in more sessions which may contribute to experience advantage."
+
+8 AI RIVALRY SUMMARY
+
+Generate a short automatic rivalry insight based on the stats.
+
+Example output:
+
+"Tarik currently leads the rivalry 2–1. While Haider keeps matches competitive with an average margin of 4 points, Tarik has scored more total points across their encounters and holds recent momentum."
+
+VISUAL DESIGN
+
+The UI should look like a modern sports analytics dashboard.
+
+Design style:
+
+Dark theme
+Gradient panels
+Rounded cards
+Glassmorphism effects
+
+Enhancements:
+
+• soft shadows
+• subtle glow highlights
+• animated progress bars
+• animated stat counters
+
+PLAYER AVATAR SYSTEM
+
+Because no player photos exist, create stylized silhouettes.
+
+Requirements:
+
+Male silhouette
+Female silhouette
+
+Each avatar must include:
+
+• soft grey shadow silhouette behind the figure
+• circular glow border
+• player accent color
+• minimal athletic design
+
+Provide six avatar variations:
+
+Male neutral
+Male smash stance
+Male athletic stance
+Female neutral
+Female smash stance
+Female athletic stance
+
+MOBILE FIRST
+
+Ensure the layout works perfectly on phones.
+
+Mobile order:
+
+1 Rivalry header
+2 Scoreboard
+3 Rivalry analytics cards
+4 Momentum timeline
+5 Match insights
+6 Experience comparison
+
+All components must remain readable on small screens.
+
+PERFORMANCE
+
+Animations must:
+
+• run at 60fps
+• use CSS transforms
+• avoid heavy JavaScript loops
+
+Prefer CSS animations where possible.
+
+OUTPUT
+
+Generate:
+
+• HTML structure
+• CSS styling for modern dashboard UI
+• SVG silhouettes for avatars
+• JavaScript for stat calculations and animations
+• responsive layout
+
+Do not break existing match data logic.
+
+GOAL
+
+Transform the head-to-head page into a professional rivalry analytics dashboard, even with minimal data (match results and sessions only).

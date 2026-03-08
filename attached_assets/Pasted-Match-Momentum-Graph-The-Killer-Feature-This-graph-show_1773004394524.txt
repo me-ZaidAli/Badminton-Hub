@@ -1,0 +1,201 @@
+Match Momentum Graph (The Killer Feature)
+
+This graph shows how the rivalry evolved over time, not just who won.
+
+Instead of just showing results, it visually answers:
+
+Who dominated the rivalry
+
+When momentum changed
+
+Whether the rivalry is close or one-sided
+
+📈 How It Works
+
+Each match updates a cumulative score line.
+
+Example rivalry:
+
+Match	Winner	Rivalry Score
+1	Tarik	0–1
+2	Tarik	0–2
+3	Haider	1–2
+
+Graph output:
+
+Tarik
+ 2 |        ●
+ 1 |    ●
+ 0 | ●
+   +----------------
+     M1  M2  M3
+
+If Haider starts winning later, the line moves back up.
+
+This instantly shows momentum shifts.
+
+🎨 Visual Design
+
+Make it look modern:
+
+Curved line chart
+
+Player color lines
+
+Match nodes (circles)
+
+Hover tooltip with match score
+
+Example tooltip:
+
+Match 3
+Haider 21–19
+Rivalry: 1–2
+⭐ Why This Feature Is Powerful
+
+It shows story, not just numbers.
+
+Users instantly see:
+
+dominance periods
+
+comebacks
+
+rivalry balance
+
+Even 3 matches looks interesting visually.
+
+📱 Mobile Version
+
+For mobile:
+
+horizontal scroll chart
+
+match nodes clickable
+
+tooltips appear on tap
+
+⚡ Extra Enhancement
+
+Add momentum glow:
+
+If a player wins 2 matches in a row, highlight the line segment.
+
+Example:
+
+Tarik momentum streak 🔥
+💻 Replit Prompt to Add This Feature
+
+You can give this to Replit AI:
+
+Writing
+
+Upgrade the head-to-head comparison page by adding a Rivalry Momentum Graph.
+
+The app stores only:
+
+• match results
+• match scores
+• match order/date
+
+Create a visual momentum chart showing how the rivalry evolved over time.
+
+GRAPH STRUCTURE
+
+Use a line chart that tracks cumulative wins across matches.
+
+Example data:
+
+Match 1 → Tarik wins → score becomes 0–1
+Match 2 → Tarik wins → score becomes 0–2
+Match 3 → Haider wins → score becomes 1–2
+
+Plot this progression across the x-axis.
+
+X-axis = match order or date
+Y-axis = cumulative wins
+
+VISUAL DESIGN
+
+Use a modern sports analytics style.
+
+Requirements:
+
+• smooth curved line chart
+• player colored lines
+• circular nodes for each match
+• hover tooltip with match details
+
+Tooltip should display:
+
+Match number
+Score (example 21–18)
+Winner
+Updated rivalry score
+
+Example tooltip:
+
+Match 3
+Haider 21–19
+Rivalry: 1–2
+
+MOMENTUM HIGHLIGHT
+
+If a player wins multiple matches in a row:
+
+Highlight that segment of the graph.
+
+Example label:
+
+"Tarik momentum streak"
+
+Use subtle glow effect.
+
+MOBILE DESIGN
+
+On mobile:
+
+• horizontal scrollable chart
+• tap nodes to see match details
+• maintain readable labels
+
+PERFORMANCE
+
+Use a lightweight chart library such as:
+
+Chart.js or pure SVG.
+
+Animations:
+
+• graph draws on load
+• nodes fade in sequentially
+
+OUTPUT
+
+Generate:
+
+• chart component
+• match data processing logic
+• responsive styling
+• tooltip interactions
+
+Do not modify existing match storage logic.
+
+🏆 If You Want One More Feature (Highly Recommended)
+
+There is another feature that would make your app feel like a professional sports analytics platform:
+
+Rivalry Strength Meter
+
+Example:
+
+Rivalry Strength
+🔥 Competitive
+
+Calculated from:
+
+win difference
+
+score margins
+
+It makes rivalries feel dramatic and meaningful.
