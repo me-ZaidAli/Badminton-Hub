@@ -2862,9 +2862,11 @@ export default function Profile() {
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Player Insurance" icon={Shield} testId="card-player-insurance">
-        <BadmintonEnglandSection user={user} />
-      </CollapsibleSection>
+      {profiles && profiles.length > 0 && (
+        <CollapsibleSection title="Player Insurance" icon={Shield} testId="card-player-insurance">
+          <BadmintonEnglandSection user={user} />
+        </CollapsibleSection>
+      )}
 
       {/* Account Settings */}
       <CollapsibleSection title="Account Settings" icon={Settings} testId="card-account-settings">

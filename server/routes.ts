@@ -6216,8 +6216,20 @@ export async function registerRoutes(
 
   // === Announcements ===
   app.get(api.announcements.list.path, async (req, res) => {
-    const announcements = await storage.getAnnouncements();
-    res.json(announcements);
+    const allAnnouncements = await storage.getAnnouncements();
+    if (!req.isAuthenticated()) {
+      return res.json(allAnnouncements.filter(a => !a.clubId));
+    }
+    const userRole = req.user!.role;
+    if (userRole === "OWNER") {
+      return res.json(allAnnouncements);
+    }
+    const userMemberships = await db.select({ clubId: clubMemberships.clubId })
+      .from(clubMemberships)
+      .where(eq(clubMemberships.userId, req.user!.id));
+    const userClubIds = new Set(userMemberships.map(m => m.clubId));
+    const filtered = allAnnouncements.filter(a => !a.clubId || userClubIds.has(a.clubId));
+    res.json(filtered);
   });
 
   app.post(api.announcements.create.path, async (req, res) => {
