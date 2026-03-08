@@ -1,0 +1,160 @@
+Your task is to upgrade the button to a modern, premium interactive UI element without breaking existing functionality.
+
+Design Goals
+
+Maintain the dark + gold theme
+
+Make the button feel alive, responsive, and premium
+
+Use smooth animations and subtle motion
+
+Ensure mobile-first design
+
+Animations must be lightweight and performant
+
+Button Behaviour
+
+The button should include the following visual effects:
+
+1. Pulsing Glow (Idle State)
+
+Soft gold glow around the button
+
+Glow expands and fades slowly
+
+Repeats continuously to indicate the button is active
+
+2. Rotating Energy Ring
+
+A subtle animated circular ring around the button
+
+The ring rotates slowly using a conic-gradient effect
+
+Gives a futuristic control-panel style
+
+3. Hover Interaction
+
+When the user hovers or touches the button:
+
+Slight scale increase (1.05)
+
+Glow becomes brighter
+
+Cursor interaction feels responsive
+
+4. Press Animation
+
+When the button is clicked:
+
+Button scales down slightly
+
+Inner shadow appears to simulate depth
+
+Quick gold flash effect
+
+5. Ripple Shockwave Effect
+
+When pressed:
+
+A circular ripple expands outward from the button
+
+Fades smoothly
+
+Creates a satisfying interaction effect
+
+6. Session Start Feedback
+
+After pressing the button:
+
+The button briefly flashes gold
+
+Optional animation: glow intensifies before the session starts
+
+Technical Requirements
+Technologies
+
+Use:
+
+HTML
+
+CSS (modern animations)
+
+Vanilla JavaScript
+
+No heavy frameworks for the button itself
+
+CSS Effects
+
+Use:
+
+keyframe animations
+
+radial gradients
+
+conic gradients
+
+box-shadow glow effects
+
+transform scale animations
+
+Performance
+
+Animations must run at 60fps
+
+Avoid large DOM reflows
+
+Use CSS animations instead of JS where possible
+
+Accessibility
+
+Button must remain keyboard accessible
+
+Include hover, focus, and active states
+
+Maintain readable contrast
+
+Responsive Design
+
+The button must adapt to screen size:
+
+Desktop:
+
+180–220px diameter
+
+Tablet:
+
+160px diameter
+
+Mobile:
+
+130–150px diameter
+
+Ensure touch interactions work smoothly on mobile devices.
+
+Code Output
+
+Generate:
+
+Updated HTML structure for the button
+
+Modern CSS with animations
+
+JavaScript for click ripple and interaction effects
+
+Clear comments explaining each effect
+
+Visual Style
+
+The button should feel like something from:
+
+a premium sports app
+
+a futuristic control panel
+
+a high-end game interface
+
+Think Apple + Tesla + modern sports dashboard.
+
+Do NOT change the existing button label or functionality. Only enhance the visual interaction and animations.
+
+Return clean, modular code ready to drop into the existing project.

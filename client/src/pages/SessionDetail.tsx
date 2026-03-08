@@ -23,6 +23,7 @@ import { ProLiveMatches, type PlayerAchievements } from "@/components/ProLiveMat
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { CrowdControlPanel } from "@/components/CrowdControlPanel";
+import { StartSessionButton } from "@/components/StartSessionButton";
 import { PlayerStatsPopup } from "@/components/PlayerStatsPopup";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1271,20 +1272,12 @@ export default function SessionDetail() {
             {isOrganiser && session.status !== "COMPLETED" && (
               <div className="flex flex-col items-center gap-3 mt-4">
                 {!(session as any).autoGenerateActive ? (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
-                        smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: (session as any).queueTargetSize || 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
-                      }}
-                      className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:shadow-[0_0_40px_rgba(16,185,129,0.65)] active:scale-95 transition-all duration-500"
-                      data-testid="button-start-session-main"
-                    >
-                      <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/20" />
-                      <Play className="w-8 h-8 text-white relative z-10 ml-1" strokeWidth={2.5} />
-                    </button>
-                    <span className="text-[10px] font-semibold tracking-widest uppercase text-emerald-400">Start Session</span>
-                  </div>
+                  <StartSessionButton
+                    onClick={() => {
+                      updateSession({ sessionId: id, updates: { autoGenerateActive: true } });
+                      smartGenerateFromParent({ sessionId: id, mode: session.matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL", queueTargetSize: (session as any).queueTargetSize || 3, genderType: session.matchGenderType || "MIXED", isAutoGenerate: true });
+                    }}
+                  />
                 ) : (
                   <div className="flex flex-col items-center gap-1.5">
                     <div className="relative">
