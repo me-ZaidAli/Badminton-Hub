@@ -7063,22 +7063,35 @@ html[data-bg].dark {
   border-color: hsl(0 0% 100% / 0.30) !important;
 }
 
-.liquid-glass [data-sidebar-mobile="dropdown"] * {
-  color: hsl(210 30% 18%) !important;
-}
-
-.liquid-glass [data-sidebar-mobile="dropdown"] .text-red-500,
-.liquid-glass [data-sidebar-mobile="dropdown"] .text-red-600 {
-  color: hsl(0 65% 50%) !important;
-}
-
-.liquid-glass [data-sidebar-mobile="dropdown"] .text-emerald-600,
-.liquid-glass [data-sidebar-mobile="dropdown"] .text-emerald-400 {
-  color: hsl(160 55% 35%) !important;
+.liquid-glass [data-sidebar-mobile="dropdown"] *,
+.liquid-glass [data-sidebar-mobile="dropdown"] span,
+.liquid-glass [data-sidebar-mobile="dropdown"] p,
+.liquid-glass [data-sidebar-mobile="dropdown"] button,
+.liquid-glass [data-sidebar-mobile="dropdown"] a,
+.liquid-glass [data-sidebar-mobile="dropdown"] svg {
+  color: #ffffff !important;
 }
 
 .liquid-glass [data-sidebar-mobile="dropdown"] .text-muted-foreground {
-  color: hsl(210 15% 40%) !important;
+  color: hsl(0 0% 85%) !important;
+}
+
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-admin-panel"],
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-admin-panel"] * {
+  color: #ef4444 !important;
+}
+
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-admin-panel"] button.bg-emerald-600 {
+  color: #ffffff !important;
+}
+
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-god-mode"],
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-god-mode"] * {
+  color: #facc15 !important;
+}
+
+.liquid-glass [data-sidebar-mobile="dropdown"] [data-testid="mobile-section-god-mode"] button[data-variant="destructive"] {
+  color: #ffffff !important;
 }
 
 .liquid-glass [data-sidebar-mobile="topbar"],
@@ -7091,8 +7104,9 @@ html[data-bg].dark {
   color: hsl(210 30% 15%) !important;
 }
 
-.liquid-glass [data-sidebar-mobile="topbar"] * {
-  color: hsl(210 30% 18%) !important;
+.liquid-glass [data-sidebar-mobile="topbar"] *,
+.liquid-glass [data-sidebar-mobile="topbar"] span {
+  color: #ffffff !important;
 }
 
 .liquid-glass [data-sidebar-mobile="wrapper"] {
