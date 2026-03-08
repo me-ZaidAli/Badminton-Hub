@@ -303,7 +303,7 @@ export function MatchQueue({
 
   return (
     <>
-      <div className="rounded-xl bg-background/80 dark:bg-[#0D1117] border border-border/50 overflow-visible">
+      <div className="rounded-xl bg-background/80 dark:bg-[#0D1117] border border-border/50 overflow-hidden">
         <div className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 dark:bg-[#161B22]/80 border-b border-border/40 rounded-t-xl px-4 py-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -391,7 +391,7 @@ export function MatchQueue({
           </div>
         ) : (
           <ScrollArea className="h-[420px]">
-            <div className="relative pl-8 pr-4 py-4">
+            <div className="relative pl-8 pr-4 py-4 overflow-hidden">
               <div className="absolute left-[1.35rem] top-4 bottom-4 w-px bg-border/60 dark:bg-border/40" />
 
               {queuedMatches.map((match, index) => {
@@ -408,7 +408,7 @@ export function MatchQueue({
                       {index + 1}
                     </div>
 
-                    <div className="rounded-2xl bg-card dark:bg-[#161B22] border border-border/50 shadow-sm overflow-visible">
+                    <div className="rounded-2xl bg-card dark:bg-[#161B22] border border-border/50 shadow-sm overflow-hidden">
                       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 flex-wrap">
                         <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
                           Match {index + 1}
@@ -428,8 +428,8 @@ export function MatchQueue({
                         </div>
                       )}
 
-                      <div className="flex items-stretch min-h-[80px] px-2 pb-2">
-                        <div className="flex-1 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
+                      <div className="flex items-stretch min-h-[80px] px-2 pb-2 overflow-hidden">
+                        <div className="flex-1 min-w-0 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
                           <PlayerBadge
                             player={match.teamAPlayer1}
                             position="teamAPlayer1Id"
@@ -462,7 +462,7 @@ export function MatchQueue({
                           </span>
                         </div>
 
-                        <div className="flex-1 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
+                        <div className="flex-1 min-w-0 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
                           <PlayerBadge
                             player={match.teamBPlayer1}
                             position="teamBPlayer1Id"
