@@ -14732,6 +14732,62 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/clubs/:clubId/members/:profileId/move-to-trial", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const clubId = Number(req.params.clubId);
+      const profileId = Number(req.params.profileId);
+      if (user.role !== "OWNER") {
+        const adminProfile = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.clubRole, "ADMIN")));
+        if (adminProfile.length === 0) return res.status(403).json({ message: "Not authorized" });
+      }
+      const [profile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, profileId), eq(playerProfiles.clubId, clubId)));
+      if (!profile) return res.status(404).json({ message: "Member not found" });
+
+      const existingTrial = await db.select().from(trialPlayers)
+        .where(and(eq(trialPlayers.userId, profile.userId), eq(trialPlayers.clubId, clubId)))
+        .limit(1);
+      if (existingTrial.length > 0) {
+        return res.status(409).json({ message: "This player already has a trial record for this club" });
+      }
+
+      await storage.createTrialPlayer({
+        userId: profile.userId,
+        clubId: clubId,
+        selfAssessedLevel: null,
+        experience: null,
+        preferredDays: null,
+        referralId: null,
+        status: "PENDING",
+        assignedSessionId: null,
+        observerUserId: null,
+        adminNotes: null,
+        statusMessage: null,
+        finalDecision: null,
+      });
+
+      await db.update(playerProfiles).set({ playerStatus: "SUSPENDED" as any }).where(eq(playerProfiles.id, profileId));
+
+      const [club] = await db.select().from(clubs).where(eq(clubs.id, clubId));
+      const clubName = club?.name || "the club";
+
+      await db.insert(notifications).values({
+        userId: profile.userId,
+        type: "TRIAL_STATUS",
+        title: "Moved to Trial",
+        message: `You have been moved to trial status at ${clubName}. Please check your Trial Dashboard for next steps.`,
+        linkUrl: `/trial-dashboard`,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error moving member to trial:", err);
+      res.status(500).json({ message: "Failed to move member to trial" });
+    }
+  });
+
   app.post("/api/clubs/:clubId/cancel-join", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

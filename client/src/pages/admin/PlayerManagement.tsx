@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Users, Shield, Mail, Trophy, Search, Trash2, Ban, Archive, UserPlus, Building2, Pencil, MoreHorizontal, CheckCircle, ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { Users, Shield, Mail, Trophy, Search, Trash2, Ban, Archive, UserPlus, Building2, Pencil, MoreHorizontal, CheckCircle, ArrowLeft, Loader2, CreditCard, ClipboardList } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { UnifiedMemberEditDialog, MemberEditData } from "@/components/UnifiedMemberEditDialog";
@@ -113,6 +113,8 @@ export default function PlayerManagement() {
   const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [deleteUserName, setDeleteUserName] = useState("");
+  const [trialDialogOpen, setTrialDialogOpen] = useState(false);
+  const [trialTarget, setTrialTarget] = useState<{ profileId: number; clubId: number; playerName: string } | null>(null);
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
@@ -199,6 +201,21 @@ export default function PlayerManagement() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to delete user account", variant: "destructive" });
+    },
+  });
+
+  const moveToTrialMutation = useMutation({
+    mutationFn: async ({ profileId, clubId }: { profileId: number; clubId: number }) => {
+      return apiRequest("POST", `/api/clubs/${clubId}/members/${profileId}/move-to-trial`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
+      setTrialDialogOpen(false);
+      setTrialTarget(null);
+      toast({ title: "Moved to Trial", description: "The member has been moved to trial status and notified." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to move member to trial", variant: "destructive" });
     },
   });
 
@@ -572,6 +589,19 @@ export default function PlayerManagement() {
                                   Archive
                                 </DropdownMenuItem>
                               )).slice(0, 1)}
+                              {profile && profile.playerStatus === "ACTIVE" && (
+                                <DropdownMenuItem
+                                  className="text-blue-600"
+                                  onClick={() => {
+                                    setTrialTarget({ profileId: profile.id, clubId: profile.clubId, playerName: player.fullName });
+                                    setTrialDialogOpen(true);
+                                  }}
+                                  data-testid={`menu-move-to-trial-${player.id}`}
+                                >
+                                  <ClipboardList className="h-4 w-4 mr-2" />
+                                  Move to Trial
+                                </DropdownMenuItem>
+                              )}
                               {player.playerProfiles.length > 0 && (
                                 <>
                                   <DropdownMenuSeparator />
@@ -661,6 +691,35 @@ export default function PlayerManagement() {
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
               Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-blue-600">Move to Trial</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              Are you sure you want to move <strong>{trialTarget?.playerName}</strong> to trial status? Their membership will be suspended and they will be directed to the Trial Dashboard. They will receive a notification about this change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-move-to-trial">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 text-white"
+              onClick={() => {
+                if (trialTarget) moveToTrialMutation.mutate({ profileId: trialTarget.profileId, clubId: trialTarget.clubId });
+              }}
+              disabled={moveToTrialMutation.isPending}
+              data-testid="button-confirm-move-to-trial"
+            >
+              {moveToTrialMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <ClipboardList className="h-4 w-4 mr-2" />
+              )}
+              Move to Trial
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
