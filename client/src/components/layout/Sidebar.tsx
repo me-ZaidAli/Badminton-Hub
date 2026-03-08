@@ -629,7 +629,7 @@ function SidebarPinUnlock({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="fixed left-0 top-0 h-screen z-50 flex items-center" data-testid="sidebar-unlock-panel">
-      <div className="bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl rounded-r-2xl p-4 w-64 space-y-4">
+      <div className="bg-card/95 backdrop-blur-xl border-r border-border shadow-2xl rounded-r-2xl p-4 w-64 space-y-4" data-sidebar-desktop="locked">
         <div className="flex items-center gap-2">
           <Lock className="h-5 w-5 text-primary" />
           <span className="text-sm font-semibold">Menu Locked</span>
@@ -745,7 +745,7 @@ export function Sidebar() {
   return (
     <>
     <SidebarPinSetup open={pinDialogOpen} onOpenChange={setPinDialogOpen} />
-    <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex">
+    <div className="flex h-screen w-64 flex-col bg-card border-r border-border shadow-xl fixed left-0 top-0 hidden md:flex" data-sidebar-desktop="main">
       <div className="p-5 border-b border-border/50">
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
@@ -965,8 +965,8 @@ export function MobileTopNav() {
   if (!user) return null;
 
   return (
-    <div className="md:hidden sticky top-0 z-50">
-      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40">
+    <div className="md:hidden sticky top-0 z-50" data-sidebar-mobile="wrapper">
+      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40" data-sidebar-mobile="topbar">
         <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
             <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
@@ -989,7 +989,7 @@ export function MobileTopNav() {
       </div>
 
       {menuOpen && (
-        <div className="bg-white dark:bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu">
+        <div className="bg-white dark:bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
           <div className="px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
