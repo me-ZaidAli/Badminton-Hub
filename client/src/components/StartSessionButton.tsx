@@ -3,9 +3,10 @@ import { useState, useCallback } from "react";
 interface StartSessionButtonProps {
   onClick: () => void;
   disabled?: boolean;
+  size?: "default" | "sm";
 }
 
-export function StartSessionButton({ onClick, disabled }: StartSessionButtonProps) {
+export function StartSessionButton({ onClick, disabled, size = "default" }: StartSessionButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
 
@@ -24,8 +25,10 @@ export function StartSessionButton({ onClick, disabled }: StartSessionButtonProp
     onClick();
   }, [onClick, disabled]);
 
+  const sizeClass = size === "sm" ? "start-session-wrapper--sm" : "";
+
   return (
-    <div className="start-session-wrapper" data-testid="start-session-button-wrapper">
+    <div className={`start-session-wrapper ${sizeClass}`} data-testid="start-session-button-wrapper">
       <div className="start-session-energy-ring" />
       <div className="start-session-glow-pulse" />
       <button

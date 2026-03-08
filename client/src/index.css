@@ -7929,6 +7929,31 @@ html.theme-transitioning * {
   }
 }
 
+.start-session-wrapper--sm {
+  width: 120px;
+  height: 120px;
+}
+
+@media (max-width: 640px) {
+  .start-session-wrapper--sm {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+.start-session-wrapper--sm .start-session-btn__label-start {
+  font-size: 8px;
+}
+
+.start-session-wrapper--sm .start-session-btn__label-session {
+  font-size: 12px;
+}
+
+.start-session-wrapper--sm .start-session-btn__line {
+  width: 20px;
+  height: 2px;
+}
+
 /* Rotating energy ring */
 .start-session-energy-ring {
   position: absolute;
