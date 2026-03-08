@@ -282,14 +282,28 @@ function RivalryAnalytics({ stats, player1Name, player2Name }: {
         <ComparisonBar label="Avg Points" v1={parseFloat(stats.p1Avg.toFixed(1))} v2={parseFloat(stats.p2Avg.toFixed(1))} color1={COLOR1} color2={COLOR2} />
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-xl px-3 py-2.5 border border-white/[0.04]" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <div>
-          <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">Avg Margin</p>
-          <p className="text-lg font-black text-white tabular-nums">{stats.avgMargin.toFixed(1)}</p>
+      <div className="mt-4 rounded-xl px-3 py-3 border border-white/[0.04]" style={{ background: "rgba(255,255,255,0.02)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Flame className="h-3.5 w-3.5" style={{ color: stats.intensityColor }} />
+            <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">Rivalry Strength</p>
+          </div>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: `${stats.intensityColor}20`, color: stats.intensityColor }}>
+            {stats.rivalryIntensity}
+          </span>
         </div>
-        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: `${stats.intensityColor}20`, color: stats.intensityColor }}>
-          {stats.rivalryIntensity}
-        </span>
+        <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-1000 ease-out"
+            style={{
+              width: `${Math.min(100, Math.max(20, 100 - stats.avgMargin * 8))}%`,
+              background: `linear-gradient(90deg, ${stats.intensityColor}88, ${stats.intensityColor})`,
+            }} />
+        </div>
+        <div className="flex justify-between mt-1.5">
+          <span className="text-[8px] text-slate-600">One-sided</span>
+          <span className="text-[9px] text-slate-400 font-medium tabular-nums">Avg margin: {stats.avgMargin.toFixed(1)} pts</span>
+          <span className="text-[8px] text-slate-600">Epic</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mt-3">
@@ -492,6 +506,27 @@ function ExperienceComparison({ s1, s2, player1Name, player2Name }: {
   );
 }
 
+function MomentumGraphTooltip({ active, payload, label, p1Label, p2Label }: any) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0]?.payload;
+  if (!entry) return null;
+  const winner = entry.winner;
+  const winnerColor = entry.p1Won ? COLOR1 : COLOR2;
+  return (
+    <div className="rounded-xl px-3 py-2.5 border border-white/[0.08] text-[10px]" style={{ background: "#0f1729" }}>
+      <p className="text-slate-400 font-medium mb-1">{entry.matchLabel}</p>
+      <p className="font-black text-white tabular-nums">{entry.score}</p>
+      <p className="font-semibold mt-0.5" style={{ color: winnerColor }}>{winner} won</p>
+      <p className="text-slate-500 mt-1">Rivalry: <span className="text-white font-bold">{entry.p1Wins}–{entry.p2Wins}</span></p>
+      {entry.streakLabel && (
+        <p className="mt-1 font-semibold" style={{ color: winnerColor }}>
+          🔥 {entry.streakLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MomentumGraph({ results, player1Name, player2Name }: {
   results: any[]; player1Name: string; player2Name: string;
 }) {
@@ -505,37 +540,113 @@ function MomentumGraph({ results, player1Name, player2Name }: {
       const db = b.date ? new Date(b.date).getTime() : 0;
       return da - db;
     });
-    let p1C = 0, p2C = 0;
+    let p1C = 0, p2C = 0, p1Consec = 0, p2Consec = 0;
     return sorted.map((r, i) => {
-      if (r.player1Score > r.player2Score) p1C++; else p2C++;
+      const p1Won = (r.player1Score ?? 0) > (r.player2Score ?? 0);
+      if (p1Won) { p1C++; p1Consec++; p2Consec = 0; }
+      else { p2C++; p2Consec++; p1Consec = 0; }
       const d = r.date ? new Date(r.date) : null;
-      return { label: d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : `M${i+1}`, p1Wins: p1C, p2Wins: p2C };
+      const winner = p1Won ? p1Label : p2Label;
+      const streak = p1Won ? p1Consec : p2Consec;
+      return {
+        label: d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : `M${i+1}`,
+        matchLabel: `Match ${i + 1}`,
+        p1Wins: p1C, p2Wins: p2C, p1Won,
+        score: `${r.player1Score ?? "?"}–${r.player2Score ?? "?"}`,
+        winner,
+        streakLabel: streak >= 2 ? `${winner} streak ×${streak}` : null,
+        hasStreak: streak >= 2,
+      };
     });
   }, [results]);
 
+  const streakSegments = useMemo(() => {
+    const segments: Array<{ player: string; start: number; end: number }> = [];
+    let currentPlayer = "";
+    let startIdx = 0;
+    let count = 0;
+    data.forEach((d, i) => {
+      const w = d.p1Won ? "p1" : "p2";
+      if (w === currentPlayer) {
+        count++;
+      } else {
+        if (count >= 2) segments.push({ player: currentPlayer, start: startIdx, end: i - 1 });
+        currentPlayer = w;
+        startIdx = i;
+        count = 1;
+      }
+    });
+    if (count >= 2) segments.push({ player: currentPlayer, start: startIdx, end: data.length - 1 });
+    return segments;
+  }, [data]);
+
+  const hasStreaks = streakSegments.length > 0;
+
   return (
     <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="momentum-graph">
-      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
         <TrendingUp className="h-3.5 w-3.5 text-slate-500" />
-        Cumulative Wins
+        Rivalry Momentum Graph
       </h4>
-      <div className="h-36 sm:h-44">
+      <p className="text-[10px] text-slate-600 mb-4">Cumulative wins over time — see how the rivalry evolved</p>
+      <div className="h-40 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+            <defs>
+              <filter id="glowP1" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feFlood floodColor={COLOR1} floodOpacity="0.4" result="color" />
+                <feComposite in="color" in2="blur" operator="in" result="glow" />
+                <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              <filter id="glowP2" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feFlood floodColor={COLOR2} floodOpacity="0.4" result="color" />
+                <feComposite in="color" in2="blur" operator="in" result="glow" />
+                <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ background: "#0f1729", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", fontSize: "11px" }}
-              labelStyle={{ color: "#94a3b8" }} formatter={(value: number, name: string) => [value, name === "p1Wins" ? p1Label : p2Label]} />
-            <Line type="monotone" dataKey="p1Wins" name={p1Label} stroke={COLOR1} strokeWidth={2.5} dot={{ fill: COLOR1, r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
-            <Line type="monotone" dataKey="p2Wins" name={p2Label} stroke={COLOR2} strokeWidth={2.5} dot={{ fill: COLOR2, r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            <Tooltip content={<MomentumGraphTooltip p1Label={p1Label} p2Label={p2Label} />} />
+            <Line type="monotone" dataKey="p1Wins" name={p1Label} stroke={COLOR1} strokeWidth={2.5}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props;
+                const isStreak = payload?.hasStreak && payload?.p1Won;
+                return <circle cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR1} stroke={isStreak ? COLOR1 : "none"} strokeWidth={isStreak ? 2 : 0}
+                  filter={isStreak ? "url(#glowP1)" : undefined} style={{ opacity: isStreak ? 1 : 0.8 }} />;
+              }}
+              activeDot={{ r: 6, strokeWidth: 2, stroke: COLOR1 }} />
+            <Line type="monotone" dataKey="p2Wins" name={p2Label} stroke={COLOR2} strokeWidth={2.5}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props;
+                const isStreak = payload?.hasStreak && !payload?.p1Won;
+                return <circle cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR2} stroke={isStreak ? COLOR2 : "none"} strokeWidth={isStreak ? 2 : 0}
+                  filter={isStreak ? "url(#glowP2)" : undefined} style={{ opacity: isStreak ? 1 : 0.8 }} />;
+              }}
+              activeDot={{ r: 6, strokeWidth: 2, stroke: COLOR2 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex justify-center gap-5 mt-2">
+      <div className="flex items-center justify-center gap-5 mt-2">
         <div className="flex items-center gap-1.5"><div className="w-3 h-1 rounded-full" style={{ background: COLOR1 }} /><span className="text-[10px] text-slate-400">{p1Label}</span></div>
         <div className="flex items-center gap-1.5"><div className="w-3 h-1 rounded-full" style={{ background: COLOR2 }} /><span className="text-[10px] text-slate-400">{p2Label}</span></div>
       </div>
+      {hasStreaks && (
+        <div className="mt-3 flex flex-wrap gap-2 justify-center">
+          {streakSegments.map((seg, i) => {
+            const c = seg.player === "p1" ? COLOR1 : COLOR2;
+            const name = seg.player === "p1" ? p1Label : p2Label;
+            const len = seg.end - seg.start + 1;
+            return (
+              <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${c}15`, color: c, border: `1px solid ${c}30` }}>
+                🔥 {name} streak ×{len}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
