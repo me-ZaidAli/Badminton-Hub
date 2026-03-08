@@ -48,7 +48,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
-    <span className="font-mono text-xs text-white/50 tabular-nums" data-testid="pro-live-timer">
+    <span className="font-mono text-xs text-gray-400 dark:text-white/50 tabular-nums" data-testid="pro-live-timer">
       {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
     </span>
   );
@@ -127,7 +127,7 @@ function ClickablePlayerName({
     <>
       {name}
       {showMatchCount && sessionMatchCount != null && (
-        <span className="text-white/30 font-normal text-[10px]"> ({sessionMatchCount})</span>
+        <span className="text-gray-400 dark:text-white/30 font-normal text-[10px]"> ({sessionMatchCount})</span>
       )}
       <PlayerAchievementIcons playerId={player?.id} achievements={achievements} />
     </>
@@ -246,11 +246,10 @@ function LiveMatchRow({
 
   return (
     <div
-      className="pro-live-row group relative overflow-hidden rounded-2xl border border-white/[0.07] transition-all duration-300 hover:border-white/[0.12]"
-      style={{ background: `linear-gradient(135deg, ${courtColor.bg} 0%, rgba(15,23,42,0.95) 50%)` }}
+      className="pro-live-row group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-white/[0.07] transition-all duration-300 hover:border-gray-300 dark:hover:border-white/[0.12] bg-white dark:bg-slate-900/95"
       data-testid={`pro-live-match-${match.id}`}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.04\'/%3E%3C/svg%3E")' }} />
+      <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.04\'/%3E%3C/svg%3E")' }} />
 
       <div
         role="button"
@@ -272,7 +271,7 @@ function LiveMatchRow({
                 onChange={(e) => setEditCourtNameValue(e.target.value)}
                 onBlur={handleCourtNameSave}
                 onKeyDown={(e) => { if (e.key === "Enter") handleCourtNameSave(); if (e.key === "Escape") { setEditCourtNameValue(displayCourtName); setEditingCourtName(false); } }}
-                className="w-24 text-xs px-2 py-0.5 font-semibold bg-slate-800 border border-white/20 rounded-lg text-white outline-none"
+                className="w-24 text-xs px-2 py-0.5 font-semibold bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/20 rounded-lg text-gray-900 dark:text-white outline-none"
                 data-testid={`input-pro-court-name-${match.courtNumber}`}
               />
             </div>
@@ -287,7 +286,7 @@ function LiveMatchRow({
               {isOrganiser && <Pencil className="w-2.5 h-2.5 ml-1 inline-block opacity-50" />}
             </span>
           )}
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-400/20 bg-emerald-400/5" data-testid={`pro-live-badge-${match.id}`}>LIVE</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20 bg-emerald-50 dark:bg-emerald-400/5" data-testid={`pro-live-badge-${match.id}`}>LIVE</span>
         </div>
 
         <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -296,31 +295,31 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
+              className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
             {match.teamAPlayer2 && (
               <>
-                <span className="text-white/20 text-[10px]">&</span>
+                <span className="text-gray-300 dark:text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
+                  className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
-          <span className="text-white/20 text-[10px] font-bold uppercase tracking-widest shrink-0">vs</span>
+          <span className="text-gray-300 dark:text-white/20 text-[10px] font-bold uppercase tracking-widest shrink-0">vs</span>
           <div className="flex items-center gap-1.5 min-w-0 shrink">
             <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400 shrink-0">B</span>
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
+              className="text-xs sm:text-sm font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
             {match.teamBPlayer2 && (
               <>
-                <span className="text-white/20 text-[10px]">&</span>
+                <span className="text-gray-300 dark:text-white/20 text-[10px]">&</span>
                 <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
+                  className="text-xs sm:text-sm font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
@@ -330,7 +329,7 @@ function LiveMatchRow({
           {isMultiSet && match.setScores && match.setScores.length > 0 && (
             <div className="flex gap-1">
               {match.setScores.map((s, i) => (
-                <span key={i} className="text-[10px] font-mono text-white/30 bg-white/[0.04] px-1.5 py-0.5 rounded">{s.scoreA}-{s.scoreB}</span>
+                <span key={i} className="text-[10px] font-mono text-gray-500 dark:text-white/30 bg-gray-100 dark:bg-white/[0.04] px-1.5 py-0.5 rounded">{s.scoreA}-{s.scoreB}</span>
               ))}
             </div>
           )}
@@ -338,20 +337,20 @@ function LiveMatchRow({
           {(isOrganiser) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
               {editingPoints ? (
-                <input type="number" min="1" className="w-12 border border-white/10 rounded px-1 py-0 text-[10px] bg-slate-800 text-white text-center outline-none"
+                <input type="number" min="1" className="w-12 border border-gray-200 dark:border-white/10 rounded px-1 py-0 text-[10px] bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white text-center outline-none"
                   defaultValue={pointsTarget} autoFocus
                   onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
                   onKeyDown={(e) => { if (e.key === "Enter") handlePointsSave(parseInt((e.target as HTMLInputElement).value, 10)); if (e.key === "Escape") setEditingPoints(false); }}
                   data-testid={`input-pro-points-${match.id}`} />
               ) : (
-                <span className="text-[10px] text-white/30 font-mono cursor-pointer hover:text-white/50 transition-colors"
+                <span className="text-[10px] text-gray-400 dark:text-white/30 font-mono cursor-pointer hover:text-gray-600 dark:hover:text-white/50 transition-colors"
                   onClick={() => setEditingPoints(true)} data-testid={`pro-points-${match.id}`}>
                   <Target className="w-2.5 h-2.5 inline mr-0.5" />{pointsTarget}
                 </span>
               )}
               {onUpdateSets && (
                 <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
-                  <SelectTrigger className="h-5 w-auto min-w-0 gap-0.5 px-1.5 text-[9px] bg-transparent border-white/10 text-white/30" data-testid={`select-pro-sets-${match.id}`}>
+                  <SelectTrigger className="h-5 w-auto min-w-0 gap-0.5 px-1.5 text-[9px] bg-transparent border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/30" data-testid={`select-pro-sets-${match.id}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -367,7 +366,7 @@ function LiveMatchRow({
           {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
 
           {canInteract && (
-            <ChevronDown className={cn("w-4 h-4 text-white/30 transition-transform duration-300", expanded && "rotate-180")} />
+            <ChevronDown className={cn("w-4 h-4 text-gray-400 dark:text-white/30 transition-transform duration-300", expanded && "rotate-180")} />
           )}
         </div>
       </div>
@@ -378,30 +377,30 @@ function LiveMatchRow({
           transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
         }}
       >
-        <div className="relative z-10 px-5 pb-5 pt-1 border-t border-white/[0.05]">
+        <div className="relative z-10 px-5 pb-5 pt-1 border-t border-gray-100 dark:border-white/[0.05]">
           {step === "success" ? (
             <div className="flex flex-col items-center justify-center py-6 gap-2">
               <CheckCircle className="w-8 h-8 text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.5)]" />
-              <span className="text-sm font-semibold text-white">Score Saved</span>
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">Score Saved</span>
             </div>
           ) : step === "confirm" ? (
             <div className="space-y-4 pt-3">
-              <p className="text-xs text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
+              <p className="text-xs text-gray-500 dark:text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
               <div className="flex items-center justify-center gap-8">
                 <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Team A</p>
-                  <div className={cn("text-3xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</div>
-                  <p className="text-[10px] text-white/30 mt-1 truncate max-w-[120px]">{teamANames.join(" & ")}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Team A</p>
+                  <div className={cn("text-3xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</div>
+                  <p className="text-[10px] text-gray-400 dark:text-white/30 mt-1 truncate max-w-[120px]">{teamANames.join(" & ")}</p>
                 </div>
-                <Swords className="w-5 h-5 text-white/20" />
+                <Swords className="w-5 h-5 text-gray-300 dark:text-white/20" />
                 <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Team B</p>
-                  <div className={cn("text-3xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
-                  <p className="text-[10px] text-white/30 mt-1 truncate max-w-[120px]">{teamBNames.join(" & ")}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Team B</p>
+                  <div className={cn("text-3xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
+                  <p className="text-[10px] text-gray-400 dark:text-white/30 mt-1 truncate max-w-[120px]">{teamBNames.join(" & ")}</p>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="flex-1 px-4 py-2 text-sm font-medium rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300"
+                <button className="flex-1 px-4 py-2 text-sm font-medium rounded-full border border-gray-200 dark:border-white/10 text-gray-500 dark:text-white/60 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300"
                   onClick={(e) => { e.stopPropagation(); setStep("input"); }} data-testid={`pro-match-back-${match.id}`}>Back</button>
                 <button className="flex-1 px-4 py-2 text-sm font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-500/20 active:scale-95 transition-all duration-300"
                   onClick={(e) => { e.stopPropagation(); handleSubmitScore(); }} disabled={submitting} data-testid={`pro-match-confirm-${match.id}`}>
@@ -413,39 +412,39 @@ function LiveMatchRow({
             <div className="space-y-5 pt-3">
               <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] uppercase tracking-widest text-emerald-400 mb-1.5 block font-bold">Team A</label>
-                  <p className="text-[10px] text-white/30 mb-2 truncate">{teamANames.join(" & ") || "Team A"}</p>
+                  <label className="text-[10px] uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1.5 block font-bold">Team A</label>
+                  <p className="text-[10px] text-gray-400 dark:text-white/30 mb-2 truncate">{teamANames.join(" & ") || "Team A"}</p>
                   <div className="flex items-center gap-2">
-                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1))); }} data-testid={`pro-score-a-minus-${match.id}`}>
                       <Minus className="w-4 h-4" />
                     </button>
                     <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-slate-800/80 border-emerald-500/20 text-white text-center text-xl font-mono h-11 focus:border-emerald-400/40 focus:ring-emerald-400/20"
+                      className="bg-gray-50 dark:bg-slate-800/80 border-emerald-500/20 text-gray-900 dark:text-white text-center text-xl font-mono h-11 focus:border-emerald-400/40 focus:ring-emerald-400/20"
                       style={{ fontFamily: "'Orbitron', monospace" }}
                       placeholder="0" data-testid={`pro-score-a-${match.id}`} />
-                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreA(String((parseInt(scoreA) || 0) + 1)); }} data-testid={`pro-score-a-plus-${match.id}`}>
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                <div className="text-white/15 font-bold text-sm mt-8">vs</div>
+                <div className="text-gray-300 dark:text-white/15 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] uppercase tracking-widest text-blue-400 mb-1.5 block font-bold">Team B</label>
-                  <p className="text-[10px] text-white/30 mb-2 truncate">{teamBNames.join(" & ") || "Team B"}</p>
+                  <label className="text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1.5 block font-bold">Team B</label>
+                  <p className="text-[10px] text-gray-400 dark:text-white/30 mb-2 truncate">{teamBNames.join(" & ") || "Team B"}</p>
                   <div className="flex items-center gap-2">
-                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1))); }} data-testid={`pro-score-b-minus-${match.id}`}>
                       <Minus className="w-4 h-4" />
                     </button>
                     <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-slate-800/80 border-blue-500/20 text-white text-center text-xl font-mono h-11 focus:border-blue-400/40 focus:ring-blue-400/20"
+                      className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-xl font-mono h-11 focus:border-blue-400/40 focus:ring-blue-400/20"
                       style={{ fontFamily: "'Orbitron', monospace" }}
                       placeholder="0" data-testid={`pro-score-b-${match.id}`} />
-                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+                    <button className="w-10 h-11 flex items-center justify-center rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
                       onClick={(e) => { e.stopPropagation(); setScoreB(String((parseInt(scoreB) || 0) + 1)); }} data-testid={`pro-score-b-plus-${match.id}`}>
                       <Plus className="w-4 h-4" />
                     </button>
@@ -583,10 +582,10 @@ function CourtCard({
   const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-3 pb-2">
         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
-        <span className="text-xs font-bold text-white/60 uppercase tracking-wider">
+        <span className="text-xs font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">
           {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
         </span>
         <div className="flex-1" />
@@ -599,12 +598,12 @@ function CourtCard({
         <div className="px-4 pb-2">
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <Target className="w-3 h-3 text-white/25" />
+              <Target className="w-3 h-3 text-gray-400 dark:text-white/25" />
               {editingPoints ? (
                 <input
                   type="number"
                   min="1"
-                  className="w-12 border border-white/15 rounded px-1.5 py-0.5 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-12 border border-gray-200 dark:border-white/15 rounded px-1.5 py-0.5 text-xs bg-gray-50 dark:bg-white/[0.06] text-gray-900 dark:text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   defaultValue={pointsTarget}
                   autoFocus
                   onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
@@ -613,7 +612,7 @@ function CourtCard({
                 />
               ) : (
                 <span
-                  className="text-xs text-white/35 font-mono cursor-pointer transition-colors"
+                  className="text-xs text-gray-400 dark:text-white/35 font-mono cursor-pointer transition-colors"
                   onClick={() => setEditingPoints(true)}
                   data-testid={`court-points-${match.id}`}
                 >
@@ -625,7 +624,7 @@ function CourtCard({
               <div onClick={(e) => e.stopPropagation()}>
                 <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
                   <SelectTrigger
-                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-white/[0.04] border-white/10 text-white/35 rounded-full"
+                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-gray-50 dark:bg-white/[0.04] border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/35 rounded-full"
                     data-testid={`select-court-sets-${match.id}`}
                   >
                     <SelectValue />
@@ -645,7 +644,7 @@ function CourtCard({
         <>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.05] text-white/40 hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
             data-testid={`pro-court-expand-${match.id}`}
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
@@ -722,32 +721,32 @@ function InlineScorePanel({
 
   if (step === "success") {
     return (
-      <div className="flex items-center justify-center gap-2 py-3 border-t border-white/[0.05]">
+      <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 dark:border-white/[0.05]">
         <CheckCircle className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-        <span className="text-xs font-semibold text-white">Score Saved</span>
+        <span className="text-xs font-semibold text-gray-900 dark:text-white">Score Saved</span>
       </div>
     );
   }
 
   if (step === "confirm") {
     return (
-      <div className="border-t border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
-        <p className="text-[10px] text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
+      <div className="border-t border-gray-100 dark:border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[10px] text-gray-500 dark:text-white/40 text-center">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
         <div className="flex items-center justify-center gap-6">
           <div className="text-center">
-            <p className="text-[9px] text-white/30 mb-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
+            <p className="text-[9px] text-gray-400 dark:text-white/30 mb-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: courtColor.ring }}>Team A</p>
-            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-white" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace", ...(parseInt(scoreA) > parseInt(scoreB) ? { color: courtColor.ring } : {}) }}>{scoreA}</div>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-600 dark:text-white" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace", ...(parseInt(scoreA) > parseInt(scoreB) ? { color: courtColor.ring } : {}) }}>{scoreA}</div>
           </div>
-          <Swords className="w-4 h-4 text-white/20" />
+          <Swords className="w-4 h-4 text-gray-300 dark:text-white/20" />
           <div className="text-center">
-            <p className="text-[9px] text-white/30 mb-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Team B</p>
-            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-400" : "text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
+            <p className="text-[9px] text-gray-400 dark:text-white/30 mb-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Team B</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="flex-1 px-3 py-2 text-xs font-medium rounded-full border border-white/10 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300"
+          <button className="flex-1 px-3 py-2 text-xs font-medium rounded-full border border-gray-200 dark:border-white/10 text-gray-500 dark:text-white/60 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300"
             onClick={() => setStep("input")} data-testid={`pro-inline-back-${match.id}`}>Back</button>
           <button className="flex-1 px-3 py-2 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-500/20 active:scale-95 transition-all duration-300"
             onClick={handleSubmitScore} disabled={submitting} data-testid={`pro-inline-confirm-${match.id}`}>
@@ -759,40 +758,40 @@ function InlineScorePanel({
   }
 
   return (
-    <div className="border-t border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+    <div className="border-t border-gray-100 dark:border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] text-white/40 truncate mb-0.5">{teamANames.join(" & ")}</p>
+          <p className="text-[9px] text-gray-400 dark:text-white/40 truncate mb-0.5">{teamANames.join(" & ")}</p>
           <label className="text-[9px] uppercase tracking-widest mb-1 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
           <div className="flex items-center gap-1">
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
               <Minus className="w-3 h-3" />
             </button>
             <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-              className="bg-slate-800/80 text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
               style={{ fontFamily: "'Orbitron', monospace", borderColor: courtColor.ring + '30' }}
               placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
               <Plus className="w-3 h-3" />
             </button>
           </div>
         </div>
-        <div className="text-white/15 font-bold text-xs mt-4">vs</div>
+        <div className="text-gray-300 dark:text-white/15 font-bold text-xs mt-4">vs</div>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] text-white/40 truncate mb-0.5">{teamBNames.join(" & ")}</p>
-          <label className="text-[9px] uppercase tracking-widest text-blue-400 mb-1 block font-bold">Team B</label>
+          <p className="text-[9px] text-gray-400 dark:text-white/40 truncate mb-0.5">{teamBNames.join(" & ")}</p>
+          <label className="text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1 block font-bold">Team B</label>
           <div className="flex items-center gap-1">
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
               <Minus className="w-3 h-3" />
             </button>
             <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-              className="bg-slate-800/80 border-blue-500/20 text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
               style={{ fontFamily: "'Orbitron', monospace" }}
               placeholder="0" data-testid={`pro-inline-b-score-${match.id}`} />
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/40 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String((parseInt(scoreB) || 0) + 1))} data-testid={`pro-inline-b-plus-${match.id}`}>
               <Plus className="w-3 h-3" />
             </button>
@@ -1064,7 +1063,7 @@ function BroadcastCard({
         <>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/[0.03] border-t border-white/[0.05] text-white/40 transition-all duration-300 hover-elevate"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-white/[0.03] border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 transition-all duration-300 hover-elevate"
             data-testid={`pro-broadcast-expand-${match.id}`}
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
@@ -1135,11 +1134,11 @@ function ScoreboardCard({
   const digitStyle = "font-black tabular-nums leading-none";
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden" data-testid={`pro-scoreboard-${match.id}`}>
+    <div className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] overflow-hidden" data-testid={`pro-scoreboard-${match.id}`}>
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
-          <span className="text-xs font-bold text-white/60 uppercase tracking-wider">{courtName}</span>
+          <span className="text-xs font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">{courtName}</span>
         </div>
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
@@ -1202,7 +1201,7 @@ function ScoreboardCard({
                 </div>
               </>
             ) : (
-              <span className="text-xs font-bold text-white/20 uppercase tracking-widest">vs</span>
+              <span className="text-xs font-bold text-gray-300 dark:text-white/20 uppercase tracking-widest">vs</span>
             )}
           </div>
 
@@ -1219,7 +1218,7 @@ function ScoreboardCard({
         {isMultiSet && match.setScores && match.setScores.length > 0 && (
           <div className="flex items-center justify-center gap-2 pb-3">
             {match.setScores.map((s: any, i: number) => (
-              <span key={i} className="text-[10px] font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded">{s.scoreA}-{s.scoreB}</span>
+              <span key={i} className="text-[10px] font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded" data-testid={`scoreboard-set-${i}`}>{s.scoreA}-{s.scoreB}</span>
             ))}
           </div>
         )}
@@ -1229,12 +1228,12 @@ function ScoreboardCard({
         <div className="px-4 pb-2">
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <Target className="w-3 h-3 text-white/25" />
+              <Target className="w-3 h-3 text-gray-400 dark:text-white/25" />
               {editingPoints ? (
                 <input
                   type="number"
                   min="1"
-                  className="w-12 border border-white/15 rounded px-1.5 py-0.5 text-xs bg-white/[0.06] text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-12 border border-gray-200 dark:border-white/15 rounded px-1.5 py-0.5 text-xs bg-gray-50 dark:bg-white/[0.06] text-gray-900 dark:text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   defaultValue={pointsTarget}
                   autoFocus
                   onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
@@ -1243,7 +1242,7 @@ function ScoreboardCard({
                 />
               ) : (
                 <span
-                  className="text-xs text-white/35 font-mono cursor-pointer transition-colors"
+                  className="text-xs text-gray-400 dark:text-white/35 font-mono cursor-pointer transition-colors"
                   onClick={() => setEditingPoints(true)}
                   data-testid={`scoreboard-points-${match.id}`}
                 >
@@ -1255,7 +1254,7 @@ function ScoreboardCard({
               <div onClick={(e) => e.stopPropagation()}>
                 <Select value={String(matchSets)} onValueChange={(v) => onUpdateSets?.(match.id, Number(v))}>
                   <SelectTrigger
-                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-white/[0.04] border-white/10 text-white/35 rounded-full"
+                    className="h-6 w-auto min-w-0 gap-0.5 px-2 text-[10px] bg-gray-50 dark:bg-white/[0.04] border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/35 rounded-full"
                     data-testid={`select-scoreboard-sets-${match.id}`}
                   >
                     <SelectValue />
@@ -1276,7 +1275,7 @@ function ScoreboardCard({
         <>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.05] text-white/40 hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
             data-testid={`pro-scoreboard-expand-${match.id}`}
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
@@ -1310,14 +1309,13 @@ function MiniCourtTile({
   return (
     <button
       onClick={onClick}
-      className="relative w-full aspect-[1/1.15] rounded-xl overflow-hidden border border-white/[0.08] transition-all duration-300 active:scale-[0.97] group"
-      style={{ background: `linear-gradient(160deg, ${courtColor.bg} 0%, rgba(15,23,42,0.95) 100%)` }}
+      className="relative w-full aspect-[1/1.15] rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.08] transition-all duration-300 active:scale-[0.97] group bg-white dark:bg-slate-900/95"
       data-testid={`overview-tile-${match.id}`}
     >
-      <div className="absolute inset-[8%] border border-white/20 rounded-sm" />
-      <div className="absolute left-1/2 top-[8%] bottom-[8%] w-px bg-white/15" style={{ transform: 'translateX(-50%)' }} />
-      <div className="absolute left-[8%] right-1/2 top-[32%] bottom-[32%] border border-white/10" />
-      <div className="absolute right-[8%] left-1/2 top-[32%] bottom-[32%] border border-white/10" />
+      <div className="absolute inset-[8%] border border-gray-200 dark:border-white/20 rounded-sm" />
+      <div className="absolute left-1/2 top-[8%] bottom-[8%] w-px bg-gray-200 dark:bg-white/15" style={{ transform: 'translateX(-50%)' }} />
+      <div className="absolute left-[8%] right-1/2 top-[32%] bottom-[32%] border border-gray-200 dark:border-white/10" />
+      <div className="absolute right-[8%] left-1/2 top-[32%] bottom-[32%] border border-gray-200 dark:border-white/10" />
 
       <div className="absolute left-[12%] top-[14%] z-10 max-w-[35%]">
         <span className="text-[8px] sm:text-[9px] font-bold truncate block" style={{ color: courtColor.ring }}>
@@ -1346,19 +1344,19 @@ function MiniCourtTile({
 
       <div className="absolute inset-0 flex items-center justify-center z-10">
         <div className="flex flex-col items-center">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-black/70 backdrop-blur-sm border border-gray-200 dark:border-white/10">
             <span className="text-[9px] sm:text-[10px] font-black uppercase" style={{ color: courtColor.ring }}>{courtLabel}</span>
             {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
           </div>
           <div className="flex items-center gap-1 mt-1">
             <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: courtColor.ring }}>{match.scoreA || 0}</span>
-            <span className="text-[8px] text-white/30 font-bold">-</span>
+            <span className="text-[8px] text-gray-300 dark:text-white/30 font-bold">-</span>
             <span className="text-sm sm:text-base font-black text-blue-400 tabular-nums">{match.scoreB || 0}</span>
           </div>
         </div>
       </div>
 
-      <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.03] transition-colors duration-300" />
+      <div className="absolute inset-0 bg-white/0 group-hover:bg-gray-50/50 dark:group-hover:bg-white/[0.03] transition-colors duration-300" />
     </button>
   );
 }
@@ -1621,24 +1619,24 @@ export function ProLiveMatches({
 
   if (liveMatches.length === 0) {
     return (
-      <div className="relative rounded-[2rem] border border-white/[0.07] bg-slate-950/90 backdrop-blur-2xl p-8 overflow-hidden" data-testid="pro-live-matches-empty">
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
+      <div className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-8 overflow-hidden" data-testid="pro-live-matches-empty">
+        <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
         <div className="relative z-10 flex flex-col items-center justify-center py-8 gap-3">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center animate-spin" style={{ animationDuration: '12s' }}>
-              <CircleDot className="w-6 h-6 text-white/15" />
+            <div className="w-16 h-16 rounded-full border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center animate-spin" style={{ animationDuration: '12s' }}>
+              <CircleDot className="w-6 h-6 text-gray-300 dark:text-white/15" />
             </div>
           </div>
-          <p className="text-sm text-white/30 font-medium">No live matches</p>
-          <p className="text-xs text-white/15">Generate matches and assign them to courts</p>
+          <p className="text-sm text-gray-500 dark:text-white/30 font-medium">No live matches</p>
+          <p className="text-xs text-gray-400 dark:text-white/15">Generate matches and assign them to courts</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative rounded-[2rem] border border-white/[0.07] bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden" data-testid="pro-live-matches">
-      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
+    <div className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden" data-testid="pro-live-matches">
+      <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
 
       <div className="relative z-10 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1647,17 +1645,17 @@ export function ProLiveMatches({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
             </div>
-            <h3 className="text-base font-bold text-white tracking-tight" data-testid="pro-live-title">
+            <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight" data-testid="pro-live-title">
               Live Courts
             </h3>
-            <span className="text-xs font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
+            <span className="text-xs font-mono text-gray-500 dark:text-white/30 bg-gray-100 dark:bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
           </div>
 
           <div className="flex items-center gap-1 min-w-0 max-w-full" data-testid="pro-live-view-toggle">
             {canScrollLeft && (
               <button
                 onClick={() => scrollTabs("left")}
-                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
+                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-white/[0.06] hover:bg-gray-200 dark:hover:bg-white/[0.12] text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors"
                 aria-label="Scroll tabs left"
                 data-testid="pro-live-tab-scroll-left"
               >
@@ -1666,7 +1664,7 @@ export function ProLiveMatches({
             )}
             <div
               ref={tabScrollRef}
-              className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.03] p-1 overflow-x-auto no-scrollbar touch-pan-x"
+              className="flex items-center rounded-full border border-gray-200 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.03] p-1 overflow-x-auto no-scrollbar touch-pan-x"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}
             >
               {subViews.map(({ key, label, icon: Icon }) => (
@@ -1676,8 +1674,8 @@ export function ProLiveMatches({
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-full transition-all duration-300 active:scale-95 whitespace-nowrap shrink-0",
                     subView === key
-                      ? "bg-white/10 text-white shadow-sm"
-                      : "text-white/30 hover:text-white/60"
+                      ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-400 dark:text-white/30 hover:text-gray-700 dark:hover:text-white/60"
                   )}
                   data-testid={`pro-live-tab-${key}`}
                 >
@@ -1689,7 +1687,7 @@ export function ProLiveMatches({
             {canScrollRight && (
               <button
                 onClick={() => scrollTabs("right")}
-                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
+                className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-white/[0.06] hover:bg-gray-200 dark:hover:bg-white/[0.12] text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors"
                 aria-label="Scroll tabs right"
                 data-testid="pro-live-tab-scroll-right"
               >

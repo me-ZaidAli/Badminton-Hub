@@ -2256,33 +2256,48 @@ html, body {
 }
 
 .compact-match-view {
-  --compact-bg: #030303;
-  --compact-card: #0a0a0a;
-  --compact-border: #1a1a1a;
   --compact-neon: #39ff14;
-  background-color: var(--compact-bg);
+  background-color: transparent;
   border-radius: 0.75rem;
   padding: 0.25rem;
 }
 
 .compact-match-card {
-  background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);
+  background: hsl(var(--card));
   backdrop-filter: blur(10px);
 }
 
+.dark .compact-match-card {
+  background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);
+}
+
 .compact-match-card-live {
+  background: hsl(var(--card));
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.06);
+}
+
+.dark .compact-match-card-live {
   background: linear-gradient(135deg, #060d07 0%, #0a0a0a 50%, #0d0d06 100%);
   box-shadow: 0 0 20px rgba(57, 255, 20, 0.04), inset 0 1px 0 rgba(57, 255, 20, 0.06);
 }
 
 .compact-match-card-live:hover {
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.1);
+}
+
+.dark .compact-match-card-live:hover {
   box-shadow: 0 0 30px rgba(57, 255, 20, 0.08), inset 0 1px 0 rgba(57, 255, 20, 0.1);
 }
 
 .compact-match-card-queued {
+  background: hsl(var(--card));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.dark .compact-match-card-queued {
   background: linear-gradient(145deg, #0a0906 0%, #0d0b08 40%, #0a0906 100%);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(217, 169, 56, 0.06);
-  position: relative;
 }
 
 .compact-match-card-queued::before {
@@ -2295,12 +2310,20 @@ html, body {
 }
 
 .compact-match-card-queued:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dark .compact-match-card-queued:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(217, 169, 56, 0.05), inset 0 1px 0 rgba(217, 169, 56, 0.1);
 }
 
 .compact-match-card-completed {
-  background: linear-gradient(135deg, #080808 0%, #0c0c0c 100%);
+  background: hsl(var(--card));
   opacity: 0.85;
+}
+
+.dark .compact-match-card-completed {
+  background: linear-gradient(135deg, #080808 0%, #0c0c0c 100%);
 }
 
 .compact-match-card-completed:hover {

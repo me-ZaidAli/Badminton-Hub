@@ -3610,7 +3610,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     <div className="space-y-6">
       {(isOrganiser || isSignedUp) && (
         <div
-          className="relative rounded-[2rem] border border-white/10 bg-slate-900/80 backdrop-blur-xl p-6 sm:p-8 hover:scale-[1.01] transition-all duration-300 overflow-hidden"
+          className="relative rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 backdrop-blur-xl p-6 sm:p-8 hover:scale-[1.01] transition-all duration-300 overflow-hidden shadow-sm"
           style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}
         >
           <div className="absolute inset-0 rounded-[2rem] pointer-events-none bg-[radial-gradient(ellipse_at_center_bottom,rgba(56,189,248,0.06)_0%,transparent_60%)]" />
@@ -3620,14 +3620,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               {isOrganiser && (
                 <div className="flex flex-col gap-5">
                   <div className="flex items-center gap-3" data-testid="mode-toggle-container">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Mode</span>
-                    <div className="flex items-center rounded-full border border-white/10 bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Mode</span>
+                    <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
                       <button
                         className={cn(
                           "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
                           activeMode === "SOCIAL"
                             ? "text-white"
-                            : "text-white/40 hover:text-white/70"
+                            : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
                         )}
                         onClick={() => {
                           setActiveMode("SOCIAL");
@@ -3637,7 +3637,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       >
                         <span className={cn(
                           "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
-                          activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
+                          activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
                         )} />
                         Social
                       </button>
@@ -3646,7 +3646,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                           "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
                           activeMode === "COMPETITIVE"
                             ? "text-white"
-                            : "text-white/40 hover:text-white/70"
+                            : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
                         )}
                         onClick={() => {
                           setActiveMode("COMPETITIVE");
@@ -3656,7 +3656,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       >
                         <span className={cn(
                           "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
-                          activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-white/20"
+                          activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
                         )} />
                         Competitive
                       </button>
@@ -3672,8 +3672,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Courts</span>
-                    <div className="inline-flex items-center rounded-full border border-white/10 bg-slate-800/80 overflow-hidden">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Courts</span>
+                    <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
                       <button
                         onClick={() => {
                           const newVal = Math.max(1, courtsToUse - 1);
@@ -3681,12 +3681,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                           updateSession({ sessionId, updates: { courtsAvailable: newVal } });
                         }}
                         disabled={courtsToUse <= 1}
-                        className="px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
                         data-testid="button-decrease-courts"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="px-3 py-1.5 text-lg font-bold tabular-nums text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] min-w-[2.5rem] text-center" data-testid="badge-courts-count">
+                      <span className="px-3 py-1.5 text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 dark:drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] min-w-[2.5rem] text-center" data-testid="badge-courts-count">
                         {courtsToUse}
                       </span>
                       <button
@@ -3696,7 +3696,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                           updateSession({ sessionId, updates: { courtsAvailable: newVal } });
                         }}
                         disabled={courtsToUse >= 10}
-                        className="px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
                         data-testid="button-increase-courts"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -3706,14 +3706,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 </div>
               )}
 
-              <div className="flex items-center rounded-full border border-white/10 bg-slate-800/60 overflow-hidden ml-auto" data-testid="match-view-toggle">
+              <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/60 overflow-hidden ml-auto" data-testid="match-view-toggle">
                 <button
                   onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
                   className={cn(
                     "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
                     matchViewMode === "court"
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/70"
+                      ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70"
                   )}
                   data-testid="button-court-view"
                 >
@@ -3725,8 +3725,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   className={cn(
                     "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
                     matchViewMode === "compact"
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/70"
+                      ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70"
                   )}
                   data-testid="button-compact-view"
                 >
@@ -3737,32 +3737,32 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
                 <span className="relative flex h-2 w-2">
                   {liveMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
-                  <span className={cn("relative inline-flex rounded-full h-2 w-2", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-white/20")} />
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-white/70">{liveMatches.length} Live</span>
+                <span className="text-gray-600 dark:text-white/70">{liveMatches.length} Live</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
                 <span className="relative flex h-2 w-2">
                   {queuedMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />}
-                  <span className={cn("relative inline-flex rounded-full h-2 w-2", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]" : "bg-white/20")} />
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-white/70">{queuedMatches.length} Queued</span>
+                <span className="text-gray-600 dark:text-white/70">{queuedMatches.length} Queued</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
                 <span className="relative flex h-2 w-2">
                   {completedCount > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />}
-                  <span className={cn("relative inline-flex rounded-full h-2 w-2", completedCount > 0 ? "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.7)]" : "bg-white/20")} />
+                  <span className={cn("relative inline-flex rounded-full h-2 w-2", completedCount > 0 ? "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-white/70">{completedCount} Done</span>
+                <span className="text-gray-600 dark:text-white/70">{completedCount} Done</span>
               </span>
               {!isOrganiser && <MatchAlgorithmInfoButton />}
               {isOrganiser && (
                 <button
                   onClick={() => setCrowdControlOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
                   data-testid="button-crowd-control"
                 >
                   <Users className="w-3.5 h-3.5" />
@@ -3774,7 +3774,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             {isOrganiser && (
               <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
                 <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
-                  <SelectTrigger className="w-[120px] rounded-full border-white/10 bg-slate-800/80 text-white/80 hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
+                  <SelectTrigger className="w-[120px] rounded-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-700 dark:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3823,7 +3823,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   </button>
                   <span className={cn(
                     "text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors duration-500",
-                    isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-white/40"
+                    isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-gray-400 dark:text-white/40"
                   )}>
                     {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
                   </span>
@@ -3836,7 +3836,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     "relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300",
                     aiBrainActive
                       ? "bg-gradient-to-r from-blue-600/80 to-indigo-600/80 text-white border border-blue-400/30 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
-                      : "border border-white/10 bg-slate-800/80 text-white/50 hover:text-white/80 hover:bg-slate-800"
+                      : "border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
                   )}
                   data-testid="button-ai-brain-toggle"
                 >
@@ -3852,7 +3852,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 
                 <button
                   onClick={() => setFullScheduleOpen(true)}
-                  className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-white/10 bg-slate-800/80 text-white/50 hover:text-white/80 hover:bg-slate-800"
+                  className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
                   data-testid="button-full-schedule"
                 >
                   <LayoutGrid className="w-4 h-4" />

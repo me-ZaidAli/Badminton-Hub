@@ -109,12 +109,14 @@ function PlayerSlot({
   availablePlayers,
   isOrganiser,
   onSwap,
+  team,
 }: {
   player: MatchPlayer | null;
   position: string;
   availablePlayers: Player[];
   isOrganiser: boolean;
   onSwap: (playerId: number) => void;
+  team: "A" | "B";
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -125,18 +127,27 @@ function PlayerSlot({
 
   if (!player) return <div className="h-10 bg-muted/30 rounded flex items-center justify-center text-xs text-muted-foreground">Empty</div>;
 
+  const teamStyles = team === "A"
+    ? "bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100"
+    : "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-100";
+
+  const hoverStyles = team === "A"
+    ? "hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-100/60 dark:hover:bg-blue-900/40"
+    : "hover:border-rose-400 dark:hover:border-rose-600 hover:bg-rose-100/60 dark:hover:bg-rose-900/40";
+
   return (
     <>
       <div
         onClick={() => isOrganiser && setOpen(true)}
         className={cn(
-          "px-2 sm:px-3 py-1.5 sm:py-2 bg-background rounded-lg border border-border/50 text-center transition-all min-w-0",
-          isOrganiser && "cursor-pointer hover:border-primary hover:bg-primary/5"
+          "px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-center transition-all min-w-0",
+          teamStyles,
+          isOrganiser && cn("cursor-pointer", hoverStyles)
         )}
         data-testid={`player-slot-${position}`}
       >
         <div className="font-semibold text-xs sm:text-sm truncate">{player.user?.fullName || (player as any)?.fullName || "Unknown"}</div>
-        <Badge variant="outline" className="text-xs mt-1">{player.category || "?"}</Badge>
+        <Badge variant="outline" className={cn("text-xs mt-1", team === "A" ? "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300" : "border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300")}>{player.category || "?"}</Badge>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -335,7 +346,7 @@ export function BadmintonCourt({
   const displayName = courtName || `Court ${courtNumber}`;
 
   return (
-    <Card className="overflow-hidden border border-white/10 bg-card/80 backdrop-blur-sm shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1),0_0_20px_rgba(0,0,0,0.15)]" data-testid={`court-${courtNumber}`}>
+    <Card className="overflow-hidden border border-border bg-white dark:bg-card/80 backdrop-blur-sm shadow-sm transition-all duration-300" data-testid={`court-${courtNumber}`}>
       <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-3 flex items-center justify-between gap-2 border-b border-border/50 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {isEditingName ? (
@@ -465,6 +476,7 @@ export function BadmintonCourt({
                       availablePlayers={availablePlayers}
                       isOrganiser={isOrganiser && match.status !== "COMPLETED"}
                       onSwap={(id) => onSwapPlayer(match.id, "teamAPlayer1Id", id)}
+                      team="A"
                     />
                     {match.teamAPlayer2 && (
                       <PlayerSlot
@@ -473,6 +485,7 @@ export function BadmintonCourt({
                         availablePlayers={availablePlayers}
                         isOrganiser={isOrganiser && match.status !== "COMPLETED"}
                         onSwap={(id) => onSwapPlayer(match.id, "teamAPlayer2Id", id)}
+                        team="A"
                       />
                     )}
                   </div>
@@ -516,6 +529,7 @@ export function BadmintonCourt({
                       availablePlayers={availablePlayers}
                       isOrganiser={isOrganiser && match.status !== "COMPLETED"}
                       onSwap={(id) => onSwapPlayer(match.id, "teamBPlayer1Id", id)}
+                      team="B"
                     />
                     {match.teamBPlayer2 && (
                       <PlayerSlot
@@ -524,6 +538,7 @@ export function BadmintonCourt({
                         availablePlayers={availablePlayers}
                         isOrganiser={isOrganiser && match.status !== "COMPLETED"}
                         onSwap={(id) => onSwapPlayer(match.id, "teamBPlayer2Id", id)}
+                        team="B"
                       />
                     )}
                   </div>
@@ -532,7 +547,7 @@ export function BadmintonCourt({
             </div>
 
             {(isOrganiser || canEndMatch) && (
-              <div className="p-3 bg-muted/30 border-t border-border/50 flex justify-center gap-2">
+              <div className="p-3 bg-gray-50 dark:bg-muted/30 border-t border-border/50 flex justify-center gap-2">
                 {match.status === "QUEUED" && isOrganiser && (
                   <Button 
                     onClick={() => onStartMatch(match.id, courtNumber)} 

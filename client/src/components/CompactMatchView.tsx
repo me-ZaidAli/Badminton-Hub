@@ -59,7 +59,7 @@ function RollingDigit({ value, color = "green" }: { value: string; color?: "gree
     <span
       className={cn(
         "inline-block w-[1.2ch] text-center font-mono overflow-hidden relative transition-all duration-500",
-        color === "green" ? "text-[#39ff14] drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]" : "text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]"
+        color === "green" ? "text-emerald-600 dark:text-[#39ff14] dark:drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]" : "text-gray-900 dark:text-white dark:drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]"
       )}
       style={{ height: "1.2em", lineHeight: "1.2em" }}
     >
@@ -109,11 +109,11 @@ function FuturisticTimer({ startedAt }: { startedAt: string }) {
       <div className="flex items-baseline gap-[2px] leading-none">
         <RollingDigit value={m1} color="white" />
         <RollingDigit value={m2} color="white" />
-        <span className="text-[#39ff14] font-mono mx-[1px] animate-pulse drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]">:</span>
+        <span className="text-emerald-600 dark:text-[#39ff14] font-mono mx-[1px] animate-pulse dark:drop-shadow-[0_0_8px_rgba(57,255,20,0.6)]">:</span>
         <RollingDigit value={s1} color="green" />
         <RollingDigit value={s2} color="green" />
       </div>
-      <span className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 mt-0.5">elapsed</span>
+      <span className="text-[9px] uppercase tracking-[0.2em] text-gray-400 dark:text-zinc-500 mt-0.5">elapsed</span>
     </div>
   );
 }
@@ -199,10 +199,10 @@ function ClickablePlayerName({
   const name = player?.user?.fullName || "Unknown";
   const matchCount = sessionMatchCount ?? null;
   const nameWithCount = showMatchCount && matchCount != null ? (
-    <>{name} <span className="text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
+    <>{name} <span className="text-gray-400 dark:text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
   ) : name;
 
-  const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
+  const busyClass = isBusy ? "text-red-500 dark:text-red-400 animate-pulse" : "";
 
   if (!canSwap || !onSwapPlayer) {
     return <span className={cn(className, busyClass)} title={isBusy ? "This player is in multiple live/queued matches" : undefined}>{nameWithCount}</span>;
@@ -213,7 +213,7 @@ function ClickablePlayerName({
       <span
         role="button"
         tabIndex={0}
-        className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
+        className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-600 dark:hover:text-amber-400 transition-colors")}
         onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`compact-swap-${position}-${matchId}`}
@@ -412,7 +412,7 @@ function MatchCard({
 
   const teamANames = (
     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400 shrink-0">A</span>
+      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 shrink-0">A</span>
       <ClickablePlayerName
         player={match.teamAPlayer1}
         matchId={match.id}
@@ -422,12 +422,12 @@ function MatchCard({
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-        className="text-sm sm:text-base font-semibold text-white truncate max-w-[40%] sm:max-w-none"
+        className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
       />
       {match.teamAPlayer2 && (
         <>
-          <span className="text-zinc-600 text-xs">&</span>
+          <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
           <ClickablePlayerName
             player={match.teamAPlayer2}
             matchId={match.id}
@@ -437,7 +437,7 @@ function MatchCard({
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-            className="text-sm sm:text-base font-semibold text-white truncate max-w-[40%] sm:max-w-none"
+            className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
             isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
           />
         </>
@@ -447,7 +447,7 @@ function MatchCard({
 
   const teamBNames = (
     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-orange-400 shrink-0">B</span>
+      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-400 shrink-0">B</span>
       <ClickablePlayerName
         player={match.teamBPlayer1}
         matchId={match.id}
@@ -457,12 +457,12 @@ function MatchCard({
         onSwapPlayer={onSwapPlayer}
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-        className="text-sm sm:text-base font-semibold text-zinc-200 truncate max-w-[40%] sm:max-w-none"
+        className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)}
       />
       {match.teamBPlayer2 && (
         <>
-          <span className="text-zinc-600 text-xs">&</span>
+          <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
           <ClickablePlayerName
             player={match.teamBPlayer2}
             matchId={match.id}
@@ -472,7 +472,7 @@ function MatchCard({
             onSwapPlayer={onSwapPlayer}
             showMatchCount={showMatchCount}
             sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-            className="text-sm sm:text-base font-semibold text-zinc-200 truncate max-w-[40%] sm:max-w-none"
+            className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
             isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
           />
         </>
@@ -487,9 +487,9 @@ function MatchCard({
     <div
       className={cn(
         "compact-match-card group relative overflow-hidden rounded-2xl border transition-all duration-300",
-        isLive && "compact-match-card-live border-zinc-700/80",
-        isCompleted && "compact-match-card-completed border-zinc-800/60",
-        isQueued && "compact-match-card-queued border-amber-500/15 hover:border-amber-500/30"
+        isLive && "compact-match-card-live border-emerald-200 dark:border-zinc-700/80",
+        isCompleted && "compact-match-card-completed border-gray-200 dark:border-zinc-800/60",
+        isQueued && "compact-match-card-queued border-amber-200 dark:border-amber-500/15 hover:border-amber-300 dark:hover:border-amber-500/30"
       )}
       data-testid={`compact-match-card-${match.id}`}
     >
@@ -521,7 +521,7 @@ function MatchCard({
                       if (e.key === "Enter") handleCourtNameSave();
                       if (e.key === "Escape") { setEditCourtNameValue(displayCourtName || ""); setEditingCourtName(false); }
                     }}
-                    className="w-28 text-[10px] px-1.5 py-0.5 font-semibold bg-zinc-800 border border-zinc-600 rounded text-white outline-none focus:border-[#39ff14]/50"
+                    className="w-28 text-[10px] px-1.5 py-0.5 font-semibold bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-gray-900 dark:text-white outline-none focus:border-emerald-500/50 dark:focus:border-[#39ff14]/50"
                     data-testid={`input-compact-court-name-${match.courtNumber}`}
                   />
                 </div>
@@ -529,8 +529,8 @@ function MatchCard({
                 <Badge
                   variant="outline"
                   className={cn(
-                    "text-[10px] px-1.5 py-0 font-semibold tracking-wider border-zinc-600 shrink-0",
-                    isLive ? "text-[#39ff14] border-[#39ff14]/30 bg-[#39ff14]/5" : "text-zinc-400",
+                    "text-[10px] px-1.5 py-0 font-semibold tracking-wider border-gray-300 dark:border-zinc-600 shrink-0",
+                    isLive ? "text-emerald-600 dark:text-[#39ff14] border-emerald-300 dark:border-[#39ff14]/30 bg-emerald-50 dark:bg-[#39ff14]/5" : "text-gray-500 dark:text-zinc-400",
                     isOrganiser && "cursor-pointer"
                   )}
                   onClick={(e) => {
@@ -547,34 +547,34 @@ function MatchCard({
               )
             )}
             {isQueued && match.queuePosition && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-amber-500/20 text-amber-400/60 bg-amber-500/5 shrink-0">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-semibold tracking-wider border-amber-300 dark:border-amber-500/20 text-amber-600 dark:text-amber-400/60 bg-amber-50 dark:bg-amber-500/5 shrink-0">
                 #{match.queuePosition}
               </Badge>
             )}
             {isLive && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#39ff14]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#39ff14] animate-pulse" />
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-[#39ff14]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-[#39ff14] animate-pulse" />
                 Live
               </span>
             )}
             {isCompleted && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400/80">
                 Finished
               </span>
             )}
             {isQueued && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/50">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-500 dark:text-amber-400/50">
                 Queued
               </span>
             )}
             {(isLive || isQueued) && (
               editingPoints && isOrganiser ? (
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                  <span className="text-[9px] text-zinc-500">Play to</span>
+                  <span className="text-[9px] text-gray-400 dark:text-zinc-500">Play to</span>
                   <input
                     type="number"
                     min="1"
-                    className="w-12 border border-zinc-600 rounded px-1 py-0 text-[10px] bg-zinc-800 text-white text-center outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-12 border border-gray-300 dark:border-zinc-600 rounded px-1 py-0 text-[10px] bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white text-center outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     defaultValue={pointsTarget}
                     autoFocus
                     onBlur={(e) => handlePointsSave(parseInt(e.target.value, 10))}
@@ -589,7 +589,7 @@ function MatchCard({
                 <Badge
                   variant="outline"
                   className={cn(
-                    "text-[9px] px-1.5 py-0 border-zinc-700 text-zinc-400 shrink-0",
+                    "text-[9px] px-1.5 py-0 border-gray-300 dark:border-zinc-700 text-gray-500 dark:text-zinc-400 shrink-0",
                     isOrganiser && "cursor-pointer"
                   )}
                   onClick={(e) => {
@@ -615,7 +615,7 @@ function MatchCard({
                     if (onUpdateSets) onUpdateSets(match.id, val);
                   }}
                 >
-                  <SelectTrigger className="h-5 w-auto min-w-0 gap-0.5 px-1.5 text-[9px] bg-zinc-800 border-zinc-700 text-zinc-400" data-testid={`select-compact-sets-${match.id}`}>
+                  <SelectTrigger className="h-5 w-auto min-w-0 gap-0.5 px-1.5 text-[9px] bg-gray-100 dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-600 dark:text-zinc-400" data-testid={`select-compact-sets-${match.id}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -627,15 +627,15 @@ function MatchCard({
               </div>
             )}
             {(isLive || isQueued) && !isOrganiser && isMultiSet && (
-              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-zinc-700 text-zinc-400 shrink-0" data-testid={`badge-compact-sets-${match.id}`}>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-gray-300 dark:border-zinc-700 text-gray-500 dark:text-zinc-400 shrink-0" data-testid={`badge-compact-sets-${match.id}`}>
                 {matchSets === 3 ? "Bo3" : `${matchSets}S`}
               </Badge>
             )}
             {isMultiSet && isLive && (
-              <span className="text-[10px] text-zinc-500">Set {currentSet}</span>
+              <span className="text-[10px] text-gray-500 dark:text-zinc-500">Set {currentSet}</span>
             )}
             {canSwapPlayers && (
-              <Users className="w-3 h-3 text-amber-400/50 ml-auto" />
+              <Users className="w-3 h-3 text-amber-500 dark:text-amber-400/50 ml-auto" />
             )}
           </div>
 
@@ -644,18 +644,18 @@ function MatchCard({
               <div className="flex items-center gap-1.5">
                 {teamANames}
                 {teamAGrades.length > 0 && (
-                  <span className="text-[10px] sm:text-[11px] text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
+                  <span className="text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400/70 font-mono shrink-0">{teamAGrades.join("/")}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 my-1">
-                <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/20 via-zinc-700/40 to-orange-500/20" />
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">vs</span>
-                <div className="flex-1 h-px bg-gradient-to-r from-orange-500/20 via-zinc-700/40 to-emerald-500/20" />
+                <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/20 via-gray-300 dark:via-zinc-700/40 to-orange-500/20" />
+                <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest">vs</span>
+                <div className="flex-1 h-px bg-gradient-to-r from-orange-500/20 via-gray-300 dark:via-zinc-700/40 to-emerald-500/20" />
               </div>
               <div className="flex items-center gap-1.5">
                 {teamBNames}
                 {teamBGrades.length > 0 && (
-                  <span className="text-[10px] sm:text-[11px] text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
+                  <span className="text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400/70 font-mono shrink-0">{teamBGrades.join("/")}</span>
                 )}
               </div>
             </div>
@@ -663,14 +663,14 @@ function MatchCard({
             {isCompleted && match.scoreA != null && match.scoreB != null && (
               <div className="flex flex-col items-end shrink-0 mr-1 gap-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-emerald-400/60 uppercase">A</span>
-                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreA ?? 0) > (match.scoreB ?? 0) ? "text-white" : "text-zinc-500")}>
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400/60 uppercase">A</span>
+                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreA ?? 0) > (match.scoreB ?? 0) ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-zinc-500")}>
                     {match.scoreA}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-orange-400/60 uppercase">B</span>
-                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreB ?? 0) > (match.scoreA ?? 0) ? "text-white" : "text-zinc-500")}>
+                  <span className="text-[9px] font-bold text-orange-500 dark:text-orange-400/60 uppercase">B</span>
+                  <span className={cn("text-lg font-bold font-mono tabular-nums", (match.scoreB ?? 0) > (match.scoreA ?? 0) ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-zinc-500")}>
                     {match.scoreB}
                   </span>
                 </div>
@@ -680,7 +680,7 @@ function MatchCard({
             {isMultiSet && isLive && match.setScores && match.setScores.length > 0 && (
               <div className="flex flex-col items-end shrink-0 mr-1 gap-0.5">
                 {match.setScores.map((s, i) => (
-                  <span key={i} className="text-[10px] font-mono text-zinc-400">
+                  <span key={i} className="text-[10px] font-mono text-gray-500 dark:text-zinc-400">
                     {s.scoreA}-{s.scoreB}
                   </span>
                 ))}
@@ -698,7 +698,7 @@ function MatchCard({
         {canExpand && (
           <ChevronDown
             className={cn(
-              "w-4 h-4 text-zinc-500 transition-transform duration-300 shrink-0",
+              "w-4 h-4 text-gray-400 dark:text-zinc-500 transition-transform duration-300 shrink-0",
               expanded && "rotate-180"
             )}
             aria-hidden="true"
@@ -716,30 +716,30 @@ function MatchCard({
           maxHeight: expanded ? contentRef.current?.scrollHeight ? `${contentRef.current.scrollHeight + 20}px` : "400px" : "0px"
         }}
       >
-        <div className={cn("px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t", isQueued ? "border-amber-500/10" : "border-zinc-700/50")}>
+        <div className={cn("px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t", isQueued ? "border-amber-200 dark:border-amber-500/10" : "border-gray-200 dark:border-zinc-700/50")}>
           {isQueued ? (
             <div className="space-y-3 pt-2">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-900/80 rounded-xl p-3 border border-emerald-500/15">
-                  <p className="text-[10px] uppercase tracking-wider text-emerald-400 mb-2 font-bold">Team A</p>
+                <div className="bg-emerald-50 dark:bg-zinc-900/80 rounded-xl p-3 border border-emerald-200 dark:border-emerald-500/15">
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2 font-bold">Team A</p>
                   {[match.teamAPlayer1, match.teamAPlayer2].filter(Boolean).map((p, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
-                      <span className="text-xs sm:text-sm text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
+                      <span className="text-xs sm:text-sm text-gray-800 dark:text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[10px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
-                        <span className="text-[10px] font-mono text-amber-400/50">{p?.category}</span>
+                        <span className="text-[10px] font-mono text-gray-400 dark:text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="bg-zinc-900/80 rounded-xl p-3 border border-orange-500/15">
-                  <p className="text-[10px] uppercase tracking-wider text-orange-400 mb-2 font-bold">Team B</p>
+                <div className="bg-orange-50 dark:bg-zinc-900/80 rounded-xl p-3 border border-orange-200 dark:border-orange-500/15">
+                  <p className="text-[10px] uppercase tracking-wider text-orange-600 dark:text-orange-400 mb-2 font-bold">Team B</p>
                   {[match.teamBPlayer1, match.teamBPlayer2].filter(Boolean).map((p, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
-                      <span className="text-xs sm:text-sm text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
+                      <span className="text-xs sm:text-sm text-gray-800 dark:text-zinc-200 truncate font-medium">{p?.user?.fullName}</span>
                       <div className="flex items-center gap-1.5 ml-1 shrink-0">
-                        <span className="text-[10px] font-mono text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
-                        <span className="text-[10px] font-mono text-amber-400/50">{p?.category}</span>
+                        <span className="text-[10px] font-mono text-gray-400 dark:text-zinc-500">{sessionMatchCounts?.[p?.id ?? 0] ?? 0}g</span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400/50">{p?.category}</span>
                       </div>
                     </div>
                   ))}
@@ -748,7 +748,7 @@ function MatchCard({
               {isOrganiser && (
                 <>
                   <div className="h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-                  <p className="text-[10px] text-amber-400/50 uppercase tracking-wider font-semibold">Admin Controls</p>
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400/50 uppercase tracking-wider font-semibold">Admin Controls</p>
                   {availableCourts && availableCourts.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {availableCourts.map(court => (
@@ -765,9 +765,9 @@ function MatchCard({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-zinc-500">All courts occupied</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500">All courts occupied</p>
                   )}
-                  <p className="text-[10px] text-zinc-600">Tap a player name to swap</p>
+                  <p className="text-[10px] text-gray-400 dark:text-zinc-600">Tap a player name to swap</p>
                 </>
               )}
             </div>
@@ -776,23 +776,23 @@ function MatchCard({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Trophy className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm text-zinc-300">Final Score</span>
+                  <span className="text-sm text-gray-600 dark:text-zinc-300">Final Score</span>
                 </div>
-                <div className="text-base font-bold font-mono text-white">
+                <div className="text-base font-bold font-mono text-gray-900 dark:text-white">
                   {match.scoreA} - {match.scoreB}
                 </div>
               </div>
               {isMultiSet && match.setScores && match.setScores.length > 0 && (
                 <div className="flex gap-3 pt-1">
                   {match.setScores.map((s, i) => (
-                    <div key={i} className="text-xs text-zinc-400 bg-zinc-800/50 rounded px-2 py-1">
-                      Set {i + 1}: <span className="font-mono text-zinc-300">{s.scoreA}-{s.scoreB}</span>
+                    <div key={i} className="text-xs text-gray-500 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/50 rounded px-2 py-1">
+                      Set {i + 1}: <span className="font-mono text-gray-700 dark:text-zinc-300">{s.scoreA}-{s.scoreB}</span>
                     </div>
                   ))}
                 </div>
               )}
               {match.scoreEnteredByUser && (
-                <p className="text-[11px] text-zinc-500 pt-1">
+                <p className="text-[11px] text-gray-400 dark:text-zinc-500 pt-1">
                   Scored by {match.scoreEnteredByUser.fullName}
                   {match.scoreUpdatedByUser && ` · Amended by ${match.scoreUpdatedByUser.fullName}`}
                 </p>
@@ -819,37 +819,37 @@ function MatchCard({
             </div>
           ) : step === "edit-score" ? (
             <div className="space-y-3 pt-2">
-              <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Edit Score (Admin)</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider">Edit Score (Admin)</p>
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-400 mb-0.5 block font-bold">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-0.5 block font-bold">
                     Team A
                   </label>
-                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 dark:text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => setScoreA(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-emerald-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
+                    className="bg-gray-50 dark:bg-zinc-800/80 border-emerald-300 dark:border-emerald-500/30 text-gray-900 dark:text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
                     placeholder="0"
                     data-testid={`compact-edit-score-a-${match.id}`}
                   />
                 </div>
-                <div className="text-zinc-600 font-bold text-sm mt-8">vs</div>
+                <div className="text-gray-400 dark:text-zinc-600 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-400 mb-0.5 block font-bold">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-500 dark:text-orange-400 mb-0.5 block font-bold">
                     Team B
                   </label>
-                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 dark:text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => setScoreB(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-orange-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
+                    className="bg-gray-50 dark:bg-zinc-800/80 border-orange-300 dark:border-orange-500/30 text-gray-900 dark:text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
                     placeholder="0"
                     data-testid={`compact-edit-score-b-${match.id}`}
                   />
@@ -862,7 +862,7 @@ function MatchCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                  className="flex-1 border-gray-300 dark:border-zinc-700 text-gray-600 dark:text-zinc-300"
                   onClick={(e) => { e.stopPropagation(); resetForm(); }}
                   data-testid={`compact-edit-cancel-${match.id}`}
                 >
@@ -883,27 +883,27 @@ function MatchCard({
           ) : step === "success" ? (
             <div className="flex flex-col items-center justify-center py-4 gap-2">
               <CheckCircle className="w-8 h-8 text-[#39ff14] drop-shadow-[0_0_12px_rgba(57,255,20,0.5)]" />
-              <span className="text-sm font-semibold text-white">Score Saved</span>
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">Score Saved</span>
             </div>
           ) : step === "confirm" ? (
             <div className="space-y-3 pt-2">
               <div className="text-center">
-                <p className="text-xs text-zinc-400 mb-3">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
+                <p className="text-xs text-gray-500 dark:text-zinc-400 mb-3">Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result</p>
                 <div className="flex items-center justify-center gap-6">
                   <div className="text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Team A</p>
-                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreA) > parseInt(scoreB) ? "text-[#39ff14]" : "text-white")}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Team A</p>
+                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-600 dark:text-[#39ff14]" : "text-gray-900 dark:text-white")}>
                       {scoreA}
                     </div>
-                    <p className="text-[11px] text-zinc-400 mt-1 truncate max-w-[120px]">{teamADisplayNames.join(" & ")}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-zinc-400 mt-1 truncate max-w-[120px]">{teamADisplayNames.join(" & ")}</p>
                   </div>
                   <Swords className="w-5 h-5 text-amber-400/60" />
                   <div className="text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Team B</p>
-                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreB) > parseInt(scoreA) ? "text-[#39ff14]" : "text-white")}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-400 mb-1">Team B</p>
+                    <div className={cn("text-3xl font-bold font-mono", parseInt(scoreB) > parseInt(scoreA) ? "text-emerald-600 dark:text-[#39ff14]" : "text-gray-900 dark:text-white")}>
                       {scoreB}
                     </div>
-                    <p className="text-[11px] text-zinc-400 mt-1 truncate max-w-[120px]">{teamBDisplayNames.join(" & ")}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-zinc-400 mt-1 truncate max-w-[120px]">{teamBDisplayNames.join(" & ")}</p>
                   </div>
                 </div>
               </div>
@@ -911,7 +911,7 @@ function MatchCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                  className="flex-1 border-gray-300 dark:border-zinc-700 text-gray-600 dark:text-zinc-300"
                   onClick={(e) => { e.stopPropagation(); setStep("input"); }}
                   data-testid={`compact-match-back-${match.id}`}
                 >
@@ -932,34 +932,34 @@ function MatchCard({
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-400 mb-0.5 block font-bold">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-0.5 block font-bold">
                     Team A
                   </label>
-                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 dark:text-zinc-400 mb-1.5 truncate">{teamADisplayNames.join(" & ") || "Team A"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => setScoreA(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-emerald-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
+                    className="bg-gray-50 dark:bg-zinc-800/80 border-emerald-300 dark:border-emerald-500/30 text-gray-900 dark:text-white text-center text-xl font-mono h-12 compact-score-input focus:border-emerald-400/50 focus:ring-emerald-400/20"
                     placeholder="0"
                     data-testid={`compact-score-a-${match.id}`}
                   />
                 </div>
-                <div className="text-zinc-600 font-bold text-sm mt-8">vs</div>
+                <div className="text-gray-400 dark:text-zinc-600 font-bold text-sm mt-8">vs</div>
                 <div className="flex-1 min-w-0">
-                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-400 mb-0.5 block font-bold">
+                  <label className="text-[10px] sm:text-[11px] uppercase tracking-wider text-orange-500 dark:text-orange-400 mb-0.5 block font-bold">
                     Team B
                   </label>
-                  <p className="text-[11px] sm:text-xs text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 dark:text-zinc-400 mb-1.5 truncate">{teamBDisplayNames.join(" & ") || "Team B"}</p>
                   <Input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => setScoreB(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-zinc-800/80 border-orange-500/30 text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
+                    className="bg-gray-50 dark:bg-zinc-800/80 border-orange-300 dark:border-orange-500/30 text-gray-900 dark:text-white text-center text-xl font-mono h-12 compact-score-input focus:border-orange-400/50 focus:ring-orange-400/20"
                     placeholder="0"
                     data-testid={`compact-score-b-${match.id}`}
                   />
@@ -1039,11 +1039,11 @@ export function CompactMatchView({
       {liveMatches.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-[#39ff14] animate-pulse" />
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-[#39ff14] animate-pulse" />
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-600 dark:text-zinc-400">
               Live Matches
             </h4>
-            <span className="text-xs text-zinc-600">({liveMatches.length})</span>
+            <span className="text-xs text-gray-400 dark:text-zinc-600">({liveMatches.length})</span>
           </div>
           <div className="space-y-2">
             {liveMatches.map(match => (
@@ -1075,11 +1075,11 @@ export function CompactMatchView({
       {queuedMatches.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-3.5 h-3.5 text-zinc-500" />
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+            <Clock className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500" />
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-600 dark:text-zinc-400">
               Up Next
             </h4>
-            <span className="text-xs text-zinc-600">({queuedMatches.length})</span>
+            <span className="text-xs text-gray-400 dark:text-zinc-600">({queuedMatches.length})</span>
           </div>
           <div className="space-y-2">
             {queuedMatches.map(match => (
@@ -1112,11 +1112,11 @@ export function CompactMatchView({
       {completedMatches.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Trophy className="w-3.5 h-3.5 text-amber-400/60" />
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+            <Trophy className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400/60" />
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-600 dark:text-zinc-400">
               Completed
             </h4>
-            <span className="text-xs text-zinc-600">({completedMatches.length})</span>
+            <span className="text-xs text-gray-400 dark:text-zinc-600">({completedMatches.length})</span>
           </div>
           <div className="space-y-2">
             {completedMatches.slice(0, 20).map(match => (
@@ -1140,9 +1140,9 @@ export function CompactMatchView({
 
       {liveMatches.length === 0 && queuedMatches.length === 0 && completedMatches.length === 0 && (
         <div className="text-center py-12">
-          <Swords className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500">No matches yet</p>
-          <p className="text-xs text-zinc-600 mt-1">Generate matches to get started</p>
+          <Swords className="w-10 h-10 text-gray-300 dark:text-zinc-700 mx-auto mb-3" />
+          <p className="text-sm text-gray-500 dark:text-zinc-500">No matches yet</p>
+          <p className="text-xs text-gray-400 dark:text-zinc-600 mt-1">Generate matches to get started</p>
         </div>
       )}
     </div>
