@@ -4,19 +4,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/components/AvatarPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Swords, Sparkles, Brain, Loader2, Trophy, Flame,
-  TrendingUp, TrendingDown, Calendar, ChevronRight
+  Swords, Sparkles, Brain, Loader2, Trophy,
+  TrendingUp, TrendingDown, Calendar
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from "recharts";
-
-const GRADE_COLORS: Record<string, string> = {
-  A1: "from-yellow-500 to-amber-600", A2: "from-yellow-400 to-amber-500", A3: "from-yellow-300 to-amber-400",
-  B1: "from-blue-500 to-indigo-600", B2: "from-blue-400 to-indigo-500", B3: "from-blue-300 to-indigo-400",
-  C1: "from-green-500 to-emerald-600", C2: "from-green-400 to-emerald-500", C3: "from-green-300 to-emerald-400",
-};
 
 function MaleSilhouette({ className = "" }: { className?: string }) {
   return (
@@ -41,295 +35,244 @@ function FemaleSilhouette({ className = "" }: { className?: string }) {
   );
 }
 
-function RivalryAvatar({ name, profilePictureUrl, selectedAvatar, gender, grade, color, side }: {
-  name: string; profilePictureUrl?: string | null; selectedAvatar?: string | null;
-  gender?: string | null; grade?: string | null; color: "cyan" | "purple"; side: "left" | "right";
+function ScoreRing({ percentage, color, size = 120 }: {
+  percentage: number; color: string; size?: number;
 }) {
-  const avatarSrc = profilePictureUrl || getAvatarUrl(selectedAvatar) || null;
-  const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
-  const SilhouetteIcon = isFemale ? FemaleSilhouette : MaleSilhouette;
+  const [animated, setAnimated] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimated(percentage), 150);
+    return () => clearTimeout(timer);
+  }, [percentage]);
 
-  const gradeGradient = grade && GRADE_COLORS[grade] ? GRADE_COLORS[grade] : (color === "cyan" ? "from-cyan-400 to-cyan-600" : "from-purple-400 to-purple-600");
-  const glowColor = color === "cyan" ? "rgba(34,211,238,0.3)" : "rgba(168,85,247,0.3)";
-  const shadowColor = color === "cyan" ? "rgba(34,211,238,0.15)" : "rgba(168,85,247,0.15)";
+  const r = (size - 12) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (animated / 100) * circumference;
 
   return (
-    <div className="relative flex flex-col items-center rivalry-avatar" data-testid={`rivalry-avatar-${side}`}>
-      <div className="absolute inset-0 rounded-full blur-2xl opacity-40" style={{ background: `radial-gradient(circle, ${shadowColor} 0%, transparent 70%)`, transform: "scale(1.5)" }} />
-      <div className="relative">
-        <div className="absolute inset-0 rounded-full animate-pulse opacity-30" style={{ boxShadow: `0 0 30px 10px ${glowColor}`, borderRadius: "50%" }} />
-        <div className={`rounded-full bg-gradient-to-br ${gradeGradient} p-[3px] shadow-xl`} style={{ boxShadow: `0 0 20px 4px ${shadowColor}` }}>
-          <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-background">
-            {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
-            <AvatarFallback className="bg-gradient-to-br from-slate-800 to-slate-900">
-              {avatarSrc ? (
-                <span className="text-xl sm:text-2xl font-bold text-slate-300">{initials}</span>
-              ) : (
-                <div className="relative">
-                  <SilhouetteIcon className="h-12 w-12 sm:h-14 sm:w-14 text-slate-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 blur-sm opacity-50 scale-105" />
-                  <SilhouetteIcon className="h-12 w-12 sm:h-14 sm:w-14 text-slate-400 relative" />
-                </div>
-              )}
-            </AvatarFallback>
-          </Avatar>
-        </div>
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+        <circle
+          cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={color} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl sm:text-3xl font-black text-white">{Math.round(animated)}%</span>
+        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold">Win Rate</span>
       </div>
-      <p className="font-bold text-sm text-slate-200 mt-2 text-center max-w-[100px] truncate">{name}</p>
-      {grade && (
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 ${color === "cyan" ? "bg-cyan-500/15 text-cyan-300" : "bg-purple-500/15 text-purple-300"}`}>
-          {grade}
-        </span>
+    </div>
+  );
+}
+
+function StatBar({ label, value, maxValue, color }: {
+  label: string; value: number; maxValue: number; color: string;
+}) {
+  const [animated, setAnimated] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimated(maxValue > 0 ? (value / maxValue) * 100 : 0), 200);
+    return () => clearTimeout(timer);
+  }, [value, maxValue]);
+
+  return (
+    <div className="flex items-center gap-3" data-testid={`stat-bar-${label.toLowerCase().replace(/\s/g, '-')}`}>
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium w-20 shrink-0">{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-1000 ease-out"
+          style={{ width: `${animated}%`, background: `linear-gradient(90deg, ${color}, ${color}88)` }}
+        />
+      </div>
+      <span className="text-xs font-bold text-white w-8 text-right tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function PlayerCard({ player, stats, h2hWins, h2hTotal, color, accentColor, side }: {
+  player: any; stats: any; h2hWins: number; h2hTotal: number;
+  color: string; accentColor: string; side: "left" | "right";
+}) {
+  const avatarSrc = player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
+  const gender = player.playerProfiles?.[0]?.gender;
+  const grade = player.playerProfiles?.[0]?.grade || player.playerProfiles?.[0]?.category;
+  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
+  const SilhouetteIcon = isFemale ? FemaleSilhouette : MaleSilhouette;
+  const winRate = stats?.winRate || 0;
+
+  const statItems = [
+    { label: "Matches", value: stats?.matchesPlayed || 0 },
+    { label: "Wins", value: stats?.matchesWon || 0 },
+    { label: "Points", value: stats?.pointsScored || 0 },
+    { label: "Sessions", value: stats?.sessionsAttended || 0 },
+  ];
+
+  const maxVal = Math.max(...statItems.map(s => s.value), 1);
+
+  return (
+    <div
+      className="flex-1 rounded-2xl border border-white/[0.06] p-4 sm:p-5 flex flex-col items-center gap-4"
+      style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)" }}
+      data-testid={`player-card-${side}`}
+    >
+      <div className="w-full h-[3px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
+
+      <div className="flex flex-col items-center gap-1">
+        <div className="relative">
+          <div
+            className="rounded-full p-[2.5px]"
+            style={{ background: `linear-gradient(135deg, ${color}, ${color}44)` }}
+          >
+            <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-[#0a0f1e]">
+              {avatarSrc && <AvatarImage src={avatarSrc} alt={player.fullName} className="object-cover" />}
+              <AvatarFallback className="bg-[#0c1322]">
+                <SilhouetteIcon className="h-10 w-10 sm:h-12 sm:w-12 text-slate-500" />
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
+        <h3 className="text-sm sm:text-base font-bold text-white text-center leading-tight mt-1">{player.fullName}</h3>
+        {grade && (
+          <span
+            className="text-[10px] font-bold px-2.5 py-0.5 rounded-md"
+            style={{ background: `${color}18`, color: color, border: `1px solid ${color}30` }}
+          >
+            {grade}
+          </span>
+        )}
+      </div>
+
+      <ScoreRing percentage={winRate} color={color} size={110} />
+
+      <div className="w-full space-y-2.5 pt-1">
+        {statItems.map(s => (
+          <StatBar key={s.label} label={s.label} value={s.value} maxValue={maxVal} color={color} />
+        ))}
+      </div>
+
+      {h2hTotal > 0 && (
+        <div className="w-full pt-2 border-t border-white/[0.05]">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">H2H Wins</span>
+            <span className="text-lg font-black" style={{ color }}>{h2hWins}<span className="text-slate-600 text-xs font-medium">/{h2hTotal}</span></span>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function CourtBackground() {
-  return (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.04]" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
-      <rect x="20" y="10" width="360" height="180" fill="none" stroke="currentColor" strokeWidth="2" />
-      <line x1="200" y1="10" x2="200" y2="190" stroke="currentColor" strokeWidth="2" />
-      <rect x="20" y="55" width="60" height="90" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <rect x="320" y="55" width="60" height="90" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="20" y1="100" x2="380" y2="100" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
-    </svg>
-  );
-}
-
-function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: number }) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<number>();
-
-  useEffect(() => {
-    const start = performance.now();
-    const animate = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(eased * value));
-      if (progress < 1) ref.current = requestAnimationFrame(animate);
-    };
-    ref.current = requestAnimationFrame(animate);
-    return () => { if (ref.current) cancelAnimationFrame(ref.current); };
-  }, [value, duration]);
-
-  return <span>{display}</span>;
-}
-
-function WinRatioRing({ percentage, color, label, wins, total }: {
-  percentage: number; color: "cyan" | "purple"; label: string; wins: number; total: number;
-}) {
-  const [animated, setAnimated] = useState(0);
-  const ringRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimated(percentage), 100);
-    return () => clearTimeout(timer);
-  }, [percentage]);
-
-  const circumference = 2 * Math.PI * 42;
-  const strokeDashoffset = circumference - (animated / 100) * circumference;
-  const strokeColor = color === "cyan" ? "#22d3ee" : "#a855f7";
-  const bgColor = color === "cyan" ? "rgba(34,211,238,0.1)" : "rgba(168,85,247,0.1)";
-
-  return (
-    <div className="flex flex-col items-center" ref={ringRef} data-testid={`win-ring-${color}`}>
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="42" fill="none" stroke={bgColor} strokeWidth="6" />
-          <circle
-            cx="50" cy="50" r="42" fill="none"
-            stroke={strokeColor} strokeWidth="6" strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-xl sm:text-2xl font-black ${color === "cyan" ? "text-cyan-400" : "text-purple-400"}`}>
-            {Math.round(animated)}%
-          </span>
-          <span className="text-[9px] text-slate-500 uppercase tracking-wider">Win Rate</span>
-        </div>
-      </div>
-      <p className="text-xs text-slate-400 mt-2 font-medium">{label}</p>
-      <p className="text-[10px] text-slate-500">{wins}W / {total - wins}L</p>
-    </div>
-  );
-}
-
-function RivalryStrengthMeter({ p1Wins, p2Wins, totalMatches }: {
-  p1Wins: number; p2Wins: number; totalMatches: number;
-}) {
-  if (totalMatches === 0) return null;
-
-  const winDiff = Math.abs(p1Wins - p2Wins);
-  const ratio = totalMatches > 0 ? winDiff / totalMatches : 0;
-
-  let classification: string;
-  let classColor: string;
-  let position: number;
-
-  if (ratio >= 0.6) {
-    classification = "Dominant Rivalry";
-    classColor = "text-red-400";
-    position = 15;
-  } else if (ratio >= 0.3) {
-    classification = "Competitive Rivalry";
-    classColor = "text-amber-400";
-    position = 50;
-  } else {
-    classification = "Close Rivalry";
-    classColor = "text-emerald-400";
-    position = 85;
-  }
-
-  return (
-    <div className="bg-[#0c1322]/60 rounded-xl p-4 border border-[#1e293b]" data-testid="rivalry-strength">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Rivalry Intensity</h4>
-        <span className={`text-xs font-bold ${classColor}`}>{classification}</span>
-      </div>
-      <div className="relative h-2 rounded-full bg-gradient-to-r from-red-500/30 via-amber-500/30 to-emerald-500/30">
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg shadow-white/20 transition-all duration-1000 ease-out border-2 border-slate-700"
-          style={{ left: `calc(${position}% - 8px)` }}
-        />
-      </div>
-      <div className="flex justify-between mt-1.5">
-        <span className="text-[9px] text-red-400/60">Dominant</span>
-        <span className="text-[9px] text-amber-400/60">Competitive</span>
-        <span className="text-[9px] text-emerald-400/60">Close</span>
-      </div>
-    </div>
-  );
-}
-
-function MatchTimeline({ results, player1Name, player2Name }: {
-  results: any[]; player1Name: string; player2Name: string;
+function MatchTimeline({ results, player1Name, player2Name, color1, color2 }: {
+  results: any[]; player1Name: string; player2Name: string; color1: string; color2: string;
 }) {
   if (!results || results.length === 0) return null;
-
   return (
-    <div className="space-y-2" data-testid="match-timeline">
-      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-        <Calendar className="h-3.5 w-3.5" />
-        Match Timeline
+    <div
+      className="rounded-2xl border border-white/[0.06] p-4 sm:p-5"
+      style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)" }}
+      data-testid="match-timeline"
+    >
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+        <Calendar className="h-3.5 w-3.5 text-slate-500" />
+        Recent Head-to-Head
       </h4>
-      <div className="relative">
-        <div className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-cyan-500/30 via-slate-700/50 to-purple-500/30" />
-        <div className="space-y-2">
-          {results.map((r: any, i: number) => {
-            const p1Won = r.player1Score > r.player2Score;
-            const matchDate = r.date ? new Date(r.date) : null;
-            const delay = i * 100;
-
-            return (
-              <div
-                key={i}
-                className="relative pl-10 animate-in fade-in slide-in-from-left-2"
-                style={{ animationDelay: `${delay}ms`, animationFillMode: "backwards" }}
-                data-testid={`timeline-match-${i}`}
-              >
-                <div className={`absolute left-2.5 top-3 w-3 h-3 rounded-full border-2 ${
-                  p1Won ? "bg-cyan-400 border-cyan-400/50" : "bg-purple-400 border-purple-400/50"
-                }`} />
-                <div className={`rounded-xl p-3 border transition-all duration-300 hover:scale-[1.01] ${
-                  p1Won
-                    ? "bg-gradient-to-r from-cyan-500/5 to-transparent border-cyan-500/20"
-                    : "bg-gradient-to-r from-purple-500/5 to-transparent border-purple-500/20"
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-black ${p1Won ? "text-cyan-400" : "text-slate-400"}`}>
-                        {r.player1Score ?? "?"}
-                      </span>
-                      <span className="text-[10px] text-slate-600">-</span>
-                      <span className={`text-lg font-black ${!p1Won ? "text-purple-400" : "text-slate-400"}`}>
-                        {r.player2Score ?? "?"}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      {matchDate && (
-                        <p className="text-[10px] text-slate-500">
-                          {matchDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}
-                        </p>
-                      )}
-                      <p className={`text-[10px] font-semibold ${p1Won ? "text-cyan-300" : "text-purple-300"}`}>
-                        {p1Won ? player1Name.split(" ")[0] : player2Name.split(" ")[0]} won
-                      </p>
-                    </div>
-                  </div>
-                  {r.sessionTitle && (
-                    <p className="text-[9px] text-slate-600 mt-1 truncate">{r.sessionTitle}</p>
-                  )}
+      <div className="space-y-2">
+        {results.slice(0, 6).map((r: any, i: number) => {
+          const p1Won = r.player1Score > r.player2Score;
+          const matchDate = r.date ? new Date(r.date) : null;
+          const winColor = p1Won ? color1 : color2;
+          return (
+            <div
+              key={i}
+              className="flex items-center justify-between rounded-xl px-3 py-2.5 border border-white/[0.04] hover:border-white/[0.08] transition-colors"
+              style={{ background: "rgba(255,255,255,0.02)" }}
+              data-testid={`timeline-match-${i}`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: winColor }} />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base font-black tabular-nums" style={{ color: p1Won ? color1 : "rgba(148,163,184,0.5)" }}>
+                    {r.player1Score ?? "?"}
+                  </span>
+                  <span className="text-[10px] text-slate-600 font-medium">—</span>
+                  <span className="text-base font-black tabular-nums" style={{ color: !p1Won ? color2 : "rgba(148,163,184,0.5)" }}>
+                    {r.player2Score ?? "?"}
+                  </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              <div className="text-right shrink-0">
+                {matchDate && (
+                  <p className="text-[10px] text-slate-500 tabular-nums">
+                    {matchDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </p>
+                )}
+                <p className="text-[9px] font-semibold" style={{ color: winColor }}>
+                  {p1Won ? player1Name.split(" ")[0] : player2Name.split(" ")[0]}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function MomentumGraph({ results, player1Name, player2Name }: {
-  results: any[]; player1Name: string; player2Name: string;
+function MomentumGraph({ results, player1Name, player2Name, color1, color2 }: {
+  results: any[]; player1Name: string; player2Name: string; color1: string; color2: string;
 }) {
   if (!results || results.length < 2) return null;
 
   const p1Label = player1Name.split(" ")[0];
   const p2Label = player2Name.split(" ")[0];
-  const p1Key = "p1Wins";
-  const p2Key = "p2Wins";
 
   const data = useMemo(() => {
     const reversed = [...results].reverse();
-    let p1Cumulative = 0;
-    let p2Cumulative = 0;
+    let p1C = 0, p2C = 0;
     return reversed.map((r, i) => {
-      if (r.player1Score > r.player2Score) p1Cumulative++;
-      else p2Cumulative++;
-      const matchDate = r.date ? new Date(r.date) : null;
+      if (r.player1Score > r.player2Score) p1C++; else p2C++;
+      const d = r.date ? new Date(r.date) : null;
       return {
-        match: `M${i + 1}`,
-        label: matchDate ? matchDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : `Match ${i + 1}`,
-        [p1Key]: p1Cumulative,
-        [p2Key]: p2Cumulative,
+        label: d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : `M${i+1}`,
+        p1Wins: p1C, p2Wins: p2C,
       };
     });
   }, [results]);
 
   return (
-    <div className="bg-[#0c1322]/60 rounded-xl p-4 border border-[#1e293b]" data-testid="momentum-graph">
-      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-        <TrendingUp className="h-3.5 w-3.5" />
-        Rivalry Momentum
+    <div
+      className="rounded-2xl border border-white/[0.06] p-4 sm:p-5"
+      style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)" }}
+      data-testid="momentum-graph"
+    >
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+        <TrendingUp className="h-3.5 w-3.5 text-slate-500" />
+        Momentum
       </h4>
-      <div className="h-40 sm:h-48">
+      <div className="h-36 sm:h-44">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-            <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} />
-            <YAxis tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} allowDecimals={false} />
+          <LineChart data={data} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} allowDecimals={false} />
             <Tooltip
-              contentStyle={{ background: "#0f1729", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "11px" }}
+              contentStyle={{ background: "#0f1729", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", fontSize: "11px" }}
               labelStyle={{ color: "#94a3b8" }}
-              formatter={(value: number, name: string) => [value, name === p1Key ? p1Label : p2Label]}
+              formatter={(value: number, name: string) => [value, name === "p1Wins" ? p1Label : p2Label]}
             />
-            <Line type="monotone" dataKey={p1Key} name={p1Label} stroke="#22d3ee" strokeWidth={2.5} dot={{ fill: "#22d3ee", r: 3 }} activeDot={{ r: 5 }} />
-            <Line type="monotone" dataKey={p2Key} name={p2Label} stroke="#a855f7" strokeWidth={2.5} dot={{ fill: "#a855f7", r: 3 }} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="p1Wins" name={p1Label} stroke={color1} strokeWidth={2.5} dot={{ fill: color1, r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="p2Wins" name={p2Label} stroke={color2} strokeWidth={2.5} dot={{ fill: color2, r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex justify-center gap-6 mt-2">
+      <div className="flex justify-center gap-5 mt-2">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 rounded-full bg-cyan-400" />
+          <div className="w-3 h-1 rounded-full" style={{ background: color1 }} />
           <span className="text-[10px] text-slate-400">{p1Label}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 rounded-full bg-purple-400" />
+          <div className="w-3 h-1 rounded-full" style={{ background: color2 }} />
           <span className="text-[10px] text-slate-400">{p2Label}</span>
         </div>
       </div>
@@ -363,6 +306,9 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
   const [aiReview, setAiReview] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const lastCompareKey = useRef<string>("");
+
+  const COLOR1 = "#818cf8";
+  const COLOR2 = "#c084fc";
 
   const generateAiReview = async () => {
     const p1Id = player1.playerProfiles?.[0]?.id;
@@ -398,129 +344,46 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
 
   const s1 = compareData?.player1?.stats;
   const s2 = compareData?.player2?.stats;
-
-  const compMetrics = [
-    { label: "Win Rate", v1: `${s1?.winRate || 0}%`, v2: `${s2?.winRate || 0}%`, n1: s1?.winRate || 0, n2: s2?.winRate || 0 },
-    { label: "Matches Played", v1: s1?.matchesPlayed || 0, v2: s2?.matchesPlayed || 0, n1: s1?.matchesPlayed || 0, n2: s2?.matchesPlayed || 0 },
-    { label: "Points Scored", v1: s1?.pointsScored || 0, v2: s2?.pointsScored || 0, n1: s1?.pointsScored || 0, n2: s2?.pointsScored || 0 },
-    { label: "Sessions", v1: s1?.sessionsAttended || 0, v2: s2?.sessionsAttended || 0, n1: s1?.sessionsAttended || 0, n2: s2?.sessionsAttended || 0 },
-    { label: "Hours Played", v1: s1?.totalHoursPlayed?.toFixed(1) || "0", v2: s2?.totalHoursPlayed?.toFixed(1) || "0", n1: s1?.totalHoursPlayed || 0, n2: s2?.totalHoursPlayed || 0 },
-  ];
-
   const p1Wins = h2h?.player1Wins || 0;
   const p2Wins = h2h?.player2Wins || 0;
   const totalMatches = h2h?.totalMatches || 0;
-  const p1WinRate = totalMatches > 0 ? Math.round((p1Wins / totalMatches) * 100) : 0;
-  const p2WinRate = totalMatches > 0 ? Math.round((p2Wins / totalMatches) * 100) : 0;
 
   return (
     <div className="space-y-4" data-testid="rivalry-arena">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0a0f1e] via-[#0f1729] to-[#0a0f1e] border border-[#1e293b] p-6 sm:p-8">
-        <CourtBackground />
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
-        <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl" />
-        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl" />
-
-        <div className="flex items-center justify-center gap-4 sm:gap-8 relative z-10">
-          <RivalryAvatar
-            name={player1.fullName}
-            profilePictureUrl={player1.profilePictureUrl}
-            selectedAvatar={player1.selectedAvatar}
-            gender={player1.playerProfiles[0]?.gender}
-            grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category}
-            color="cyan" side="left"
-          />
-
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500/20 to-purple-500/20 blur-xl animate-pulse" />
-              <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-[#1a2744] to-[#0f1729] flex items-center justify-center border border-slate-600/50 shadow-2xl">
-                <Swords className="h-5 w-5 sm:h-6 sm:w-6 text-slate-400" />
-              </div>
-            </div>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Rivalry</span>
-          </div>
-
-          <RivalryAvatar
-            name={player2.fullName}
-            profilePictureUrl={player2.profilePictureUrl}
-            selectedAvatar={player2.selectedAvatar}
-            gender={player2.playerProfiles[0]?.gender}
-            grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category}
-            color="purple" side="right"
-          />
-        </div>
-
-        {totalMatches > 0 && (
-          <div className="flex items-center justify-center gap-6 sm:gap-10 mt-6 relative z-10">
-            <div className="text-center">
-              <p className="text-3xl sm:text-4xl font-black text-cyan-400 tabular-nums">
-                <AnimatedNumber value={p1Wins} />
-              </p>
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Wins</p>
-            </div>
-            <div className="text-center">
-              <div className="w-px h-8 bg-slate-700 mx-auto mb-1" />
-              <p className="text-xl sm:text-2xl font-black text-slate-600 tabular-nums">
-                <AnimatedNumber value={totalMatches} />
-              </p>
-              <p className="text-[9px] text-slate-600 font-medium uppercase tracking-wider mt-1">Matches</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl sm:text-4xl font-black text-purple-400 tabular-nums">
-                <AnimatedNumber value={p2Wins} />
-              </p>
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Wins</p>
-            </div>
-          </div>
-        )}
+      <div className="text-center mb-2">
+        <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider">Player Performance Comparison</h2>
+        <div className="w-full h-[2px] rounded-full mt-2" style={{ background: `linear-gradient(90deg, ${COLOR1}, transparent 40%, transparent 60%, ${COLOR2})` }} />
       </div>
 
-      <RivalryStrengthMeter p1Wins={p1Wins} p2Wins={p2Wins} totalMatches={totalMatches} />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 relative">
+        <PlayerCard
+          player={player1}
+          stats={s1}
+          h2hWins={p1Wins}
+          h2hTotal={totalMatches}
+          color={COLOR1}
+          accentColor={COLOR1}
+          side="left"
+        />
 
-      {totalMatches > 0 && (
-        <div className="flex justify-center gap-6 sm:gap-10 py-2">
-          <WinRatioRing
-            percentage={p1WinRate}
-            color="cyan"
-            label={player1.fullName.split(" ")[0]}
-            wins={p1Wins}
-            total={totalMatches}
-          />
-          <WinRatioRing
-            percentage={p2WinRate}
-            color="purple"
-            label={player2.fullName.split(" ")[0]}
-            wins={p2Wins}
-            total={totalMatches}
-          />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+          <div
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 border-[#0a0f1e] shadow-xl"
+            style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)" }}
+          >
+            <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase">Vs</span>
+          </div>
         </div>
-      )}
 
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-          <Swords className="h-3.5 w-3.5 text-cyan-400" />
-          Stats Comparison
-        </h4>
-        {compMetrics.map((m) => {
-          const p1Better = m.n1 > m.n2;
-          const equal = m.n1 === m.n2;
-          const total = m.n1 + m.n2;
-          const p1Pct = total > 0 ? (m.n1 / total) * 100 : 50;
-          return (
-            <div key={m.label} className="space-y-1.5 bg-[#0c1322]/60 rounded-xl p-3 border border-[#1e293b] hover:border-slate-600/50 transition-colors">
-              <div className="flex justify-between text-sm">
-                <span className={p1Better && !equal ? "font-bold text-cyan-300" : "text-slate-300"}>{m.v1}</span>
-                <span className="text-slate-500 text-xs font-medium uppercase tracking-wider">{m.label}</span>
-                <span className={!p1Better && !equal ? "font-bold text-purple-400" : "text-slate-300"}>{m.v2}</span>
-              </div>
-              <div className="flex h-2 rounded-full overflow-hidden bg-slate-800/50">
-                <div className="bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-l-full transition-all duration-700 ease-out" style={{ width: `${p1Pct}%` }} />
-                <div className="bg-gradient-to-l from-purple-400 to-purple-500/70 rounded-r-full transition-all duration-700 ease-out" style={{ width: `${100 - p1Pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
+        <PlayerCard
+          player={player2}
+          stats={s2}
+          h2hWins={p2Wins}
+          h2hTotal={totalMatches}
+          color={COLOR2}
+          accentColor={COLOR2}
+          side="right"
+        />
       </div>
 
       {h2h?.recentResults && h2h.recentResults.length > 0 && (
@@ -528,6 +391,8 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
           results={h2h.recentResults}
           player1Name={player1.fullName}
           player2Name={player2.fullName}
+          color1={COLOR1}
+          color2={COLOR2}
         />
       )}
 
@@ -536,58 +401,59 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
           results={h2h.recentResults}
           player1Name={player1.fullName}
           player2Name={player2.fullName}
+          color1={COLOR1}
+          color2={COLOR2}
         />
       )}
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-        <div className="p-5 relative z-10">
+      <div
+        className="rounded-2xl border border-white/[0.06] overflow-hidden"
+        style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)" }}
+      >
+        <div className="p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-400" />
+            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400/70" />
               AI Rivalry Analysis
             </h4>
             {aiReview && !aiLoading && (
               <Button
-                size="sm" variant="outline"
+                size="sm" variant="ghost"
                 onClick={generateAiReview}
                 disabled={aiLoading}
-                className="text-xs bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-purple-500/30 hover:border-purple-500/50 text-slate-300 hover:text-white"
+                className="text-[10px] h-7 px-2 text-slate-400 hover:text-white"
                 data-testid="button-generate-ai-review"
               >
-                <Brain className="h-3 w-3 mr-1.5" />
+                <Brain className="h-3 w-3 mr-1" />
                 Regenerate
               </Button>
             )}
           </div>
 
           {aiLoading && (
-            <div className="text-center py-10 space-y-3">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-400 mx-auto" />
-              <p className="text-sm text-slate-400 animate-pulse">Analyzing rivalry patterns...</p>
+            <div className="text-center py-8 space-y-2">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-500 mx-auto" />
+              <p className="text-xs text-slate-500">Analyzing rivalry patterns...</p>
             </div>
           )}
 
           {aiReview && !aiLoading && (
-            <div className="space-y-3" data-testid="text-ai-review">
+            <div className="space-y-2.5" data-testid="text-ai-review">
               {aiReview.split("\n").filter(line => line.trim()).map((paragraph, i) => {
                 const isBold = paragraph.startsWith("**") || paragraph.match(/^\d+\.\s*\*\*/);
                 const cleaned = paragraph.replace(/\*\*/g, "");
                 const isHeading = cleaned.match(/^(\d+\.\s*)?[A-Z].*[:—-]\s*/);
-
                 if (isHeading) {
                   const parts = cleaned.split(/[:—-]\s*/);
-                  const heading = parts[0];
-                  const rest = parts.slice(1).join(": ");
                   return (
-                    <div key={i} className="mt-4 first:mt-0">
-                      <h5 className="text-xs font-bold text-cyan-300 uppercase tracking-wider mb-1.5">{heading}</h5>
-                      {rest && <p className="text-[13px] leading-relaxed text-slate-300">{rest}</p>}
+                    <div key={i} className="mt-3 first:mt-0">
+                      <h5 className="text-[10px] font-bold text-slate-300 uppercase tracking-wider mb-1">{parts[0]}</h5>
+                      {parts.slice(1).join(": ") && <p className="text-xs leading-relaxed text-slate-400">{parts.slice(1).join(": ")}</p>}
                     </div>
                   );
                 }
                 return (
-                  <p key={i} className={`text-[13px] leading-relaxed ${isBold ? "text-slate-200 font-medium" : "text-slate-400"}`}>
+                  <p key={i} className={`text-xs leading-relaxed ${isBold ? "text-slate-300 font-medium" : "text-slate-500"}`}>
                     {cleaned}
                   </p>
                 );
