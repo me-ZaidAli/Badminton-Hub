@@ -382,7 +382,7 @@ export const sessionSignups = pgTable("session_signups", {
   attendanceStatus: attendanceStatusEnum("attendance_status").default("NOT_ATTENDED").notNull(),
   signupTime: timestamp("signup_time").defaultNow().notNull(),
   genderOverride: text("gender_override"),
-  isPaused: boolean("is_paused").default(false).notNull(),
+  isPaused: boolean("is_paused").default(true).notNull(),
   pairGroupId: integer("pair_group_id"),
   attendanceNote: text("attendance_note"),
   partialPercentage: integer("partial_percentage"),

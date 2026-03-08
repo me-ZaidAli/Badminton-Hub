@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "wouter";
-import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
+import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useBulkPause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
@@ -76,6 +76,7 @@ export default function SessionDetail() {
   const { mutate: smartGenerateFromParent } = useSmartGenerateMatches();
   const { mutate: toggleGender } = useToggleGender();
   const { mutate: togglePause } = useTogglePause();
+  const { mutate: bulkPause, isPending: isBulkPausing } = useBulkPause();
   const { mutate: handlePauseReplacement } = useHandlePause();
   const { mutate: handleResumeRebalance } = useHandleResume();
   const { mutate: setPairGroup } = useSetPairGroup();
@@ -1440,6 +1441,32 @@ export default function SessionDetail() {
           </h2>
           {isOrganiser && (
             <div className="flex items-center gap-2 flex-wrap">
+              {confirmedSignups.some(s => (s as any).isPaused) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-950"
+                  onClick={() => bulkPause({ sessionId: id, isPaused: false })}
+                  disabled={isBulkPausing}
+                  data-testid="button-wake-all"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                  Wake All
+                </Button>
+              )}
+              {confirmedSignups.some(s => !(s as any).isPaused) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-950"
+                  onClick={() => bulkPause({ sessionId: id, isPaused: true })}
+                  disabled={isBulkPausing}
+                  data-testid="button-sleep-all"
+                >
+                  <BedDouble className="w-4 h-4" />
+                  Sleep All
+                </Button>
+              )}
               <Button variant="outline" className="gap-2" onClick={() => setManagePlayersOpen(true)} data-testid="button-manage-players">
                 <ClipboardList className="w-4 h-4" /> Manage Players
               </Button>

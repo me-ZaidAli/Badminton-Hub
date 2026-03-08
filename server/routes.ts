@@ -8799,6 +8799,22 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/sessions/:sessionId/signups/bulk-pause", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const { isPaused } = req.body;
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", session.clubId);
+      if (!allowed) return res.status(403).json({ message: "Not authorized" });
+      await db.update(sessionSignups).set({ isPaused: !!isPaused }).where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.signupStatus, "CONFIRMED")));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.patch("/api/sessions/:sessionId/signups/:signupId/pair", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

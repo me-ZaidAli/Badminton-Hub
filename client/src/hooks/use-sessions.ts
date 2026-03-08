@@ -340,6 +340,25 @@ export function useTogglePause() {
   });
 }
 
+export function useBulkPause() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, isPaused }: { sessionId: number; isPaused: boolean }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups/bulk-pause`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPaused }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update pause status");
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
+    },
+  });
+}
+
 export function useSetPairGroup() {
   const queryClient = useQueryClient();
   return useMutation({
