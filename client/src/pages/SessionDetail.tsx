@@ -1354,6 +1354,30 @@ export default function SessionDetail() {
                     <TabsTrigger value="ai-tools" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
                   </TabsList>
                   <TabsContent value="payments" className="mt-4 space-y-4">
+                    {riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
+                      <Card className="border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" data-testid="payment-risk-alert">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                            <div className="space-y-2 flex-1">
+                              <p className="font-semibold text-red-700 dark:text-red-400" data-testid="text-risk-alert-title">
+                                Payment Risk Alert
+                              </p>
+                              <p className="text-sm text-red-600 dark:text-red-400/80">
+                                {riskyPlayers.length} player{riskyPlayers.length !== 1 ? "s" : ""} signed up with low payment reliability:
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {riskyPlayers.map(rp => (
+                                  <Badge key={rp.playerId} variant="outline" className="text-xs border-red-300 dark:border-red-700 text-red-700 dark:text-red-400" data-testid={`badge-risky-player-${rp.playerId}`}>
+                                    {rp.name} (Score: {rp.score}, Outstanding: {"\u00A3"}{((rp.outstandingAmount || 0) / 100).toFixed(2)})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                     {confirmedSignups.length > 0 ? (
                       <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
                     ) : (
@@ -1624,31 +1648,6 @@ export default function SessionDetail() {
             </div>
           )}
         </div>
-
-        {isOrganiser && riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
-          <Card className="border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" data-testid="payment-risk-alert">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                <div className="space-y-2 flex-1">
-                  <p className="font-semibold text-red-700 dark:text-red-400" data-testid="text-risk-alert-title">
-                    Payment Risk Alert
-                  </p>
-                  <p className="text-sm text-red-600 dark:text-red-400/80">
-                    {riskyPlayers.length} player{riskyPlayers.length !== 1 ? "s" : ""} signed up with low payment reliability:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {riskyPlayers.map(rp => (
-                      <Badge key={rp.playerId} variant="outline" className="text-xs border-red-300 dark:border-red-700 text-red-700 dark:text-red-400" data-testid={`badge-risky-player-${rp.playerId}`}>
-                        {rp.name} (Score: {rp.score}, Outstanding: {"\u00A3"}{((rp.outstandingAmount || 0) / 100).toFixed(2)})
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {confirmedSignups.slice().sort((a, b) => {
