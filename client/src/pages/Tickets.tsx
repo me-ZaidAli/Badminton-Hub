@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Ticket, Loader2, ShieldAlert, Clock, ArrowRight, Filter,
   AlertCircle, MessageSquare, RotateCcw, Archive, ChevronDown, ChevronUp,
+  Search, User, CreditCard, CalendarDays, CheckCircle2, XCircle,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -33,6 +34,11 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSED: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
 };
 
+const RESOLUTION_COLORS: Record<string, string> = {
+  APPROVED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  DECLINED: "bg-red-500/10 text-red-700 dark:text-red-400",
+};
+
 const PRIORITY_COLORS: Record<string, string> = {
   LOW: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
   MEDIUM: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
@@ -40,7 +46,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   URGENT: "bg-red-500/10 text-red-700 dark:text-red-400",
 };
 
-const CATEGORIES = ["CONCERN", "COMPLAINT", "SUGGESTION", "GENERAL", "SAFEGUARDING"] as const;
+const CATEGORIES = ["CONCERN", "COMPLAINT", "SUGGESTION", "GENERAL", "SAFEGUARDING", "CREDIT_CLAIM"] as const;
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -49,6 +55,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   SUGGESTION: "Suggestion",
   GENERAL: "General",
   SAFEGUARDING: "Safeguarding",
+  BAN_APPEAL: "Ban Appeal",
+  CREDIT_CLAIM: "Credit Claim",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -57,6 +65,14 @@ const PRIORITY_LABELS: Record<string, string> = {
   HIGH: "High",
 };
 const STATUS_OPTIONS = ["SUBMITTED", "UNDER_REVIEW", "RESPONDED", "AWAITING_USER", "RESOLVED", "CLOSED"] as const;
+
+const ADMIN_FILTER_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "DECLINED", label: "Declined" },
+  { value: "ARCHIVED", label: "Archived" },
+  { value: "ALL", label: "All Tickets" },
+] as const;
 
 const createTicketSchema = z.object({
   clubId: z.string().min(1, "Please select a club"),
@@ -77,6 +93,14 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[status] || ""}`} data-testid={`badge-status-${status}`}>
       {formatStatus(status)}
+    </Badge>
+  );
+}
+
+function ResolutionBadge({ resolution }: { resolution: string }) {
+  return (
+    <Badge variant="secondary" className={`text-[10px] ${RESOLUTION_COLORS[resolution] || ""}`} data-testid={`badge-resolution-${resolution}`}>
+      {resolution}
     </Badge>
   );
 }
@@ -113,7 +137,7 @@ export default function Tickets() {
         action={<CreateTicketDialog />}
       />
 
-      <Tabs defaultValue="my-tickets">
+      <Tabs defaultValue={isAdmin ? "manage-tickets" : "my-tickets"}>
         <TabsList data-testid="tabs-tickets">
           <TabsTrigger value="my-tickets" data-testid="tab-my-tickets">My Tickets</TabsTrigger>
           {isAdmin && (
@@ -214,11 +238,13 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
   const [clubFilter, setClubFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [adminViewFilter, setAdminViewFilter] = useState("PENDING");
 
   const queryParams = new URLSearchParams();
-  if (clubFilter) queryParams.set("clubId", clubFilter);
-  if (statusFilter) queryParams.set("status", statusFilter);
-  if (categoryFilter) queryParams.set("category", categoryFilter);
+  if (clubFilter && clubFilter !== "all") queryParams.set("clubId", clubFilter);
+  if (statusFilter && statusFilter !== "all") queryParams.set("status", statusFilter);
+  if (categoryFilter && categoryFilter !== "all") queryParams.set("category", categoryFilter);
   const qs = queryParams.toString();
 
   const { data: tickets, isLoading } = useQuery<any[]>({
@@ -234,9 +260,66 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
     queryKey: ["/api/clubs"],
   });
 
+  const filteredTickets = (tickets || []).filter((t: any) => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const nameMatch = (t.creatorName || "").toLowerCase().includes(query);
+      const subjectMatch = (t.subject || "").toLowerCase().includes(query);
+      const numberMatch = (t.ticketNumber || "").toLowerCase().includes(query);
+      if (!nameMatch && !subjectMatch && !numberMatch) return false;
+    }
+
+    if (adminViewFilter === "PENDING") {
+      return ["SUBMITTED", "UNDER_REVIEW", "RESPONDED", "AWAITING_USER"].includes(t.status) && !t.isArchived;
+    } else if (adminViewFilter === "APPROVED") {
+      return t.resolution === "APPROVED";
+    } else if (adminViewFilter === "DECLINED") {
+      return t.resolution === "DECLINED";
+    } else if (adminViewFilter === "ARCHIVED") {
+      return t.isArchived;
+    }
+    return true;
+  });
+
+  const sortedTickets = [...filteredTickets].sort((a: any, b: any) => {
+    const pendingStatuses = ["SUBMITTED", "UNDER_REVIEW"];
+    const aIsPending = pendingStatuses.includes(a.status) ? 0 : 1;
+    const bIsPending = pendingStatuses.includes(b.status) ? 0 : 1;
+    if (aIsPending !== bIsPending) return aIsPending - bIsPending;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   return (
     <div className="space-y-4 mt-4">
+      <div className="flex items-center gap-2 flex-wrap" data-testid="admin-ticket-view-filters">
+        {ADMIN_FILTER_OPTIONS.map(opt => (
+          <Button
+            key={opt.value}
+            variant={adminViewFilter === opt.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAdminViewFilter(opt.value)}
+            data-testid={`button-filter-${opt.value.toLowerCase()}`}
+          >
+            {opt.value === "PENDING" && <Clock className="h-3.5 w-3.5 mr-1.5" />}
+            {opt.value === "APPROVED" && <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+            {opt.value === "DECLINED" && <XCircle className="h-3.5 w-3.5 mr-1.5" />}
+            {opt.value === "ARCHIVED" && <Archive className="h-3.5 w-3.5 mr-1.5" />}
+            {opt.label}
+          </Button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-2 flex-wrap" data-testid="admin-ticket-filters">
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by member name, subject..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-tickets"
+          />
+        </div>
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select value={clubFilter} onValueChange={setClubFilter}>
           <SelectTrigger className="w-[180px]" data-testid="filter-club">
@@ -271,11 +354,11 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
             ))}
           </SelectContent>
         </Select>
-        {(clubFilter || statusFilter || categoryFilter) && (
+        {(clubFilter || statusFilter || categoryFilter || searchQuery) && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setClubFilter(""); setStatusFilter(""); setCategoryFilter(""); }}
+            onClick={() => { setClubFilter(""); setStatusFilter(""); setCategoryFilter(""); setSearchQuery(""); }}
             data-testid="button-clear-filters"
           >
             Clear
@@ -287,7 +370,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
         <div className="space-y-3">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}
         </div>
-      ) : !tickets || tickets.length === 0 ? (
+      ) : sortedTickets.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">
             <Ticket className="h-12 w-12 mx-auto mb-3 opacity-40" />
@@ -296,53 +379,9 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
           </CardContent>
         </Card>
       ) : (
-        <>
-          <div className="space-y-2" data-testid="ticket-list-admin">
-            {tickets.filter((t: any) => t.status !== "CLOSED").map((ticket: any) => (
-              <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
-            ))}
-          </div>
-          {tickets.filter((t: any) => t.status === "CLOSED").length > 0 && !statusFilter && (
-            <ClosedTicketsSection
-              tickets={tickets.filter((t: any) => t.status === "CLOSED")}
-              onRowClick={onRowClick}
-            />
-          )}
-          {statusFilter === "CLOSED" && (
-            <div className="space-y-2" data-testid="ticket-list-admin-closed">
-              {tickets.filter((t: any) => t.status === "CLOSED").map((ticket: any) => (
-                <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function ClosedTicketsSection({ tickets, onRowClick }: { tickets: any[]; onRowClick: (id: number) => void }) {
-  const [showClosed, setShowClosed] = useState(false);
-
-  return (
-    <div className="mt-4" data-testid="admin-closed-tickets-section">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full justify-between"
-        onClick={() => setShowClosed(!showClosed)}
-        data-testid="button-admin-toggle-closed"
-      >
-        <span className="flex items-center gap-2">
-          <Archive className="h-4 w-4" />
-          Closed Tickets ({tickets.length})
-        </span>
-        {showClosed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </Button>
-      {showClosed && (
-        <div className="space-y-2 mt-2" data-testid="ticket-list-admin-closed">
-          {tickets.map((ticket: any) => (
-            <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential />
+        <div className="space-y-2" data-testid="ticket-list-admin">
+          {sortedTickets.map((ticket: any) => (
+            <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential showMemberName />
           ))}
         </div>
       )}
@@ -350,7 +389,7 @@ function ClosedTicketsSection({ tickets, onRowClick }: { tickets: any[]; onRowCl
   );
 }
 
-function TicketRow({ ticket, onClick, showConfidential }: { ticket: any; onClick: () => void; showConfidential?: boolean }) {
+function TicketRow({ ticket, onClick, showConfidential, showMemberName }: { ticket: any; onClick: () => void; showConfidential?: boolean; showMemberName?: boolean }) {
   return (
     <Card
       className="hover-elevate cursor-pointer"
@@ -365,9 +404,15 @@ function TicketRow({ ticket, onClick, showConfidential }: { ticket: any; onClick
                 #{ticket.ticketNumber}
               </span>
               <StatusBadge status={ticket.status} />
+              {ticket.resolution && <ResolutionBadge resolution={ticket.resolution} />}
               <PriorityBadge priority={ticket.priority} />
               {ticket.category && (
                 <Badge variant="outline" className="text-[10px]">{CATEGORY_LABELS[ticket.category] || ticket.category}</Badge>
+              )}
+              {ticket.isArchived && (
+                <Badge variant="secondary" className="text-[10px] bg-gray-500/10 text-gray-600 dark:text-gray-400" data-testid={`badge-archived-${ticket.id}`}>
+                  Archived
+                </Badge>
               )}
               {showConfidential && ticket.isConfidential && (
                 <ShieldAlert className="h-3.5 w-3.5 text-red-500" data-testid={`icon-confidential-${ticket.id}`} />
@@ -376,15 +421,38 @@ function TicketRow({ ticket, onClick, showConfidential }: { ticket: any; onClick
             <p className="font-medium text-sm mt-1.5 truncate" data-testid={`text-ticket-subject-${ticket.id}`}>
               {ticket.subject}
             </p>
+            {ticket.description && (
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-1" data-testid={`text-ticket-preview-${ticket.id}`}>
+                {ticket.description}
+              </p>
+            )}
             <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
+              {showMemberName && ticket.creatorName && (
+                <span className="flex items-center gap-1" data-testid={`text-ticket-member-${ticket.id}`}>
+                  <User className="h-3 w-3" />
+                  {ticket.creatorName}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {format(new Date(ticket.createdAt), "MMM d, yyyy")}
               </span>
-              {ticket.updatedAt && (
+              {ticket.creditAmount && ticket.creditAmount > 0 && (
+                <span className="flex items-center gap-1 font-medium text-foreground" data-testid={`text-ticket-credit-${ticket.id}`}>
+                  <CreditCard className="h-3 w-3" />
+                  £{(ticket.creditAmount / 100).toFixed(2)}
+                </span>
+              )}
+              {ticket.linkedSessionId && (
+                <span className="flex items-center gap-1" data-testid={`text-ticket-session-${ticket.id}`}>
+                  <CalendarDays className="h-3 w-3" />
+                  Session #{ticket.linkedSessionId}
+                </span>
+              )}
+              {ticket.lastActivityAt && (
                 <span className="flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" />
-                  Last activity {format(new Date(ticket.updatedAt), "MMM d")}
+                  Last activity {format(new Date(ticket.lastActivityAt), "MMM d")}
                 </span>
               )}
             </div>

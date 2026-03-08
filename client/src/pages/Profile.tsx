@@ -1561,49 +1561,147 @@ function TotalSpentModal({ open, onClose, sessions }: {
   );
 }
 
-function CreditHistoryModal({ open, onClose, history }: {
+function getTransactionTypeLabel(entry: any): { label: string; color: string; bgColor: string } {
+  const reason = (entry.reason || "").toLowerCase();
+  const isCredit = entry.amount >= 0;
+
+  if (reason.includes("session cancellation") || reason.includes("cancelled session")) {
+    return { label: "Session Cancellation Credit", color: "text-amber-600 dark:text-amber-400", bgColor: "bg-amber-500/10" };
+  }
+  if (reason.includes("admin approved") || reason.includes("approved")) {
+    return { label: "Admin Approved Credit", color: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-500/10" };
+  }
+  if (reason.includes("used") || reason.includes("applied") || reason.includes("deducted") || reason.includes("redeemed")) {
+    return { label: "Credit Used", color: "text-red-600 dark:text-red-400", bgColor: "bg-red-500/10" };
+  }
+  if (isCredit) {
+    return { label: "Credit Issued", color: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-500/10" };
+  }
+  return { label: "Credit Used", color: "text-red-600 dark:text-red-400", bgColor: "bg-red-500/10" };
+}
+
+function getReferenceSource(entry: any): string | null {
+  if (entry.sessionTitle) return `Session: ${entry.sessionTitle}`;
+  if (entry.linkedSessionId) return `Session #${entry.linkedSessionId}`;
+  const reason = (entry.reason || "").toLowerCase();
+  if (reason.includes("ticket")) return "Support Ticket";
+  if (reason.includes("admin")) return "Admin Action";
+  return null;
+}
+
+function CreditHistoryModal({ open, onClose, history, creditBalances }: {
   open: boolean; onClose: () => void; history: any[] | undefined;
+  creditBalances?: { clubId: number; clubName: string; balance: number }[];
 }) {
+  const totalBalance = (creditBalances || []).reduce((sum, cb) => sum + Math.max(0, Number(cb.balance)), 0);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto" data-testid="modal-credit-history">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Credit History
+            Credit Wallet & History
           </DialogTitle>
         </DialogHeader>
+
+        <div className="rounded-lg bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-4 mb-2" data-testid="credit-wallet-balance-summary">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-md bg-emerald-500/15">
+              <Wallet className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Credit Balance</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-total-credit-balance">
+                {"\u00A3"}{(totalBalance / 100).toFixed(2)}
+              </p>
+            </div>
+          </div>
+          {creditBalances && creditBalances.length > 1 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {creditBalances.map(cb => {
+                const bal = Math.max(0, Number(cb.balance));
+                return (
+                  <Badge key={cb.clubId} variant="outline" className="text-xs no-default-hover-elevate" data-testid={`badge-credit-club-${cb.clubId}`}>
+                    {cb.clubName}: {"\u00A3"}{(bal / 100).toFixed(2)}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {!history || history.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No credit transactions yet</p>
+          <div className="text-center py-8">
+            <History className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No credit transactions yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Credits will appear here when issued or used</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Club</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Reason</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map((entry: any) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {format(new Date(entry.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-sm">{entry.clubName}</TableCell>
-                    <TableCell>
-                      <span className={`font-medium flex items-center gap-1 ${entry.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {entry.amount >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {entry.amount >= 0 ? "+" : ""}£{(Math.abs(entry.amount) / 100).toFixed(2)}
+          <div className="space-y-1" data-testid="credit-history-timeline">
+            {history.map((entry: any, idx: number) => {
+              const isCredit = entry.amount >= 0;
+              const typeInfo = getTransactionTypeLabel(entry);
+              const refSource = getReferenceSource(entry);
+              const showDateSeparator = idx === 0 || format(new Date(entry.createdAt), "MMM yyyy") !== format(new Date(history[idx - 1].createdAt), "MMM yyyy");
+
+              return (
+                <div key={entry.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center gap-2 py-2 mt-2 first:mt-0">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        {format(new Date(entry.createdAt), "MMMM yyyy")}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-sm">{entry.reason}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <div className="flex gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors" data-testid={`credit-entry-${entry.id}`}>
+                    <div className={`mt-0.5 p-1.5 rounded-md shrink-0 ${isCredit ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+                      {isCredit ? (
+                        <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 no-default-hover-elevate ${typeInfo.color}`}>
+                          {typeInfo.label}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {format(new Date(entry.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-1">{entry.reason}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate">
+                          <Building2 className="h-2.5 w-2.5 mr-1" />
+                          {entry.clubName}
+                        </Badge>
+                        {refSource && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Tag className="h-2.5 w-2.5" />
+                            {refSource}
+                          </span>
+                        )}
+                        {entry.sessionDate && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Calendar className="h-2.5 w-2.5" />
+                            {format(new Date(entry.sessionDate), "MMM d, yyyy")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-sm font-bold ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`} data-testid={`text-credit-amount-${entry.id}`}>
+                        {isCredit ? "+" : "-"}{"\u00A3"}{(Math.abs(entry.amount) / 100).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </DialogContent>
@@ -2411,25 +2509,100 @@ export default function Profile() {
         </div>
       </CollapsibleSection>
 
-      {/* Credit History */}
-      {creditHistory && creditHistory.length > 0 && (
-        <Card className="cursor-pointer hover-elevate" onClick={() => setCreditHistoryModalOpen(true)} data-testid="card-credit-history">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-primary/10">
-                  <History className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">Credit History</p>
-                  <p className="text-xs text-muted-foreground">{creditHistory.length} transaction{creditHistory.length > 1 ? "s" : ""}</p>
-                </div>
+      {/* Credit Wallet & History */}
+      <CollapsibleSection
+        title="Credit Wallet"
+        icon={Wallet}
+        iconColor="text-emerald-500"
+        badge={totalCredits > 0 ? `\u00A3${(totalCredits / 100).toFixed(2)}` : undefined}
+        defaultOpen={totalCredits > 0 || (creditHistory && creditHistory.length > 0)}
+        testId="card-credit-wallet"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-4" data-testid="credit-balance-display">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-md bg-emerald-500/15">
+                <Wallet className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Credit Balance</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-credit-balance-prominent">
+                  {"\u00A3"}{(totalCredits / 100).toFixed(2)}
+                </p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            {creditBalances && creditBalances.length > 1 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {creditBalances.map(cb => {
+                  const bal = Math.max(0, Number(cb.balance));
+                  return (
+                    <Badge key={cb.clubId} variant="outline" className="text-xs no-default-hover-elevate" data-testid={`badge-club-credit-${cb.clubId}`}>
+                      {cb.clubName}: {"\u00A3"}{(bal / 100).toFixed(2)}
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {creditHistory && creditHistory.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Recent Transactions</p>
+                <Badge variant="secondary" className="text-[10px] no-default-hover-elevate">{creditHistory.length}</Badge>
+              </div>
+              {creditHistory.slice(0, 3).map((entry: any) => {
+                const isCredit = entry.amount >= 0;
+                const typeInfo = getTransactionTypeLabel(entry);
+                return (
+                  <div key={entry.id} className="flex items-center gap-3 p-2.5 rounded-md bg-muted/30" data-testid={`recent-credit-${entry.id}`}>
+                    <div className={`p-1 rounded-md shrink-0 ${isCredit ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+                      {isCredit ? (
+                        <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[10px] font-medium ${typeInfo.color}`}>{typeInfo.label}</span>
+                        <span className="text-[10px] text-muted-foreground">{entry.clubName}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{entry.reason}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-sm font-bold ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                        {isCredit ? "+" : "-"}{"\u00A3"}{(Math.abs(entry.amount) / 100).toFixed(2)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{format(new Date(entry.createdAt), "MMM d")}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {creditHistory.length > 3 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1" onClick={() => setCreditHistoryModalOpen(true)} data-testid="button-view-all-credit-history">
+                  View All {creditHistory.length} Transactions
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+              {creditHistory.length <= 3 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1" onClick={() => setCreditHistoryModalOpen(true)} data-testid="button-view-full-credit-history">
+                  View Full History
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {(!creditHistory || creditHistory.length === 0) && totalCredits === 0 && (
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              <Wallet className="h-6 w-6 mx-auto mb-2 opacity-40" />
+              <p>No credit history yet</p>
+              <p className="text-xs mt-1">Credits will appear here when issued or used</p>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
 
       {/* Active Memberships - VIP Card */}
       {activeMembershipCount > 0 && user && (() => {
@@ -2957,7 +3130,7 @@ export default function Profile() {
       <MembershipsModal open={membershipsModalOpen} onClose={() => setMembershipsModalOpen(false)} memberships={clubMemberships} />
       <DiscountCodesModal open={discountCodesModalOpen} onClose={() => setDiscountCodesModalOpen(false)} />
       <PerformanceModal open={performanceModalOpen} onClose={() => setPerformanceModalOpen(false)} matchPerformance={matchPerformance} />
-      <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} />
+      <CreditHistoryModal open={creditHistoryModalOpen} onClose={() => setCreditHistoryModalOpen(false)} history={creditHistory} creditBalances={creditBalances} />
       <ClubsModal open={clubsModalOpen} onClose={() => setClubsModalOpen(false)} profiles={profiles} sessions={sessionHistory} />
       <TotalSessionsModal open={totalSessionsModalOpen} onClose={() => setTotalSessionsModalOpen(false)} sessions={sessionHistory} />
       <SessionsThisMonthModal open={sessionsThisMonthModalOpen} onClose={() => setSessionsThisMonthModalOpen(false)} sessions={sessionHistory} />

@@ -11,14 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   ArrowLeft, Loader2, ShieldAlert, Clock, User, MessageSquare,
   AlertCircle, Send, FileText, History, StickyNote, ArrowRight,
-  XCircle, RotateCcw, Lock, CheckCircle2, UserCog,
+  XCircle, RotateCcw, Lock, CheckCircle2, UserCog, Archive,
+  CreditCard, CalendarDays, ThumbsUp, ThumbsDown, CircleDot,
+  Wallet, ShieldCheck, Ban,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,6 +32,11 @@ const STATUS_COLORS: Record<string, string> = {
   AWAITING_USER: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
   RESOLVED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   CLOSED: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
+};
+
+const RESOLUTION_COLORS: Record<string, string> = {
+  APPROVED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  DECLINED: "bg-red-500/10 text-red-700 dark:text-red-400",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -51,6 +60,14 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function ResolutionBadge({ resolution }: { resolution: string }) {
+  return (
+    <Badge variant="secondary" className={`text-[10px] ${RESOLUTION_COLORS[resolution] || ""}`} data-testid={`badge-resolution-${resolution}`}>
+      {resolution}
+    </Badge>
+  );
+}
+
 function PriorityBadge({ priority }: { priority: string }) {
   return (
     <Badge variant="secondary" className={`text-[10px] ${PRIORITY_COLORS[priority] || ""}`} data-testid={`badge-priority-${priority}`}>
@@ -66,6 +83,23 @@ function getInitials(name: string) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+function getTimelineIcon(action: string) {
+  if (action === "CREDIT_APPROVED") return <CheckCircle2 className="h-3 w-3 text-emerald-500" />;
+  if (action === "CREDIT_DECLINED") return <Ban className="h-3 w-3 text-red-500" />;
+  if (action === "ARCHIVED" || action === "UNARCHIVED") return <Archive className="h-3 w-3" />;
+  if (action === "CREDIT_USED") return <Wallet className="h-3 w-3 text-blue-500" />;
+  if (action === "CREDIT_ISSUED") return <CreditCard className="h-3 w-3 text-emerald-500" />;
+  if (action.includes("STATUS")) return <CircleDot className="h-3 w-3" />;
+  return null;
+}
+
+function getTimelineColor(action: string) {
+  if (action === "CREDIT_APPROVED" || action === "CREDIT_ISSUED") return "bg-emerald-500 border-emerald-300";
+  if (action === "CREDIT_DECLINED") return "bg-red-500 border-red-300";
+  if (action === "CREDIT_USED") return "bg-blue-500 border-blue-300";
+  return "bg-muted border-border";
 }
 
 export default function TicketDetail() {
@@ -141,8 +175,30 @@ export default function TicketDetail() {
           <div className="text-sm whitespace-pre-wrap" data-testid="text-ticket-description">
             {ticket.description}
           </div>
+          {(ticket.creditAmount || ticket.linkedSessionId) && (
+            <div className="flex items-center gap-4 mt-3 pt-3 border-t flex-wrap">
+              {ticket.creditAmount > 0 && (
+                <div className="flex items-center gap-2 text-sm" data-testid="text-credit-amount">
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Requested Credit:</span>
+                  <span className="font-semibold">£{(ticket.creditAmount / 100).toFixed(2)}</span>
+                </div>
+              )}
+              {ticket.linkedSessionId && (
+                <div className="flex items-center gap-2 text-sm" data-testid="text-linked-session">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Related Session:</span>
+                  <span className="font-semibold">#{ticket.linkedSessionId}</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {isAdmin && ticket.category === "CREDIT_CLAIM" && ticket.status !== "CLOSED" && (
+        <CreditActionPanel ticket={ticket} ticketId={ticketId} />
+      )}
 
       <Tabs defaultValue="conversation">
         <TabsList data-testid="tabs-ticket-detail">
@@ -172,7 +228,7 @@ export default function TicketDetail() {
         </TabsContent>
 
         <TabsContent value="timeline">
-          <TimelineTab auditLogs={auditLogs || []} />
+          <TimelineTab auditLogs={auditLogs || []} ticket={ticket} />
         </TabsContent>
 
         {isAdmin && (
@@ -182,6 +238,163 @@ export default function TicketDetail() {
         )}
       </Tabs>
     </div>
+  );
+}
+
+function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number }) {
+  const { toast } = useToast();
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false);
+  const [approveAmount, setApproveAmount] = useState(ticket.creditAmount ? (ticket.creditAmount / 100).toFixed(2) : "");
+  const [declineReason, setDeclineReason] = useState("");
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      const amountPence = Math.round(parseFloat(approveAmount) * 100);
+      const res = await apiRequest("POST", `/api/tickets/${ticketId}/approve-credit`, { amount: amountPence });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      toast({ title: "Credit Approved", description: `£${approveAmount} credit has been issued to the member.` });
+      setShowApproveDialog(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to approve credit", variant: "destructive" });
+    },
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/tickets/${ticketId}/decline-credit`, { reason: declineReason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      toast({ title: "Request Declined", description: "The credit request has been declined." });
+      setShowDeclineDialog(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to decline request", variant: "destructive" });
+    },
+  });
+
+  return (
+    <>
+      <Card className="border-2 border-dashed" data-testid="credit-action-panel">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <CreditCard className="h-5 w-5 text-muted-foreground" />
+            <span className="font-semibold text-sm">Credit Claim Actions</span>
+            {ticket.creditAmount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                Requested: £{(ticket.creditAmount / 100).toFixed(2)}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => setShowApproveDialog(true)}
+              className="bg-emerald-600 text-white"
+              data-testid="button-approve-credit"
+            >
+              <ThumbsUp className="h-4 w-4 mr-2" />
+              Approve Credit
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeclineDialog(true)}
+              className="border-red-300 text-red-700 dark:text-red-400 dark:border-red-700"
+              data-testid="button-decline-credit"
+            >
+              <ThumbsDown className="h-4 w-4 mr-2" />
+              Decline Request
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Credit</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Credit Amount (£)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={approveAmount}
+                onChange={(e) => setApproveAmount(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-approve-amount"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This will issue £{approveAmount || "0.00"} credit to the member's wallet and close the ticket.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveDialog(false)} data-testid="button-cancel-approve">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => approveMutation.mutate()}
+              disabled={approveMutation.isPending || !approveAmount || parseFloat(approveAmount) <= 0}
+              className="bg-emerald-600 text-white"
+              data-testid="button-confirm-approve"
+            >
+              {approveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Confirm Approval
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Credit Request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Reason (optional)</label>
+              <Textarea
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                placeholder="Provide a reason for declining..."
+                rows={3}
+                data-testid="input-decline-reason"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              The member will be notified that their credit request was not approved.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeclineDialog(false)} data-testid="button-cancel-decline">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => declineMutation.mutate()}
+              disabled={declineMutation.isPending}
+              data-testid="button-confirm-decline"
+            >
+              {declineMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
+              Decline Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -262,8 +475,25 @@ function TicketHeader({
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: async (isArchived: boolean) => {
+      await apiRequest("PATCH", `/api/tickets/${ticketId}/archive`, { isArchived });
+    },
+    onSuccess: (_, isArchived) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", ticketId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      toast({ title: isArchived ? "Ticket Archived" : "Ticket Unarchived", description: isArchived ? "Ticket has been archived." : "Ticket has been unarchived." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to archive ticket", variant: "destructive" });
+    },
+  });
+
   const isClosed = ticket.status === "CLOSED";
   const isResolved = ticket.status === "RESOLVED";
+  const canArchive = isClosed || isResolved;
 
   const assignableUsers = clubMembers?.filter((m: any) => 
     m.clubRole === "ADMIN" || m.clubRole === "OWNER"
@@ -281,12 +511,18 @@ function TicketHeader({
               #{ticket.ticketNumber}
             </span>
             <StatusBadge status={ticket.status} />
+            {ticket.resolution && <ResolutionBadge resolution={ticket.resolution} />}
             <PriorityBadge priority={ticket.priority} />
             {ticket.category && (
               <Badge variant="outline" className="text-[10px]" data-testid="badge-category">{ticket.category.replace(/_/g, " ")}</Badge>
             )}
             {ticket.isConfidential && (
               <ShieldAlert className="h-4 w-4 text-red-500" data-testid="icon-confidential" />
+            )}
+            {ticket.isArchived && (
+              <Badge variant="secondary" className="text-[10px] bg-gray-500/10 text-gray-600 dark:text-gray-400" data-testid="badge-archived">
+                Archived
+              </Badge>
             )}
           </div>
           <h1 className="text-xl font-bold mt-1 truncate" data-testid="text-ticket-subject">
@@ -308,6 +544,22 @@ function TicketHeader({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && canArchive && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => archiveMutation.mutate(!ticket.isArchived)}
+              disabled={archiveMutation.isPending}
+              data-testid="button-archive-ticket"
+            >
+              {archiveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Archive className="h-4 w-4 mr-1" />
+              )}
+              {ticket.isArchived ? "Unarchive" : "Archive"}
+            </Button>
+          )}
           {!isClosed && (
             <Button
               variant="outline"
@@ -579,49 +831,87 @@ function ConversationTab({
   );
 }
 
-function TimelineTab({ auditLogs }: { auditLogs: any[] }) {
-  if (auditLogs.length === 0) {
-    return (
-      <Card className="border-dashed mt-4">
-        <CardContent className="py-8 text-center text-muted-foreground">
-          <History className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          <p className="font-medium">No activity yet</p>
-        </CardContent>
-      </Card>
-    );
-  }
+function TimelineTab({ auditLogs, ticket }: { auditLogs: any[]; ticket: any }) {
+  const timelineEntries = [
+    {
+      id: "created",
+      action: "TICKET_CREATED",
+      actorName: "System",
+      createdAt: ticket.createdAt,
+      metadata: null,
+      fromStatus: null,
+      toStatus: "SUBMITTED",
+    },
+    ...auditLogs,
+  ];
 
   return (
     <div className="mt-4 relative" data-testid="audit-timeline">
       <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
       <div className="space-y-4">
-        {auditLogs.map((log: any) => (
-          <div key={log.id} className="relative pl-10" data-testid={`audit-log-${log.id}`}>
-            <div className="absolute left-2.5 top-1.5 w-3 h-3 rounded-full bg-muted border-2 border-border" />
-            <div className="text-sm">
-              <span className="font-medium" data-testid={`text-audit-actor-${log.id}`}>{log.actorName || "System"}</span>
-              <span className="text-muted-foreground ml-1" data-testid={`text-audit-action-${log.id}`}>{log.action}</span>
-              {log.fromStatus && log.toStatus && (
-                <span className="ml-1 text-muted-foreground">
-                  <StatusBadge status={log.fromStatus} />
-                  <ArrowRight className="h-3 w-3 inline mx-1" />
-                  <StatusBadge status={log.toStatus} />
+        {timelineEntries.map((log: any, index: number) => {
+          const dotColor = getTimelineColor(log.action);
+          const icon = getTimelineIcon(log.action);
+
+          return (
+            <div key={log.id} className="relative pl-10" data-testid={`audit-log-${log.id}`}>
+              <div className={`absolute left-2.5 top-1.5 w-3 h-3 rounded-full border-2 ${dotColor} flex items-center justify-center`}>
+                {icon && <span className="scale-75">{icon}</span>}
+              </div>
+              <div className="text-sm">
+                <span className="font-medium" data-testid={`text-audit-actor-${log.id}`}>{log.actorName || "System"}</span>
+                <span className="text-muted-foreground ml-1" data-testid={`text-audit-action-${log.id}`}>
+                  {formatTimelineAction(log.action)}
                 </span>
+                {log.fromStatus && log.toStatus && (
+                  <span className="ml-1 text-muted-foreground">
+                    <StatusBadge status={log.fromStatus} />
+                    <ArrowRight className="h-3 w-3 inline mx-1" />
+                    <StatusBadge status={log.toStatus} />
+                  </span>
+                )}
+                {log.action === "CREDIT_APPROVED" && log.metadata?.creditAmount && (
+                  <Badge variant="secondary" className="ml-2 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    £{(log.metadata.creditAmount / 100).toFixed(2)} issued
+                  </Badge>
+                )}
+                {log.action === "CREDIT_DECLINED" && log.metadata?.reason && (
+                  <span className="ml-2 text-xs text-muted-foreground italic">
+                    Reason: {log.metadata.reason}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {format(new Date(log.createdAt), "MMM d, yyyy 'at' h:mm a")}
+              </div>
+              {log.metadata && log.action !== "CREDIT_APPROVED" && log.action !== "CREDIT_DECLINED" && (
+                <div className="text-xs text-muted-foreground mt-0.5 italic">
+                  {typeof log.metadata === "string" ? log.metadata : JSON.stringify(log.metadata)}
+                </div>
               )}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              {format(new Date(log.createdAt), "MMM d, yyyy 'at' h:mm a")}
-            </div>
-            {log.metadata && (
-              <div className="text-xs text-muted-foreground mt-0.5 italic">
-                {typeof log.metadata === "string" ? log.metadata : JSON.stringify(log.metadata)}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
+}
+
+function formatTimelineAction(action: string): string {
+  const actionMap: Record<string, string> = {
+    TICKET_CREATED: "created this ticket",
+    STATUS_CHANGED: "changed the status",
+    ASSIGNED: "assigned the ticket",
+    UNASSIGNED: "unassigned the ticket",
+    REPLY_ADDED: "added a reply",
+    CREDIT_APPROVED: "approved the credit request",
+    CREDIT_DECLINED: "declined the credit request",
+    CREDIT_USED: "credit was applied",
+    CREDIT_ISSUED: "credit was issued",
+    ARCHIVED: "archived the ticket",
+    UNARCHIVED: "unarchived the ticket",
+  };
+  return actionMap[action] || action.toLowerCase().replace(/_/g, " ");
 }
 
 function InternalNotesTab({ notes, ticketId }: { notes: any[]; ticketId: number }) {
@@ -650,6 +940,45 @@ function InternalNotesTab({ notes, ticketId }: { notes: any[]; ticketId: number 
 
   return (
     <div className="space-y-4 mt-4">
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Internal Notes</span>
+            <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              Staff Only
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            These notes are only visible to admin staff. Members cannot see these notes.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-4">
+          <form onSubmit={handleSubmit} className="space-y-3" data-testid="form-note">
+            <Textarea
+              placeholder="Add an internal note..."
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              data-testid="input-note-body"
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={noteMutation.isPending || !body.trim()} data-testid="button-add-note">
+                {noteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <StickyNote className="h-4 w-4 mr-2" />
+                )}
+                Add Note
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
       {notes.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -680,30 +1009,6 @@ function InternalNotesTab({ notes, ticketId }: { notes: any[]; ticketId: number 
           ))}
         </div>
       )}
-
-      <Card>
-        <CardContent className="p-4">
-          <form onSubmit={handleSubmit} className="space-y-3" data-testid="form-note">
-            <Textarea
-              placeholder="Add an internal note..."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={3}
-              data-testid="input-note-body"
-            />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={noteMutation.isPending || !body.trim()} data-testid="button-add-note">
-                {noteMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <StickyNote className="h-4 w-4 mr-2" />
-                )}
-                Add Note
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
     </div>
   );
 }

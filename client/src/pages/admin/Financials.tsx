@@ -70,7 +70,7 @@ interface FinancialEntry {
   playerId: number;
   fee: number;
   paymentStatus: "PAID" | "UNPAID" | "PENDING";
-  paymentMethod?: "CARD" | "BANK_TRANSFER" | "NONE" | null;
+  paymentMethod?: "CARD" | "BANK_TRANSFER" | "CASH" | "ONLINE" | "MEMBERSHIP_CREDIT" | "NONE" | null;
   signupStatus?: "CONFIRMED" | "WAITING" | "CANCELLED" | null;
   verifiedByAdmin?: boolean | null;
   attendanceStatus: string;
@@ -93,6 +93,8 @@ interface FinancialEntry {
   membershipStatus: string | null;
   membershipPlanName: string | null;
   membershipSessionFee: number | null;
+  creditApplied?: number;
+  paymentNotes?: string | null;
 }
 
 type AttendanceStatus =
@@ -712,6 +714,20 @@ export default function Financials() {
     membershipActiveCount: number;
     membershipMembers: MembershipMember[];
   }>({ queryKey: [dashboardQueryUrl] });
+
+  const creditSummaryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    const qs = params.toString();
+    return `/api/admin/credit-summary${qs ? `?${qs}` : ""}`;
+  }, [selectedClubId]);
+
+  const { data: creditSummary } = useQuery<{
+    totalOutstanding: number;
+    totalIssued: number;
+    totalRedeemed: number;
+    totalHeld: number;
+  }>({ queryKey: [creditSummaryUrl] });
 
   interface CreditHistoryEntry {
     id: number;
@@ -1826,9 +1842,16 @@ export default function Financials() {
           )}
           {entry.paymentMethod && entry.paymentMethod !== "NONE" && (
             <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-method-${entry.signupId}`}>
-              {entry.paymentMethod === "CARD" ? <><CreditCard className="h-3 w-3 mr-1" />Card</> : <><Building2 className="h-3 w-3 mr-1" />Bank Transfer</>}
+              {entry.paymentMethod === "CARD" ? <><CreditCard className="h-3 w-3 mr-1" />Card</> :
+               entry.paymentMethod === "MEMBERSHIP_CREDIT" ? <><CreditCard className="h-3 w-3 mr-1" />Credit</> :
+               <><Building2 className="h-3 w-3 mr-1" />Bank Transfer</>}
             </Badge>
           )}
+          {(entry.creditApplied && entry.creditApplied > 0) ? (
+            <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700" data-testid={`badge-credit-applied-${entry.signupId}`}>
+              <CreditCard className="h-3 w-3 mr-1" />Credit: {"\u00A3"}{formatPounds(entry.creditApplied)}
+            </Badge>
+          ) : null}
           {entry.verifiedByAdmin && (
             <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-green-50 dark:bg-green-950" data-testid={`badge-verified-${entry.signupId}`}>
               <CheckCircle className="h-3 w-3 mr-1" />Verified
@@ -2360,6 +2383,62 @@ export default function Financials() {
                 {dashboardData.membershipOverdue}
               </div>
               <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Unpaid past due</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {creditSummary && (creditSummary.totalIssued > 0 || creditSummary.totalRedeemed > 0) && (
+        <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-credit-outstanding" onClick={() => setFinKpiDetail("credit-outstanding")}>
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Held</CardTitle>
+              <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold text-blue-600" data-testid="text-credit-outstanding">
+                {"\u00A3"}{formatPounds(creditSummary.totalHeld)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Currently outstanding</p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-credit-issued" onClick={() => setFinKpiDetail("credit-issued")}>
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Issued</CardTitle>
+              <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold text-green-600" data-testid="text-credit-issued">
+                {"\u00A3"}{formatPounds(creditSummary.totalIssued)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">All time issued</p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-credit-redeemed" onClick={() => setFinKpiDetail("credit-redeemed")}>
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Redeemed</CardTitle>
+              <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold" data-testid="text-credit-redeemed">
+                {"\u00A3"}{formatPounds(creditSummary.totalRedeemed)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Used by members</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate min-w-0" data-testid="card-credit-ratio">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
+              <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold" data-testid="text-credit-ratio">
+                {creditSummary.totalIssued > 0 ? ((creditSummary.totalRedeemed / creditSummary.totalIssued) * 100).toFixed(1) : "0.0"}%
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Redeemed vs issued</p>
             </CardContent>
           </Card>
         </div>
@@ -3145,9 +3224,14 @@ export default function Financials() {
                                     )}
                                     {entry.paymentMethod && entry.paymentMethod !== "NONE" && (
                                       <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs" data-testid={`badge-method-player-${entry.signupId}`}>
-                                        {entry.paymentMethod === "CARD" ? "Card" : "Bank Transfer"}
+                                        {entry.paymentMethod === "CARD" ? "Card" : entry.paymentMethod === "MEMBERSHIP_CREDIT" ? "Credit" : "Bank Transfer"}
                                       </Badge>
                                     )}
+                                    {(entry.creditApplied && entry.creditApplied > 0) ? (
+                                      <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700" data-testid={`badge-credit-applied-player-${entry.signupId}`}>
+                                        <CreditCard className="h-3 w-3 mr-1" />Credit: {"\u00A3"}{formatPounds(entry.creditApplied)}
+                                      </Badge>
+                                    ) : null}
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -5313,6 +5397,59 @@ export default function Financials() {
             </TableBody>
           </Table>
         )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "credit-outstanding"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Credit Overview"
+        description={creditSummary ? `Outstanding credit balance: £${formatPounds(creditSummary.totalHeld)}` : ""}
+      >
+        {creditSummary && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                <div className="text-lg font-bold text-blue-600">{"\u00A3"}{formatPounds(creditSummary.totalHeld)}</div>
+                <div className="text-xs text-muted-foreground">Currently Held</div>
+              </div>
+              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                <div className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(creditSummary.totalIssued)}</div>
+                <div className="text-xs text-muted-foreground">Total Issued</div>
+              </div>
+              <div className="text-center p-3 bg-muted rounded-md">
+                <div className="text-lg font-bold">{"\u00A3"}{formatPounds(creditSummary.totalRedeemed)}</div>
+                <div className="text-xs text-muted-foreground">Total Redeemed</div>
+              </div>
+              <div className="text-center p-3 bg-muted rounded-md">
+                <div className="text-lg font-bold">{creditSummary.totalIssued > 0 ? ((creditSummary.totalRedeemed / creditSummary.totalIssued) * 100).toFixed(1) : "0.0"}%</div>
+                <div className="text-xs text-muted-foreground">Redemption Rate</div>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">Outstanding credits represent the total value of credits currently held by members that have not yet been redeemed.</p>
+          </div>
+        )}
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "credit-issued"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Credits Issued"
+        description={creditSummary ? `Total credits issued: £${formatPounds(creditSummary.totalIssued)}` : ""}
+      >
+        <div className="text-sm text-muted-foreground">
+          <p>All credits issued to members across all time, including session cancellation credits, admin-approved credit claims, and manual credits.</p>
+        </div>
+      </KpiDetailDialog>
+
+      <KpiDetailDialog
+        open={finKpiDetail === "credit-redeemed"}
+        onOpenChange={(open) => !open && setFinKpiDetail(null)}
+        title="Credits Redeemed"
+        description={creditSummary ? `Total credits redeemed: £${formatPounds(creditSummary.totalRedeemed)}` : ""}
+      >
+        <div className="text-sm text-muted-foreground">
+          <p>All credits that have been used by members towards session payments.</p>
+        </div>
       </KpiDetailDialog>
     </div>
   );

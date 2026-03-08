@@ -166,6 +166,33 @@ export default function SessionDetail() {
   const [editNameValue, setEditNameValue] = useState("");
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
+  const [cancelCreditDialogOpen, setCancelCreditDialogOpen] = useState(false);
+  const [cancelCreditAmount, setCancelCreditAmount] = useState("");
+  const [cancelCreditUseCustom, setCancelCreditUseCustom] = useState(false);
+  const cancelAndCreditMutation = useMutation({
+    mutationFn: async (data: { sessionId: number; creditAmount?: number }) => {
+      const res = await apiRequest("POST", `/api/sessions/${data.sessionId}/cancel-and-credit`, data.creditAmount ? { creditAmount: data.creditAmount } : {});
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to cancel session" }));
+        throw new Error(errData.message || "Failed to cancel session");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setCancelCreditDialogOpen(false);
+      toast({
+        title: "Session Cancelled",
+        description: `${data.creditsIssued} credit(s) issued totalling £${(data.totalCreditAmount / 100).toFixed(2)}. Ticket ${data.ticketNumber} created.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to cancel session", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Multi-select join modal
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [joinSelections, setJoinSelections] = useState<Record<number, { selected: boolean; paymentMethod: string }>>({});
@@ -805,6 +832,82 @@ export default function SessionDetail() {
                   </div>
                 </DialogContent>
               </Dialog>
+            )}
+            {isOrganiser && confirmedSignups.length > 0 && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+              <AlertDialog open={cancelCreditDialogOpen} onOpenChange={(open) => {
+                setCancelCreditDialogOpen(open);
+                if (open) {
+                  setCancelCreditAmount("");
+                  setCancelCreditUseCustom(false);
+                }
+              }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setCancelCreditDialogOpen(true)}
+                  data-testid="button-cancel-session-credit"
+                >
+                  <CreditCard className="w-4 h-4" /> Cancel & Issue Credits
+                </Button>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-destructive" />
+                      Cancel Session & Issue Credits
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3">
+                      <span className="block">
+                        This will cancel "{session.title}" and issue credits to all {confirmedSignups.length} confirmed player(s).
+                      </span>
+                      <span className="block text-sm">
+                        Default credit amount: £{((session.sessionFee || 0) / 100).toFixed(2)} per player (session fee).
+                      </span>
+                      <span className="block">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={cancelCreditUseCustom}
+                            onCheckedChange={(checked) => setCancelCreditUseCustom(!!checked)}
+                            data-testid="checkbox-custom-credit-amount"
+                          />
+                          <span className="text-sm text-foreground">Use custom credit amount</span>
+                        </label>
+                      </span>
+                      {cancelCreditUseCustom && (
+                        <span className="block">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            placeholder="Amount in £ (e.g. 5.00)"
+                            value={cancelCreditAmount}
+                            onChange={(e) => setCancelCreditAmount(e.target.value)}
+                            data-testid="input-cancel-credit-amount"
+                          />
+                        </span>
+                      )}
+                      <span className="block font-medium text-destructive text-sm">
+                        This action cannot be undone. All confirmed signups will be cancelled.
+                      </span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-credit-cancel">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        const customAmount = cancelCreditUseCustom && cancelCreditAmount ? Math.round(parseFloat(cancelCreditAmount) * 100) : undefined;
+                        cancelAndCreditMutation.mutate({ sessionId: id, creditAmount: customAmount });
+                      }}
+                      disabled={cancelAndCreditMutation.isPending || (cancelCreditUseCustom && (!cancelCreditAmount || parseFloat(cancelCreditAmount) <= 0))}
+                      className="bg-destructive text-destructive-foreground"
+                      data-testid="button-confirm-cancel-credit"
+                    >
+                      {cancelAndCreditMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Cancel & Issue Credits
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             {isOrganiser && (
               <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

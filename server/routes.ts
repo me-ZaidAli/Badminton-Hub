@@ -8736,6 +8736,7 @@ export async function registerRoutes(
           membershipStatus: clubMemberships.status,
           membershipPlanName: membershipPlans.name,
           membershipSessionFee: membershipPlans.defaultSessionFee,
+          paymentNotes: sessionSignups.paymentNotes,
         })
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
@@ -8751,7 +8752,31 @@ export async function registerRoutes(
         .where(queryConditions.length > 0 ? and(...queryConditions) : undefined)
         .orderBy(desc(sessions.date));
 
-      res.json(signupsData);
+      const signupIds = signupsData.map(s => s.signupId);
+      let creditUsageMap: Record<number, number> = {};
+      if (signupIds.length > 0) {
+        const creditEntries = await db.select({
+          linkedSignupId: creditLedger.linkedSignupId,
+          amount: creditLedger.amount,
+        }).from(creditLedger).where(
+          and(
+            inArray(creditLedger.linkedSignupId, signupIds),
+            sql`${creditLedger.amount} < 0`
+          )
+        );
+        for (const ce of creditEntries) {
+          if (ce.linkedSignupId) {
+            creditUsageMap[ce.linkedSignupId] = (creditUsageMap[ce.linkedSignupId] || 0) + Math.abs(ce.amount);
+          }
+        }
+      }
+
+      const enrichedData = signupsData.map(s => ({
+        ...s,
+        creditApplied: creditUsageMap[s.signupId] || 0,
+      }));
+
+      res.json(enrichedData);
     } catch (err: any) {
       console.error("Error fetching financial summary:", err);
       res.status(500).json({ message: "Failed to fetch financial summary" });
@@ -9092,6 +9117,144 @@ export async function registerRoutes(
     }
   });
 
+  // === CANCEL SESSION & ISSUE CREDITS ===
+  app.post("/api/sessions/:sessionId/cancel-and-credit", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const admin = req.user!;
+    const sessionId = Number(req.params.sessionId);
+
+    const schema = z.object({
+      creditAmount: z.number().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    try {
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_SESSIONS", session.clubId);
+      if (!allowed) return res.sendStatus(403);
+
+      const allSignups = await db
+        .select({
+          id: sessionSignups.id,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          signupStatus: sessionSignups.signupStatus,
+        })
+        .from(sessionSignups)
+        .where(eq(sessionSignups.sessionId, sessionId));
+
+      const confirmedSignups = allSignups.filter(s => s.signupStatus === "CONFIRMED");
+
+      if (confirmedSignups.length === 0) {
+        return res.status(400).json({ message: "No confirmed signups to issue credits for" });
+      }
+
+      const playerProfs = await db
+        .select({ id: playerProfiles.id, userId: playerProfiles.userId })
+        .from(playerProfiles)
+        .where(inArray(playerProfiles.id, confirmedSignups.map(s => s.playerId)));
+      const playerToUser = new Map(playerProfs.map(p => [p.id, p.userId]));
+
+      const playerUsers = await db
+        .select({ id: users.id, fullName: users.fullName })
+        .from(users)
+        .where(inArray(users.id, playerProfs.map(p => p.userId)));
+      const userNames = new Map(playerUsers.map(u => [u.id, u.fullName]));
+
+      let creditsIssued = 0;
+      let totalCreditAmount = 0;
+      const creditEntries: { userId: number; amount: number; playerName: string }[] = [];
+
+      for (const signup of confirmedSignups) {
+        const userId = playerToUser.get(signup.playerId);
+        if (!userId) continue;
+
+        const amount = parsed.data.creditAmount || signup.fee;
+        if (amount <= 0) continue;
+
+        await db.insert(creditLedger).values({
+          userId,
+          clubId: session.clubId,
+          amount,
+          reason: `Session cancellation credit - ${session.title}`,
+          linkedSessionId: sessionId,
+          linkedSignupId: signup.id,
+          createdById: admin.id,
+        });
+
+        await storage.createNotification({
+          userId,
+          type: "credit_issued",
+          title: "Session Cancelled - Credit Issued",
+          message: `The session "${session.title}" has been cancelled. You have been issued a credit of £${(amount / 100).toFixed(2)}.`,
+          linkUrl: `/profile`,
+          status: "in_progress",
+        });
+
+        creditsIssued++;
+        totalCreditAmount += amount;
+        creditEntries.push({ userId, amount, playerName: userNames.get(userId) || "Unknown" });
+      }
+
+      await db.update(sessions).set({ status: "CANCELLED" }).where(eq(sessions.id, sessionId));
+
+      await db.update(sessionSignups)
+        .set({ signupStatus: "CANCELLED" })
+        .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.signupStatus, "CONFIRMED")));
+
+      const ticketNumber = `TK-${Date.now().toString(36).toUpperCase()}`;
+      const memberList = creditEntries.map(e => `- ${e.playerName}: £${(e.amount / 100).toFixed(2)}`).join("\n");
+      await db.insert(tickets).values({
+        ticketNumber,
+        clubId: session.clubId,
+        createdByUserId: admin.id,
+        subject: `Session Cancellation Credits - ${session.title}`,
+        description: `Session "${session.title}" was cancelled by ${admin.fullName}.\n\n${creditsIssued} credits issued totalling £${(totalCreditAmount / 100).toFixed(2)}.\n\nCredits issued to:\n${memberList}`,
+        category: "CREDIT_CLAIM",
+        priority: "LOW",
+        status: "RESOLVED",
+        resolution: `Bulk credits issued for session cancellation`,
+        closedAt: new Date(),
+        lastActivityAt: new Date(),
+      });
+
+      const adminProfiles = await db
+        .select({ userId: playerProfiles.userId })
+        .from(playerProfiles)
+        .where(and(
+          eq(playerProfiles.clubId, session.clubId),
+          inArray(playerProfiles.clubRole, ["OWNER", "ADMIN"])
+        ));
+      const adminUserIds = [...new Set(adminProfiles.map(p => p.userId))];
+
+      for (const adminUserId of adminUserIds) {
+        if (adminUserId === admin.id) continue;
+        await storage.createNotification({
+          userId: adminUserId,
+          type: "credit_issued",
+          title: "Session Cancelled - Credits Issued",
+          message: `${admin.fullName} cancelled "${session.title}" and issued £${(totalCreditAmount / 100).toFixed(2)} in credits to ${creditsIssued} members.`,
+          linkUrl: `/tickets`,
+          status: "in_progress",
+        });
+      }
+
+      res.json({
+        success: true,
+        creditsIssued,
+        totalCreditAmount,
+        ticketNumber,
+        entries: creditEntries,
+      });
+    } catch (err: any) {
+      console.error("Error cancelling session and issuing credits:", err);
+      res.status(500).json({ message: err.message || "Failed to cancel session and issue credits" });
+    }
+  });
+
   // Update attendance status for a signup (with policy validation fields)
   app.patch("/api/sessions/:sessionId/signups/:signupId/attendance", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -9188,6 +9351,90 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error using credit:", err);
       res.status(500).json({ message: "Failed to use credit" });
+    }
+  });
+
+  app.post("/api/credits/apply", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+
+    const schema = z.object({
+      clubId: z.number(),
+      sessionId: z.number(),
+      amount: z.number().min(1),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const { clubId, sessionId, amount } = parsed.data;
+
+    try {
+      const sessionData = await storage.getSession(sessionId);
+      if (!sessionData) return res.status(404).json({ message: "Session not found" });
+      if (sessionData.clubId !== clubId) return res.status(400).json({ message: "Club mismatch" });
+
+      const userSignups = await db.select({ id: sessionSignups.id, fee: sessionSignups.fee })
+        .from(sessionSignups)
+        .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.userId, user.id), eq(sessionSignups.signupStatus, "CONFIRMED")));
+      if (userSignups.length === 0) return res.status(400).json({ message: "No confirmed signup found for this session" });
+
+      const totalFee = userSignups.reduce((s, su) => s + (su.fee || 0), 0);
+      const cappedAmount = Math.min(amount, totalFee);
+      if (cappedAmount <= 0) return res.status(400).json({ message: "No applicable fee to credit" });
+
+      const balanceResult = await db
+        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+        .from(creditLedger)
+        .where(and(eq(creditLedger.userId, user.id), eq(creditLedger.clubId, clubId)));
+
+      const currentBalance = Number(balanceResult[0]?.total || 0);
+      if (currentBalance < cappedAmount) {
+        return res.status(400).json({ message: "Insufficient credit balance" });
+      }
+
+      const [entry] = await db
+        .insert(creditLedger)
+        .values({
+          userId: user.id,
+          clubId,
+          amount: -cappedAmount,
+          reason: `Credit applied to session: ${sessionData.title}`,
+          linkedSessionId: sessionId,
+          linkedSignupId: userSignups[0].id,
+          createdById: user.id,
+        })
+        .returning();
+
+      const newBalanceResult = await db
+        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
+        .from(creditLedger)
+        .where(and(eq(creditLedger.userId, user.id), eq(creditLedger.clubId, clubId)));
+      const newBalance = Number(newBalanceResult[0]?.total || 0);
+
+      const club = await storage.getClub(clubId);
+      const adminProfiles = await db
+        .select({ userId: playerProfiles.userId })
+        .from(playerProfiles)
+        .where(and(
+          eq(playerProfiles.clubId, clubId),
+          inArray(playerProfiles.clubRole, ["OWNER", "ADMIN"])
+        ));
+
+      for (const admin of adminProfiles) {
+        await db.insert(notifications).values({
+          userId: admin.userId,
+          type: "credit_used",
+          title: "Credit Applied to Session",
+          message: `${user.fullName} applied £${(cappedAmount / 100).toFixed(2)} credit to session "${sessionData.title}". Remaining balance: £${(newBalance / 100).toFixed(2)}`,
+          linkUrl: `/sessions/${sessionId}`,
+        });
+      }
+
+      res.json({ entry, newBalance });
+    } catch (err: any) {
+      console.error("Error applying credit:", err);
+      res.status(500).json({ message: "Failed to apply credit" });
     }
   });
 
@@ -13377,6 +13624,7 @@ export async function registerRoutes(
       }
 
       let pendingRewards = 0;
+      let pendingTickets = 0;
       if (isOwner || adminClubIds.length > 0) {
         const pendingFilter = isOwner
           ? eq(playerRewardLedger.status, "REQUESTED")
@@ -13385,6 +13633,14 @@ export async function registerRoutes(
           .from(playerRewardLedger)
           .where(pendingFilter!);
         pendingRewards = pendingResult[0]?.count || 0;
+
+        const pendingTicketFilter = isOwner
+          ? and(inArray(tickets.status, ["SUBMITTED", "UNDER_REVIEW"]), sql`${tickets.deletedAt} IS NULL`, eq(tickets.isArchived, false))
+          : and(inArray(tickets.status, ["SUBMITTED", "UNDER_REVIEW"]), sql`${tickets.deletedAt} IS NULL`, eq(tickets.isArchived, false), inArray(tickets.clubId, adminClubIds));
+        const pendingTicketResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(tickets)
+          .where(pendingTicketFilter!);
+        pendingTickets = pendingTicketResult[0]?.count || 0;
       }
 
       let myOutstandingPayments = 0;
@@ -13405,6 +13661,7 @@ export async function registerRoutes(
         messages: messagesCount,
         announcements: announcementsCount,
         pendingRewards,
+        pendingTickets,
         upcomingSessions,
         pendingMemberships,
         outstandingPayments,
@@ -13413,7 +13670,7 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
     }
   });
 
@@ -15080,6 +15337,248 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching audit log:", err);
       res.status(500).json({ message: "Failed to fetch audit log" });
+    }
+  });
+
+  app.patch("/api/tickets/:id/archive", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { isArchived } = req.body;
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+      const [updated] = await db.update(tickets).set({ isArchived: !!isArchived, lastActivityAt: new Date() }).where(eq(tickets.id, ticketId)).returning();
+      await db.insert(ticketAuditLogs).values({ ticketId, actorUserId: req.user!.id, action: isArchived ? "ARCHIVED" : "UNARCHIVED" });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error archiving ticket:", err);
+      res.status(500).json({ message: "Failed to archive ticket" });
+    }
+  });
+
+  app.post("/api/tickets/:id/approve-credit", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { amount, reason } = req.body;
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const creditAmount = amount || ticket.creditAmount || 0;
+      if (creditAmount <= 0) return res.status(400).json({ message: "Credit amount must be positive" });
+
+      const [creditEntry] = await db.insert(creditLedger).values({
+        userId: ticket.createdByUserId,
+        clubId: ticket.clubId,
+        amount: creditAmount,
+        reason: reason || "Admin Approved Credit",
+        linkedSessionId: ticket.linkedSessionId || null,
+        linkedSignupId: null,
+        attendanceStatus: null,
+        createdById: req.user!.id,
+      }).returning();
+
+      const [updated] = await db.update(tickets).set({
+        status: "CLOSED",
+        resolution: "APPROVED",
+        creditAmount: creditAmount,
+        closedAt: new Date(),
+        lastActivityAt: new Date(),
+      }).where(eq(tickets.id, ticketId)).returning();
+
+      await db.insert(ticketAuditLogs).values({ ticketId, actorUserId: req.user!.id, action: "CREDIT_APPROVED", metadata: { creditAmount, creditEntryId: creditEntry.id } });
+
+      const balanceResult = await db.select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` }).from(creditLedger).where(and(eq(creditLedger.userId, ticket.createdByUserId), eq(creditLedger.clubId, ticket.clubId)));
+      const newBalance = balanceResult[0]?.total || 0;
+
+      await db.insert(notifications).values({
+        userId: ticket.createdByUserId,
+        type: "GENERAL",
+        title: "Credit Approved",
+        message: `Your credit request (${ticket.ticketNumber}) has been approved. £${(creditAmount / 100).toFixed(2)} has been added to your credit wallet. Your updated balance is £${(Number(newBalance) / 100).toFixed(2)}.`,
+        linkUrl: "/profile",
+        status: "in_progress",
+      });
+
+      res.json({ ticket: updated, creditEntry, newBalance });
+    } catch (err: any) {
+      console.error("Error approving credit:", err);
+      res.status(500).json({ message: "Failed to approve credit" });
+    }
+  });
+
+  app.post("/api/tickets/:id/decline-credit", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const ticketId = Number(req.params.id);
+      const { reason } = req.body;
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+
+      const [updated] = await db.update(tickets).set({
+        status: "CLOSED",
+        resolution: "DECLINED",
+        closedAt: new Date(),
+        lastActivityAt: new Date(),
+      }).where(eq(tickets.id, ticketId)).returning();
+
+      await db.insert(ticketAuditLogs).values({ ticketId, actorUserId: req.user!.id, action: "CREDIT_DECLINED", metadata: { reason: reason || null } });
+
+      await db.insert(notifications).values({
+        userId: ticket.createdByUserId,
+        type: "GENERAL",
+        title: "Credit Request Update",
+        message: reason ? `Your credit request (${ticket.ticketNumber}) was not approved. Reason: ${reason}` : `Your credit request (${ticket.ticketNumber}) was not approved at this time. Please contact your club admin if you have any questions.`,
+        linkUrl: `/tickets/${ticket.id}`,
+        status: "in_progress",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error declining credit:", err);
+      res.status(500).json({ message: "Failed to decline credit" });
+    }
+  });
+
+  app.get("/api/admin/credit-summary", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const isOwner = req.user!.role === "OWNER";
+      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      const adminClubs = isOwner ? [] : adminProfiles.map(p => p.clubId);
+      const clubFilter = req.query.clubId ? [Number(req.query.clubId)] : (isOwner ? undefined : adminClubs);
+      if (!isOwner && (!clubFilter || clubFilter.length === 0)) return res.json({ totalOutstanding: 0, totalIssued: 0, totalRedeemed: 0, totalHeld: 0 });
+
+      const whereClause = clubFilter ? inArray(creditLedger.clubId, clubFilter) : undefined;
+      const entries = await db.select({ amount: creditLedger.amount }).from(creditLedger).where(whereClause);
+      let totalIssued = 0;
+      let totalRedeemed = 0;
+      entries.forEach(e => {
+        if (e.amount > 0) totalIssued += e.amount;
+        else totalRedeemed += Math.abs(e.amount);
+      });
+      const totalHeld = totalIssued - totalRedeemed;
+
+      res.json({ totalOutstanding: totalHeld, totalIssued, totalRedeemed, totalHeld });
+    } catch (err: any) {
+      console.error("Error fetching credit summary:", err);
+      res.status(500).json({ message: "Failed to fetch credit summary" });
+    }
+  });
+
+  app.post("/api/sessions/:id/cancel-and-credit", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      if (!isOwner) {
+        const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", session.clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const confirmedSignups = await db.select({
+        id: sessionSignups.id,
+        userId: sessionSignups.userId,
+        fee: sessionSignups.fee,
+        playerName: users.fullName,
+      }).from(sessionSignups)
+        .innerJoin(users, eq(sessionSignups.userId, users.id))
+        .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.signupStatus, "CONFIRMED")));
+
+      if (confirmedSignups.length === 0) return res.status(400).json({ message: "No confirmed signups to credit" });
+
+      const creditEntries = [];
+      for (const signup of confirmedSignups) {
+        const creditAmt = req.body.amount || signup.fee || 0;
+        if (creditAmt <= 0) continue;
+
+        const [entry] = await db.insert(creditLedger).values({
+          userId: signup.userId,
+          clubId: session.clubId,
+          amount: creditAmt,
+          reason: `Session Cancellation Credit - ${session.title}`,
+          linkedSessionId: sessionId,
+          linkedSignupId: signup.id,
+          attendanceStatus: null,
+          createdById: req.user!.id,
+        }).returning();
+        creditEntries.push(entry);
+
+        await db.insert(notifications).values({
+          userId: signup.userId,
+          type: "GENERAL",
+          title: "Session Cancelled - Credit Issued",
+          message: `The session "${session.title}" has been cancelled. A credit of £${(creditAmt / 100).toFixed(2)} has been added to your credit wallet.`,
+          linkUrl: "/profile",
+          status: "in_progress",
+        });
+      }
+
+      await db.update(sessions).set({ status: "CANCELLED" as any }).where(eq(sessions.id, sessionId));
+
+      const ticketNum = `TK-CANCEL-${Date.now().toString(36).toUpperCase()}`;
+      await db.insert(tickets).values({
+        ticketNumber: ticketNum,
+        clubId: session.clubId,
+        createdByUserId: req.user!.id,
+        subject: `Session Cancellation Credits - ${session.title}`,
+        description: `Bulk credit issuance for ${confirmedSignups.length} members due to session cancellation. Total credits: £${(creditEntries.reduce((s, e) => s + e.amount, 0) / 100).toFixed(2)}`,
+        category: "CREDIT_CLAIM",
+        priority: "LOW",
+        status: "CLOSED",
+        resolution: "APPROVED",
+        linkedSessionId: sessionId,
+        creditAmount: creditEntries.reduce((s, e) => s + e.amount, 0),
+        closedAt: new Date(),
+      } as any);
+
+      res.json({ creditsIssued: creditEntries.length, totalAmount: creditEntries.reduce((s, e) => s + e.amount, 0) });
+    } catch (err: any) {
+      console.error("Error cancelling session and issuing credits:", err);
+      res.status(500).json({ message: "Failed to cancel session and issue credits" });
+    }
+  });
+
+  app.get("/api/clubs/:clubId/credit-settings", requirePremium(clubIdFromParam), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const [club] = await db.select({ creditAutoApprove: clubs.creditAutoApprove, creditAutoCancelWindowHours: clubs.creditAutoCancelWindowHours }).from(clubs).where(eq(clubs.id, clubId));
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      res.json(club);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch credit settings" });
+    }
+  });
+
+  app.put("/api/clubs/:clubId/credit-settings", requirePremium(clubIdFromParam), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const isOwner = req.user!.role === "OWNER";
+      const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+      if (!isStaff) return res.status(403).json({ message: "Not authorized" });
+      const { creditAutoApprove, creditAutoCancelWindowHours } = req.body;
+      const updates: any = {};
+      if (typeof creditAutoApprove === "boolean") updates.creditAutoApprove = creditAutoApprove;
+      if (creditAutoCancelWindowHours !== undefined) updates.creditAutoCancelWindowHours = creditAutoCancelWindowHours === null ? null : Number(creditAutoCancelWindowHours);
+      const [updated] = await db.update(clubs).set(updates).where(eq(clubs.id, clubId)).returning();
+      res.json({ creditAutoApprove: updated.creditAutoApprove, creditAutoCancelWindowHours: updated.creditAutoCancelWindowHours });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update credit settings" });
     }
   });
 

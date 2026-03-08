@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Bell, CreditCard, Clock, Mail, MessageSquare, Settings, Send, AlertTriangle, CheckCircle, XCircle, Ticket, Gift, Users, Building2, Loader2 } from "lucide-react";
+import { ArrowLeft, Bell, CreditCard, Clock, Mail, MessageSquare, Settings, Send, AlertTriangle, CheckCircle, XCircle, Ticket, Gift, Users, Building2, Loader2, Coins } from "lucide-react";
 import { Link } from "wouter";
 
 function NotificationSettingsPanel({ clubId, clubName }: { clubId: number; clubName: string }) {
@@ -435,6 +435,114 @@ function StatsPanel({ clubId }: { clubId: number | null }) {
   );
 }
 
+function CreditSettingsPanel({ clubId, clubName }: { clubId: number; clubName: string }) {
+  const { toast } = useToast();
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ["/api/clubs", clubId, "credit-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/credit-settings`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      return res.json();
+    },
+  });
+
+  const [autoApprove, setAutoApprove] = useState<boolean | null>(null);
+  const [cancelWindow, setCancelWindow] = useState("");
+
+  const effectiveAutoApprove = autoApprove ?? settings?.creditAutoApprove ?? false;
+  const effectiveCancelWindow = cancelWindow || String(settings?.creditAutoCancelWindowHours ?? "");
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const windowHours = effectiveCancelWindow ? parseInt(effectiveCancelWindow) : null;
+      if (windowHours !== null && (isNaN(windowHours) || windowHours < 1 || windowHours > 168)) {
+        throw new Error("Cancel window must be between 1 and 168 hours");
+      }
+      const res = await fetch(`/api/clubs/${clubId}/credit-settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ creditAutoApprove: effectiveAutoApprove, creditAutoCancelWindowHours: windowHours }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "credit-settings"] });
+      toast({ title: "Credit settings saved" });
+      setAutoApprove(null);
+      setCancelWindow("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6" /></div>;
+
+  return (
+    <Card data-testid="card-credit-settings">
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2"><Coins className="h-4 w-4" /> Credit Automation Settings — {clubName}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label className="text-sm font-medium">Auto-Approve Credit Requests</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Automatically approve credit claims when a member cancels within the allowed cancellation window
+            </p>
+          </div>
+          <Switch
+            data-testid="switch-auto-approve"
+            checked={effectiveAutoApprove}
+            onCheckedChange={(v) => setAutoApprove(v)}
+          />
+        </div>
+
+        {effectiveAutoApprove && (
+          <div className="space-y-2">
+            <Label htmlFor="cancelWindow" className="text-sm">Cancellation Window (hours)</Label>
+            <p className="text-xs text-muted-foreground">
+              Members who cancel within this many hours before session start will automatically receive a credit refund. Leave empty to require manual approval for all.
+            </p>
+            <Input
+              id="cancelWindow"
+              data-testid="input-cancel-window"
+              type="number"
+              min={1}
+              max={168}
+              placeholder="e.g., 24"
+              value={effectiveCancelWindow}
+              onChange={(e) => setCancelWindow(e.target.value)}
+              className="w-32"
+            />
+          </div>
+        )}
+
+        <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">How it works:</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>When enabled, credit claims from cancellations within the window are auto-approved</li>
+            <li>Credits are automatically added to the member's wallet</li>
+            <li>A ticket is created for audit purposes with resolution "APPROVED"</li>
+            <li>Members receive a notification with their updated credit balance</li>
+            <li>All automated actions are logged in the ticket timeline</li>
+          </ul>
+        </div>
+
+        <Button
+          data-testid="button-save-credit-settings"
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+          size="sm"
+        >
+          {saveMutation.isPending ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+          Save Credit Settings
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminNotifications() {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
@@ -482,6 +590,7 @@ export default function AdminNotifications() {
             <TabsTrigger value="bank" data-testid="tab-bank"><Building2 className="h-4 w-4 mr-1" /> Bank Details</TabsTrigger>
             <TabsTrigger value="logs" data-testid="tab-logs"><Clock className="h-4 w-4 mr-1" /> Delivery Logs</TabsTrigger>
             <TabsTrigger value="stats" data-testid="tab-stats"><Send className="h-4 w-4 mr-1" /> Stats</TabsTrigger>
+            <TabsTrigger value="credits" data-testid="tab-credits"><Coins className="h-4 w-4 mr-1" /> Credits</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings">
@@ -498,6 +607,10 @@ export default function AdminNotifications() {
 
           <TabsContent value="stats">
             <StatsPanel clubId={effectiveClubId} />
+          </TabsContent>
+
+          <TabsContent value="credits">
+            <CreditSettingsPanel clubId={effectiveClubId} clubName={effectiveClubName} />
           </TabsContent>
         </Tabs>
       )}

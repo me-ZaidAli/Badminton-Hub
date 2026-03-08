@@ -157,6 +157,8 @@ export const clubs = pgTable("clubs", {
   premiumPaymentReference: text("premium_payment_reference"),
   sportTypes: jsonb("sport_types").$type<string[]>().default(["badminton"]),
   socialLinks: jsonb("social_links").$type<{ platform: string; url: string }[]>().default([]),
+  creditAutoApprove: boolean("credit_auto_approve").default(false).notNull(),
+  creditAutoCancelWindowHours: integer("credit_auto_cancel_window_hours"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1043,7 +1045,7 @@ export type InsertDiscountCodeAssignment = z.infer<typeof insertDiscountCodeAssi
 
 // === Ticketing System ===
 export const ticketStatusEnum = pgEnum("ticket_status", ["SUBMITTED", "UNDER_REVIEW", "RESPONDED", "AWAITING_USER", "RESOLVED", "CLOSED"]);
-export const ticketCategoryEnum = pgEnum("ticket_category", ["CONCERN", "COMPLAINT", "SUGGESTION", "GENERAL", "SAFEGUARDING", "BAN_APPEAL"]);
+export const ticketCategoryEnum = pgEnum("ticket_category", ["CONCERN", "COMPLAINT", "SUGGESTION", "GENERAL", "SAFEGUARDING", "BAN_APPEAL", "CREDIT_CLAIM"]);
 export const ticketPriorityEnum = pgEnum("ticket_priority", ["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
 export const tickets = pgTable("tickets", {
@@ -1057,8 +1059,12 @@ export const tickets = pgTable("tickets", {
   category: ticketCategoryEnum("category").notNull(),
   priority: ticketPriorityEnum("priority").default("MEDIUM").notNull(),
   status: ticketStatusEnum("status").default("SUBMITTED").notNull(),
+  resolution: text("resolution"),
   isConfidential: boolean("is_confidential").default(false).notNull(),
+  isArchived: boolean("is_archived").default(false).notNull(),
   linkedBanUserId: integer("linked_ban_user_id").references(() => users.id),
+  linkedSessionId: integer("linked_session_id").references(() => sessions.id),
+  creditAmount: integer("credit_amount"),
   lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
   autoCloseAt: timestamp("auto_close_at"),
   closedAt: timestamp("closed_at"),

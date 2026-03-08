@@ -1677,6 +1677,27 @@ function JoinSessionModal({
 }) {
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set([user?.id]));
+  const [creditMode, setCreditMode] = useState<"none" | "full" | "partial">("none");
+  const [partialCreditAmount, setPartialCreditAmount] = useState("");
+
+  const { data: creditData, isLoading: creditLoading } = useQuery<{ balance: number }>({
+    queryKey: ["/api/credits/balance", session.clubId],
+    queryFn: async () => {
+      const res = await fetch(`/api/credits/balance?clubId=${session.clubId}`, { credentials: "include" });
+      if (!res.ok) return { balance: 0 };
+      return res.json();
+    },
+    enabled: open && !!session.clubId,
+  });
+
+  const creditBalance = creditData?.balance || 0;
+  const totalFee = session.sessionFee != null ? session.sessionFee * selectedIds.size : 0;
+
+  const creditToApply = creditMode === "full"
+    ? Math.min(creditBalance, totalFee)
+    : creditMode === "partial"
+    ? Math.min(Math.round(parseFloat(partialCreditAmount || "0") * 100), creditBalance, totalFee)
+    : 0;
 
   const clubJuniors = juniors.filter((j: any) => {
     return true;
@@ -1714,17 +1735,34 @@ function JoinSessionModal({
         paymentMethod: "NONE",
       }));
       const res = await apiRequest("POST", `/api/sessions/${session.id}/join-multi`, { attendees });
-      return res.json();
+      const data = await res.json();
+
+      if (creditToApply > 0 && data.signups?.length > 0) {
+        try {
+          await apiRequest("POST", "/api/credits/apply", {
+            clubId: session.clubId,
+            sessionId: session.id,
+            amount: creditToApply,
+          });
+        } catch (creditErr: any) {
+          console.error("Credit application failed:", creditErr);
+        }
+      }
+
+      return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/credits/balance", session.clubId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
       const signedUp = data.signups?.length || 0;
       const errs = data.errors?.length || 0;
       if (signedUp > 0) {
+        const creditMsg = creditToApply > 0 ? ` £${(creditToApply / 100).toFixed(2)} credit applied.` : "";
         toast({
           title: "Signed Up",
-          description: `${signedUp} ${signedUp === 1 ? "person" : "people"} signed up for ${session.title || "session"}.${errs > 0 ? ` ${errs} could not be added.` : ""}`,
+          description: `${signedUp} ${signedUp === 1 ? "person" : "people"} signed up for ${session.title || "session"}.${creditMsg}${errs > 0 ? ` ${errs} could not be added.` : ""}`,
         });
       }
       if (errs > 0 && signedUp === 0) {
@@ -1819,8 +1857,89 @@ function JoinSessionModal({
               Session fee: <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span> per person
               {selectedIds.size > 0 && (
                 <span className="ml-1">
-                  (Total: <span className="font-medium">£{((session.sessionFee * selectedIds.size) / 100).toFixed(2)}</span>)
+                  (Total: <span className="font-medium">£{(totalFee / 100).toFixed(2)}</span>)
                 </span>
+              )}
+            </div>
+          )}
+
+          {!creditLoading && creditBalance > 0 && session.sessionFee != null && selectedIds.size > 0 && (
+            <div className="rounded-md border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 space-y-3" data-testid="credit-prompt">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  You have £{(creditBalance / 100).toFixed(2)} credit available
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Session fee: £{(totalFee / 100).toFixed(2)}. Would you like to apply credit?
+              </p>
+              <div className="flex flex-col gap-2">
+                <div
+                  className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                    creditMode === "none" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => setCreditMode("none")}
+                  data-testid="credit-option-skip"
+                >
+                  <Checkbox
+                    checked={creditMode === "none"}
+                    onCheckedChange={() => setCreditMode("none")}
+                  />
+                  <span className="text-sm">Skip - don't apply credit</span>
+                </div>
+                <div
+                  className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                    creditMode === "full" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => setCreditMode("full")}
+                  data-testid="credit-option-full"
+                >
+                  <Checkbox
+                    checked={creditMode === "full"}
+                    onCheckedChange={() => setCreditMode("full")}
+                  />
+                  <span className="text-sm">
+                    Apply full credit (£{(Math.min(creditBalance, totalFee) / 100).toFixed(2)})
+                  </span>
+                </div>
+                <div
+                  className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                    creditMode === "partial" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => setCreditMode("partial")}
+                  data-testid="credit-option-partial"
+                >
+                  <Checkbox
+                    checked={creditMode === "partial"}
+                    onCheckedChange={() => setCreditMode("partial")}
+                  />
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-sm">Apply partial:</span>
+                    {creditMode === "partial" && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">£</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max={(Math.min(creditBalance, totalFee) / 100).toFixed(2)}
+                          value={partialCreditAmount}
+                          onChange={(e) => setPartialCreditAmount(e.target.value)}
+                          className="w-24"
+                          placeholder="0.00"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid="input-partial-credit"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {creditToApply > 0 && (
+                <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium text-center">
+                  £{(creditToApply / 100).toFixed(2)} credit will be applied. Remaining to pay: £{((totalFee - creditToApply) / 100).toFixed(2)}
+                </div>
               )}
             </div>
           )}
