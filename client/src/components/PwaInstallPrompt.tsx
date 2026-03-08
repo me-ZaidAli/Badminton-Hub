@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { Download, X, Smartphone, Share, Plus, ArrowUp } from "lucide-react";
+import { Download, X, Smartphone, Share, Plus, ArrowUp, Copy, Check } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -131,13 +132,31 @@ export function PwaInstallBanner() {
   );
 }
 
-function IosInstallGuide({ onClose }: { onClose: () => void }) {
+function IosInstallGuideContent({ onClose }: { onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
   const usingChrome = /CriOS/.test(navigator.userAgent);
   const usingFirefox = /FxiOS/.test(navigator.userAgent);
   const notSafari = usingChrome || usingFirefox || !isSafari();
 
+  const copyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const input = document.createElement("input");
+      input.value = window.location.href;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60" onClick={onClose} style={{ position: "fixed" }}>
       <div
         className="w-full max-w-md mx-4 mb-8 rounded-2xl bg-card border border-border p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom-5 duration-300"
         onClick={(e) => e.stopPropagation()}
@@ -156,62 +175,80 @@ function IosInstallGuide({ onClose }: { onClose: () => void }) {
         </div>
 
         {notSafari && (
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3" data-testid="safari-warning">
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 space-y-2" data-testid="safari-warning">
             <p className="text-xs text-amber-400 font-medium">
-              Open this page in <strong>Safari</strong> to install the app. {usingChrome ? "Chrome" : usingFirefox ? "Firefox" : "This browser"} on iPhone/iPad doesn't support app installation.
+              You need to use <strong>Safari</strong> to install the app. {usingChrome ? "Chrome" : usingFirefox ? "Firefox" : "This browser"} on iPhone/iPad doesn't support app installation.
             </p>
-            <p className="text-[11px] text-amber-400/70 mt-1">
-              Copy this URL and paste it in Safari to continue.
-            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8 text-xs gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              onClick={copyUrl}
+              data-testid="button-copy-url"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "URL Copied! Now open Safari and paste it" : "Copy URL to open in Safari"}
+            </Button>
           </div>
         )}
 
-        <div className="space-y-3">
-          <div className="flex items-start gap-3" data-testid="ios-step-1">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-primary">1</span>
+        {!notSafari && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-3" data-testid="ios-step-1">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">1</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Tap the Share button</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Look for the <Share className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> icon at the bottom of Safari
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium">Tap the Share button</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Look for the <Share className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> icon at the bottom of Safari
-              </p>
+            <div className="flex items-start gap-3" data-testid="ios-step-2">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">2</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Scroll down and tap "Add to Home Screen"</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Find <Plus className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> <strong>Add to Home Screen</strong> in the share menu
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3" data-testid="ios-step-3">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">3</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Tap "Add" in the top right</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Club Master will appear on your home screen like a native app
+                </p>
+              </div>
             </div>
           </div>
-          <div className="flex items-start gap-3" data-testid="ios-step-2">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-primary">2</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Tap "Add to Home Screen"</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Scroll down in the share menu to find <Plus className="inline h-3.5 w-3.5 mx-0.5 align-text-bottom" /> <strong>Add to Home Screen</strong>
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3" data-testid="ios-step-3">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-primary">3</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Tap "Add"</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Club Master will appear on your home screen like a native app
-              </p>
-            </div>
-          </div>
-        </div>
+        )}
 
-        <div className="flex items-center gap-2 pt-1">
-          <ArrowUp className="h-4 w-4 text-muted-foreground animate-bounce" />
-          <p className="text-[11px] text-muted-foreground">The app will work offline and open in full screen</p>
-        </div>
+        {!notSafari && (
+          <div className="flex items-center gap-2 pt-1">
+            <ArrowUp className="h-4 w-4 text-muted-foreground animate-bounce" />
+            <p className="text-[11px] text-muted-foreground">The app will work offline and open in full screen</p>
+          </div>
+        )}
 
         <Button size="sm" className="w-full" onClick={onClose} data-testid="button-close-ios-guide">
           Got it
         </Button>
       </div>
     </div>
+  );
+}
+
+function IosInstallGuide({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <IosInstallGuideContent onClose={onClose} />,
+    document.body
   );
 }
 
