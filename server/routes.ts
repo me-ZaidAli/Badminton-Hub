@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers } from "@shared/schema";
-import { eq, and, sql, desc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations } from "@shared/schema";
+import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { matchModeEnum } from "@shared/schema";
@@ -27559,6 +27559,484 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating incident:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === TRIAL ONBOARDING SYSTEM ===
+
+  app.post("/api/trial-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { clubId, selfAssessedLevel, experience, preferredDays, referralId } = req.body;
+      if (!clubId) return res.status(400).json({ message: "Club is required" });
+
+      const existing = await storage.getTrialPlayerByUserId(req.user!.id);
+      if (existing) return res.status(409).json({ message: "Trial record already exists" });
+
+      const trial = await storage.createTrialPlayer({
+        userId: req.user!.id,
+        clubId,
+        selfAssessedLevel: selfAssessedLevel || null,
+        experience: experience || null,
+        preferredDays: preferredDays || null,
+        referralId: referralId || null,
+        status: "PENDING",
+      });
+
+      const admins = await db.select().from(users).where(or(eq(users.role, "OWNER"), eq(users.role, "ADMIN")));
+      for (const admin of admins) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "trial_registration",
+          title: "New Trial Player",
+          message: `${req.user!.fullName} has registered as a trial player.`,
+          linkUrl: "/admin/trials",
+        });
+      }
+
+      res.status(201).json(trial);
+    } catch (err: any) {
+      console.error("Error creating trial player:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/trial-players/me", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const trial = await storage.getTrialPlayerByUserId(req.user!.id);
+      if (!trial) return res.json(null);
+
+      const club = await storage.getClub(trial.clubId);
+      let sessionDetails = null;
+      if (trial.assignedSessionId) {
+        const [sess] = await db.select().from(sessions).where(eq(sessions.id, trial.assignedSessionId)).limit(1);
+        if (sess) {
+          const [venue] = await db.select().from(venues).where(eq(venues.id, sess.venueId)).limit(1);
+          sessionDetails = { ...sess, venueName: venue?.name || null };
+        }
+      }
+      let observerName = null;
+      if (trial.observerUserId) {
+        const [obs] = await db.select().from(users).where(eq(users.id, trial.observerUserId)).limit(1);
+        observerName = obs?.fullName || null;
+      }
+      let evaluation = null;
+      const ev = await storage.getTrialEvaluation(trial.id);
+      if (ev) evaluation = ev;
+
+      res.json({
+        ...trial,
+        clubName: club?.name || null,
+        session: sessionDetails,
+        observerName,
+        evaluation,
+      });
+    } catch (err: any) {
+      console.error("Error getting trial player:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/trial-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const all = await storage.getAllTrialPlayers();
+      res.json(all);
+    } catch (err: any) {
+      console.error("Error getting trial players:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/trial-players/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const [trialUser] = await db.select().from(users).where(eq(users.id, trial.userId)).limit(1);
+      const club = await storage.getClub(trial.clubId);
+      let sessionDetails = null;
+      if (trial.assignedSessionId) {
+        const [sess] = await db.select().from(sessions).where(eq(sessions.id, trial.assignedSessionId)).limit(1);
+        if (sess) {
+          const [venue] = await db.select().from(venues).where(eq(venues.id, sess.venueId)).limit(1);
+          sessionDetails = { ...sess, venueName: venue?.name || null };
+        }
+      }
+      let observerName = null;
+      if (trial.observerUserId) {
+        const [obs] = await db.select().from(users).where(eq(users.id, trial.observerUserId)).limit(1);
+        observerName = obs?.fullName || null;
+      }
+      const evaluation = await storage.getTrialEvaluation(trial.id);
+
+      let referralSource = null;
+      if (trial.referralId) {
+        const [ref] = await db.select().from(referrals).where(eq(referrals.id, trial.referralId)).limit(1);
+        if (ref && ref.referrerId) {
+          const [referrer] = await db.select().from(users).where(eq(users.id, ref.referrerId)).limit(1);
+          referralSource = referrer?.fullName || null;
+        }
+      }
+
+      res.json({
+        ...trial,
+        userName: trialUser?.fullName || null,
+        userEmail: trialUser?.email || null,
+        clubName: club?.name || null,
+        session: sessionDetails,
+        observerName,
+        evaluation,
+        referralSource,
+      });
+    } catch (err: any) {
+      console.error("Error getting trial player detail:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/trial-players/:id/assign-session", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const { sessionId, observerUserId } = req.body;
+      if (!sessionId) return res.status(400).json({ message: "Session is required" });
+
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const updated = await storage.updateTrialPlayer(trial.id, {
+        assignedSessionId: sessionId,
+        observerUserId: observerUserId || null,
+        status: "SCHEDULED",
+        statusMessage: "Your trial session has been scheduled. Check the details below.",
+      } as any);
+
+      const [sess] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+      await storage.createNotification({
+        userId: trial.userId,
+        type: "trial_scheduled",
+        title: "Trial Session Scheduled",
+        message: `Your trial session has been scheduled: ${sess?.title || "Session"} on ${sess?.date ? new Date(sess.date).toLocaleDateString() : "TBD"}.`,
+        linkUrl: "/trial-dashboard",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error assigning trial session:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/trial-players/:id/mark-attended", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const updated = await storage.updateTrialPlayer(trial.id, {
+        status: "ATTENDED",
+        statusMessage: "You attended your trial session. Evaluation is in progress.",
+      } as any);
+
+      await storage.createNotification({
+        userId: trial.userId,
+        type: "trial_attended",
+        title: "Trial Attended",
+        message: "Your trial session has been marked as attended. Your evaluation is being prepared.",
+        linkUrl: "/trial-dashboard",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error marking trial attended:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/trial-players/:id/evaluate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const { technicalLevel, tacticalUnderstanding, movementFootwork, matchAwareness, communicationAttitude, notes } = req.body;
+
+      const scores = [technicalLevel, tacticalUnderstanding, movementFootwork, matchAwareness, communicationAttitude];
+      if (scores.some((s: any) => typeof s !== "number" || s < 1 || s > 10)) {
+        return res.status(400).json({ message: "All scores must be between 1 and 10" });
+      }
+
+      const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+      const overallScore = avg.toFixed(1);
+
+      let recommendation: string;
+      if (avg >= 8) {
+        recommendation = "Recommended for Dragon Badminton Club membership";
+      } else if (avg >= 5) {
+        recommendation = "Recommended for Badminton Performance Group training";
+      } else {
+        recommendation = "Not suitable for club sessions at this time";
+      }
+
+      const evaluation = await storage.createTrialEvaluation({
+        trialPlayerId: trial.id,
+        evaluatorUserId: user.id,
+        technicalLevel,
+        tacticalUnderstanding,
+        movementFootwork,
+        matchAwareness,
+        communicationAttitude,
+        overallScore,
+        recommendation,
+        notes: notes || null,
+      });
+
+      await storage.updateTrialPlayer(trial.id, {
+        status: "EVALUATED",
+        statusMessage: "Your trial evaluation is complete. Awaiting final decision.",
+      } as any);
+
+      await storage.createNotification({
+        userId: trial.userId,
+        type: "trial_evaluated",
+        title: "Trial Evaluation Complete",
+        message: "Your trial has been evaluated. A final decision will be communicated shortly.",
+        linkUrl: "/trial-dashboard",
+      });
+
+      res.json(evaluation);
+    } catch (err: any) {
+      console.error("Error evaluating trial player:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/trial-players/:id/decide", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const { decision, adminOverrideDecision, statusMessage: customMessage } = req.body;
+      if (!["APPROVED", "REDIRECTED", "REJECTED"].includes(decision)) {
+        return res.status(400).json({ message: "Decision must be APPROVED, REDIRECTED, or REJECTED" });
+      }
+
+      const statusMap: Record<string, string> = {
+        APPROVED: "APPROVED",
+        REDIRECTED: "REDIRECTED",
+        REJECTED: "REJECTED",
+      };
+
+      let message = "";
+      if (decision === "APPROVED") {
+        message = customMessage || "Congratulations! You have been approved to join the club. Please confirm your membership below.";
+      } else if (decision === "REDIRECTED") {
+        message = customMessage || "Based on your evaluation, we recommend you join the Badminton Performance Group training sessions to develop your skills further.";
+      } else {
+        message = customMessage || "Thank you for attending the trial. Unfortunately, we are unable to offer you a place at this time.";
+      }
+
+      if (adminOverrideDecision) {
+        const evaluation = await storage.getTrialEvaluation(trial.id);
+        if (evaluation) {
+          await db.update(trialEvaluations)
+            .set({ adminOverrideDecision })
+            .where(eq(trialEvaluations.id, evaluation.id));
+        }
+      }
+
+      const updated = await storage.updateTrialPlayer(trial.id, {
+        status: statusMap[decision] as any,
+        finalDecision: decision,
+        statusMessage: message,
+      } as any);
+
+      const notifTitle = decision === "APPROVED" ? "Trial Approved!" :
+                         decision === "REDIRECTED" ? "Training Recommendation" : "Trial Result";
+
+      await storage.createNotification({
+        userId: trial.userId,
+        type: "trial_decision",
+        title: notifTitle,
+        message,
+        linkUrl: "/trial-dashboard",
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error deciding trial:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/trial-players/confirm-join", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const trial = await storage.getTrialPlayerByUserId(req.user!.id);
+      if (!trial) return res.status(404).json({ message: "No trial record found" });
+      if (trial.finalDecision !== "APPROVED") return res.status(400).json({ message: "Trial not approved" });
+
+      const existingProfile = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, trial.clubId)))
+        .limit(1);
+
+      if (existingProfile.length === 0) {
+        await db.insert(playerProfiles).values({
+          userId: req.user!.id,
+          clubId: trial.clubId,
+          clubRole: "PLAYER",
+          membershipStatus: "APPROVED",
+          playerStatus: "ACTIVE",
+          category: "D",
+          grade: "C3",
+          rankingPoints: 1000,
+          matchesPlayed: 0,
+          matchesWon: 0,
+        } as any);
+      } else {
+        await db.update(playerProfiles)
+          .set({ membershipStatus: "APPROVED", playerStatus: "ACTIVE" } as any)
+          .where(eq(playerProfiles.id, existingProfile[0].id));
+      }
+
+      await storage.updateTrialPlayer(trial.id, {
+        statusMessage: "Welcome! You are now a full member. Enjoy all club features.",
+      } as any);
+
+      if (trial.referralId) {
+        await db.update(referrals).set({ status: "APPROVED" } as any).where(eq(referrals.id, trial.referralId));
+      }
+
+      const admins = await db.select().from(users).where(or(eq(users.role, "OWNER"), eq(users.role, "ADMIN")));
+      for (const admin of admins) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "trial_joined",
+          title: "Trial Player Joined",
+          message: `${req.user!.fullName} has confirmed their club membership after passing the trial.`,
+          linkUrl: "/admin/trials",
+        });
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error confirming trial join:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/trial-players/referral-funnel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const allTrials = await storage.getAllTrialPlayers();
+      const withReferral = allTrials.filter(t => t.referralId);
+      const scheduled = allTrials.filter(t => ["SCHEDULED", "ATTENDED", "EVALUATED", "APPROVED", "REDIRECTED", "REJECTED"].includes(t.status));
+      const completed = allTrials.filter(t => ["ATTENDED", "EVALUATED", "APPROVED", "REDIRECTED", "REJECTED"].includes(t.status));
+      const passed = allTrials.filter(t => t.finalDecision === "APPROVED");
+      const joined = allTrials.filter(t => t.finalDecision === "APPROVED" && t.statusMessage?.includes("full member"));
+
+      const referrerStats: Record<string, { name: string; total: number; passed: number }> = {};
+      for (const t of withReferral) {
+        if (t.referralId) {
+          const [ref] = await db.select().from(referrals).where(eq(referrals.id, t.referralId)).limit(1);
+          if (ref && ref.referrerId) {
+            const [referrer] = await db.select().from(users).where(eq(users.id, ref.referrerId)).limit(1);
+            const key = String(ref.referrerId);
+            if (!referrerStats[key]) referrerStats[key] = { name: referrer?.fullName || "Unknown", total: 0, passed: 0 };
+            referrerStats[key].total++;
+            if (t.finalDecision === "APPROVED") referrerStats[key].passed++;
+          }
+        }
+      }
+
+      res.json({
+        funnel: {
+          registered: allTrials.length,
+          referralLinked: withReferral.length,
+          scheduled: scheduled.length,
+          completed: completed.length,
+          passed: passed.length,
+          joined: joined.length,
+        },
+        topReferrers: Object.values(referrerStats).sort((a, b) => b.passed - a.passed).slice(0, 10),
+      });
+    } catch (err: any) {
+      console.error("Error getting referral funnel:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/trial-players/:id/session-recommendations", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
+      if (!trial) return res.status(404).json({ message: "Trial player not found" });
+
+      const now = new Date();
+      const upcomingSessions = await db.select({
+        session: sessions,
+        venue: venues,
+      }).from(sessions)
+        .innerJoin(venues, eq(sessions.venueId, venues.id))
+        .where(and(
+          eq(sessions.clubId, trial.clubId),
+          gt(sessions.date, now),
+        ))
+        .orderBy(asc(sessions.date))
+        .limit(20);
+
+      const dayNames = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+
+      const scored = upcomingSessions.map(({ session: s, venue: v }) => {
+        let score = 0;
+        if (trial.preferredDays && trial.preferredDays.length > 0 && s.date) {
+          const sessionDay = dayNames[new Date(s.date).getDay()];
+          if (trial.preferredDays.map((d: string) => d.toUpperCase()).includes(sessionDay)) score += 3;
+        }
+        if (trial.selfAssessedLevel) {
+          const level = trial.selfAssessedLevel.toUpperCase();
+          const mode = s.matchMode;
+          if (level === "BEGINNER" && mode === "SOCIAL") score += 2;
+          if (level === "INTERMEDIATE" && mode === "SOCIAL") score += 1;
+          if (level === "ADVANCED" && mode === "COMPETITIVE") score += 2;
+          if (level === "COMPETITIVE" && mode === "COMPETITIVE") score += 2;
+        }
+        return {
+          sessionId: s.id,
+          title: s.title,
+          date: s.date,
+          startTime: s.startTime,
+          matchMode: s.matchMode,
+          venueName: v.name,
+          maxPlayers: s.maxPlayers,
+          score,
+        };
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+      res.json(scored.slice(0, 10));
+    } catch (err: any) {
+      console.error("Error getting session recommendations:", err);
       res.status(500).json({ message: err.message });
     }
   });

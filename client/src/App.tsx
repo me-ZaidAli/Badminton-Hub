@@ -11,13 +11,17 @@ import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { Loader2, Lock } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, createContext, useContext } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 import { IosFirstVisitPrompt } from "@/components/PwaInstallPrompt";
 import { useBackground } from "@/hooks/use-background";
 import { useTypography } from "@/hooks/use-typography";
 
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+
+export const TrialPlayerContext = createContext<{ isTrialPlayer: boolean; trialStatus: string | null }>({ isTrialPlayer: false, trialStatus: null });
+export function useTrialPlayer() { return useContext(TrialPlayerContext); }
 
 import Home from "@/pages/Home";
 import Pricing from "@/pages/Pricing";
@@ -112,6 +116,8 @@ const SocialMedia = lazy(() => import("@/pages/SocialMedia"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 const IncidentReports = lazy(() => import("@/pages/IncidentReports"));
+const TrialManagement = lazy(() => import("@/pages/admin/TrialManagement"));
+const TrialDashboard = lazy(() => import("@/pages/TrialDashboard"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -128,16 +134,32 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
+function PrivateRoute({ component: Component, allowTrial }: { component: React.ComponentType; allowTrial?: boolean }) {
   const { data: user, isLoading } = useUser();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
-  if (isLoading) {
+  const { data: trialData, isLoading: trialLoading } = useQuery({
+    queryKey: ["/api/trial-players/me"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/trial-players/me", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  if (isLoading || (user && trialLoading)) {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
 
   if (!user) {
     setLocation("/login");
+    return null;
+  }
+
+  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+  if (isActiveTrial && !allowTrial && location !== "/trial-dashboard") {
+    setLocation("/trial-dashboard");
     return null;
   }
 
@@ -448,7 +470,7 @@ function Router() {
         <PrivateRoute component={InboxPage} />
       </Route>
       <Route path="/notifications">
-        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationsPage /></Suspense>} />
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationsPage /></Suspense>} allowTrial />
       </Route>
       <Route path="/tickets">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Tickets /></Suspense>} />
@@ -607,9 +629,15 @@ function Router() {
       <Route path="/admin/recognition-cards">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><RecognitionCards /></Suspense>} />
       </Route>
+      <Route path="/admin/trials">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><TrialManagement /></Suspense>} />
+      </Route>
 
       <Route path="/incidents">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><IncidentReports /></Suspense>} />
+      </Route>
+      <Route path="/trial-dashboard">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TrialDashboard /></Suspense>} allowTrial />
       </Route>
 
       {/* Super Admin Routes - OWNER only */}

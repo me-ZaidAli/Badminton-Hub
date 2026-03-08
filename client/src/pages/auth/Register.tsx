@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRegister } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,10 +12,29 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Link, useLocation, useSearch } from "wouter";
-import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone, FileText } from "lucide-react";
+import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone, FileText, UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+
+const DAYS_OF_WEEK = [
+  { value: "Monday", label: "Mon" },
+  { value: "Tuesday", label: "Tue" },
+  { value: "Wednesday", label: "Wed" },
+  { value: "Thursday", label: "Thu" },
+  { value: "Friday", label: "Fri" },
+  { value: "Saturday", label: "Sat" },
+  { value: "Sunday", label: "Sun" },
+] as const;
+
+const SKILL_LEVELS = [
+  { value: "BEGINNER", label: "Beginner" },
+  { value: "INTERMEDIATE", label: "Intermediate" },
+  { value: "ADVANCED", label: "Advanced" },
+  { value: "COMPETITIVE", label: "Competitive" },
+] as const;
 
 const ACQUISITION_OPTIONS = [
   { value: "FACEBOOK", label: "Facebook" },
@@ -41,11 +61,32 @@ const formSchema = z.object({
   parentGuardianEmail: z.string().optional(),
   acquisitionSource: z.string().min(1, "Please tell us how you heard about us"),
   acquisitionSourceOther: z.string().optional(),
+  isTrialPlayer: z.boolean().default(false),
+  trialClubId: z.string().optional(),
+  selfAssessedLevel: z.string().optional(),
+  trialExperience: z.string().optional(),
+  preferredDays: z.array(z.string()).default([]),
   confirmAccurate: z.boolean().refine(val => val === true, { message: "You must confirm your information is accurate" }),
   acceptTerms: z.boolean().refine(val => val === true, { message: "You must agree to the Terms & Conditions" }),
   acceptPrivacy: z.boolean().refine(val => val === true, { message: "You must agree to the Privacy Policy" }),
   parentalConsent: z.boolean().optional(),
 }).refine(
+  (data) => {
+    if (data.isTrialPlayer) {
+      return !!data.trialClubId && data.trialClubId.length > 0;
+    }
+    return true;
+  },
+  { message: "Please select a club for your trial", path: ["trialClubId"] }
+).refine(
+  (data) => {
+    if (data.isTrialPlayer) {
+      return !!data.selfAssessedLevel && data.selfAssessedLevel.length > 0;
+    }
+    return true;
+  },
+  { message: "Please select your skill level", path: ["selfAssessedLevel"] }
+).refine(
   (data) => {
     if (data.isJunior) {
       return !!data.parentGuardianName && data.parentGuardianName.length >= 2;
@@ -141,6 +182,11 @@ export default function Register() {
       parentGuardianEmail: "",
       acquisitionSource: "",
       acquisitionSourceOther: "",
+      isTrialPlayer: false,
+      trialClubId: "",
+      selfAssessedLevel: "",
+      trialExperience: "",
+      preferredDays: [],
       confirmAccurate: false,
       acceptTerms: false,
       acceptPrivacy: false,
@@ -149,7 +195,13 @@ export default function Register() {
   });
 
   const isJunior = form.watch("isJunior");
+  const isTrialPlayer = form.watch("isTrialPlayer");
   const acquisitionSource = form.watch("acquisitionSource");
+
+  const { data: clubsList } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/clubs"],
+    enabled: isTrialPlayer,
+  });
 
   useEffect(() => {
     if (referralCode.trim() && referralValid === true) {
@@ -209,8 +261,28 @@ export default function Register() {
             });
           } catch {}
         }
-        toast({ title: "Account created", description: "Welcome! Complete your profile and browse clubs to get started." });
-        setLocation("/clubs");
+        if (values.isTrialPlayer && values.trialClubId) {
+          try {
+            const referralRes = referralCode.trim() ? await fetch(`/api/referrals/validate/${encodeURIComponent(referralCode.trim().toUpperCase())}`, { credentials: "include" }).then(r => r.json()).catch(() => null) : null;
+            await fetch("/api/trial-players", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clubId: parseInt(values.trialClubId),
+                selfAssessedLevel: values.selfAssessedLevel || null,
+                experience: values.trialExperience || null,
+                preferredDays: values.preferredDays.length > 0 ? values.preferredDays : null,
+                referralId: referralRes?.referralId || null,
+              }),
+              credentials: "include",
+            });
+          } catch {}
+        }
+        const toastDesc = values.isTrialPlayer
+          ? "Your trial registration has been submitted. Check your Trial Dashboard for updates."
+          : "Welcome! Complete your profile and browse clubs to get started.";
+        toast({ title: "Account created", description: toastDesc });
+        setLocation(values.isTrialPlayer ? "/trial-dashboard" : "/clubs");
       })
       .catch(err => {
         console.error(err);
@@ -467,6 +539,154 @@ export default function Register() {
                   </CardContent>
                 </Card>
               )}
+
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  Are you joining as a Trial Player?
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select "Yes" if you'd like to attend a trial session before committing to a club membership.
+                </p>
+                <FormField
+                  control={form.control}
+                  name="isTrialPlayer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroup
+                          value={field.value ? "yes" : "no"}
+                          onValueChange={(val) => field.onChange(val === "yes")}
+                          className="flex gap-4"
+                          data-testid="radio-trial-player"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="no" id="trial-no" data-testid="radio-trial-no" />
+                            <Label htmlFor="trial-no" className="cursor-pointer">No</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="yes" id="trial-yes" data-testid="radio-trial-yes" />
+                            <Label htmlFor="trial-yes" className="cursor-pointer">Yes</Label>
+                          </div>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {isTrialPlayer && (
+                  <div className="space-y-4 mt-2 pt-3 border-t border-border">
+                    <FormField
+                      control={form.control}
+                      name="trialClubId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Which club would you like to trial at?</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-trial-club">
+                                <SelectValue placeholder="Select a club" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {(clubsList || []).map((club) => (
+                                <SelectItem key={club.id} value={String(club.id)} data-testid={`select-item-club-${club.id}`}>
+                                  {club.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="selfAssessedLevel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Your skill level</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-skill-level">
+                                <SelectValue placeholder="Select your level" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {SKILL_LEVELS.map((level) => (
+                                <SelectItem key={level.value} value={level.value} data-testid={`select-item-level-${level.value.toLowerCase()}`}>
+                                  {level.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="trialExperience"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Playing experience (optional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Tell us about your badminton experience, how long you've been playing, competitions etc."
+                              className="resize-none text-sm"
+                              rows={3}
+                              {...field}
+                              data-testid="input-trial-experience"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="preferredDays"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preferred days to play (optional)</FormLabel>
+                          <div className="flex flex-wrap gap-2">
+                            {DAYS_OF_WEEK.map((day) => {
+                              const isSelected = field.value?.includes(day.value);
+                              return (
+                                <button
+                                  key={day.value}
+                                  type="button"
+                                  onClick={() => {
+                                    const current = field.value || [];
+                                    if (isSelected) {
+                                      field.onChange(current.filter((d: string) => d !== day.value));
+                                    } else {
+                                      field.onChange([...current, day.value]);
+                                    }
+                                  }}
+                                  className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background border-border hover-elevate"
+                                  }`}
+                                  data-testid={`button-day-${day.value.toLowerCase()}`}
+                                >
+                                  {day.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
                 <div className="flex items-center gap-2 text-sm font-medium">

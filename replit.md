@@ -80,3 +80,12 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
 - **Badminton England**: Player insurance information.
+
+### Trial Onboarding & Evaluation System
+- **Database Tables**: `trial_players` (tracks trial lifecycle: PENDING → SCHEDULED → ATTENDED → EVALUATED → APPROVED/REDIRECTED/REJECTED), `trial_evaluations` (5-category scoring: technical, tactical, movement, awareness, communication)
+- **Registration**: "Are you joining as a Trial Player?" toggle on registration form with self-assessed level, experience, preferred days, and club selection. Referral IDs auto-linked.
+- **Trial Dashboard** (`/trial-dashboard`): Player-facing 6-stage visual progress tracker, session details, evaluation results, admin messages, and Join Club confirmation button on approval.
+- **Admin Trial Command Center** (`/admin/trials`): Full management dashboard with filterable/sortable trial player table, session assignment modal with AI recommendations, evaluation panel with 5x 1-10 scoring sliders, auto-calculated overall scores with recommendation thresholds (8-10: Club membership, 5-7: BPG training, <5: Not suitable), final decision workflow, and referral conversion funnel analytics.
+- **Access Control**: Trial players are restricted to Trial Dashboard and Notifications only. PrivateRoute checks `/api/trial-players/me` and redirects non-approved trial players. Sidebar and BottomNavBar show limited navigation.
+- **Automated Notifications**: Status change notifications at every stage (registration, scheduled, attended, evaluated, decision).
+- **Key Files**: `shared/schema.ts` (trialPlayers, trialEvaluations), `server/storage.ts` (trial CRUD), `server/routes.ts` (trial API endpoints), `client/src/pages/TrialDashboard.tsx`, `client/src/pages/admin/TrialManagement.tsx`, `client/src/pages/auth/Register.tsx`

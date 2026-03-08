@@ -2244,3 +2244,49 @@ export type InsertIncidentReport = z.infer<typeof insertIncidentReportSchema>;
 export const insertIncidentAffectedMemberSchema = createInsertSchema(incidentAffectedMembers).omit({ id: true });
 export type IncidentAffectedMember = typeof incidentAffectedMembers.$inferSelect;
 export type InsertIncidentAffectedMember = z.infer<typeof insertIncidentAffectedMemberSchema>;
+
+export const trialStatusEnum = pgEnum("trial_status", [
+  "PENDING", "SCHEDULED", "ATTENDED", "EVALUATED", "APPROVED", "REDIRECTED", "REJECTED"
+]);
+
+export const trialPlayers = pgTable("trial_players", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  referralId: integer("referral_id").references(() => referrals.id),
+  status: trialStatusEnum("status").default("PENDING").notNull(),
+  assignedSessionId: integer("assigned_session_id").references(() => sessions.id),
+  observerUserId: integer("observer_user_id").references(() => users.id),
+  selfAssessedLevel: text("self_assessed_level"),
+  experience: text("experience"),
+  preferredDays: text("preferred_days").array(),
+  adminNotes: text("admin_notes"),
+  statusMessage: text("status_message"),
+  finalDecision: text("final_decision"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const trialEvaluations = pgTable("trial_evaluations", {
+  id: serial("id").primaryKey(),
+  trialPlayerId: integer("trial_player_id").references(() => trialPlayers.id).notNull(),
+  evaluatorUserId: integer("evaluator_user_id").references(() => users.id).notNull(),
+  technicalLevel: integer("technical_level").notNull(),
+  tacticalUnderstanding: integer("tactical_understanding").notNull(),
+  movementFootwork: integer("movement_footwork").notNull(),
+  matchAwareness: integer("match_awareness").notNull(),
+  communicationAttitude: integer("communication_attitude").notNull(),
+  overallScore: text("overall_score").notNull(),
+  recommendation: text("recommendation").notNull(),
+  adminOverrideDecision: text("admin_override_decision"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTrialPlayerSchema = createInsertSchema(trialPlayers).omit({ id: true, createdAt: true, updatedAt: true });
+export type TrialPlayer = typeof trialPlayers.$inferSelect;
+export type InsertTrialPlayer = z.infer<typeof insertTrialPlayerSchema>;
+
+export const insertTrialEvaluationSchema = createInsertSchema(trialEvaluations).omit({ id: true, createdAt: true });
+export type TrialEvaluation = typeof trialEvaluations.$inferSelect;
+export type InsertTrialEvaluation = z.infer<typeof insertTrialEvaluationSchema>;

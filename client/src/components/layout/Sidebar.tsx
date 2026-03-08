@@ -47,6 +47,7 @@ import {
   KeyRound,
   Share2,
   Activity,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -107,6 +108,32 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
   const adminClubId = useAdminClubId();
   const { isPremium, planStatus, isSuperAdmin } = useClubPlan(adminClubId);
 
+  const { data: trialData } = useQuery({
+    queryKey: ["/api/trial-players/me"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/trial-players/me", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+
+  if (isActiveTrial) {
+    const trialItems: NavItem[] = [
+      { href: "/trial-dashboard", label: "Trial Dashboard", icon: LayoutDashboard, group: "main" },
+      { href: "/notifications", label: "Notifications", icon: Bell, group: "comms" },
+    ];
+
+    const groups: NavGroup[] = [
+      { label: "Trial Onboarding", items: trialItems.filter(i => i.group === "main") },
+      { label: "Communication", items: trialItems.filter(i => i.group === "comms") },
+    ];
+
+    return { groups, isPremium: false, planStatus: "FREE" };
+  }
+
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
   const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
 
@@ -140,12 +167,14 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/trials", label: "Trial Players", icon: UserCheck, group: "admin" });
     items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
     items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/trials", label: "Trial Players", icon: UserCheck, group: "admin" });
     items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
     items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
   }

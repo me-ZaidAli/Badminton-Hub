@@ -98,7 +98,46 @@ export function BottomNavBar() {
   const selectedItems = useBottomNavItems();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const { data: trialData } = useQuery({
+    queryKey: ["/api/trial-players/me"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/trial-players/me", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
   if (!user) return null;
+
+  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+
+  if (isActiveTrial) {
+    const trialNavItems = [
+      { id: "trial", label: "Trial", icon: LayoutDashboard, href: "/trial-dashboard" },
+      { id: "notifications", label: "Alerts", icon: Bell, href: "/notifications" },
+    ];
+    return (
+      <>
+        <div className="md:hidden h-16" />
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border/40" data-testid="bottom-nav-bar">
+          <div className="flex items-center justify-around h-16 px-1">
+            {trialNavItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.id} href={item.href}>
+                  <button className={cn("flex flex-col items-center justify-center gap-0.5 min-w-[56px] py-1 px-2 rounded-xl transition-all", isActive ? "text-primary" : "text-muted-foreground")} data-testid={`bottom-nav-${item.id}`}>
+                    <item.icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} strokeWidth={isActive ? 2.5 : 2} />
+                    <span className={cn("text-[10px] leading-tight", isActive ? "font-bold" : "font-medium")}>{item.label}</span>
+                  </button>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </>
+    );
+  }
 
   const navItems = selectedItems
     .map((id: string) => ALL_NAV_OPTIONS.find((o) => o.id === id))

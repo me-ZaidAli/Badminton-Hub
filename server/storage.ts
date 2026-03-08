@@ -4,6 +4,7 @@ import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   creditLedger, inventoryMovements,
+  trialPlayers, trialEvaluations,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
   type Match, type Announcement, type InsertAnnouncement, type Club, type InsertClub,
@@ -15,7 +16,9 @@ import {
   type Review, type InsertReview, type ContactMessage, type InsertContactMessage,
   type Notification, type InsertNotification,
   type PolicyAcceptance, type InsertPolicyAcceptance,
-  type AnnouncementComment
+  type AnnouncementComment,
+  type TrialPlayer, type InsertTrialPlayer,
+  type TrialEvaluation, type InsertTrialEvaluation
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray, isNull } from "drizzle-orm";
 import session from "express-session";
@@ -293,6 +296,15 @@ export interface IStorage {
   // Policy Acceptances
   createPolicyAcceptance(acceptance: InsertPolicyAcceptance): Promise<PolicyAcceptance>;
   getPolicyAcceptances(userId: number): Promise<PolicyAcceptance[]>;
+
+  // Trial Players
+  createTrialPlayer(data: InsertTrialPlayer): Promise<TrialPlayer>;
+  getTrialPlayerByUserId(userId: number): Promise<TrialPlayer | null>;
+  getTrialPlayerById(id: number): Promise<TrialPlayer | null>;
+  getAllTrialPlayers(): Promise<any[]>;
+  updateTrialPlayer(id: number, data: Partial<TrialPlayer>): Promise<TrialPlayer>;
+  createTrialEvaluation(data: InsertTrialEvaluation): Promise<TrialEvaluation>;
+  getTrialEvaluation(trialPlayerId: number): Promise<TrialEvaluation | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1955,6 +1967,77 @@ export class DatabaseStorage implements IStorage {
       orderBy: [sessionSignups.waitingListPosition],
     });
     return results as any;
+  }
+
+  async createTrialPlayer(data: InsertTrialPlayer): Promise<TrialPlayer> {
+    const [result] = await db.insert(trialPlayers).values(data).returning();
+    return result;
+  }
+
+  async getTrialPlayerByUserId(userId: number): Promise<TrialPlayer | null> {
+    const [result] = await db.select().from(trialPlayers).where(eq(trialPlayers.userId, userId)).limit(1);
+    return result || null;
+  }
+
+  async getTrialPlayerById(id: number): Promise<TrialPlayer | null> {
+    const [result] = await db.select().from(trialPlayers).where(eq(trialPlayers.id, id)).limit(1);
+    return result || null;
+  }
+
+  async getAllTrialPlayers(): Promise<any[]> {
+    const results = await db
+      .select({
+        trial: trialPlayers,
+        user: users,
+        club: clubs,
+        session: sessions,
+        observer: sql<string>`observer_u."full_name"`,
+      })
+      .from(trialPlayers)
+      .innerJoin(users, eq(trialPlayers.userId, users.id))
+      .innerJoin(clubs, eq(trialPlayers.clubId, clubs.id))
+      .leftJoin(sessions, eq(trialPlayers.assignedSessionId, sessions.id))
+      .leftJoin(sql`users as observer_u`, sql`${trialPlayers.observerUserId} = observer_u.id`)
+      .orderBy(desc(trialPlayers.createdAt));
+
+    const trialIds = results.map(r => r.trial.id);
+    let evalMap: Record<number, any> = {};
+    if (trialIds.length > 0) {
+      const evals = await db.select().from(trialEvaluations).where(inArray(trialEvaluations.trialPlayerId, trialIds));
+      for (const e of evals) {
+        evalMap[e.trialPlayerId] = e;
+      }
+    }
+
+    return results.map(r => ({
+      ...r.trial,
+      userName: r.user.fullName,
+      userEmail: r.user.email,
+      clubName: r.club.name,
+      sessionTitle: r.session?.title || null,
+      sessionDate: r.session?.date || null,
+      sessionStartTime: r.session?.startTime || null,
+      observerName: r.observer || null,
+      evaluation: evalMap[r.trial.id] || null,
+    }));
+  }
+
+  async updateTrialPlayer(id: number, data: Partial<TrialPlayer>): Promise<TrialPlayer> {
+    const [result] = await db.update(trialPlayers)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(trialPlayers.id, id))
+      .returning();
+    return result;
+  }
+
+  async createTrialEvaluation(data: InsertTrialEvaluation): Promise<TrialEvaluation> {
+    const [result] = await db.insert(trialEvaluations).values(data).returning();
+    return result;
+  }
+
+  async getTrialEvaluation(trialPlayerId: number): Promise<TrialEvaluation | null> {
+    const [result] = await db.select().from(trialEvaluations).where(eq(trialEvaluations.trialPlayerId, trialPlayerId)).limit(1);
+    return result || null;
   }
 }
 
