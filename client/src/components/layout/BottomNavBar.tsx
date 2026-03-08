@@ -38,6 +38,7 @@ import {
   Check,
   RotateCcw,
   Shield,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -212,10 +213,77 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
     queryKey: ["/api/badge-counts"],
     enabled: !!user,
   });
+  const { data: trialData } = useQuery({
+    queryKey: ["/api/trial-players/me"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/trial-players/me", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
 
   if (!user) return null;
 
+  const isActiveTrial = trialData && trialData.status !== "APPROVED";
   const isAdminOrOwner = user.role === "OWNER" || user.role === "ADMIN";
+
+  if (isActiveTrial) {
+    const trialSections = [
+      {
+        label: "Trial Onboarding",
+        items: [
+          { href: "/trial-dashboard", label: "Trial Dashboard", icon: LayoutDashboard },
+        ],
+      },
+      {
+        label: "Communication",
+        items: [
+          { href: "/notifications", label: "Notifications", icon: Bell },
+        ],
+      },
+    ];
+
+    return (
+      <div className="flex flex-col h-full">
+        <SheetHeader className="px-4 pb-3 border-b border-border/40">
+          <SheetTitle className="text-left text-lg font-bold">Menu</SheetTitle>
+          <SheetDescription className="sr-only">Navigation menu</SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-2 py-3">
+          {trialSections.map((section) => (
+            <div key={section.label} className="mb-4">
+              <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{section.label}</p>
+              {section.items.map((item) => {
+                const isActive = location === item.href;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <button
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm transition-colors",
+                        isActive ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted"
+                      )}
+                      data-testid={`mobile-menu-${item.href.replace(/\//g, "-")}`}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </button>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border/40 p-4">
+          <Button variant="outline" className="w-full" onClick={() => { logout(); onClose(); }} data-testid="button-mobile-logout">
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const sections = [
     {
@@ -269,6 +337,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
   if (isAdminOrOwner) {
     const adminItems: any[] = [
       { href: "/admin", label: "Admin Panel", icon: ShieldCheck, badge: (badgeCounts?.pendingMemberships || 0) + (badgeCounts?.outstandingPayments || 0) },
+      { href: "/admin/trials", label: "Trial Players", icon: UserCheck },
       { href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award },
     ];
     if (user.role === "ADMIN" || user.role === "OWNER") {
