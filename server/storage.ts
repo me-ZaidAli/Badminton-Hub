@@ -494,20 +494,38 @@ export class DatabaseStorage implements IStorage {
     // Simple implementation for now, ignoring dates
     const allSessions = await db.select().from(sessions).orderBy(desc(sessions.date));
     
-    // Get signup counts and venue data
-    const sessionsWithData = await Promise.all(allSessions.map(async (s) => {
-      const countResult = await db.select({ count: sql<number>`count(*)` })
-        .from(sessionSignups)
-        .where(and(eq(sessionSignups.sessionId, s.id), eq(sessionSignups.signupStatus, "CONFIRMED")));
-      
-      let venue: Venue | undefined;
-      if (s.venueId) {
-        const [v] = await db.select().from(venues).where(eq(venues.id, s.venueId));
-        venue = v;
-      }
-      
-      return { ...s, signupCount: Number(countResult[0]?.count || 0), venue };
-    }));
+    const sessionIds = allSessions.map(s => s.id);
+
+    const allSignupRows = sessionIds.length > 0 ? await db.select({
+      sessionId: sessionSignups.sessionId,
+      signupStatus: sessionSignups.signupStatus,
+      fullName: users.fullName,
+    })
+      .from(sessionSignups)
+      .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+      .innerJoin(users, eq(playerProfiles.userId, users.id))
+      .where(inArray(sessionSignups.sessionId, sessionIds)) : [];
+
+    const signupsBySession = new Map<number, { fullName: string }[]>();
+    for (const row of allSignupRows) {
+      if (row.signupStatus !== "CONFIRMED" && row.signupStatus !== null && row.signupStatus !== undefined) continue;
+      if (!signupsBySession.has(row.sessionId)) signupsBySession.set(row.sessionId, []);
+      signupsBySession.get(row.sessionId)!.push({ fullName: row.fullName });
+    }
+
+    const venueIds = [...new Set(allSessions.map(s => s.venueId).filter(Boolean))] as number[];
+    const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
+    const venueMap = new Map(venueRows.map(v => [v.id, v]));
+
+    const sessionsWithData = allSessions.map((s) => {
+      const confirmed = signupsBySession.get(s.id) || [];
+      return {
+        ...s,
+        signupCount: confirmed.length,
+        signupNames: confirmed.map(r => r.fullName),
+        venue: s.venueId ? venueMap.get(s.venueId) : undefined,
+      };
+    });
 
     return sessionsWithData;
   }

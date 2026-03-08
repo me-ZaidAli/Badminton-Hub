@@ -1327,6 +1327,24 @@ export default function Sessions() {
                   )}
                 </div>
 
+                {(session as any).signupNames?.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/30" data-testid={`rsvp-list-${session.id}`}>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Going</p>
+                    <div className="flex flex-wrap gap-1">
+                      {(session as any).signupNames.slice(0, 8).map((name: string, idx: number) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-muted/60 rounded-full px-2 py-0.5 text-[11px] font-medium text-foreground/80" data-testid={`rsvp-name-${session.id}-${idx}`}>
+                          {name.split(" ")[0]}
+                        </span>
+                      ))}
+                      {(session as any).signupNames.length > 8 && (
+                        <span className="inline-flex items-center bg-muted/40 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground" data-testid={`rsvp-overflow-${session.id}`}>
+                          +{(session as any).signupNames.length - 8} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {(session.sessionFee != null || session.shuttlecockType) && (
                   <div className="mt-2 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
                     {session.sessionFee != null && (
