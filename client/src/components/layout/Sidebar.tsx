@@ -38,7 +38,6 @@ import {
   Rocket,
   Palette,
   Lock,
-  CreditCard,
   ImageIcon,
   Type,
   ChevronLeft,
@@ -48,7 +47,6 @@ import {
   KeyRound,
   Share2,
   Activity,
-  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -168,16 +166,10 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
-    items.push({ href: "/admin/trials", label: "Trial Players", icon: UserCheck, group: "admin" });
-    items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
-    items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
-    items.push({ href: "/admin/trials", label: "Trial Players", icon: UserCheck, group: "admin" });
-    items.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard, group: "admin" });
-    items.push({ href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award, group: "admin", premiumOnly: true });
   }
 
   const isAdminRole = user?.role === "OWNER" || user?.role === "ADMIN";

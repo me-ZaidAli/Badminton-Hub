@@ -342,6 +342,7 @@ export default function AdminDashboard() {
   const peopleSections: AdminTile[] = [
     ...(!isOrganiserOnly ? [{ href: "/admin/players", label: "Player Management", description: "Add, edit, and manage player profiles", icon: UserPlus, color: "text-purple-500", bg: "bg-purple-500/10" }] : []),
     { href: "/sessions", label: "Session Management", description: "Create sessions, manage signups and attendance", icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { href: "/admin/trials", label: "Trial Players", description: "Manage trial registrations, evaluations, and decisions", icon: UserCheck, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     ...(!isOrganiserOnly ? [{ href: "/admin/inactive-members", label: "Inactive Members", description: "Re-engage or manage inactive players", icon: Users, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/import-members", label: "Import Members", description: "Bulk upload members via CSV", icon: Upload, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
   ];
@@ -349,6 +350,7 @@ export default function AdminDashboard() {
   const financeSections: AdminTile[] = [
     ...(!isOrganiserOnly ? [{ href: "/admin/financials", label: "Financials", description: "Track payments, fees, and revenue", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/memberships", label: "Memberships", description: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" }] : []),
+    { href: "/admin/billing", label: "Billing & Plan", description: "Manage your club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
     { href: "/admin/league", label: "League Management", description: "Fixtures, teams, and results", icon: Swords, color: "text-blue-500", bg: "bg-blue-500/10" },
   ];
 
@@ -370,6 +372,7 @@ export default function AdminDashboard() {
   ];
 
   const exclusiveSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/recognition-cards", label: "Recognition Cards", description: "Award and manage player recognition cards", icon: Award, color: "text-rose-500", bg: "bg-rose-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/black-card", label: "Black Card Management", description: "Grant Ultra Exclusive access to members", icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
   ];
 
