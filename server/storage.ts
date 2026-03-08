@@ -499,33 +499,25 @@ export class DatabaseStorage implements IStorage {
     const allSignupRows = sessionIds.length > 0 ? await db.select({
       sessionId: sessionSignups.sessionId,
       signupStatus: sessionSignups.signupStatus,
-      fullName: users.fullName,
     })
       .from(sessionSignups)
-      .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
-      .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(inArray(sessionSignups.sessionId, sessionIds)) : [];
 
-    const signupsBySession = new Map<number, { fullName: string }[]>();
+    const countsBySession = new Map<number, number>();
     for (const row of allSignupRows) {
       if (row.signupStatus !== "CONFIRMED" && row.signupStatus !== null && row.signupStatus !== undefined) continue;
-      if (!signupsBySession.has(row.sessionId)) signupsBySession.set(row.sessionId, []);
-      signupsBySession.get(row.sessionId)!.push({ fullName: row.fullName });
+      countsBySession.set(row.sessionId, (countsBySession.get(row.sessionId) || 0) + 1);
     }
 
     const venueIds = [...new Set(allSessions.map(s => s.venueId).filter(Boolean))] as number[];
     const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
     const venueMap = new Map(venueRows.map(v => [v.id, v]));
 
-    const sessionsWithData = allSessions.map((s) => {
-      const confirmed = signupsBySession.get(s.id) || [];
-      return {
-        ...s,
-        signupCount: confirmed.length,
-        signupNames: confirmed.map(r => r.fullName),
-        venue: s.venueId ? venueMap.get(s.venueId) : undefined,
-      };
-    });
+    const sessionsWithData = allSessions.map((s) => ({
+      ...s,
+      signupCount: countsBySession.get(s.id) || 0,
+      venue: s.venueId ? venueMap.get(s.venueId) : undefined,
+    }));
 
     return sessionsWithData;
   }

@@ -1306,13 +1306,13 @@ export default function Sessions() {
 
                 <div className="mt-3.5 flex items-center gap-2 flex-wrap" data-testid={`stats-row-${session.id}`}>
                   <div
-                    className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors"
+                    className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-muted/80 transition-colors"
                     onClick={() => setDetailsSession(session)}
                     data-testid={`button-rsvp-${session.id}`}
                   >
                     <Users className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium">{session.signupCount || 0}/{session.maxPlayers}</span>
-                    <span className="text-[10px] text-muted-foreground">Players</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 cursor-pointer">RSVP</Badge>
                   </div>
                   <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
                     <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1326,24 +1326,6 @@ export default function Sessions() {
                     </div>
                   )}
                 </div>
-
-                {(session as any).signupNames?.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border/30" data-testid={`rsvp-list-${session.id}`}>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Going</p>
-                    <div className="flex flex-wrap gap-1">
-                      {(session as any).signupNames.slice(0, 8).map((name: string, idx: number) => (
-                        <span key={idx} className="inline-flex items-center gap-1 bg-muted/60 rounded-full px-2 py-0.5 text-[11px] font-medium text-foreground/80" data-testid={`rsvp-name-${session.id}-${idx}`}>
-                          {name.split(" ")[0]}
-                        </span>
-                      ))}
-                      {(session as any).signupNames.length > 8 && (
-                        <span className="inline-flex items-center bg-muted/40 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground" data-testid={`rsvp-overflow-${session.id}`}>
-                          +{(session as any).signupNames.length - 8} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 {(session.sessionFee != null || session.shuttlecockType) && (
                   <div className="mt-2 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
