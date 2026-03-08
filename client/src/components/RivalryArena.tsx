@@ -5,7 +5,7 @@ import { getAvatarUrl } from "@/components/AvatarPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
   Swords, Sparkles, Brain, Loader2, Trophy,
-  TrendingUp, TrendingDown, Calendar
+  TrendingUp, Calendar
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -14,19 +14,16 @@ import {
 import maleSilhouetteSrc from "@assets/image_1773003848338.png";
 import femaleSilhouetteSrc from "@assets/image_1773003911695.png";
 
-function MaleSilhouette({ className = "" }: { className?: string }) {
-  return (
-    <img src={maleSilhouetteSrc} alt="Player silhouette" className={`${className} object-contain`} style={{ filter: "brightness(0) invert(0.45)" }} />
-  );
+function getPlayerImage(player: any) {
+  return player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
 }
 
-function FemaleSilhouette({ className = "" }: { className?: string }) {
-  return (
-    <img src={femaleSilhouetteSrc} alt="Player silhouette" className={`${className} object-contain`} style={{ filter: "brightness(0) invert(0.45)" }} />
-  );
+function getGenderSilhouette(gender?: string | null) {
+  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
+  return isFemale ? femaleSilhouetteSrc : maleSilhouetteSrc;
 }
 
-function ScoreRing({ percentage, color, size = 120 }: {
+function ScoreRing({ percentage, color, size = 100 }: {
   percentage: number; color: string; size?: number;
 }) {
   const [animated, setAnimated] = useState(0);
@@ -42,17 +39,17 @@ function ScoreRing({ percentage, color, size = 120 }: {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="7" />
         <circle
           cx={size/2} cy={size/2} r={r} fill="none"
-          stroke={color} strokeWidth="8" strokeLinecap="round"
+          stroke={color} strokeWidth="7" strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={offset}
           className="transition-all duration-1000 ease-out"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl sm:text-3xl font-black text-white">{Math.round(animated)}%</span>
-        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold">Win Rate</span>
+        <span className="text-xl sm:text-2xl font-black text-white">{Math.round(animated)}%</span>
+        <span className="text-[8px] text-slate-500 uppercase tracking-widest font-semibold">Win Rate</span>
       </div>
     </div>
   );
@@ -69,8 +66,8 @@ function StatBar({ label, value, maxValue, color }: {
 
   return (
     <div className="flex items-center gap-3" data-testid={`stat-bar-${label.toLowerCase().replace(/\s/g, '-')}`}>
-      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium w-20 shrink-0">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium w-16 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-1000 ease-out"
           style={{ width: `${animated}%`, background: `linear-gradient(90deg, ${color}, ${color}88)` }}
@@ -81,62 +78,162 @@ function StatBar({ label, value, maxValue, color }: {
   );
 }
 
-function PlayerCard({ player, stats, h2hWins, h2hTotal, color, accentColor, side }: {
-  player: any; stats: any; h2hWins: number; h2hTotal: number;
-  color: string; accentColor: string; side: "left" | "right";
+function HeroBanner({ player1, player2, p1Wins, p2Wins, totalMatches, color1, color2 }: {
+  player1: any; player2: any; p1Wins: number; p2Wins: number; totalMatches: number;
+  color1: string; color2: string;
 }) {
-  const avatarSrc = player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
-  const gender = player.playerProfiles?.[0]?.gender;
-  const grade = player.playerProfiles?.[0]?.grade || player.playerProfiles?.[0]?.category;
-  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
-  const SilhouetteIcon = isFemale ? FemaleSilhouette : MaleSilhouette;
-  const winRate = stats?.winRate || 0;
+  const p1Img = getPlayerImage(player1);
+  const p2Img = getPlayerImage(player2);
+  const p1Gender = player1.playerProfiles?.[0]?.gender;
+  const p2Gender = player2.playerProfiles?.[0]?.gender;
+  const p1Grade = player1.playerProfiles?.[0]?.grade || player1.playerProfiles?.[0]?.category;
+  const p2Grade = player2.playerProfiles?.[0]?.grade || player2.playerProfiles?.[0]?.category;
 
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl border border-white/[0.06]"
+      style={{ background: "linear-gradient(180deg, #0c1425 0%, #070d1a 100%)" }}
+      data-testid="hero-banner"
+    >
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/[0.06] via-transparent to-purple-600/[0.06]" />
+      <div className="absolute top-0 left-1/4 w-40 h-40 bg-indigo-500/[0.04] rounded-full blur-3xl" />
+      <div className="absolute top-0 right-1/4 w-40 h-40 bg-purple-500/[0.04] rounded-full blur-3xl" />
+
+      <div className="text-center pt-4 sm:pt-5 relative z-10">
+        <h2 className="text-base sm:text-lg font-black text-amber-400/90 uppercase tracking-[0.2em] leading-tight">
+          Head<br/>
+          <span className="text-[10px] sm:text-xs text-slate-500 tracking-[0.3em]">to</span><br/>
+          Head
+        </h2>
+      </div>
+
+      <div className="flex items-end justify-center relative z-10 mt-2">
+        <div className="flex-1 flex justify-center">
+          <div className="relative w-full max-w-[180px] sm:max-w-[200px]">
+            {p1Img ? (
+              <img
+                src={p1Img}
+                alt={player1.fullName}
+                className="w-full h-40 sm:h-52 object-cover object-top rounded-t-xl"
+                style={{ maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)" }}
+              />
+            ) : (
+              <div className="w-full h-40 sm:h-52 flex items-center justify-center">
+                <img
+                  src={getGenderSilhouette(p1Gender)}
+                  alt="Player silhouette"
+                  className="h-32 sm:h-44 object-contain"
+                  style={{ filter: "brightness(0) invert(0.35)" }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="absolute left-1/2 bottom-16 sm:bottom-20 -translate-x-1/2 z-20">
+          <div
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 shadow-2xl"
+            style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)", borderColor: "rgba(255,255,255,0.1)" }}
+          >
+            <Swords className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
+          </div>
+        </div>
+
+        <div className="flex-1 flex justify-center">
+          <div className="relative w-full max-w-[180px] sm:max-w-[200px]">
+            {p2Img ? (
+              <img
+                src={p2Img}
+                alt={player2.fullName}
+                className="w-full h-40 sm:h-52 object-cover object-top rounded-t-xl"
+                style={{ maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)" }}
+              />
+            ) : (
+              <div className="w-full h-40 sm:h-52 flex items-center justify-center">
+                <img
+                  src={getGenderSilhouette(p2Gender)}
+                  alt="Player silhouette"
+                  className="h-32 sm:h-44 object-contain"
+                  style={{ filter: "brightness(0) invert(0.35)" }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="relative z-10 pb-4 sm:pb-5">
+        <div className="flex items-start justify-center gap-4 sm:gap-8 px-4">
+          <div className="flex-1 text-center">
+            <h3 className="text-sm sm:text-lg font-black text-white uppercase tracking-wide leading-tight">{player1.fullName}</h3>
+            {p1Grade && (
+              <span
+                className="inline-block text-[10px] font-bold px-2 py-0.5 rounded mt-1"
+                style={{ background: `${color1}20`, color: color1 }}
+              >
+                {p1Grade}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 text-center">
+            <h3 className="text-sm sm:text-lg font-black text-white uppercase tracking-wide leading-tight">{player2.fullName}</h3>
+            {p2Grade && (
+              <span
+                className="inline-block text-[10px] font-bold px-2 py-0.5 rounded mt-1"
+                style={{ background: `${color2}20`, color: color2 }}
+              >
+                {p2Grade}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {totalMatches > 0 && (
+          <div className="flex items-center justify-center gap-6 sm:gap-10 mt-4 px-4">
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: color1 }}>{p1Wins}</p>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">Wins</p>
+            </div>
+            <div className="text-center">
+              <div className="w-px h-6 bg-slate-700 mx-auto mb-1" />
+              <p className="text-lg sm:text-xl font-black text-slate-600 tabular-nums">{totalMatches}</p>
+              <p className="text-[8px] text-slate-600 uppercase tracking-wider font-medium">Played</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: color2 }}>{p2Wins}</p>
+              <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">Wins</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${color1}, transparent 45%, transparent 55%, ${color2})` }} />
+    </div>
+  );
+}
+
+function StatsCard({ player, stats, h2hWins, h2hTotal, color, side }: {
+  player: any; stats: any; h2hWins: number; h2hTotal: number;
+  color: string; side: "left" | "right";
+}) {
+  const winRate = stats?.winRate || 0;
   const statItems = [
     { label: "Matches", value: stats?.matchesPlayed || 0 },
     { label: "Wins", value: stats?.matchesWon || 0 },
     { label: "Points", value: stats?.pointsScored || 0 },
     { label: "Sessions", value: stats?.sessionsAttended || 0 },
   ];
-
   const maxVal = Math.max(...statItems.map(s => s.value), 1);
 
   return (
     <div
-      className="flex-1 rounded-2xl border border-white/[0.06] p-4 sm:p-5 flex flex-col items-center gap-4"
+      className="flex-1 rounded-2xl border border-white/[0.06] p-3 sm:p-4 flex flex-col items-center gap-3"
       style={{ background: "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)" }}
-      data-testid={`player-card-${side}`}
+      data-testid={`stats-card-${side}`}
     >
-      <div className="w-full h-[3px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
+      <ScoreRing percentage={winRate} color={color} size={100} />
 
-      <div className="flex flex-col items-center gap-1">
-        <div className="relative">
-          <div
-            className="rounded-full p-[2.5px]"
-            style={{ background: `linear-gradient(135deg, ${color}, ${color}44)` }}
-          >
-            <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-[#0a0f1e]">
-              {avatarSrc && <AvatarImage src={avatarSrc} alt={player.fullName} className="object-cover" />}
-              <AvatarFallback className="bg-[#0c1322]">
-                <SilhouetteIcon className="h-10 w-10 sm:h-12 sm:w-12 text-slate-500" />
-              </AvatarFallback>
-            </Avatar>
-          </div>
-        </div>
-        <h3 className="text-sm sm:text-base font-bold text-white text-center leading-tight mt-1">{player.fullName}</h3>
-        {grade && (
-          <span
-            className="text-[10px] font-bold px-2.5 py-0.5 rounded-md"
-            style={{ background: `${color}18`, color: color, border: `1px solid ${color}30` }}
-          >
-            {grade}
-          </span>
-        )}
-      </div>
-
-      <ScoreRing percentage={winRate} color={color} size={110} />
-
-      <div className="w-full space-y-2.5 pt-1">
+      <div className="w-full space-y-2">
         {statItems.map(s => (
           <StatBar key={s.label} label={s.label} value={s.value} maxValue={maxVal} color={color} />
         ))}
@@ -341,38 +438,31 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
 
   return (
     <div className="space-y-4" data-testid="rivalry-arena">
-      <div className="text-center mb-2">
-        <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider">Player Performance Comparison</h2>
-        <div className="w-full h-[2px] rounded-full mt-2" style={{ background: `linear-gradient(90deg, ${COLOR1}, transparent 40%, transparent 60%, ${COLOR2})` }} />
-      </div>
+      <HeroBanner
+        player1={player1}
+        player2={player2}
+        p1Wins={p1Wins}
+        p2Wins={p2Wins}
+        totalMatches={totalMatches}
+        color1={COLOR1}
+        color2={COLOR2}
+      />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 relative">
-        <PlayerCard
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <StatsCard
           player={player1}
           stats={s1}
           h2hWins={p1Wins}
           h2hTotal={totalMatches}
           color={COLOR1}
-          accentColor={COLOR1}
           side="left"
         />
-
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center border-2 border-[#0a0f1e] shadow-xl"
-            style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)" }}
-          >
-            <span className="text-[10px] sm:text-xs font-black text-slate-400 uppercase">Vs</span>
-          </div>
-        </div>
-
-        <PlayerCard
+        <StatsCard
           player={player2}
           stats={s2}
           h2hWins={p2Wins}
           h2hTotal={totalMatches}
           color={COLOR2}
-          accentColor={COLOR2}
           side="right"
         />
       </div>
