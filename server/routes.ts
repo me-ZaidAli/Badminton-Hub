@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers } from "@shared/schema";
 import { eq, and, sql, desc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -14207,6 +14207,7 @@ export async function registerRoutes(
 
       let pendingRewards = 0;
       let pendingTickets = 0;
+      let pendingIncidents = 0;
       if (isOwner || adminClubIds.length > 0) {
         const pendingFilter = isOwner
           ? eq(playerRewardLedger.status, "REQUESTED")
@@ -14223,6 +14224,14 @@ export async function registerRoutes(
           .from(tickets)
           .where(pendingTicketFilter!);
         pendingTickets = pendingTicketResult[0]?.count || 0;
+
+        const pendingIncidentFilter = isOwner
+          ? and(eq(incidentReports.status, "PENDING_REVIEW"), eq(incidentReports.isArchived, false))
+          : and(eq(incidentReports.status, "PENDING_REVIEW"), eq(incidentReports.isArchived, false), inArray(incidentReports.clubId, adminClubIds));
+        const pendingIncidentResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(incidentReports)
+          .where(pendingIncidentFilter!);
+        pendingIncidents = pendingIncidentResult[0]?.count || 0;
       }
 
       let myOutstandingPayments = 0;
@@ -14244,6 +14253,7 @@ export async function registerRoutes(
         announcements: announcementsCount,
         pendingRewards,
         pendingTickets,
+        pendingIncidents,
         upcomingSessions,
         pendingMemberships,
         outstandingPayments,
@@ -14252,7 +14262,7 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
     }
   });
 
@@ -27143,6 +27153,362 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
+
+  // === INCIDENT REPORTS ===
+  app.post("/api/incidents", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const { clubId, sessionId, reporterRole, reporterContact, incidentDate, incidentTime, location, locationOther, incidentType, incidentTypeOther, description, severity, medicalAttentionRequired, hospitalAmbulanceCalled, immediateActions, immediateActionsOther, followUpActions, followUpActionsOther, affectedMembers } = req.body;
+
+      if (!clubId || !reporterRole || !incidentDate || !location || !incidentType || !description || !severity) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const reportNumber = "INC-" + randomBytes(4).toString("hex").toUpperCase();
+
+      const [incident] = await db.insert(incidentReports).values({
+        reportNumber,
+        clubId,
+        sessionId: sessionId || null,
+        reportedByUserId: userId,
+        reporterRole,
+        reporterContact: reporterContact || null,
+        incidentDate: new Date(incidentDate),
+        incidentTime: incidentTime || null,
+        location,
+        locationOther: locationOther || null,
+        incidentType,
+        incidentTypeOther: incidentTypeOther || null,
+        description,
+        severity,
+        medicalAttentionRequired: medicalAttentionRequired || false,
+        hospitalAmbulanceCalled: hospitalAmbulanceCalled || false,
+        immediateActions: immediateActions || null,
+        immediateActionsOther: immediateActionsOther || null,
+        followUpActions: followUpActions || null,
+        followUpActionsOther: followUpActionsOther || null,
+        status: "PENDING_REVIEW",
+        isArchived: false,
+      }).returning();
+
+      if (affectedMembers && Array.isArray(affectedMembers)) {
+        for (const member of affectedMembers) {
+          await db.insert(incidentAffectedMembers).values({
+            incidentId: incident.id,
+            userId: member.userId,
+            injuredBodyParts: member.injuredBodyParts || null,
+            injuryTypes: member.injuryTypes || null,
+            notes: member.notes || null,
+          });
+        }
+      }
+
+      const severityToPriority: Record<string, string> = {
+        EMERGENCY: "URGENT",
+        SERIOUS: "HIGH",
+        MODERATE: "MEDIUM",
+        MINOR: "LOW",
+      };
+      const ticketPriority = severityToPriority[severity] || "MEDIUM";
+      const ticketNumber = "TKT-" + randomBytes(4).toString("hex").toUpperCase();
+
+      const [linkedTicket] = await db.insert(tickets).values({
+        ticketNumber,
+        clubId,
+        createdByUserId: userId,
+        subject: `Incident Report: ${reportNumber}`,
+        description: `Auto-created ticket for incident report ${reportNumber}. Severity: ${severity}. ${description}`,
+        category: "GENERAL",
+        priority: ticketPriority as any,
+        status: "SUBMITTED",
+      }).returning();
+
+      await db.update(incidentReports).set({ linkedTicketId: linkedTicket.id }).where(eq(incidentReports.id, incident.id));
+
+      const adminMembers = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+        .where(and(eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+      const clubOwner = await db.select({ ownerId: clubs.ownerId }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      const adminUserIds = new Set(adminMembers.map(a => a.userId));
+      if (clubOwner[0]?.ownerId) adminUserIds.add(clubOwner[0].ownerId);
+
+      for (const adminUserId of adminUserIds) {
+        if (adminUserId === userId) continue;
+        await db.insert(notifications).values({
+          userId: adminUserId,
+          type: "incident_report",
+          title: "New Incident Report",
+          message: `Incident ${reportNumber} has been reported (${severity}). Please review.`,
+          linkUrl: `/admin/incidents/${incident.id}`,
+        });
+
+        if (severity === "SERIOUS" || severity === "EMERGENCY") {
+          await db.insert(notifications).values({
+            userId: adminUserId,
+            type: "incident_urgent",
+            title: `URGENT: ${severity} Incident Reported`,
+            message: `A ${severity.toLowerCase()} incident (${reportNumber}) requires immediate attention. ${description.substring(0, 100)}...`,
+            linkUrl: `/admin/incidents/${incident.id}`,
+          });
+        }
+      }
+
+      res.json({ ...incident, linkedTicketId: linkedTicket.id, linkedTicket });
+    } catch (err: any) {
+      console.error("Error creating incident report:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/incidents", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const isOwner = req.user!.role === "OWNER";
+      const { clubId, status, severity, isArchived } = req.query;
+      const showArchived = isArchived === "true";
+
+      const userClubIds = isOwner
+        ? (await db.select({ id: clubs.id }).from(clubs)).map(c => c.id)
+        : (await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")))).map(p => p.clubId);
+
+      if (userClubIds.length === 0) return res.json([]);
+
+      const conditions: any[] = [
+        inArray(incidentReports.clubId, clubId ? [Number(clubId)] : userClubIds),
+        eq(incidentReports.isArchived, showArchived),
+      ];
+      if (status) conditions.push(eq(incidentReports.status, status as any));
+      if (severity) conditions.push(eq(incidentReports.severity, severity as any));
+
+      const reporter = aliasedTable(users, "reporter");
+      const results = await db.select({
+        id: incidentReports.id,
+        reportNumber: incidentReports.reportNumber,
+        clubId: incidentReports.clubId,
+        sessionId: incidentReports.sessionId,
+        reportedByUserId: incidentReports.reportedByUserId,
+        reporterName: reporter.fullName,
+        reporterRole: incidentReports.reporterRole,
+        incidentDate: incidentReports.incidentDate,
+        incidentTime: incidentReports.incidentTime,
+        location: incidentReports.location,
+        incidentType: incidentReports.incidentType,
+        description: incidentReports.description,
+        severity: incidentReports.severity,
+        medicalAttentionRequired: incidentReports.medicalAttentionRequired,
+        hospitalAmbulanceCalled: incidentReports.hospitalAmbulanceCalled,
+        status: incidentReports.status,
+        isArchived: incidentReports.isArchived,
+        linkedTicketId: incidentReports.linkedTicketId,
+        createdAt: incidentReports.createdAt,
+        updatedAt: incidentReports.updatedAt,
+      })
+        .from(incidentReports)
+        .leftJoin(reporter, eq(incidentReports.reportedByUserId, reporter.id))
+        .where(and(...conditions))
+        .orderBy(desc(incidentReports.createdAt));
+
+      const incidentIds = results.map(r => r.id);
+      let affectedCounts: Record<number, number> = {};
+      if (incidentIds.length > 0) {
+        const counts = await db.select({
+          incidentId: incidentAffectedMembers.incidentId,
+          count: sql<number>`count(*)::int`,
+        }).from(incidentAffectedMembers)
+          .where(inArray(incidentAffectedMembers.incidentId, incidentIds))
+          .groupBy(incidentAffectedMembers.incidentId);
+        for (const c of counts) {
+          affectedCounts[c.incidentId] = c.count;
+        }
+      }
+
+      const resultsWithCounts = results.map(r => ({
+        ...r,
+        affectedMembersCount: affectedCounts[r.id] || 0,
+      }));
+
+      res.json(resultsWithCounts);
+    } catch (err: any) {
+      console.error("Error listing incidents:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/incidents/analytics/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    if (!isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+    try {
+      const allIncidents = await db.select().from(incidentReports).where(eq(incidentReports.clubId, clubId));
+      const total = allIncidents.length;
+
+      const bySeverity: Record<string, number> = {};
+      const byLocation: Record<string, number> = {};
+      const byIncidentType: Record<string, number> = {};
+      for (const inc of allIncidents) {
+        bySeverity[inc.severity] = (bySeverity[inc.severity] || 0) + 1;
+        byLocation[inc.location] = (byLocation[inc.location] || 0) + 1;
+        byIncidentType[inc.incidentType] = (byIncidentType[inc.incidentType] || 0) + 1;
+      }
+
+      const incidentIds = allIncidents.map(i => i.id);
+      let byBodyPart: Record<string, number> = {};
+      let byInjuryType: Record<string, number> = {};
+      let repeatIncidents: { userId: number; fullName: string; count: number }[] = [];
+
+      if (incidentIds.length > 0) {
+        const affectedRows = await db.select().from(incidentAffectedMembers)
+          .where(inArray(incidentAffectedMembers.incidentId, incidentIds));
+
+        for (const row of affectedRows) {
+          if (row.injuredBodyParts) {
+            for (const part of row.injuredBodyParts) {
+              byBodyPart[part] = (byBodyPart[part] || 0) + 1;
+            }
+          }
+          if (row.injuryTypes) {
+            for (const t of row.injuryTypes) {
+              byInjuryType[t] = (byInjuryType[t] || 0) + 1;
+            }
+          }
+        }
+
+        const userCounts = await db.select({
+          userId: incidentAffectedMembers.userId,
+          count: sql<number>`count(DISTINCT ${incidentAffectedMembers.incidentId})::int`,
+        }).from(incidentAffectedMembers)
+          .where(inArray(incidentAffectedMembers.incidentId, incidentIds))
+          .groupBy(incidentAffectedMembers.userId)
+          .having(sql`count(DISTINCT ${incidentAffectedMembers.incidentId}) > 1`);
+
+        if (userCounts.length > 0) {
+          const repeatUserIds = userCounts.map(u => u.userId);
+          const repeatUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, repeatUserIds));
+          const userMap = new Map(repeatUsers.map(u => [u.id, u.fullName]));
+          repeatIncidents = userCounts.map(u => ({
+            userId: u.userId,
+            fullName: userMap.get(u.userId) || "Unknown",
+            count: u.count,
+          }));
+        }
+      }
+
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+      const monthlyTrend = await db.select({
+        month: sql<string>`TO_CHAR(${incidentReports.createdAt}, 'YYYY-MM')`,
+        count: sql<number>`count(*)::int`,
+      }).from(incidentReports)
+        .where(and(eq(incidentReports.clubId, clubId), gte(incidentReports.createdAt, twelveMonthsAgo)))
+        .groupBy(sql`TO_CHAR(${incidentReports.createdAt}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${incidentReports.createdAt}, 'YYYY-MM')`);
+
+      res.json({
+        total,
+        bySeverity,
+        byBodyPart,
+        byInjuryType,
+        byLocation,
+        byIncidentType,
+        repeatIncidents,
+        monthlyTrend,
+      });
+    } catch (err: any) {
+      console.error("Error fetching incident analytics:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/incidents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const incidentId = Number(req.params.id);
+      const [incident] = await db.select().from(incidentReports).where(eq(incidentReports.id, incidentId));
+      if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, incident.clubId);
+      if (!isAdmin && incident.reportedByUserId !== req.user!.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const [reporter] = await db.select({ fullName: users.fullName, email: users.email }).from(users).where(eq(users.id, incident.reportedByUserId));
+
+      const affectedRows = await db.select({
+        id: incidentAffectedMembers.id,
+        incidentId: incidentAffectedMembers.incidentId,
+        userId: incidentAffectedMembers.userId,
+        injuredBodyParts: incidentAffectedMembers.injuredBodyParts,
+        injuryTypes: incidentAffectedMembers.injuryTypes,
+        notes: incidentAffectedMembers.notes,
+        fullName: users.fullName,
+      }).from(incidentAffectedMembers)
+        .leftJoin(users, eq(incidentAffectedMembers.userId, users.id))
+        .where(eq(incidentAffectedMembers.incidentId, incidentId));
+
+      let linkedTicket = null;
+      if (incident.linkedTicketId) {
+        const [ticket] = await db.select().from(tickets).where(eq(tickets.id, incident.linkedTicketId));
+        linkedTicket = ticket || null;
+      }
+
+      res.json({
+        ...incident,
+        reporterName: reporter?.fullName || "Unknown",
+        reporterEmail: reporter?.email || null,
+        affectedMembers: affectedRows,
+        linkedTicket,
+      });
+    } catch (err: any) {
+      console.error("Error fetching incident:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/incidents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const incidentId = Number(req.params.id);
+      const [incident] = await db.select().from(incidentReports).where(eq(incidentReports.id, incidentId));
+      if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, incident.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { status, adminNotes, assignedToUserId, followUpActions, followUpActionsOther, isArchived } = req.body;
+      const updates: any = { updatedAt: new Date() };
+      if (status !== undefined) updates.status = status;
+      if (adminNotes !== undefined) updates.adminNotes = adminNotes;
+      if (assignedToUserId !== undefined) updates.assignedToUserId = assignedToUserId;
+      if (followUpActions !== undefined) updates.followUpActions = followUpActions;
+      if (followUpActionsOther !== undefined) updates.followUpActionsOther = followUpActionsOther;
+      if (isArchived !== undefined) updates.isArchived = isArchived;
+
+      const [updated] = await db.update(incidentReports).set(updates).where(eq(incidentReports.id, incidentId)).returning();
+
+      if (status && status !== incident.status) {
+        await db.insert(notifications).values({
+          userId: incident.reportedByUserId,
+          type: "incident_update",
+          title: "Incident Report Updated",
+          message: `Your incident report ${incident.reportNumber} status has been updated to ${status.replace(/_/g, " ")}.`,
+          linkUrl: `/incidents/${incidentId}`,
+        });
+      }
+
+      if (isArchived === true && incident.linkedTicketId) {
+        await db.update(tickets).set({ isArchived: true }).where(eq(tickets.id, incident.linkedTicketId));
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating incident:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
 
   return httpServer;
 }

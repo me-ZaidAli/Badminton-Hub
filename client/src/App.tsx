@@ -111,6 +111,7 @@ const TypographyStudio = lazy(() => import("@/pages/TypographyStudio"));
 const SocialMedia = lazy(() => import("@/pages/SocialMedia"));
 const BlackCardManagement = lazy(() => import("@/pages/admin/BlackCardManagement"));
 const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
+const IncidentReports = lazy(() => import("@/pages/IncidentReports"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -605,6 +606,10 @@ function Router() {
       </Route>
       <Route path="/admin/recognition-cards">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><RecognitionCards /></Suspense>} />
+      </Route>
+
+      <Route path="/incidents">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><IncidentReports /></Suspense>} />
       </Route>
 
       {/* Super Admin Routes - OWNER only */}

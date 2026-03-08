@@ -2191,3 +2191,55 @@ export type InsertPlayerAchievement = z.infer<typeof insertPlayerAchievementSche
 export const insertPlayerCoachNoteSchema = createInsertSchema(playerCoachNotes).omit({ id: true, createdAt: true });
 export type PlayerCoachNote = typeof playerCoachNotes.$inferSelect;
 export type InsertPlayerCoachNote = z.infer<typeof insertPlayerCoachNoteSchema>;
+
+// === Incident Reports ===
+export const incidentSeverityEnum = pgEnum("incident_severity", ["MINOR", "MODERATE", "SERIOUS", "EMERGENCY"]);
+export const incidentStatusEnum = pgEnum("incident_status", ["PENDING_REVIEW", "UNDER_INVESTIGATION", "CLOSED"]);
+
+export const incidentReports = pgTable("incident_reports", {
+  id: serial("id").primaryKey(),
+  reportNumber: text("report_number").notNull().unique(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  sessionId: integer("session_id").references(() => sessions.id),
+  reportedByUserId: integer("reported_by_user_id").references(() => users.id).notNull(),
+  reporterRole: text("reporter_role").notNull(),
+  reporterContact: text("reporter_contact"),
+  incidentDate: timestamp("incident_date").notNull(),
+  incidentTime: text("incident_time"),
+  location: text("location").notNull(),
+  locationOther: text("location_other"),
+  incidentType: text("incident_type").notNull(),
+  incidentTypeOther: text("incident_type_other"),
+  description: text("description").notNull(),
+  severity: incidentSeverityEnum("severity").notNull(),
+  medicalAttentionRequired: boolean("medical_attention_required").default(false).notNull(),
+  hospitalAmbulanceCalled: boolean("hospital_ambulance_called").default(false).notNull(),
+  immediateActions: jsonb("immediate_actions").$type<string[]>(),
+  immediateActionsOther: text("immediate_actions_other"),
+  followUpActions: jsonb("follow_up_actions").$type<string[]>(),
+  followUpActionsOther: text("follow_up_actions_other"),
+  assignedToUserId: integer("assigned_to_user_id").references(() => users.id),
+  adminNotes: text("admin_notes"),
+  status: incidentStatusEnum("status").default("PENDING_REVIEW").notNull(),
+  isArchived: boolean("is_archived").default(false).notNull(),
+  linkedTicketId: integer("linked_ticket_id").references(() => tickets.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const incidentAffectedMembers = pgTable("incident_affected_members", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").references(() => incidentReports.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  injuredBodyParts: jsonb("injured_body_parts").$type<string[]>(),
+  injuryTypes: jsonb("injury_types").$type<string[]>(),
+  notes: text("notes"),
+});
+
+export const insertIncidentReportSchema = createInsertSchema(incidentReports).omit({ id: true, createdAt: true, updatedAt: true });
+export type IncidentReport = typeof incidentReports.$inferSelect;
+export type InsertIncidentReport = z.infer<typeof insertIncidentReportSchema>;
+
+export const insertIncidentAffectedMemberSchema = createInsertSchema(incidentAffectedMembers).omit({ id: true });
+export type IncidentAffectedMember = typeof incidentAffectedMembers.$inferSelect;
+export type InsertIncidentAffectedMember = z.infer<typeof insertIncidentAffectedMemberSchema>;
