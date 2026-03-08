@@ -33,6 +33,7 @@ import {
   FileText,
   Swords,
   LayoutDashboard,
+  Lightbulb,
   Baby,
   Heart,
   Rocket,
@@ -138,6 +139,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+    { href: "/my-insights", label: "My Insights", icon: Lightbulb, group: "main" },
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },

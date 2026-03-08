@@ -47,6 +47,7 @@ const PendingApproval = lazy(() => import("@/pages/PendingApproval"));
 const ExploreClubs = lazy(() => import("@/pages/explore/ExploreClubs"));
 const ExploreSessions = lazy(() => import("@/pages/explore/ExploreSessions"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
+const MyInsights = lazy(() => import("@/pages/MyInsights"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
@@ -417,6 +418,9 @@ function Router() {
       </Route>
       <Route path="/my-sessions">
         <PrivateRoute component={MySessions} />
+      </Route>
+      <Route path="/my-insights">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><MyInsights /></Suspense>} />
       </Route>
       <Route path="/juniors">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Juniors /></Suspense>} />
