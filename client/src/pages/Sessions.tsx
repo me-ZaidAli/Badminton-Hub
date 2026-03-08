@@ -16,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -615,6 +615,19 @@ export default function Sessions() {
     if (isPlatformAdmin) return "allowed";
     const m = memberships?.find(m => m.clubId === clubId);
     return m?.membershipStatus === "APPROVED" ? "allowed" : "denied";
+  };
+
+  const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+  const checkGradeEligibility = (session: any): boolean => {
+    if (!user) return true;
+    if (isPlatformAdmin || editableClubIds.has(session.clubId)) return true;
+    const allowed = session.allowedCategories;
+    if (!allowed || allowed.length === 0 || allowed.length >= ALL_GRADES.length) return true;
+    const profile = user.playerProfiles?.find((p: any) => p.clubId === session.clubId);
+    if (!profile) return false;
+    const playerGrade = profile?.grade || profile?.category;
+    if (!playerGrade) return false;
+    return allowed.includes(playerGrade);
   };
 
   const bulkDeleteMutation = useMutation({
@@ -1339,6 +1352,7 @@ export default function Sessions() {
                   const isPast = new Date(session.date) < now;
                   const isScheduledLater = (session as any).publishAt && new Date((session as any).publishAt) > new Date();
                   const hasAccess = getSessionAccess(session.clubId) === "allowed";
+                  const gradeEligible = checkGradeEligibility(session);
 
                   return (
                     <>
@@ -1394,6 +1408,11 @@ export default function Sessions() {
                                 {withdrawMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
                                 Decline
                               </Button>
+                            </div>
+                          ) : !gradeEligible ? (
+                            <div className="flex items-center gap-2 text-sm justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 py-2.5 px-3" data-testid={`grade-restriction-${session.id}`}>
+                              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <span className="text-amber-700 dark:text-amber-300 font-medium text-xs">Does not meet grading ({session.allowedCategories?.join(", ")})</span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">

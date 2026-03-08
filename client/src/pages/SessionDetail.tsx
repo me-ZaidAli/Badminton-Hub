@@ -348,6 +348,19 @@ export default function SessionDetail() {
     const m = memberships?.find(m => m.clubId === session.clubId);
     return m?.membershipStatus === "APPROVED";
   })();
+
+  const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+  const meetsGradeCriteria = (() => {
+    if (!user || !session) return true;
+    if (isOrganiser) return true;
+    const allowed = session.allowedCategories;
+    if (!allowed || allowed.length === 0 || allowed.length >= ALL_GRADES.length) return true;
+    const profile = user.playerProfiles?.find((p: any) => p.clubId === session.clubId);
+    if (!profile) return false;
+    const playerGrade = profile.grade || profile.category;
+    if (!playerGrade) return false;
+    return allowed.includes(playerGrade);
+  })();
   
   const confirmedOrWaitingPlayerIds = new Set(
     (signups || [])
@@ -461,6 +474,11 @@ export default function SessionDetail() {
             {session.sessionType === "JUNIORS_ONLY" && (
               <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                 Juniors {session.juniorAgeGroups?.length ? `(${session.juniorAgeGroups.join(", ")})` : ""}
+              </Badge>
+            )}
+            {session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < ALL_GRADES.length && (
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" data-testid="badge-allowed-grades">
+                Grades: {session.allowedCategories.join(", ")}
               </Badge>
             )}
             {session.isPrivate && (
@@ -1219,6 +1237,16 @@ export default function SessionDetail() {
                     Browse Clubs
                   </Button>
                 </Link>
+              </div>
+            ) : !meetsGradeCriteria ? (
+              <div className="space-y-2" data-testid="grade-restriction-warning">
+                <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                  <AlertTriangle className="w-4 h-4 mr-2" />
+                  Does Not Meet Grading
+                </Badge>
+                <p className="text-xs text-muted-foreground text-center">
+                  Your grade ({userProfileForClub?.grade || userProfileForClub?.category || "ungraded"}) does not meet the criteria for this session. Allowed grades: {session.allowedCategories?.join(", ")}.
+                </p>
               </div>
             ) : (
               <Button 
