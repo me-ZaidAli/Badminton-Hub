@@ -111,6 +111,8 @@ export default function SessionDetail() {
   const [editVenueId, setEditVenueId] = useState<number | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
+  const [adminDashboardTab, setAdminDashboardTab] = useState("payments");
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
   const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
   const { mutate: recoverMatches, isPending: isRecovering } = useRecoverMatches();
@@ -1322,24 +1324,86 @@ export default function SessionDetail() {
         </Card>
       </div>
 
-      {isOrganiser && confirmedSignups.length > 0 && (
-        <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
-      )}
-
-      {isOrganiser && session.status !== "COMPLETED" && confirmedSignups.length > 0 && (
-        <SessionBalancePrediction sessionId={id} />
-      )}
-
-      {isOrganiser && session.status !== "COMPLETED" && confirmedSignups.length >= 4 && (
-        <AISessionDesigner sessionId={id} />
-      )}
-
-      {session.status === "COMPLETED" && (
-        <SessionEngagementScore sessionId={id} />
-      )}
-
-      {isOrganiser && confirmedSignups.length > 0 && (
-        <SessionFinancialCommandCenter sessionId={id} />
+      {isOrganiser && (
+        <Card className="border-primary/20">
+          <CardContent className="p-0">
+            <Button
+              variant="ghost"
+              onClick={() => setAdminDashboardOpen(!adminDashboardOpen)}
+              className="w-full flex items-center justify-between h-auto py-4 px-4 sm:px-5 rounded-lg"
+              data-testid="button-toggle-admin-dashboard"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Lock className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-sm sm:text-base">Admin Dashboard</h3>
+                  <p className="text-xs text-muted-foreground font-normal">Payments, financials, AI tools & analytics</p>
+                </div>
+              </div>
+              {adminDashboardOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+            </Button>
+            {adminDashboardOpen && (
+              <div className="px-4 pb-4 sm:px-5 sm:pb-5 space-y-4">
+                <Tabs value={adminDashboardTab} onValueChange={setAdminDashboardTab}>
+                  <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4" data-testid="admin-dashboard-tabs">
+                    <TabsTrigger value="payments" data-testid="tab-payments">Payments</TabsTrigger>
+                    <TabsTrigger value="financials" data-testid="tab-financials">Financials</TabsTrigger>
+                    <TabsTrigger value="intelligence" data-testid="tab-intelligence">Intelligence</TabsTrigger>
+                    <TabsTrigger value="ai-tools" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="payments" className="mt-4 space-y-4">
+                    {confirmedSignups.length > 0 ? (
+                      <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        No confirmed players yet. Payment data will appear once players sign up.
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="financials" className="mt-4 space-y-4">
+                    {confirmedSignups.length > 0 ? (
+                      <SessionFinancialCommandCenter sessionId={id} />
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        No confirmed players yet. Financial data will appear once players sign up.
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="intelligence" className="mt-4 space-y-4">
+                    {session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+                      <SessionBalancePrediction sessionId={id} />
+                    )}
+                    {session.status === "COMPLETED" && (
+                      <SessionEngagementScore sessionId={id} />
+                    )}
+                    {session.status === "CANCELLED" && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        Intelligence data is not available for cancelled sessions.
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="ai-tools" className="mt-4 space-y-4">
+                    {session.status !== "COMPLETED" && confirmedSignups.length >= 4 && (
+                      <AISessionDesigner sessionId={id} />
+                    )}
+                    {session.status !== "COMPLETED" && confirmedSignups.length < 4 && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        AI Session Designer requires at least 4 confirmed players.
+                      </div>
+                    )}
+                    {session.status === "COMPLETED" && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        AI tools are not available for completed sessions.
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <MatchesView 
