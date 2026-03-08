@@ -582,7 +582,7 @@ function CreateTicketDialog() {
                         <SelectItem value="self">Myself</SelectItem>
                         {(clubMembers || []).map((member: any) => (
                           <SelectItem key={member.userId} value={member.userId.toString()}>
-                            {member.fullName || member.nickname || `User #${member.userId}`}
+                            {member.user?.fullName || member.nickname || member.fullName || `User #${member.userId}`}
                           </SelectItem>
                         ))}
                       </SelectContent>
