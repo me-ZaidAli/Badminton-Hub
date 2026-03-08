@@ -12,10 +12,7 @@ Preferred communication style: Simple, everyday language.
 The application uses React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, and shadcn/ui for the frontend. The backend is built with Node.js, Express.js, and TypeScript, utilizing PostgreSQL as the database with Drizzle ORM.
 
 ### Plan & Billing System
-A 2-plan freemium model (Basic FREE, Premium) is implemented with backend enforcement via `requirePremium` middleware and frontend gating for premium features. Key features like rankings, analytics, advanced management tools, internal messaging, helpdesk tickets, coach directory, league management, recognition cards, attendance analytics, and financial tools are exclusive to the Premium plan.
-
-### Multi-Sport Support
-The platform supports multiple racket sports, allowing clubs to select one or more sport types for tailored experiences.
+A 2-plan freemium model (Basic FREE, Premium) is implemented with backend enforcement and frontend gating for premium features. Key features like rankings, analytics, advanced management tools, internal messaging, helpdesk tickets, coach directory, league management, recognition cards, attendance analytics, and financial tools are exclusive to the Premium plan.
 
 ### UI/UX Decisions
 The UI features a modern design with privacy-enhanced public views and comprehensive player profiles. A sophisticated Premium Theme System offers 63 themes across 7 tiers plus 5 Branded Collections and a Premium Collections category, many optimized for AMOLED displays with unique animations and design tokens. Theme access is tier-gated by club ranking, special Black Card access, Metallic Comet Card ownership, or Royal Duty Card ownership. All dark themes feature enhanced visual variety with ambient lighting, radial gradient overlays, reflective card surfaces, and textured elements. A global Ultra-Premium Transparent Glass UI system applies to all dark themes, providing true glassmorphism cards with backdrop-filter blur, neo-tactile button animations, premium CTA gradient buttons, sport-engraved racket string texture overlays, and glass-treated dialogs/sidebars/inputs/tables. Typography Studio allows font customization with 20 fonts across 5 categories, with access tiered by plan and card ownership.
@@ -23,31 +20,38 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 ### Technical Implementations
 - **Role-Based Access Control (RBAC)**: Granular permissions at platform and club levels.
 - **Multi-Club Support**: Manages multiple independent clubs with separate data and administration.
-- **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine with gender-aware logic and 9-tier grade-based scoring. The BPG Competitive Balance Engine uses `computeSessionMetrics` during match generation to actively prioritize idle/underplayed players, exclude highly fatigued players, and boost least-played players — ensuring balanced play throughout the session. The Session Fairness Command Center includes a Player Intelligence system with per-player Challenge Index (grade-based opponent comparison), Performance Score, Promotion Watch (auto-flags promotion candidates, struggling, under-challenged), and a Competitive Distribution Overview with session-wide analytics, grade distribution pie chart, and filterable player list.
+- **Multi-Sport Support**: The platform supports multiple racket sports.
+- **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine with gender-aware logic and 9-tier grade-based scoring. The BPG Competitive Balance Engine ensures balanced play, and the Session Fairness Command Center provides player intelligence and session analytics.
 - **Membership System**: Handles club-based memberships, plans, requests, and approvals.
 - **Dynamic Leaderboard System**: Computes player rankings from completed matches.
-- **Financial Intelligence System**: Multi-view financial dashboard with 5 views (Classic, Analytics, Profitability, Cashflow, Reports), Smart Insights with auto-detected alerts and Revenue Forecast, localStorage view persistence. Components in `client/src/components/financial/` with shared types. Includes credit management, donation system, and per-session invoice number tracking (editable inline in Classic view). Schema: `sessions.invoiceNumber` column. Endpoint: `PATCH /api/admin/sessions/:id/invoice-number`.
+- **Financial Intelligence System**: Multi-view financial dashboard with Smart Insights, credit management, donation system, and per-session invoice number tracking.
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
-- **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing. Scheduled (unpublished) sessions are shown in a separate admin-only section and move to the main listing when published. Editing a recurring session offers "Apply to This Session Only" or "Apply to All Future Sessions". Deleting offers "This Only", "This & Future", or "Entire Series" options. The same structure is used in both the main Sessions page and the Junior Sessions panel.
+- **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing and flexible editing/deletion options.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.
-- **Session Match Recovery**: When a session is restarted, matches are soft-deleted (archived) rather than permanently removed. Admins can recover archived matches using the "Recover" button in the session detail view. Schema: `matches.deletedAt` timestamp column. Endpoints: `GET /api/sessions/:id/deleted-matches-count`, `POST /api/sessions/:id/recover-matches`. All match queries filter `deletedAt IS NULL` to exclude archived matches.
+- **Session Match Recovery**: Allows recovery of soft-deleted (archived) matches.
 - **Coach Directory & Marketplace**: Manages and lists public coach profiles.
-- **Global Account Merge System**: OWNER-only tool for merging duplicate user accounts.
-- **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC. Enhanced with credit claim workflow: tickets can have `category: CREDIT_CLAIM`, `resolution` (APPROVED/DECLINED), `isArchived` boolean, `linkedSessionId`, and `creditAmount` fields. Admin can approve/decline credit claims directly from ticket detail, auto-creating credit ledger entries and sending notifications. Endpoints: `PATCH /api/tickets/:id/archive`, `POST /api/tickets/:id/approve-credit`, `POST /api/tickets/:id/decline-credit`.
+- **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).
+- **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC, enhanced with a credit claim workflow.
 - **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.
-- **Club-Scoped Referral System**: Independent referral programs per club with admin manual referral creation and approval.
+- **Club-Scoped Referral System**: Independent referral programs per club.
 - **Junior Management**: Comprehensive features for managing junior players, including skill tracking, exercise challenges, and parent-facing dashboards.
-- **League Management System**: Full league fixture and results management, supporting multiple named leagues per club. This includes a Player Selection Notification banner for assigned players on their Dashboard, a League Squad Management System for admins to manage players, their format preferences, and send match availability polls.
-- **Payment & Credit Request System**: Players can confirm payments and request credits in-app, triggering admin notifications and support tickets. Enhanced credit wallet with full history timeline, color-coded transaction types, and prominent balance display. Session signup flow offers credit application with full/partial amount options. Session cancellation tool bulk-issues credits to confirmed signups. Financial dashboard includes credit summary KPI cards (outstanding, issued, redeemed, redemption rate). Credit automation settings per-club (auto-approve, cancel window hours) in Admin Notifications > Credits tab. Endpoints: `GET /api/admin/credit-summary`, `POST /api/sessions/:id/cancel-and-credit`, `POST /api/credits/apply`, `GET/PUT /api/clubs/:clubId/credit-settings`. Badge counts include `pendingTickets` for admin sidebar.
+- **League Management System**: Full league fixture and results management, including Player Selection Notifications and Squad Management.
+- **Payment & Credit Request System**: Players can confirm payments and request credits in-app, with an enhanced credit wallet and automation settings.
 - **Internal Messaging System**: Chat interface with message categories and filtering.
 - **AI-Powered Reporting**: AI-generated reports for coaches, parents, and admins.
 - **Enhanced Badge Count System**: Sidebar badges for various notifications and pending items.
 - **Social Media Links System**: Clubs can add and display social media links for 11 platforms.
-- **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection for unhiding.
-- **Premium Recognition Cards System**: Admin-gifted recognition cards (12 types, 5 rarity levels) with 3D flippable RPG-style cards. Front features a header bar (card name + icon), large centered emblem with glow halo, and neon border matching material shimmer color. Back shows RPG stat bars (Rarity/Honor/Prestige with % values), 5-star rating based on rarity tier (Standard=1 through Mythic=5), category label, reason/description section, and issuer info. Premium Wallet display and full-screen carousel viewer. Specific cards unlock exclusive theme tiers.
-- **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with up to 4 customizable shortcut icons and a "More" button opening a full menu sheet.
-- **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions (toggle on/off, visible counts on cards) and leave threaded comments with reply support. Comments expand/collapse via a comment icon on the card. Admins and comment owners can delete comments (with cascading reply deletion). Tables: `announcement_reactions`, `announcement_comments`.
-- **Player Intelligence & Analytics System**: Premium feature at `/player-intelligence` with comprehensive player analytics dashboard. Features: player list with search/filter, per-player stats (matches, wins, win rate, points, sessions, hours, Session Impact Score, opponent difficulty), interactive recharts charts (performance over time area chart, difficulty bar chart, hours per month, skill radar chart), player comparison with head-to-head rivalry stats and **AI Comparison Review** (detailed AI-generated text analysis covering overall assessment, scoring power, experience, head-to-head verdict, recent form, and final verdict via `POST /api/players/analytics/ai-comparison/:p1Id/:p2Id`), achievement badges system (dynamically computed from match/session milestones), skill review system (£20 coach feedback with 0-100% skill ratings across 10 categories/52 skills), coach notes timeline, AI-powered player style analysis, and **Match Log tab** with a dark FM-style match history table (match number, session/venue, partner, opponents, result score with W/L color coding, win/loss icons, point differential) plus a point-diff bar chart showing last 20 matches. API: `GET /api/players/analytics/:playerId/match-log`. Tables: `player_avatar_selections`, `player_skill_categories`, `player_skills`, `player_skill_review_requests`, `player_skill_evaluations`, `player_achievements_record`, `player_coach_notes`. Page: `client/src/pages/PlayerIntelligence.tsx`.
+- **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection.
+- **Premium Recognition Cards System**: Admin-gifted recognition cards with 3D flippable RPG-style display, unlocking exclusive theme tiers.
+- **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with customizable shortcut icons.
+- **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions and leave threaded comments.
+- **Player Intelligence & Analytics System**: Premium feature offering comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs.
+- **Session Intelligence Layer**: Provides pre-session balance prediction, post-session engagement scores, and smart session recommendations.
+- **AI Full Session Schedule Generator**: One-click full session schedule generation using the match engine with fairness optimization, preview functionality, and an AI Session Designer for optimal session structure suggestions.
+- **Payment Flow Enhancement**: Session signup includes payment method selection, a Payment Verification Dashboard, and a Payment Reliability Score for players.
+- **Session Financial Command Center**: Real-time financial overview per session with expected vs actual revenue comparison, per-player financial actions, payment reminders, and credit issuance.
+- **3D Avatar Selection System**: Users can select AI-generated Pixar-style 3D avatar presets.
+- **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics.
 
 ## External Dependencies
 
@@ -71,10 +75,6 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 ### Progressive Web App (PWA)
 - **Web App Manifest**: Defines PWA properties.
 - **Service Worker**: Implements network-first caching strategy.
-
-- **3D Avatar Selection System**: AI-generated Pixar-style 3D avatar presets (10 avatars: 5 male, 5 female) stored in `public/avatars/`. Users select from a picker dialog on their Profile page. Selection stored in `users.selectedAvatar` column. Component: `client/src/components/AvatarPicker.tsx` with `getAvatarUrl()` utility. Integrated into Profile header and Sidebar. Route: `POST /api/user/selected-avatar`.
-
-- **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics (fairness, balance, partner/opponent diversity, fatigue, gender distribution). Supports Standard vs AI Brain comparison, configurable player pools (4-40 players), match volumes (50-500), and side-by-side run comparison.
 
 ### APIs / Integrations
 - **OpenStreetMap Nominatim API**: Geocoding addresses.

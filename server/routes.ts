@@ -2907,8 +2907,10 @@ export async function registerRoutes(
 
     for (const attendee of attendees) {
       const { userId, paymentMethod } = attendee;
-      if (!paymentMethod || !["CARD", "BANK_TRANSFER", "NONE"].includes(paymentMethod)) {
-        errors.push(`${userId}: Payment method required (CARD, BANK_TRANSFER, or NONE)`);
+      const validPaymentMethods = ["CARD", "BANK_TRANSFER", "CASH", "ONLINE", "MEMBERSHIP_CREDIT", "NONE"];
+      const effectiveMethod = paymentMethod || "NONE";
+      if (!validPaymentMethods.includes(effectiveMethod)) {
+        errors.push(`${userId}: Invalid payment method`);
         continue;
       }
 
@@ -2969,7 +2971,8 @@ export async function registerRoutes(
         sessionId,
         playerId: profile.id,
         fee,
-        paymentMethod,
+        paymentMethod: effectiveMethod,
+        paymentStatus: attendee.paymentStatus,
         signupStatus: isFull ? "WAITING" : "CONFIRMED",
         waitingListPosition: isFull ? currentConfirmed - session.maxPlayers + 1 : undefined,
         signedUpByUserId: req.user!.id,
@@ -3054,7 +3057,79 @@ export async function registerRoutes(
       adminNotes,
       paymentNotes,
     });
+
+    if (paymentStatus === "PAID" || verifiedByAdmin) {
+      try {
+        const signups = await storage.getSessionSignups(sessionId);
+        const signup = signups.find((s: any) => s.id === signupId);
+        if (signup) {
+          const playerUserId = (signup as any).player?.userId;
+          if (playerUserId) {
+            await db.insert(notifications).values({
+              userId: playerUserId,
+              type: "PAYMENT",
+              title: "Payment Verified",
+              message: `Your payment for "${session.title}" on ${new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} has been verified by an admin.`,
+              linkUrl: `/sessions/${sessionId}`,
+              status: "in_progress",
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error sending payment verification notification:", err);
+      }
+    }
+
     res.json(updated);
+  });
+
+  app.post("/api/sessions/:sessionId/bulk-verify-payments", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.sessionId);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const { paymentMethod: targetMethod } = req.body;
+    if (!targetMethod || !["BANK_TRANSFER", "CASH"].includes(targetMethod)) {
+      return res.status(400).json({ message: "paymentMethod must be BANK_TRANSFER or CASH" });
+    }
+
+    const signups = await storage.getSessionSignups(sessionId);
+    const toVerify = signups.filter((s: any) =>
+      (!s.signupStatus || s.signupStatus === "CONFIRMED") &&
+      s.paymentStatus === "PENDING" &&
+      s.paymentMethod === targetMethod
+    );
+
+    let verified = 0;
+    for (const signup of toVerify) {
+      await storage.updateSessionSignupPayment(signup.id, {
+        paymentStatus: "PAID",
+        verifiedByAdmin: true,
+      });
+      verified++;
+
+      try {
+        const playerUserId = (signup as any).player?.userId;
+        if (playerUserId) {
+          await db.insert(notifications).values({
+            userId: playerUserId,
+            type: "PAYMENT",
+            title: "Payment Verified",
+            message: `Your ${targetMethod === "BANK_TRANSFER" ? "bank transfer" : "cash"} payment for "${session.title}" on ${new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} has been verified.`,
+            linkUrl: `/sessions/${sessionId}`,
+            status: "in_progress",
+          });
+        }
+      } catch (err) {
+        console.error("Error sending bulk verification notification:", err);
+      }
+    }
+
+    res.json({ verified, total: toVerify.length });
   });
 
   // Admin: Move player between lists (confirm/waiting/cancel/invited/not_attending)
@@ -5270,6 +5345,269 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sessions/:sessionId/generate-full-schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can generate full schedules" });
+
+      const { numberOfRounds, genderType, mode } = req.body;
+
+      const matchMode = mode || session.matchMode || "SOCIAL";
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const gType = genderType || session.matchGenderType || "MIXED";
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+
+      const allPlayers = confirmedSignups
+        .filter(s => !s.isPaused)
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          grade: s.player.grade || s.player.category || "C3",
+          isPaused: s.isPaused,
+          genderOverride: s.genderOverride,
+        }));
+
+      if (allPlayers.length < playersPerMatch) {
+        return res.status(400).json({ message: `Not enough players. Need at least ${playersPerMatch}, have ${allPlayers.length}.` });
+      }
+
+      const courtsAvailable = session.courtsAvailable || 1;
+      const matchesPerRound = Math.min(courtsAvailable, Math.floor(allPlayers.length / playersPerMatch));
+
+      const autoRounds = numberOfRounds || Math.max(3, Math.ceil((session.durationMinutes || 120) / 20));
+      const totalRounds = Math.min(autoRounds, 20);
+
+      const fixedPairs = extractFixedPairs(confirmedSignups);
+      const simulatedMatchHistory: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string; id: number; scoreA: number | null; scoreB: number | null; startedAt: null; completedAt: null }[] = [];
+      const allRounds: { round: number; matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; fairnessScore: number }[] }[] = [];
+
+      for (let round = 1; round <= totalRounds; round++) {
+        const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+          simulatedMatchHistory.map(m => ({
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            status: m.status,
+          }))
+        );
+
+        for (const p of allPlayers) {
+          if (!playerMatchCounts.has(p.id)) {
+            playerMatchCounts.set(p.id, 0);
+          }
+        }
+
+        const sessionMetrics = computeSessionMetrics(simulatedMatchHistory, allPlayers);
+        const priorityPlayerIds: number[] = [];
+        for (const pm of sessionMetrics.playerMetrics) {
+          if (pm.matchesPlayed === 0 && !priorityPlayerIds.includes(pm.playerId)) {
+            priorityPlayerIds.push(pm.playerId);
+          }
+          if (pm.roundsSinceLastMatch >= 2 && !priorityPlayerIds.includes(pm.playerId)) {
+            priorityPlayerIds.push(pm.playerId);
+          }
+        }
+
+        const matchCounts = Array.from(playerMatchCounts.values());
+        const globalMin = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
+        for (const p of allPlayers) {
+          const count = playerMatchCounts.get(p.id) || 0;
+          if (count <= globalMin && !priorityPlayerIds.includes(p.id)) {
+            priorityPlayerIds.push(p.id);
+          }
+        }
+
+        const generated = applyAIBrainLayer({
+          mode: matchMode as "SOCIAL" | "COMPETITIVE",
+          players: allPlayers,
+          playersPerSide: playersPerSide as 1 | 2,
+          genderType: gType,
+          queueTarget: matchesPerRound,
+          matchHistory: simulatedMatchHistory,
+          fixedPairs,
+          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+          sessionDurationMinutes: session.durationMinutes || 120,
+          elapsedMinutes: round * 20,
+        });
+
+        const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
+
+        const roundMatchesWithScores = roundMatches.map((m, i) => ({
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          fairnessScore: generated.matchQualities?.[i] ?? 75,
+        }));
+
+        allRounds.push({ round, matches: roundMatchesWithScores });
+
+        for (const m of roundMatches) {
+          simulatedMatchHistory.push({
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            status: "COMPLETED",
+            id: simulatedMatchHistory.length + 1,
+            scoreA: null,
+            scoreB: null,
+            startedAt: null,
+            completedAt: null,
+          });
+        }
+      }
+
+      const finalMetrics = computeSessionMetrics(simulatedMatchHistory, allPlayers);
+
+      const playerNameMap = new Map<number, string>();
+      for (const s of confirmedSignups) {
+        playerNameMap.set(s.player.id, s.player.user?.fullName || `Player ${s.player.id}`);
+      }
+
+      const playerLookup: Record<number, { id: number; fullName: string; grade: string | null; gender: string | null }> = {};
+      for (const s of confirmedSignups) {
+        playerLookup[s.player.id] = {
+          id: s.player.id,
+          fullName: s.player.user?.fullName || `Player ${s.player.id}`,
+          grade: s.player.grade || s.player.category || null,
+          gender: s.player.gender,
+        };
+      }
+
+      const playerIdleRounds: Record<number, number[]> = {};
+      for (const p of allPlayers) {
+        playerIdleRounds[p.id] = [];
+      }
+      for (let ri = 0; ri < allRounds.length; ri++) {
+        const round = allRounds[ri];
+        const playersInRound = new Set<number>();
+        for (const m of round.matches) {
+          for (const pid of [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id]) {
+            if (pid) playersInRound.add(pid);
+          }
+        }
+        for (const p of allPlayers) {
+          if (!playersInRound.has(p.id)) {
+            playerIdleRounds[p.id].push(ri + 1);
+          }
+        }
+      }
+      const avgMatchMinutes = 12;
+      const playerIdleTime: Record<number, { idleRounds: number; estimatedIdleMinutes: number; idleRoundNumbers: number[] }> = {};
+      for (const p of allPlayers) {
+        const idle = playerIdleRounds[p.id] || [];
+        playerIdleTime[p.id] = {
+          idleRounds: idle.length,
+          estimatedIdleMinutes: idle.length * avgMatchMinutes,
+          idleRoundNumbers: idle,
+        };
+      }
+
+      const maxIdleRounds = Math.max(0, ...Object.values(playerIdleTime).map(v => v.idleRounds));
+      const minIdleRounds = Math.min(allRounds.length, ...Object.values(playerIdleTime).map(v => v.idleRounds));
+      const idleEquity = allRounds.length > 0 ? Math.round(Math.max(0, 100 - ((maxIdleRounds - minIdleRounds) / Math.max(1, allRounds.length)) * 100)) : 100;
+
+      res.json({
+        rounds: allRounds,
+        totalRounds: allRounds.length,
+        totalMatches: simulatedMatchHistory.length,
+        overallFairnessScore: finalMetrics.fairnessScore,
+        partnerDiversity: finalMetrics.partnerDiversity,
+        opponentDiversity: finalMetrics.opponentDiversity,
+        genderBalanceScore: finalMetrics.genderBalanceScore,
+        playerLookup,
+        playerMetrics: finalMetrics.playerMetrics.map(pm => ({
+          playerId: pm.playerId,
+          playerName: playerNameMap.get(pm.playerId) || `Player ${pm.playerId}`,
+          matchesPlayed: pm.matchesPlayed,
+          wins: pm.wins,
+          losses: pm.losses,
+        })),
+        warnings: finalMetrics.warnings.map(w => ({
+          ...w,
+          playerName: playerNameMap.get(w.playerId) || `Player ${w.playerId}`,
+        })),
+        playerIdleTime,
+        idleEquity,
+        courtUtilization: {
+          courtsAvailable: courtsAvailable,
+          matchesPerRound,
+          utilizationPercent: courtsAvailable > 0 ? Math.round((matchesPerRound / courtsAvailable) * 100) : 0,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error generating full schedule:", err);
+      res.status(500).json({ message: err.message || "Failed to generate full schedule" });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/confirm-full-schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.status(403).json({ message: "Only admins can confirm schedules" });
+
+      const { rounds } = req.body;
+      if (!rounds || !Array.isArray(rounds)) {
+        return res.status(400).json({ message: "Invalid schedule data" });
+      }
+
+      const defaultTarget = session.defaultPointsToPlayTo || 21;
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const maxQueuePos = Math.max(0, ...existingMatches
+        .filter(m => m.queuePosition !== null)
+        .map(m => m.queuePosition || 0));
+
+      let position = maxQueuePos;
+      const createdMatches = [];
+
+      for (const round of rounds) {
+        for (const m of round.matches) {
+          position++;
+          const created = await storage.createMatch({
+            sessionId,
+            courtNumber: null,
+            queuePosition: position,
+            status: "QUEUED" as const,
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            scoreA: 0,
+            scoreB: 0,
+            isCompleted: false,
+            pointsToPlayTo: defaultTarget,
+            numberOfSets: session.numberOfSets || 1,
+            currentSet: 1,
+            setsWonA: 0,
+            setsWonB: 0,
+            setScores: [],
+          });
+          createdMatches.push(created);
+        }
+      }
+
+      res.status(201).json({ matchesCreated: createdMatches.length, matches: createdMatches });
+    } catch (err: any) {
+      console.error("Error confirming full schedule:", err);
+      res.status(500).json({ message: err.message || "Failed to confirm schedule" });
+    }
+  });
+
   app.post("/api/sessions/:sessionId/ai-brain-toggle", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -5354,6 +5692,228 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching AI metrics:", err);
       res.status(500).json({ message: err.message || "Failed to fetch AI metrics" });
+    }
+  });
+
+  app.get("/api/sessions/:id/balance-prediction", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmed = signups.filter(s => s.signupStatus === "CONFIRMED");
+
+      if (confirmed.length === 0) {
+        return res.json({ playerCount: 0, skillDistribution: {}, avgGradeRank: 0, gradeRange: 0, predictedFairnessScore: 100, balanceRating: "EXCELLENT", warnings: [], genderBreakdown: { male: 0, female: 0 } });
+      }
+
+      const gradeRankFn = (await import("./matchEngine")).getGradeRank;
+      const skillDist: Record<string, number> = {};
+      let totalRank = 0;
+      let minRank = 10, maxRank = 0;
+      let maleCount = 0, femaleCount = 0;
+
+      for (const s of confirmed) {
+        const grade = s.player.grade || s.player.category || "C3";
+        skillDist[grade] = (skillDist[grade] || 0) + 1;
+        const rank = gradeRankFn(grade);
+        totalRank += rank;
+        if (rank < minRank) minRank = rank;
+        if (rank > maxRank) maxRank = rank;
+        const gender = (s as any).genderOverride || s.player.gender || "MALE";
+        if (gender === "FEMALE") femaleCount++;
+        else maleCount++;
+      }
+
+      const avgRank = totalRank / confirmed.length;
+      const gradeRange = maxRank - minRank;
+      const stdDev = Math.sqrt(confirmed.reduce((sum, s) => {
+        const rank = gradeRankFn(s.player.grade || s.player.category || "C3");
+        return sum + Math.pow(rank - avgRank, 2);
+      }, 0) / confirmed.length);
+
+      const fairnessScore = Math.max(0, Math.round(100 - (stdDev * 15) - (gradeRange * 5)));
+      const warnings: { type: string; message: string; severity: string }[] = [];
+
+      if (gradeRange >= 6) {
+        warnings.push({ type: "WIDE_SKILL_GAP", message: `Large skill gap detected (${gradeRange} grade levels apart). Beginners may struggle against advanced players.`, severity: "HIGH" });
+      } else if (gradeRange >= 4) {
+        warnings.push({ type: "MODERATE_SKILL_GAP", message: `Moderate skill gap (${gradeRange} grade levels). Match engine will balance teams.`, severity: "MEDIUM" });
+      }
+
+      if (maleCount > 0 && femaleCount > 0 && (maleCount / femaleCount > 4 || femaleCount / maleCount > 4)) {
+        warnings.push({ type: "GENDER_IMBALANCE", message: `Significant gender imbalance (${maleCount}M / ${femaleCount}F). Mixed doubles variety may be limited.`, severity: "MEDIUM" });
+      }
+
+      if (confirmed.length < session.courtsAvailable * 4) {
+        warnings.push({ type: "LOW_NUMBERS", message: `Only ${confirmed.length} players for ${session.courtsAvailable} courts. Some courts may be idle.`, severity: "LOW" });
+      }
+
+      const topGradeCount = Object.entries(skillDist).reduce((max, [, count]) => Math.max(max, count), 0);
+      if (topGradeCount > confirmed.length * 0.6) {
+        const dominantGrade = Object.entries(skillDist).find(([, count]) => count === topGradeCount)?.[0];
+        warnings.push({ type: "CLUSTER", message: `${topGradeCount} of ${confirmed.length} players are grade ${dominantGrade}. Matches will be competitive but less varied.`, severity: "LOW" });
+      }
+
+      let balanceRating = "EXCELLENT";
+      if (fairnessScore < 40) balanceRating = "POOR";
+      else if (fairnessScore < 60) balanceRating = "FAIR";
+      else if (fairnessScore < 80) balanceRating = "GOOD";
+
+      res.json({
+        playerCount: confirmed.length,
+        skillDistribution: skillDist,
+        avgGradeRank: Math.round(avgRank * 10) / 10,
+        gradeRange,
+        predictedFairnessScore: fairnessScore,
+        balanceRating,
+        warnings,
+        genderBreakdown: { male: maleCount, female: femaleCount },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to compute balance prediction" });
+    }
+  });
+
+  app.get("/api/sessions/:id/engagement-score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const completedMatches = existingMatches.filter(m => m.status === "COMPLETED");
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmed = signups.filter(s => s.signupStatus === "CONFIRMED");
+
+      if (completedMatches.length === 0) {
+        return res.json({ engagementScore: 0, matchBalanceFactor: 0, participationEquity: 0, waitingTimeFactor: 0, totalMatches: 0, breakdown: {} });
+      }
+
+      let closeMatches = 0;
+      for (const m of completedMatches) {
+        const diff = Math.abs((m.scoreA || 0) - (m.scoreB || 0));
+        if (diff <= 5) closeMatches++;
+      }
+      const matchBalanceFactor = Math.round((closeMatches / completedMatches.length) * 100);
+
+      const playerMatchCounts: Record<number, number> = {};
+      for (const m of completedMatches) {
+        for (const pid of [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id]) {
+          if (pid) playerMatchCounts[pid] = (playerMatchCounts[pid] || 0) + 1;
+        }
+      }
+      const counts = Object.values(playerMatchCounts);
+      const maxCount = Math.max(...counts, 1);
+      const minCount = Math.min(...counts);
+      const spread = maxCount - minCount;
+      const participationEquity = Math.max(0, Math.round(100 - spread * 15));
+
+      const playerIds = confirmed.map(s => s.playerId);
+      const playersWhoPlayed = playerIds.filter(id => (playerMatchCounts[id] || 0) > 0);
+      const waitingTimeFactor = playerIds.length > 0 ? Math.round((playersWhoPlayed.length / playerIds.length) * 100) : 100;
+
+      const engagementScore = Math.round(
+        (matchBalanceFactor * 0.4) + (participationEquity * 0.3) + (waitingTimeFactor * 0.3)
+      );
+
+      const uniquePartners = new Set<string>();
+      const uniqueOpponents = new Set<string>();
+      for (const m of completedMatches) {
+        const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(Boolean) as number[];
+        const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+        if (teamA.length === 2) uniquePartners.add([teamA[0], teamA[1]].sort().join("-"));
+        if (teamB.length === 2) uniquePartners.add([teamB[0], teamB[1]].sort().join("-"));
+        for (const a of teamA) for (const b of teamB) uniqueOpponents.add([a, b].sort().join("-"));
+      }
+
+      res.json({
+        engagementScore,
+        matchBalanceFactor,
+        participationEquity,
+        waitingTimeFactor,
+        totalMatches: completedMatches.length,
+        breakdown: {
+          closeMatches,
+          totalCompleted: completedMatches.length,
+          playersSignedUp: playerIds.length,
+          playersWhoPlayed: playersWhoPlayed.length,
+          maxMatchesPlayed: maxCount,
+          minMatchesPlayed: minCount,
+          uniquePartnerPairs: uniquePartners.size,
+          uniqueOpponentPairs: uniqueOpponents.size,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to compute engagement score" });
+    }
+  });
+
+  app.get("/api/sessions/recommended", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const profiles = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")));
+
+      if (profiles.length === 0) {
+        return res.json([]);
+      }
+
+      const gradeRankFn = (await import("./matchEngine")).getGradeRank;
+      const playerGrades = profiles.map(p => p.grade || "C3");
+      const playerRank = Math.round(playerGrades.reduce((sum, g) => sum + gradeRankFn(g), 0) / playerGrades.length);
+      const clubIds = profiles.map(p => p.clubId);
+
+      const now = new Date();
+      const upcomingSessions = await db.select().from(sessions).where(
+        and(
+          gte(sessions.date, now),
+          eq(sessions.status, "UPCOMING"),
+          inArray(sessions.clubId, clubIds)
+        )
+      );
+
+      const recommended = upcomingSessions
+        .map(s => {
+          const categories = s.allowedCategories || [];
+          const sessionRanks = categories.map(c => gradeRankFn(c));
+          const avgSessionRank = sessionRanks.length > 0 ? sessionRanks.reduce((a, b) => a + b, 0) / sessionRanks.length : 5;
+          const minSessionRank = sessionRanks.length > 0 ? Math.min(...sessionRanks) : 1;
+          const maxSessionRank = sessionRanks.length > 0 ? Math.max(...sessionRanks) : 9;
+          const inRange = playerRank >= minSessionRank && playerRank <= maxSessionRank;
+          const distance = Math.abs(playerRank - avgSessionRank);
+          const matchScore = inRange ? Math.max(0, 100 - distance * 10) : Math.max(0, 60 - distance * 15);
+          return { ...s, matchScore, inGradeRange: inRange };
+        })
+        .filter(s => s.matchScore >= 30)
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 10);
+
+      const clubIdsForNames = [...new Set(recommended.map(s => s.clubId))];
+      const clubRows = clubIdsForNames.length > 0 ? await db.select({ id: clubs.id, name: clubs.name }).from(clubs).where(inArray(clubs.id, clubIdsForNames)) : [];
+      const clubNameMap = new Map(clubRows.map(c => [c.id, c.name]));
+
+      const result = recommended.map(s => ({
+        id: s.id,
+        title: s.title,
+        date: s.date,
+        startTime: s.startTime,
+        clubId: s.clubId,
+        clubName: clubNameMap.get(s.clubId) || "Unknown",
+        matchMode: s.matchMode,
+        maxPlayers: s.maxPlayers,
+        courtsAvailable: s.courtsAvailable,
+        matchScore: s.matchScore,
+        inGradeRange: s.inGradeRange,
+        allowedCategories: s.allowedCategories,
+      }));
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to get recommendations" });
     }
   });
 
@@ -25627,6 +26187,935 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     } catch (err: any) {
       console.error("AI style analysis error:", err);
       res.json({ style: "Balanced", explanation: "Unable to perform AI analysis at this time." });
+    }
+  });
+
+  // === PAYMENT RELIABILITY & SESSION INTELLIGENCE ===
+
+  app.get("/api/players/:playerId/payment-reliability", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = Number(req.params.playerId);
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const allSignups = await db.select({
+        paymentStatus: sessionSignups.paymentStatus,
+        paymentMethod: sessionSignups.paymentMethod,
+        fee: sessionSignups.fee,
+        sessionDate: sessions.date,
+        signupTime: sessionSignups.signupTime,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(
+          eq(sessionSignups.playerId, playerId),
+          eq(sessionSignups.signupStatus, "CONFIRMED"),
+          gte(sessions.date, sixMonthsAgo)
+        ));
+
+      if (allSignups.length === 0) {
+        return res.json({ score: 100, totalSessions: 0, paidOnTime: 0, latePaid: 0, unpaid: 0, avgDaysToPay: 0, outstandingAmount: 0, preferredMethod: "N/A" });
+      }
+
+      const paidCount = allSignups.filter(s => s.paymentStatus === "PAID").length;
+      const pendingCount = allSignups.filter(s => s.paymentStatus === "PENDING").length;
+      const unpaidCount = allSignups.filter(s => s.paymentStatus === "UNPAID").length;
+      const total = allSignups.length;
+
+      const paidRatio = paidCount / total;
+      const pendingRatio = pendingCount / total;
+      const score = Math.round(Math.min(100, Math.max(0, (paidRatio * 100) + (pendingRatio * 30))));
+
+      const outstandingAmount = allSignups.filter(s => s.paymentStatus !== "PAID").reduce((s, e) => s + (e.fee || 0), 0);
+
+      const methodCounts: Record<string, number> = {};
+      allSignups.forEach(s => {
+        const m = s.paymentMethod || "NONE";
+        methodCounts[m] = (methodCounts[m] || 0) + 1;
+      });
+      const preferredMethod = Object.entries(methodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "NONE";
+
+      res.json({
+        score,
+        totalSessions: total,
+        paidOnTime: paidCount,
+        latePaid: pendingCount,
+        unpaid: unpaidCount,
+        avgDaysToPay: 0,
+        outstandingAmount,
+        preferredMethod,
+      });
+    } catch (err: any) {
+      console.error("Error computing payment reliability:", err);
+      res.status(500).json({ message: "Failed to compute payment reliability" });
+    }
+  });
+
+  app.get("/api/sessions/:id/payment-reliability-bulk", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const currentSignups = await db.select({
+        playerId: sessionSignups.playerId,
+      }).from(sessionSignups)
+        .where(and(
+          eq(sessionSignups.sessionId, sessionId),
+          eq(sessionSignups.signupStatus, "CONFIRMED")
+        ));
+
+      if (currentSignups.length === 0) return res.json({ scores: {} });
+
+      const playerIds = currentSignups.map(s => s.playerId);
+
+      const allHistory = await db.select({
+        playerId: sessionSignups.playerId,
+        paymentStatus: sessionSignups.paymentStatus,
+        paymentMethod: sessionSignups.paymentMethod,
+        fee: sessionSignups.fee,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(
+          inArray(sessionSignups.playerId, playerIds),
+          eq(sessionSignups.signupStatus, "CONFIRMED"),
+          gte(sessions.date, sixMonthsAgo)
+        ));
+
+      const scores: Record<number, { score: number; totalSessions: number; paidOnTime: number; unpaid: number; outstandingAmount: number; preferredMethod: string }> = {};
+
+      for (const pid of playerIds) {
+        const playerSignups = allHistory.filter(s => s.playerId === pid);
+        if (playerSignups.length === 0) {
+          scores[pid] = { score: 100, totalSessions: 0, paidOnTime: 0, unpaid: 0, outstandingAmount: 0, preferredMethod: "N/A" };
+          continue;
+        }
+        const total = playerSignups.length;
+        const paidCount = playerSignups.filter(s => s.paymentStatus === "PAID").length;
+        const pendingCount = playerSignups.filter(s => s.paymentStatus === "PENDING").length;
+        const unpaidCount = playerSignups.filter(s => s.paymentStatus === "UNPAID").length;
+        const paidRatio = paidCount / total;
+        const pendingRatio = pendingCount / total;
+        const score = Math.round(Math.min(100, Math.max(0, (paidRatio * 100) + (pendingRatio * 30))));
+        const outstandingAmount = playerSignups.filter(s => s.paymentStatus !== "PAID").reduce((sum, e) => sum + (e.fee || 0), 0);
+        const methodCounts: Record<string, number> = {};
+        playerSignups.forEach(s => { const m = s.paymentMethod || "NONE"; methodCounts[m] = (methodCounts[m] || 0) + 1; });
+        const preferredMethod = Object.entries(methodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "NONE";
+        scores[pid] = { score, totalSessions: total, paidOnTime: paidCount, unpaid: unpaidCount, outstandingAmount, preferredMethod };
+      }
+
+      res.json({ scores });
+    } catch (err: any) {
+      console.error("Error computing bulk payment reliability:", err);
+      res.status(500).json({ message: "Failed to compute payment reliability" });
+    }
+  });
+
+  app.get("/api/sessions/:id/balance-prediction", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED");
+
+      if (confirmedSignups.length < 4) {
+        return res.json({ playerCount: confirmedSignups.length, prediction: "Not enough players for analysis", fairnessScore: 0, gradeDistribution: {}, imbalances: [] });
+      }
+
+      const profileIds = confirmedSignups.map((s: any) => s.playerId);
+      const profiles = profileIds.length > 0 ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIds)) : [];
+
+      const gradeDistribution: Record<string, number> = {};
+      const grades: string[] = [];
+      profiles.forEach(p => {
+        const g = p.grade || "C3";
+        gradeDistribution[g] = (gradeDistribution[g] || 0) + 1;
+        grades.push(g);
+      });
+
+      const GRADE_VALUES: Record<string, number> = { A1: 9, A2: 8, A3: 7, B1: 6, B2: 5, B3: 4, C1: 3, C2: 2, C3: 1 };
+      const gradeNums = grades.map(g => GRADE_VALUES[g] || 1);
+      const avg = gradeNums.reduce((a, b) => a + b, 0) / gradeNums.length;
+      const variance = gradeNums.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / gradeNums.length;
+      const stdDev = Math.sqrt(variance);
+
+      const fairnessScore = Math.round(Math.max(0, 100 - (stdDev * 15)));
+
+      const imbalances: string[] = [];
+      if (stdDev > 2) imbalances.push("Wide skill gap detected between players");
+      const maleCount = profiles.filter(p => p.gender === "MALE").length;
+      const femaleCount = profiles.filter(p => p.gender === "FEMALE").length;
+      if (session.genderRestriction === "MIXED" && (maleCount === 0 || femaleCount === 0)) {
+        imbalances.push("Mixed session requires both genders");
+      }
+      if (confirmedSignups.length % 4 !== 0) {
+        imbalances.push(`${confirmedSignups.length} players: ${4 - (confirmedSignups.length % 4)} more needed for optimal court fill`);
+      }
+
+      res.json({
+        playerCount: confirmedSignups.length,
+        fairnessScore,
+        gradeDistribution,
+        avgGrade: avg.toFixed(1),
+        gradeSpread: stdDev.toFixed(2),
+        imbalances,
+        genderSplit: { male: maleCount, female: femaleCount },
+      });
+    } catch (err: any) {
+      console.error("Error computing balance prediction:", err);
+      res.status(500).json({ message: "Failed to compute balance prediction" });
+    }
+  });
+
+  app.get("/api/sessions/:id/engagement-score", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const sessionMatches = await db.select().from(matches)
+        .where(and(eq(matches.sessionId, sessionId), eq(matches.isCompleted, true), sql`${matches.deletedAt} IS NULL`));
+
+      if (sessionMatches.length === 0) {
+        return res.json({ engagementScore: 0, matchBalance: 0, participationEquity: 0, details: "No completed matches" });
+      }
+
+      let totalMargin = 0;
+      sessionMatches.forEach(m => {
+        const margin = Math.abs((m.scoreA || 0) - (m.scoreB || 0));
+        totalMargin += margin;
+      });
+      const avgMargin = totalMargin / sessionMatches.length;
+      const matchBalance = Math.max(0, 100 - (avgMargin * 5));
+
+      const playerMatchCounts: Record<number, number> = {};
+      sessionMatches.forEach(m => {
+        [m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id].forEach(pid => {
+          if (pid) playerMatchCounts[pid] = (playerMatchCounts[pid] || 0) + 1;
+        });
+      });
+      const counts = Object.values(playerMatchCounts);
+      const maxCount = Math.max(...counts);
+      const minCount = Math.min(...counts);
+      const participationEquity = maxCount > 0 ? Math.round((minCount / maxCount) * 100) : 100;
+
+      const engagementScore = Math.round((matchBalance * 0.5) + (participationEquity * 0.5));
+
+      res.json({
+        engagementScore,
+        matchBalance: Math.round(matchBalance),
+        participationEquity,
+        totalMatches: sessionMatches.length,
+        avgScoreMargin: avgMargin.toFixed(1),
+        uniquePlayers: Object.keys(playerMatchCounts).length,
+      });
+    } catch (err: any) {
+      console.error("Error computing engagement score:", err);
+      res.status(500).json({ message: "Failed to compute engagement score" });
+    }
+  });
+
+  app.get("/api/sessions/recommended", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const userProfiles = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")));
+
+      if (userProfiles.length === 0) return res.json([]);
+
+      const clubIds = userProfiles.map(p => p.clubId);
+      const userGrade = userProfiles[0].grade || "C3";
+      const GRADE_VALUES: Record<string, number> = { A1: 9, A2: 8, A3: 7, B1: 6, B2: 5, B3: 4, C1: 3, C2: 2, C3: 1 };
+      const userGradeVal = GRADE_VALUES[userGrade] || 1;
+
+      const now = new Date();
+      const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      const upcomingSessions = await db.select().from(sessions)
+        .where(and(
+          inArray(sessions.clubId, clubIds),
+          gte(sessions.date, now),
+          lte(sessions.date, twoWeeks),
+          sql`${sessions.status} = 'PUBLISHED'`
+        ))
+        .orderBy(sessions.date)
+        .limit(20);
+
+      const recommended = [];
+      for (const sess of upcomingSessions) {
+        const signups = await storage.getSessionSignups(sess.id);
+        const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED");
+        const alreadyJoined = signups.some(s => s.userId === userId);
+        if (alreadyJoined) continue;
+
+        const profileIds = confirmedSignups.map((s: any) => s.playerId);
+        let avgGrade = userGradeVal;
+        if (profileIds.length > 0) {
+          const profiles = await db.select({ grade: playerProfiles.grade }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds));
+          const gradeVals = profiles.map(p => GRADE_VALUES[p.grade || "C3"] || 1);
+          avgGrade = gradeVals.length > 0 ? gradeVals.reduce((a, b) => a + b, 0) / gradeVals.length : userGradeVal;
+        }
+
+        const gradeDiff = Math.abs(userGradeVal - avgGrade);
+        const matchScore = Math.max(0, 100 - (gradeDiff * 20));
+        const spotsLeft = sess.maxPlayers - confirmedSignups.length;
+
+        recommended.push({
+          ...sess,
+          matchScore: Math.round(matchScore),
+          currentPlayers: confirmedSignups.length,
+          spotsLeft: Math.max(0, spotsLeft),
+          avgPlayerGrade: avgGrade.toFixed(1),
+        });
+      }
+
+      recommended.sort((a, b) => b.matchScore - a.matchScore);
+      res.json(recommended.slice(0, 10));
+    } catch (err: any) {
+      console.error("Error fetching recommended sessions:", err);
+      res.status(500).json({ message: "Failed to fetch recommendations" });
+    }
+  });
+
+  app.get("/api/players/analytics/:playerId/development", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const playerId = Number(req.params.playerId);
+      const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      if (profile.length === 0) return res.status(404).json({ message: "Player not found" });
+      const userId = profile[0].userId;
+
+      const allMatches = await db.select({
+        id: matches.id,
+        sessionId: matches.sessionId,
+        t1p1: matches.teamAPlayer1Id,
+        t1p2: matches.teamAPlayer2Id,
+        t2p1: matches.teamBPlayer1Id,
+        t2p2: matches.teamBPlayer2Id,
+        scoreA: matches.scoreA,
+        scoreB: matches.scoreB,
+        isCompleted: matches.isCompleted,
+        sessionDate: sessions.date,
+      }).from(matches)
+        .innerJoin(sessions, eq(matches.sessionId, sessions.id))
+        .where(and(
+          eq(matches.isCompleted, true),
+          sql`${matches.deletedAt} IS NULL`,
+          or(
+            eq(matches.teamAPlayer1Id, playerId),
+            eq(matches.teamAPlayer2Id, playerId),
+            eq(matches.teamBPlayer1Id, playerId),
+            eq(matches.teamBPlayer2Id, playerId)
+          )
+        ))
+        .orderBy(sessions.date);
+
+      const sessionWinRates: { date: string; winRate: number; matchesInSession: number }[] = [];
+      const partnerStats: Record<number, { games: number; wins: number }> = {};
+      const opponentStats: Record<number, { games: number; wins: number }> = {};
+
+      const matchesBySession: Record<number, typeof allMatches> = {};
+      allMatches.forEach(m => {
+        if (!matchesBySession[m.sessionId]) matchesBySession[m.sessionId] = [];
+        matchesBySession[m.sessionId].push(m);
+      });
+
+      for (const [, sessionMatches] of Object.entries(matchesBySession)) {
+        let wins = 0;
+        let total = sessionMatches.length;
+        sessionMatches.forEach(m => {
+          const isTeam1 = m.t1p1 === playerId || m.t1p2 === playerId;
+          const won = isTeam1 ? (m.scoreA || 0) > (m.scoreB || 0) : (m.scoreB || 0) > (m.scoreA || 0);
+          if (won) wins++;
+
+          const partnerId = isTeam1 ? (m.t1p1 === playerId ? m.t1p2 : m.t1p1) : (m.t2p1 === playerId ? m.t2p2 : m.t2p1);
+          if (partnerId) {
+            if (!partnerStats[partnerId]) partnerStats[partnerId] = { games: 0, wins: 0 };
+            partnerStats[partnerId].games++;
+            if (won) partnerStats[partnerId].wins++;
+          }
+
+          const opps = isTeam1 ? [m.t2p1, m.t2p2] : [m.t1p1, m.t1p2];
+          opps.forEach(opp => {
+            if (opp) {
+              if (!opponentStats[opp]) opponentStats[opp] = { games: 0, wins: 0 };
+              opponentStats[opp].games++;
+              if (won) opponentStats[opp].wins++;
+            }
+          });
+        });
+
+        if (total > 0) {
+          sessionWinRates.push({
+            date: sessionMatches[0].sessionDate?.toISOString().split("T")[0] || "",
+            winRate: Math.round((wins / total) * 100),
+            matchesInSession: total,
+          });
+        }
+      }
+
+      const topPartners = Object.entries(partnerStats)
+        .map(([id, s]) => ({ playerId: Number(id), games: s.games, winRate: Math.round((s.wins / s.games) * 100) }))
+        .sort((a, b) => b.games - a.games)
+        .slice(0, 10);
+
+      const topOpponents = Object.entries(opponentStats)
+        .map(([id, s]) => ({ playerId: Number(id), games: s.games, winRate: Math.round((s.wins / s.games) * 100) }))
+        .sort((a, b) => b.games - a.games)
+        .slice(0, 10);
+
+      const partnerIds = topPartners.map(p => p.playerId);
+      const opponentIds = topOpponents.map(o => o.playerId);
+      const allIds = [...new Set([...partnerIds, ...opponentIds])];
+      const playerNames: Record<number, string> = {};
+      if (allIds.length > 0) {
+        const profiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, allIds));
+        const userIds = profiles.map(p => p.userId);
+        if (userIds.length > 0) {
+          const usersList = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+          profiles.forEach(p => {
+            const u = usersList.find(u => u.id === p.userId);
+            if (u) playerNames[p.id] = u.fullName;
+          });
+        }
+      }
+
+      const recentTrend = sessionWinRates.slice(-10);
+      const olderTrend = sessionWinRates.slice(-20, -10);
+      const recentAvg = recentTrend.length > 0 ? Math.round(recentTrend.reduce((s, r) => s + r.winRate, 0) / recentTrend.length) : 0;
+      const olderAvg = olderTrend.length > 0 ? Math.round(olderTrend.reduce((s, r) => s + r.winRate, 0) / olderTrend.length) : 0;
+      const trendDirection = recentTrend.length >= 3 && olderTrend.length >= 3 ? (recentAvg > olderAvg ? "improving" : recentAvg < olderAvg ? "declining" : "stable") : "insufficient_data";
+
+      const improvementAreas: string[] = [];
+      const overallWinRate = allMatches.length > 0 ? Math.round(allMatches.filter(m => {
+        const isT1 = m.t1p1 === playerId || m.t1p2 === playerId;
+        return isT1 ? (m.scoreA || 0) > (m.scoreB || 0) : (m.scoreB || 0) > (m.scoreA || 0);
+      }).length / allMatches.length * 100) : 0;
+
+      if (overallWinRate < 40) improvementAreas.push("Focus on consistency - win rate is below 40%");
+      if (trendDirection === "declining") improvementAreas.push("Recent performance declining - consider reviewing technique");
+      const soloGames = Object.values(partnerStats).reduce((s, p) => s + p.games, 0);
+      const totalPartners = Object.keys(partnerStats).length;
+      if (totalPartners > 0 && totalPartners < 3) improvementAreas.push("Play with more diverse partners to build adaptability");
+      const challengingCount = topOpponents.filter(o => o.winRate < 30 && o.games >= 3).length;
+      if (challengingCount > 2) improvementAreas.push("Several opponents consistently outperform you - study their play style");
+      if (recentTrend.length > 0 && recentTrend[recentTrend.length - 1].winRate < 30) improvementAreas.push("Last session was tough - focus on fundamentals in next session");
+      if (improvementAreas.length === 0 && overallWinRate >= 50) improvementAreas.push("Strong overall performance - challenge yourself against higher-rated opponents");
+
+      res.json({
+        winRateTrend: sessionWinRates.slice(-20),
+        totalMatches: allMatches.length,
+        currentGrade: profile[0].grade,
+        trendDirection,
+        recentAvgWinRate: recentAvg,
+        overallWinRate,
+        improvementAreas,
+        topPartners: topPartners.map(p => ({ ...p, name: playerNames[p.playerId] || `Player ${p.playerId}` })),
+        challengingOpponents: topOpponents.filter(o => o.winRate < 40).map(o => ({ ...o, name: playerNames[o.playerId] || `Player ${o.playerId}` })),
+        bestOpponents: topOpponents.filter(o => o.winRate >= 60).map(o => ({ ...o, name: playerNames[o.playerId] || `Player ${o.playerId}` })),
+      });
+    } catch (err: any) {
+      console.error("Error fetching development data:", err);
+      res.status(500).json({ message: "Failed to fetch development data" });
+    }
+  });
+
+  app.post("/api/sessions/:id/generate-full-schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      if (!isOwner) {
+        const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", session.clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const { rounds: requestedRounds, courts: requestedCourts } = req.body;
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED");
+      const playerCount = confirmedSignups.length;
+
+      if (playerCount < 4) {
+        return res.status(400).json({ message: "Need at least 4 confirmed players to generate a schedule" });
+      }
+
+      const courts = requestedCourts || session.numberOfCourts || Math.max(1, Math.floor(playerCount / 4));
+      const rounds = requestedRounds || Math.max(3, Math.ceil((playerCount * 3) / (courts * 4)));
+
+      const schedule: any[] = [];
+      const allGeneratedMatches: any[] = [];
+
+      for (let round = 0; round < rounds; round++) {
+        const roundMatches: any[] = [];
+
+        for (let court = 0; court < courts; court++) {
+          const existingMatchCount = await db.select({ count: sql<number>`count(*)::int` }).from(matches)
+            .where(and(eq(matches.sessionId, sessionId), sql`${matches.deletedAt} IS NULL`));
+
+          const matchNum = (existingMatchCount[0]?.count || 0) + allGeneratedMatches.length + 1;
+          const profileIds = confirmedSignups.map((s: any) => s.playerId);
+          const profiles = profileIds.length > 0 ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIds)) : [];
+
+          const usedInRound = new Set(roundMatches.flatMap((m: any) => [m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id].filter(Boolean)));
+          const available = profiles.filter(p => !usedInRound.has(p.id));
+
+          if (available.length < 4) break;
+
+          const usedInPrevRounds = new Set(allGeneratedMatches.flatMap((m: any) => {
+            const key = [m.team1Player1Id, m.team1Player2Id].sort().join("-");
+            return [key];
+          }));
+
+          available.sort(() => Math.random() - 0.5);
+
+          const GRADE_VALUES: Record<string, number> = { A1: 9, A2: 8, A3: 7, B1: 6, B2: 5, B3: 4, C1: 3, C2: 2, C3: 1 };
+          let bestMatch: any = null;
+          let bestScore = -Infinity;
+
+          for (let i = 0; i < Math.min(available.length, 20); i++) {
+            for (let j = i + 1; j < Math.min(available.length, 20); j++) {
+              for (let k = j + 1; k < Math.min(available.length, 20); k++) {
+                for (let l = k + 1; l < Math.min(available.length, 20); l++) {
+                  const players = [available[i], available[j], available[k], available[l]];
+                  const gradeVals = players.map(p => GRADE_VALUES[p.grade || "C3"] || 1);
+
+                  const team1Str = gradeVals[0] + gradeVals[3];
+                  const team2Str = gradeVals[1] + gradeVals[2];
+                  const balance = 100 - Math.abs(team1Str - team2Str) * 10;
+
+                  const pairKey = [players[0].id, players[3].id].sort().join("-");
+                  const repeatPenalty = usedInPrevRounds.has(pairKey) ? -20 : 0;
+
+                  const matchCountPenalty = allGeneratedMatches.reduce((penalty, prev) => {
+                    const prevPlayers = [prev.team1Player1Id, prev.team1Player2Id, prev.team2Player1Id, prev.team2Player2Id];
+                    const overlap = players.filter(p => prevPlayers.includes(p.id)).length;
+                    return penalty - (overlap > 2 ? 5 : 0);
+                  }, 0);
+
+                  const score = balance + repeatPenalty + matchCountPenalty;
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = {
+                      team1Player1Id: players[0].id,
+                      team1Player2Id: players[3].id,
+                      team2Player1Id: players[1].id,
+                      team2Player2Id: players[2].id,
+                      fairnessScore: Math.max(0, Math.round(balance)),
+                    };
+                  }
+                }
+              }
+            }
+          }
+
+          if (bestMatch) {
+            roundMatches.push({ ...bestMatch, round: round + 1, court: court + 1, matchNumber: matchNum });
+            allGeneratedMatches.push(bestMatch);
+          }
+        }
+
+        if (roundMatches.length > 0) {
+          schedule.push({ round: round + 1, matches: roundMatches });
+        }
+      }
+
+      const overallFairness = schedule.length > 0
+        ? Math.round(schedule.flatMap(r => r.matches).reduce((s: number, m: any) => s + m.fairnessScore, 0) / schedule.flatMap(r => r.matches).length)
+        : 0;
+
+      const playerMatchCounts: Record<number, number> = {};
+      allGeneratedMatches.forEach(m => {
+        [m.team1Player1Id, m.team1Player2Id, m.team2Player1Id, m.team2Player2Id].forEach((pid: number) => {
+          if (pid) playerMatchCounts[pid] = (playerMatchCounts[pid] || 0) + 1;
+        });
+      });
+      const counts = Object.values(playerMatchCounts);
+      const participationEquity = counts.length > 0 ? Math.round((Math.min(...counts) / Math.max(...counts)) * 100) : 100;
+
+      res.json({
+        schedule,
+        totalRounds: schedule.length,
+        totalMatches: allGeneratedMatches.length,
+        overallFairness,
+        participationEquity,
+        playerMatchCounts,
+        courts,
+      });
+    } catch (err: any) {
+      console.error("Error generating full schedule:", err);
+      res.status(500).json({ message: "Failed to generate full schedule" });
+    }
+  });
+
+  app.post("/api/sessions/:id/confirm-schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const isOwner = req.user!.role === "OWNER";
+      if (!isOwner) {
+        const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", session.clubId);
+        if (!allowed) return res.sendStatus(403);
+      }
+
+      const { schedule } = req.body;
+      if (!schedule || !Array.isArray(schedule)) return res.status(400).json({ message: "Schedule is required" });
+
+      const createdMatches = [];
+      for (const round of schedule) {
+        for (const match of round.matches) {
+          const [created] = await db.insert(matches).values({
+            sessionId,
+            matchNumber: match.matchNumber,
+            team1Player1Id: match.team1Player1Id,
+            team1Player2Id: match.team1Player2Id,
+            team2Player1Id: match.team2Player1Id,
+            team2Player2Id: match.team2Player2Id,
+            courtNumber: match.court,
+            status: "QUEUED",
+            isCompleted: false,
+            scoreA: 0,
+            scoreB: 0,
+          } as any).returning();
+          createdMatches.push(created);
+        }
+      }
+
+      res.json({ matchesCreated: createdMatches.length });
+    } catch (err: any) {
+      console.error("Error confirming schedule:", err);
+      res.status(500).json({ message: "Failed to confirm schedule" });
+    }
+  });
+
+  app.post("/api/sessions/:id/ai-design", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED");
+      const playerCount = confirmedSignups.length;
+      const courts = session.courtsAvailable || Math.max(1, Math.floor(playerCount / 4));
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const optimalPlayers = courts * playersPerMatch;
+      const matchesPerRound = Math.min(courts, Math.floor(playerCount / playersPerMatch));
+      const playersPerRound = matchesPerRound * playersPerMatch;
+      const idlePerRound = playerCount > 0 ? Math.max(0, playerCount - playersPerRound) : 0;
+      const suggestedRounds = playerCount >= playersPerMatch ? Math.max(3, Math.ceil((session.durationMinutes || 120) / 15)) : 0;
+      const avgMatchDuration = 12;
+      const restBetweenRounds = 3;
+      const estimatedDuration = suggestedRounds * (avgMatchDuration + restBetweenRounds);
+
+      const profileIds = confirmedSignups.map((s: any) => s.playerId);
+      const profiles = profileIds.length > 0 ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIds)) : [];
+      const GRADE_VALUES: Record<string, number> = { A1: 9, A2: 8, A3: 7, B1: 6, B2: 5, B3: 4, C1: 3, C2: 2, C3: 1 };
+      const gradeNums = profiles.map(p => GRADE_VALUES[p.grade || "C3"] || 1);
+      const avg = gradeNums.length > 0 ? gradeNums.reduce((a, b) => a + b, 0) / gradeNums.length : 0;
+      const stdDev = gradeNums.length > 0 ? Math.sqrt(gradeNums.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / gradeNums.length) : 0;
+      const predictedBalance = Math.max(0, 100 - (stdDev * 15));
+
+      const gradeDistribution: Record<string, number> = {};
+      for (const p of profiles) {
+        const g = p.grade || "C3";
+        gradeDistribution[g] = (gradeDistribution[g] || 0) + 1;
+      }
+
+      const genderBreakdown = { male: 0, female: 0 };
+      for (const p of profiles) {
+        if (p.gender === "MALE") genderBreakdown.male++;
+        else if (p.gender === "FEMALE") genderBreakdown.female++;
+      }
+
+      const predictedEngagement = Math.round(
+        (Math.min(100, predictedBalance) * 0.4) +
+        (Math.min(100, matchesPerRound > 0 ? (playersPerRound / Math.max(1, playerCount)) * 100 : 0) * 0.3) +
+        (Math.min(100, idlePerRound === 0 ? 100 : Math.max(0, 100 - (idlePerRound / Math.max(1, playerCount)) * 200)) * 0.3)
+      );
+
+      const paymentReliabilitySignups = await db.select({
+        playerId: sessionSignups.playerId,
+        paymentStatus: sessionSignups.paymentStatus,
+        fee: sessionSignups.fee,
+      }).from(sessionSignups)
+        .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.signupStatus, "CONFIRMED")));
+
+      const totalExpected = paymentReliabilitySignups.reduce((s, e) => s + (e.fee || 0), 0);
+      const totalPaid = paymentReliabilitySignups.filter(s => s.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
+      const totalPending = paymentReliabilitySignups.filter(s => s.paymentStatus === "PENDING").reduce((s, e) => s + (e.fee || 0), 0);
+
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const historicalPayments = profileIds.length > 0 ? await db.select({
+        playerId: sessionSignups.playerId,
+        paymentStatus: sessionSignups.paymentStatus,
+        fee: sessionSignups.fee,
+      }).from(sessionSignups)
+        .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+        .where(and(
+          inArray(sessionSignups.playerId, profileIds),
+          eq(sessionSignups.signupStatus, "CONFIRMED"),
+          gte(sessions.date, sixMonthsAgo)
+        )) : [];
+
+      let optimisticRevenue = totalExpected;
+      let realisticRevenue = totalPaid + totalPending;
+      let pessimisticRevenue = totalPaid;
+
+      if (historicalPayments.length > 0) {
+        const playerReliability: Record<number, number> = {};
+        for (const pid of profileIds) {
+          const hist = historicalPayments.filter(h => h.playerId === pid);
+          if (hist.length === 0) {
+            playerReliability[pid] = 0.7;
+            continue;
+          }
+          const paidCount = hist.filter(h => h.paymentStatus === "PAID").length;
+          playerReliability[pid] = paidCount / hist.length;
+        }
+
+        realisticRevenue = totalPaid;
+        pessimisticRevenue = totalPaid;
+        for (const s of paymentReliabilitySignups) {
+          if (s.paymentStatus !== "PAID" && s.fee) {
+            const reliability = playerReliability[s.playerId] ?? 0.7;
+            realisticRevenue += Math.round(s.fee * reliability);
+            pessimisticRevenue += Math.round(s.fee * Math.max(0, reliability - 0.3));
+          }
+        }
+      }
+
+      const restPeriodSuggestion = playerCount > optimalPlayers
+        ? `${restBetweenRounds} min rest between rounds (rotating ${idlePerRound} player${idlePerRound !== 1 ? "s" : ""} per round)`
+        : `${restBetweenRounds} min rest between rounds`;
+
+      const recommendations: string[] = [];
+      if (playerCount < playersPerMatch) {
+        recommendations.push(`Need at least ${playersPerMatch} players to generate schedule`);
+      } else {
+        if (playerCount < optimalPlayers) {
+          recommendations.push(`${optimalPlayers - playerCount} more player${optimalPlayers - playerCount !== 1 ? "s" : ""} would fill all courts optimally`);
+        } else if (playerCount === optimalPlayers) {
+          recommendations.push("Player count is optimal for available courts");
+        } else {
+          recommendations.push(`${idlePerRound} player${idlePerRound !== 1 ? "s" : ""} will sit out each round — rotation ensures fairness`);
+        }
+        recommendations.push(stdDev > 2 ? "Consider splitting into skill-based groups for better balance" : "Skill levels are well balanced for mixed play");
+        recommendations.push(`${suggestedRounds} rounds recommended (~${estimatedDuration} minutes)`);
+        recommendations.push(restPeriodSuggestion);
+        if (idlePerRound > 0) {
+          recommendations.push(`Court utilization: ${matchesPerRound}/${courts} courts per round`);
+        }
+      }
+
+      res.json({
+        playerCount,
+        courts,
+        optimalPlayers,
+        matchesPerRound,
+        suggestedRounds,
+        estimatedDurationMinutes: estimatedDuration,
+        avgMatchDuration,
+        restBetweenRounds,
+        idlePlayersPerRound: idlePerRound,
+        predictedBalanceScore: Math.round(predictedBalance),
+        predictedEngagementScore: predictedEngagement,
+        gradeDistribution,
+        genderBreakdown,
+        skillRange: { min: Math.min(...gradeNums, 0), max: Math.max(...gradeNums, 0), avg: avg.toFixed(1), stdDev: stdDev.toFixed(2) },
+        courtOptimization: {
+          courtsUsedPerRound: matchesPerRound,
+          totalCourts: courts,
+          courtUtilization: courts > 0 ? Math.round((matchesPerRound / courts) * 100) : 0,
+          playersActivePerRound: playersPerRound,
+          playersIdlePerRound: idlePerRound,
+        },
+        profitPrediction: {
+          expectedRevenue: totalExpected,
+          confirmedRevenue: totalPaid,
+          pendingAmount: totalPending,
+          unpaidAmount: totalExpected - totalPaid - totalPending,
+          optimistic: optimisticRevenue,
+          realistic: realisticRevenue,
+          pessimistic: pessimisticRevenue,
+        },
+        recommendations,
+      });
+    } catch (err: any) {
+      console.error("Error in AI session design:", err);
+      res.status(500).json({ message: "Failed to generate AI design" });
+    }
+  });
+
+  // === SESSION FINANCIAL COMMAND CENTER ===
+  app.get("/api/sessions/:id/financial-overview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const allSignups = await storage.getSessionSignups(sessionId);
+      const confirmed = allSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED");
+
+      const expectedRevenue = confirmed.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+      const paidRevenue = confirmed.filter((s: any) => s.paymentStatus === "PAID").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+      const pendingRevenue = confirmed.filter((s: any) => s.paymentStatus === "PENDING").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+      const unpaidRevenue = confirmed.filter((s: any) => s.paymentStatus === "UNPAID").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+      const cashPendingRevenue = confirmed.filter((s: any) => s.paymentMethod === "CASH" && s.paymentStatus !== "PAID").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+      const creditAppliedRevenue = confirmed.filter((s: any) => s.paymentMethod === "MEMBERSHIP_CREDIT").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
+
+      const paidCount = confirmed.filter((s: any) => s.paymentStatus === "PAID").length;
+      const pendingCount = confirmed.filter((s: any) => s.paymentStatus === "PENDING").length;
+      const unpaidCount = confirmed.filter((s: any) => s.paymentStatus === "UNPAID").length;
+      const cashPendingCount = confirmed.filter((s: any) => s.paymentMethod === "CASH" && s.paymentStatus !== "PAID").length;
+      const creditCount = confirmed.filter((s: any) => s.paymentMethod === "MEMBERSHIP_CREDIT").length;
+
+      const creditEntries = await db.select({
+        userId: creditLedger.userId,
+        amount: creditLedger.amount,
+      }).from(creditLedger).where(
+        and(
+          eq(creditLedger.linkedSessionId, sessionId),
+        )
+      );
+
+      const creditByUser: Record<number, number> = {};
+      for (const entry of creditEntries) {
+        creditByUser[entry.userId] = (creditByUser[entry.userId] || 0) + entry.amount;
+      }
+
+      const players = confirmed.map((s: any) => ({
+        signupId: s.id,
+        playerId: s.playerId,
+        userId: s.player?.userId || null,
+        fullName: s.player?.user?.fullName || "Unknown",
+        fee: s.fee || 0,
+        paymentMethod: s.paymentMethod || "NONE",
+        paymentStatus: s.paymentStatus || "UNPAID",
+        verifiedByAdmin: s.verifiedByAdmin || false,
+        creditUsed: creditByUser[s.player?.userId] || 0,
+        adminNotes: s.adminNotes || null,
+        paymentNotes: s.paymentNotes || null,
+      }));
+
+      res.json({
+        summary: {
+          expectedRevenue,
+          paidRevenue,
+          pendingRevenue,
+          unpaidRevenue,
+          cashPendingRevenue,
+          creditAppliedRevenue,
+          paidCount,
+          pendingCount,
+          unpaidCount,
+          cashPendingCount,
+          creditCount,
+          totalPlayers: confirmed.length,
+          collectionRate: expectedRevenue > 0 ? Math.round((paidRevenue / expectedRevenue) * 100) : 0,
+        },
+        players,
+      });
+    } catch (err: any) {
+      console.error("Error fetching session financial overview:", err);
+      res.status(500).json({ message: "Failed to fetch financial overview" });
+    }
+  });
+
+  app.post("/api/sessions/:id/send-payment-reminder", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const { signupId, playerId } = req.body;
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const [signup] = await db.select().from(sessionSignups).where(eq(sessionSignups.id, signupId));
+      if (!signup || signup.paymentStatus === "PAID") return res.status(400).json({ message: "Signup not found or already paid" });
+
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId));
+      if (!profile) return res.status(404).json({ message: "Player not found" });
+
+      const club = await storage.getClub(session.clubId);
+      const feeDisplay = `£${(signup.fee / 100).toFixed(2)}`;
+      const sessionDate = session.date ? new Date(session.date).toLocaleDateString("en-GB") : "";
+      const bankInfo = club?.bankAccountName ? `${club.bankAccountName} | Sort: ${club.bankSortCode} | Acc: ${club.bankAccountNumber}` : "your club's bank account";
+
+      await storage.createNotification({
+        userId: profile.userId,
+        type: "PAYMENT_REMINDER",
+        title: "Payment Reminder",
+        message: `Your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} is outstanding. Please pay to ${bankInfo}.`,
+        linkUrl: "/profile",
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error sending payment reminder:", err);
+      res.status(500).json({ message: "Failed to send reminder" });
+    }
+  });
+
+  app.post("/api/sessions/:id/issue-credit", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const { playerId, amount, reason } = req.body;
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, playerId));
+      if (!profile) return res.status(404).json({ message: "Player not found" });
+
+      const creditAmount = amount || 0;
+      if (creditAmount <= 0) return res.status(400).json({ message: "Invalid credit amount" });
+
+      await db.insert(creditLedger).values({
+        userId: profile.userId,
+        clubId: session.clubId,
+        amount: creditAmount,
+        reason: reason || `Credit for session: ${session.title}`,
+        linkedSessionId: sessionId,
+        createdById: req.user!.id,
+      });
+
+      await storage.createNotification({
+        userId: profile.userId,
+        type: "credit_issued",
+        title: "Credit Issued",
+        message: `You have been issued a credit of £${(creditAmount / 100).toFixed(2)} for "${session.title}".`,
+        linkUrl: "/profile",
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error issuing credit:", err);
+      res.status(500).json({ message: "Failed to issue credit" });
     }
   });
 

@@ -470,6 +470,57 @@ function InvitePlayersModal({
   );
 }
 
+function RecommendedSessions() {
+  const { data: recommended, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/sessions/recommended"],
+  });
+
+  if (isLoading || !recommended || recommended.length === 0) return null;
+
+  return (
+    <div className="space-y-3" data-testid="section-recommended-sessions">
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 rounded-md bg-primary/10">
+          <Shuffle className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-sm">Recommended for You</h3>
+          <span className="text-xs text-muted-foreground">Sessions matching your skill level</span>
+        </div>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {recommended.map((session: any) => (
+          <Link key={session.id} href={`/sessions/${session.id}`}>
+            <Card className="min-w-[240px] max-w-[280px] hover-elevate cursor-pointer" data-testid={`card-recommended-session-${session.id}`}>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="font-semibold text-sm truncate">{session.title}</h4>
+                  <Badge variant={session.inGradeRange ? "default" : "secondary"} className="text-[10px] shrink-0">
+                    {session.matchScore}% match
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span>{format(new Date(session.date), "EEE, d MMM")}</span>
+                  <span>{session.startTime}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{session.clubName}</span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Badge variant="outline" className="text-[10px]">{session.matchMode}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{session.courtsAvailable} courts</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Sessions() {
   const { data: user } = useUser();
   const { data: sessions, isLoading } = useSessions();
@@ -984,6 +1035,10 @@ export default function Sessions() {
           ))}
         </div>
       </div>
+      )}
+
+      {user && statusFilter !== "scheduled" && statusFilter !== "past" && (
+        <RecommendedSessions />
       )}
 
       {statusFilter === "scheduled" && canManageSessions && (
@@ -1677,6 +1732,7 @@ function JoinSessionModal({
 }) {
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set([user?.id]));
+  const [paymentOption, setPaymentOption] = useState<"bank_transfer" | "cash" | "credit" | "pay_later">("pay_later");
   const [creditMode, setCreditMode] = useState<"none" | "full" | "partial">("none");
   const [partialCreditAmount, setPartialCreditAmount] = useState("");
 
@@ -1727,17 +1783,33 @@ function JoinSessionModal({
     }
   };
 
+  const getPaymentFields = () => {
+    switch (paymentOption) {
+      case "bank_transfer":
+        return { paymentMethod: "BANK_TRANSFER", paymentStatus: "PENDING" };
+      case "cash":
+        return { paymentMethod: "CASH", paymentStatus: "PENDING" };
+      case "credit":
+        return { paymentMethod: "MEMBERSHIP_CREDIT", paymentStatus: "PENDING" };
+      case "pay_later":
+      default:
+        return { paymentMethod: "NONE", paymentStatus: "UNPAID" };
+    }
+  };
+
   const joinMutation = useMutation({
     mutationFn: async () => {
       if (selectedIds.size === 0) throw new Error("Select at least one person");
+      const { paymentMethod, paymentStatus } = getPaymentFields();
       const attendees = Array.from(selectedIds).map(userId => ({
         userId,
-        paymentMethod: "NONE",
+        paymentMethod,
+        paymentStatus,
       }));
       const res = await apiRequest("POST", `/api/sessions/${session.id}/join-multi`, { attendees });
       const data = await res.json();
 
-      if (creditToApply > 0 && data.signups?.length > 0) {
+      if (paymentOption === "credit" && creditToApply > 0 && data.signups?.length > 0) {
         try {
           await apiRequest("POST", "/api/credits/apply", {
             clubId: session.clubId,
@@ -1863,31 +1935,77 @@ function JoinSessionModal({
             </div>
           )}
 
-          {!creditLoading && creditBalance > 0 && session.sessionFee != null && selectedIds.size > 0 && (
+          {selectedIds.size > 0 && (
+            <div className="space-y-2" data-testid="payment-method-picker">
+              <span className="text-sm font-medium">How will you pay?</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                    paymentOption === "bank_transfer" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => { setPaymentOption("bank_transfer"); setCreditMode("none"); }}
+                  data-testid="payment-option-bank-transfer"
+                >
+                  <Checkbox checked={paymentOption === "bank_transfer"} onCheckedChange={() => { setPaymentOption("bank_transfer"); setCreditMode("none"); }} />
+                  <div>
+                    <p className="text-sm font-medium">Bank Transfer</p>
+                    <p className="text-[10px] text-muted-foreground">Pay via bank transfer</p>
+                  </div>
+                </div>
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                    paymentOption === "cash" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => { setPaymentOption("cash"); setCreditMode("none"); }}
+                  data-testid="payment-option-cash"
+                >
+                  <Checkbox checked={paymentOption === "cash"} onCheckedChange={() => { setPaymentOption("cash"); setCreditMode("none"); }} />
+                  <div>
+                    <p className="text-sm font-medium">Cash</p>
+                    <p className="text-[10px] text-muted-foreground">Pay cash at session</p>
+                  </div>
+                </div>
+                {!creditLoading && creditBalance > 0 && (
+                  <div
+                    className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                      paymentOption === "credit" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                    }`}
+                    onClick={() => { setPaymentOption("credit"); setCreditMode("full"); }}
+                    data-testid="payment-option-credit"
+                  >
+                    <Checkbox checked={paymentOption === "credit"} onCheckedChange={() => { setPaymentOption("credit"); setCreditMode("full"); }} />
+                    <div>
+                      <p className="text-sm font-medium">Credit</p>
+                      <p className="text-[10px] text-muted-foreground">£{(creditBalance / 100).toFixed(2)} available</p>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                    paymentOption === "pay_later" ? "border-primary bg-primary/5" : "border-border hover-elevate"
+                  }`}
+                  onClick={() => { setPaymentOption("pay_later"); setCreditMode("none"); }}
+                  data-testid="payment-option-pay-later"
+                >
+                  <Checkbox checked={paymentOption === "pay_later"} onCheckedChange={() => { setPaymentOption("pay_later"); setCreditMode("none"); }} />
+                  <div>
+                    <p className="text-sm font-medium">Pay Later</p>
+                    <p className="text-[10px] text-muted-foreground">Settle payment later</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {paymentOption === "credit" && !creditLoading && creditBalance > 0 && session.sessionFee != null && selectedIds.size > 0 && (
             <div className="rounded-md border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 space-y-3" data-testid="credit-prompt">
               <div className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                  You have £{(creditBalance / 100).toFixed(2)} credit available
+                  Credit balance: £{(creditBalance / 100).toFixed(2)}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Session fee: £{(totalFee / 100).toFixed(2)}. Would you like to apply credit?
-              </p>
               <div className="flex flex-col gap-2">
-                <div
-                  className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
-                    creditMode === "none" ? "border-primary bg-primary/5" : "border-border hover-elevate"
-                  }`}
-                  onClick={() => setCreditMode("none")}
-                  data-testid="credit-option-skip"
-                >
-                  <Checkbox
-                    checked={creditMode === "none"}
-                    onCheckedChange={() => setCreditMode("none")}
-                  />
-                  <span className="text-sm">Skip - don't apply credit</span>
-                </div>
                 <div
                   className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
                     creditMode === "full" ? "border-primary bg-primary/5" : "border-border hover-elevate"

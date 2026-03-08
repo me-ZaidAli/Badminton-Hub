@@ -90,6 +90,7 @@ interface UnifiedMemberEditDialogProps {
   showClubActions?: boolean;
   showAssignToClub?: boolean;
   playerStatusValue?: string;
+  extraContent?: React.ReactNode;
 }
 
 export function UnifiedMemberEditDialog({
@@ -118,6 +119,7 @@ export function UnifiedMemberEditDialog({
   showClubActions = false,
   showAssignToClub = false,
   playerStatusValue,
+  extraContent,
 }: UnifiedMemberEditDialogProps) {
   const { toast } = useToast();
 
@@ -370,6 +372,8 @@ export function UnifiedMemberEditDialog({
                 </div>
               </div>
             )}
+
+            {extraContent}
 
             <div>
               <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3 flex items-center gap-2">

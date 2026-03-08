@@ -915,6 +915,16 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
     enabled: !!profileId && dashTab === "achievements",
   });
 
+  const { data: developmentData, isLoading: loadingDevelopment } = useQuery<any>({
+    queryKey: ["/api/players/analytics", profileId, "development"],
+    queryFn: async () => {
+      const res = await fetch(`/api/players/analytics/${profileId}/development`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!profileId && dashTab === "development",
+  });
+
   const stats = (analytics as any)?.stats;
 
   return (
@@ -998,6 +1008,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
           </TabsTrigger>
           <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
+          </TabsTrigger>
+          <TabsTrigger value="development" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-development">
+            <TrendingUp className="h-4 w-4 mr-1" /> Development
           </TabsTrigger>
         </TabsList>
 
@@ -1254,6 +1267,156 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               isAdmin={isAdmin}
               isOwnProfile={isOwnProfile}
             />
+          )}
+        </TabsContent>
+
+        <TabsContent value="development" className="mt-5">
+          {loadingDevelopment ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-muted/20 animate-pulse rounded-2xl" />)}
+            </div>
+          ) : developmentData ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="Total Matches" value={developmentData.totalMatches || 0} icon={Swords} sparkColor="#22d3ee" />
+                <StatCard label="Current Grade" value={developmentData.currentGrade || "N/A"} icon={Award} sparkColor="#f59e0b" />
+                <StatCard label="Recent Win Rate" value={`${developmentData.recentAvgWinRate || 0}%`} icon={TrendingUp} sparkColor="#10b981" />
+                <StatCard
+                  label="Trend"
+                  value={developmentData.trendDirection === "improving" ? "Improving" : developmentData.trendDirection === "declining" ? "Declining" : developmentData.trendDirection === "stable" ? "Stable" : "N/A"}
+                  icon={developmentData.trendDirection === "improving" ? TrendingUp : developmentData.trendDirection === "declining" ? TrendingDown : Activity}
+                  sparkColor={developmentData.trendDirection === "improving" ? "#10b981" : developmentData.trendDirection === "declining" ? "#ef4444" : "#64748b"}
+                />
+              </div>
+
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-win-rate-trend-title">
+                  <TrendingUp className="h-4 w-4 text-cyan-400" />
+                  Win Rate Trend (Per Session)
+                  <span className="ml-auto text-[10px] text-slate-500 font-normal">Last {developmentData.winRateTrend?.length || 0} sessions</span>
+                </h4>
+                {developmentData.winRateTrend && developmentData.winRateTrend.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={developmentData.winRateTrend}>
+                      <defs>
+                        <linearGradient id="devWinRateGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth() + 1}`; }} />
+                      <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" domain={[0, 100]} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }}
+                        labelFormatter={(v: string) => new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        formatter={(value: number, name: string) => [`${value}%`, name === "winRate" ? "Win Rate" : name]}
+                      />
+                      <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#devWinRateGrad)" strokeWidth={2.5} name="Win Rate" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-slate-500 text-sm text-center py-8">No session data available yet</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/3 via-transparent to-cyan-500/3 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-best-partners-title">
+                    <Heart className="h-4 w-4 text-emerald-400" />
+                    Best Partners
+                  </h4>
+                  {developmentData.topPartners && developmentData.topPartners.length > 0 ? (
+                    <div className="space-y-2 relative z-10">
+                      {developmentData.topPartners.slice(0, 5).map((p: any, idx: number) => (
+                        <div key={p.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`partner-row-${idx}`}>
+                          <div className="w-6 h-6 rounded-full bg-emerald-500/15 flex items-center justify-center text-[10px] font-bold text-emerald-400">{idx + 1}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-300 truncate">{p.name}</p>
+                            <p className="text-[10px] text-slate-500">{p.games} games together</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">{p.winRate}% WR</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-sm text-center py-6">No partner data yet</p>
+                  )}
+                </div>
+
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-500/3 via-transparent to-purple-500/3 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-challenging-opponents-title">
+                    <Swords className="h-4 w-4 text-red-400" />
+                    Challenging Opponents
+                  </h4>
+                  {developmentData.challengingOpponents && developmentData.challengingOpponents.length > 0 ? (
+                    <div className="space-y-2 relative z-10">
+                      {developmentData.challengingOpponents.slice(0, 5).map((o: any, idx: number) => (
+                        <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`challenging-opponent-row-${idx}`}>
+                          <div className="w-6 h-6 rounded-full bg-red-500/15 flex items-center justify-center text-[10px] font-bold text-red-400">{idx + 1}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-300 truncate">{o.name}</p>
+                            <p className="text-[10px] text-slate-500">{o.games} games against</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">{o.winRate}% WR</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-sm text-center py-6">No challenging opponents identified</p>
+                  )}
+                </div>
+              </div>
+
+              {developmentData.bestOpponents && developmentData.bestOpponents.length > 0 && (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-amber-500/3 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-dominant-opponents-title">
+                    <Crown className="h-4 w-4 text-amber-400" />
+                    Dominant Against
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 relative z-10">
+                    {developmentData.bestOpponents.slice(0, 6).map((o: any, idx: number) => (
+                      <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`best-opponent-row-${idx}`}>
+                        <div className="w-6 h-6 rounded-full bg-amber-500/15 flex items-center justify-center text-[10px] font-bold text-amber-400">{idx + 1}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-300 truncate">{o.name}</p>
+                          <p className="text-[10px] text-slate-500">{o.games} games</p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">{o.winRate}% WR</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {developmentData.improvementAreas && developmentData.improvementAreas.length > 0 && (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/3 via-transparent to-cyan-500/3 pointer-events-none" />
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-improvement-areas-title">
+                    <Lightbulb className="h-4 w-4 text-purple-400" />
+                    Improvement Areas
+                  </h4>
+                  <div className="space-y-2 relative z-10">
+                    {developmentData.improvementAreas.map((area: string, idx: number) => (
+                      <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/10" data-testid={`improvement-area-${idx}`}>
+                        <Sparkles className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
+                        <p className="text-xs text-slate-300">{area}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-16 text-slate-500">
+              <TrendingUp className="h-14 w-14 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-slate-400">No development data available yet</p>
+              <p className="text-sm mt-1">Play matches to see your development trends!</p>
+            </div>
           )}
         </TabsContent>
       </Tabs>

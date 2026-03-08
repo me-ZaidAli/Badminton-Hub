@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { usePlayers, useUpdatePlayer } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs, useMyAdminClubs } from "@/hooks/use-clubs";
@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Users, Shield, Mail, Trophy, Search, Trash2, Ban, Archive, UserPlus, Building2, Pencil, MoreHorizontal, CheckCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { Users, Shield, Mail, Trophy, Search, Trash2, Ban, Archive, UserPlus, Building2, Pencil, MoreHorizontal, CheckCircle, ArrowLeft, Loader2, CreditCard } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { UnifiedMemberEditDialog, MemberEditData } from "@/components/UnifiedMemberEditDialog";
@@ -842,22 +842,56 @@ function AdminEditMemberWrapper({
     onClose();
   };
 
+  const { data: reliabilityData } = useQuery<{ score: number; totalSessions: number; paidOnTime: number; unpaid: number; outstandingAmount: number; preferredMethod: string }>({
+    queryKey: ["/api/players", activeProfile?.id, "payment-reliability"],
+    enabled: open && !!activeProfile?.id,
+  });
+
   return (
-    <UnifiedMemberEditDialog
-      open={open}
-      onClose={onClose}
-      data={editData}
-      onSave={handleSave}
-      isSaving={isPending}
-      context="admin"
-      clubs={clubs}
-      showKPIs={true}
-      showClubActions={!!activeProfile}
-      playerStatusValue={activeProfile?.playerStatus}
-      onBan={() => banMutation.mutate()}
-      isBanning={banMutation.isPending}
-      onRemove={() => removeMutation.mutate()}
-      isRemoving={removeMutation.isPending}
-    />
+    <>
+      <UnifiedMemberEditDialog
+        open={open}
+        onClose={onClose}
+        data={editData}
+        onSave={handleSave}
+        isSaving={isPending}
+        context="admin"
+        clubs={clubs}
+        showKPIs={true}
+        showClubActions={!!activeProfile}
+        playerStatusValue={activeProfile?.playerStatus}
+        onBan={() => banMutation.mutate()}
+        isBanning={banMutation.isPending}
+        onRemove={() => removeMutation.mutate()}
+        isRemoving={removeMutation.isPending}
+        extraContent={reliabilityData && reliabilityData.totalSessions > 0 ? (
+          <div className="p-3 rounded-md border space-y-2" data-testid="payment-reliability-section">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4" />
+              <span className="text-sm font-semibold">Payment Reliability</span>
+              <Badge 
+                variant="outline" 
+                className={`text-xs ml-auto ${
+                  reliabilityData.score >= 70 
+                    ? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400" 
+                    : reliabilityData.score >= 50 
+                      ? "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400" 
+                      : "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
+                }`}
+                data-testid="badge-reliability-score"
+              >
+                {reliabilityData.score}%
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <span>Sessions: {reliabilityData.totalSessions}</span>
+              <span>Paid: {reliabilityData.paidOnTime}</span>
+              <span>Unpaid: {reliabilityData.unpaid}</span>
+              <span>Outstanding: {"\u00A3"}{((reliabilityData.outstandingAmount || 0) / 100).toFixed(2)}</span>
+            </div>
+          </div>
+        ) : undefined}
+      />
+    </>
   );
 }

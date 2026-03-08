@@ -28,7 +28,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -324,6 +324,18 @@ export default function SessionDetail() {
   const canEditSession = session ? editableClubIds.has(session.clubId) : false;
   const parentLiveCount = (parentMatches as any[])?.filter((m: any) => m.status === "LIVE").length || 0;
   const parentQueuedCount = (parentMatches as any[])?.filter((m: any) => m.status === "QUEUED").length || 0;
+
+  const { data: reliabilityData } = useQuery<{ scores: Record<number, { score: number; totalSessions: number; paidOnTime: number; unpaid: number; outstandingAmount: number; preferredMethod: string }> }>({
+    queryKey: ["/api/sessions", id, "payment-reliability-bulk"],
+    enabled: isOrganiser && !!session && session.status !== "COMPLETED",
+  });
+  const reliabilityScores = reliabilityData?.scores || {};
+  const riskyPlayers = Object.entries(reliabilityScores)
+    .filter(([, data]) => data.score < 50 && data.totalSessions > 0)
+    .map(([pid]) => {
+      const signup = confirmedSignups.find(s => s.playerId === Number(pid));
+      return { playerId: Number(pid), name: signup?.player?.user?.fullName || "Unknown", ...reliabilityScores[Number(pid)] };
+    });
   
   const isApprovedMember = (() => {
     if (!user || !session) return false;
@@ -1309,6 +1321,26 @@ export default function SessionDetail() {
         </Card>
       </div>
 
+      {isOrganiser && confirmedSignups.length > 0 && (
+        <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
+      )}
+
+      {isOrganiser && session.status !== "COMPLETED" && confirmedSignups.length > 0 && (
+        <SessionBalancePrediction sessionId={id} />
+      )}
+
+      {isOrganiser && session.status !== "COMPLETED" && confirmedSignups.length >= 4 && (
+        <AISessionDesigner sessionId={id} />
+      )}
+
+      {session.status === "COMPLETED" && (
+        <SessionEngagementScore sessionId={id} />
+      )}
+
+      {isOrganiser && confirmedSignups.length > 0 && (
+        <SessionFinancialCommandCenter sessionId={id} />
+      )}
+
       <MatchesView 
         sessionId={id} 
         isOrganiser={isOrganiser}
@@ -1528,6 +1560,31 @@ export default function SessionDetail() {
           )}
         </div>
 
+        {isOrganiser && riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
+          <Card className="border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" data-testid="payment-risk-alert">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="space-y-2 flex-1">
+                  <p className="font-semibold text-red-700 dark:text-red-400" data-testid="text-risk-alert-title">
+                    Payment Risk Alert
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-400/80">
+                    {riskyPlayers.length} player{riskyPlayers.length !== 1 ? "s" : ""} signed up with low payment reliability:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {riskyPlayers.map(rp => (
+                      <Badge key={rp.playerId} variant="outline" className="text-xs border-red-300 dark:border-red-700 text-red-700 dark:text-red-400" data-testid={`badge-risky-player-${rp.playerId}`}>
+                        {rp.name} (Score: {rp.score}, Outstanding: {"\u00A3"}{((rp.outstandingAmount || 0) / 100).toFixed(2)})
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {confirmedSignups.slice().sort((a, b) => {
             const aPaused = !!(a as any).isPaused;
@@ -1700,6 +1757,22 @@ export default function SessionDetail() {
                       {pairGroupId && (
                         <Badge variant="secondary" className={`text-xs ${getPairColor(pairGroupId)}`} data-testid={`badge-pair-${signup.id}`}>
                           Pair {pairGroupId}
+                        </Badge>
+                      )}
+                      {isOrganiser && reliabilityScores[signup.playerId] && reliabilityScores[signup.playerId].totalSessions > 0 && (
+                        <Badge 
+                          variant="outline" 
+                          className={`text-[10px] ${
+                            reliabilityScores[signup.playerId].score >= 70 
+                              ? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400" 
+                              : reliabilityScores[signup.playerId].score >= 50 
+                                ? "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400" 
+                                : "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
+                          }`}
+                          data-testid={`badge-reliability-${signup.playerId}`}
+                        >
+                          {reliabilityScores[signup.playerId].score >= 70 ? <CreditCard className="w-2.5 h-2.5 mr-0.5" /> : <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />}
+                          {reliabilityScores[signup.playerId].score}%
                         </Badge>
                       )}
                     </div>
@@ -2071,6 +2144,884 @@ export default function SessionDetail() {
   );
 }
 
+function PaymentVerificationDashboard({ sessionId, session, signups }: { sessionId: number; session: any; signups: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const paidSignups = signups.filter((s: any) => s.paymentStatus === "PAID");
+  const pendingBankSignups = signups.filter((s: any) => s.paymentStatus === "PENDING" && s.paymentMethod === "BANK_TRANSFER");
+  const pendingCashSignups = signups.filter((s: any) => s.paymentStatus === "PENDING" && s.paymentMethod === "CASH");
+  const creditSignups = signups.filter((s: any) => s.paymentMethod === "MEMBERSHIP_CREDIT");
+  const unpaidSignups = signups.filter((s: any) => s.paymentStatus === "UNPAID");
+  const pendingAll = signups.filter((s: any) => s.paymentStatus === "PENDING");
+
+  const sessionDate = new Date(session.date);
+  const now = new Date();
+  const hoursUntilSession = (sessionDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const showUrgentWarning = hoursUntilSession > 0 && hoursUntilSession <= 24 && (pendingAll.length > 0 || unpaidSignups.length > 0);
+
+  const bulkVerifyMutation = useMutation({
+    mutationFn: async (paymentMethod: string) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/bulk-verify-payments`, { paymentMethod });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to verify payments" }));
+        throw new Error(errData.message || "Failed to verify payments");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "manage-players"] });
+      toast({ title: "Payments Verified", description: `${data.verified} payment(s) confirmed.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const individualPaymentMutation = useMutation({
+    mutationFn: async (data: { signupId: number; paymentStatus: string; paymentMethod?: string; verifiedByAdmin?: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${sessionId}/signups/${data.signupId}/payment-override`, data);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to update payment" }));
+        throw new Error(errData.message || "Failed to update payment");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "manage-players"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card data-testid="card-payment-verification">
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        {showUrgentWarning && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200 border border-amber-200 dark:border-amber-800" data-testid="banner-pending-payments-warning">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Unverified Payments</p>
+              <p className="text-xs">Session starts in {hoursUntilSession < 1 ? "less than 1 hour" : `${Math.round(hoursUntilSession)} hours`}. {pendingAll.length + unpaidSignups.length} payment(s) still require attention.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" />
+            Payment Overview
+          </h3>
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} data-testid="button-toggle-payment-details">
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <Card><CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-paid-count">{paidSignups.length}</p>
+            <p className="text-xs text-muted-foreground">Paid</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400" data-testid="text-pending-bank-count">{pendingBankSignups.length}</p>
+            <p className="text-xs text-muted-foreground">Pending Bank</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400" data-testid="text-pending-cash-count">{pendingCashSignups.length}</p>
+            <p className="text-xs text-muted-foreground">Cash Pending</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="text-credit-count">{creditSignups.length}</p>
+            <p className="text-xs text-muted-foreground">Using Credit</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400" data-testid="text-unpaid-count">{unpaidSignups.length}</p>
+            <p className="text-xs text-muted-foreground">Unpaid</p>
+          </CardContent></Card>
+        </div>
+
+        {(pendingBankSignups.length > 0 || pendingCashSignups.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {pendingBankSignups.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => bulkVerifyMutation.mutate("BANK_TRANSFER")}
+                disabled={bulkVerifyMutation.isPending}
+                data-testid="button-confirm-all-bank"
+              >
+                {bulkVerifyMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                Confirm All Bank Transfers ({pendingBankSignups.length})
+              </Button>
+            )}
+            {pendingCashSignups.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => bulkVerifyMutation.mutate("CASH")}
+                disabled={bulkVerifyMutation.isPending}
+                data-testid="button-confirm-all-cash"
+              >
+                {bulkVerifyMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                Confirm All Cash ({pendingCashSignups.length})
+              </Button>
+            )}
+          </div>
+        )}
+
+        {expanded && (
+          <div className="space-y-2 pt-2 border-t">
+            <p className="text-sm font-medium text-muted-foreground">Individual Payment Actions</p>
+            {signups.map((s: any) => {
+              const playerName = s.player?.user?.fullName || "Unknown";
+              const feeDisplay = s.fee ? `£${(s.fee / 100).toFixed(2)}` : "Free";
+              return (
+                <div key={s.id} className="flex items-center gap-2 p-2 rounded-md border" data-testid={`row-payment-player-${s.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{playerName}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{feeDisplay}</span>
+                      <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                      {s.verifiedByAdmin && <Badge variant="secondary" className="text-[10px] bg-green-50 dark:bg-green-950">Verified</Badge>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {s.paymentStatus !== "PAID" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs gap-1"
+                        onClick={() => individualPaymentMutation.mutate({ signupId: s.id, paymentStatus: "PAID", verifiedByAdmin: true })}
+                        disabled={individualPaymentMutation.isPending}
+                        data-testid={`button-mark-paid-${s.id}`}
+                      >
+                        <Check className="w-3 h-3" /> Paid
+                      </Button>
+                    )}
+                    {s.paymentStatus === "PENDING" && s.paymentMethod === "CASH" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs gap-1"
+                        onClick={() => individualPaymentMutation.mutate({ signupId: s.id, paymentStatus: "PAID", paymentMethod: "CASH", verifiedByAdmin: true })}
+                        disabled={individualPaymentMutation.isPending}
+                        data-testid={`button-cash-received-${s.id}`}
+                      >
+                        <Check className="w-3 h-3" /> Cash Received
+                      </Button>
+                    )}
+                    {s.paymentStatus !== "UNPAID" && s.paymentStatus !== "PAID" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs gap-1 text-destructive"
+                        onClick={() => individualPaymentMutation.mutate({ signupId: s.id, paymentStatus: "UNPAID", paymentMethod: "NONE", verifiedByAdmin: false })}
+                        disabled={individualPaymentMutation.isPending}
+                        data-testid={`button-reject-payment-${s.id}`}
+                      >
+                        <X className="w-3 h-3" /> Reject
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
+  const { data, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId, "financial-overview"],
+  });
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [expandedPlayers, setExpandedPlayers] = useState(false);
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [creditTarget, setCreditTarget] = useState<{ playerId: number; fullName: string; fee: number } | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: async (data: { signupId: number }) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${sessionId}/signups/${data.signupId}/payment-override`, {
+        paymentStatus: "PAID",
+        verifiedByAdmin: true,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetch();
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "signups"] });
+      toast({ title: "Payment confirmed" });
+    },
+  });
+
+  const sendReminderMutation = useMutation({
+    mutationFn: async (data: { signupId: number; playerId: number }) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/send-payment-reminder`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Reminder sent" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send reminder", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const issueCreditMutation = useMutation({
+    mutationFn: async (data: { playerId: number; amount: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/issue-credit`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetch();
+      setCreditDialogOpen(false);
+      setCreditTarget(null);
+      setCreditAmount("");
+      toast({ title: "Credit issued" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to issue credit", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) return <Card><CardContent className="p-4 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></CardContent></Card>;
+  if (!data) return null;
+
+  const { summary, players } = data;
+  const expectedPence = summary.expectedRevenue;
+  const paidPence = summary.paidRevenue;
+  const gap = expectedPence - paidPence;
+  const paidPct = expectedPence > 0 ? Math.round((paidPence / expectedPence) * 100) : 0;
+  const pendingPct = expectedPence > 0 ? Math.round((summary.pendingRevenue / expectedPence) * 100) : 0;
+  const unpaidPct = expectedPence > 0 ? Math.round((summary.unpaidRevenue / expectedPence) * 100) : 0;
+
+  const fmt = (pence: number) => `£${(pence / 100).toFixed(2)}`;
+
+  const methodLabels: Record<string, string> = {
+    CARD: "Card",
+    BANK_TRANSFER: "Bank Transfer",
+    CASH: "Cash",
+    ONLINE: "Online",
+    MEMBERSHIP_CREDIT: "Credit",
+    NONE: "None",
+  };
+
+  const statusColors: Record<string, string> = {
+    PAID: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    UNPAID: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  };
+
+  return (
+    <>
+      <Card data-testid="card-financial-command-center">
+        <CardContent className="p-4 sm:p-6 space-y-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary" />
+              Financial Overview
+            </h3>
+            <Badge variant="secondary" data-testid="badge-collection-rate">
+              {summary.collectionRate}% Collected
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="text-center p-3 rounded-md bg-muted/30">
+              <p className="text-xl font-bold" data-testid="text-expected-revenue">{fmt(summary.expectedRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Expected</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-green-50 dark:bg-green-950/30">
+              <p className="text-xl font-bold text-green-600 dark:text-green-400" data-testid="text-paid-revenue">{fmt(summary.paidRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Confirmed ({summary.paidCount})</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-yellow-50 dark:bg-yellow-950/30">
+              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400" data-testid="text-pending-revenue">{fmt(summary.pendingRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Pending ({summary.pendingCount})</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-amber-50 dark:bg-amber-950/30">
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400" data-testid="text-cash-pending">{fmt(summary.cashPendingRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Cash Pending ({summary.cashPendingCount})</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-blue-50 dark:bg-blue-950/30">
+              <p className="text-xl font-bold text-blue-600 dark:text-blue-400" data-testid="text-credit-applied">{fmt(summary.creditAppliedRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Credit ({summary.creditCount})</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-red-50 dark:bg-red-950/30">
+              <p className="text-xl font-bold text-red-600 dark:text-red-400" data-testid="text-unpaid-balance">{fmt(summary.unpaidRevenue)}</p>
+              <p className="text-xs text-muted-foreground">Unpaid ({summary.unpaidCount})</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Expected vs Actual</span>
+              <span className="font-medium" data-testid="text-revenue-gap">
+                {gap > 0 ? `${fmt(gap)} outstanding` : "Fully collected"}
+              </span>
+            </div>
+            <div className="w-full h-4 rounded-full bg-muted/50 overflow-hidden flex" data-testid="bar-revenue-comparison">
+              {paidPct > 0 && (
+                <div
+                  className="h-full bg-green-500 transition-all duration-500"
+                  style={{ width: `${paidPct}%` }}
+                  title={`Paid: ${paidPct}%`}
+                />
+              )}
+              {pendingPct > 0 && (
+                <div
+                  className="h-full bg-yellow-500 transition-all duration-500"
+                  style={{ width: `${pendingPct}%` }}
+                  title={`Pending: ${pendingPct}%`}
+                />
+              )}
+              {unpaidPct > 0 && (
+                <div
+                  className="h-full bg-red-400 transition-all duration-500"
+                  style={{ width: `${unpaidPct}%` }}
+                  title={`Unpaid: ${unpaidPct}%`}
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-green-500" />Paid</div>
+              <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-yellow-500" />Pending</div>
+              <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-red-400" />Unpaid</div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              onClick={() => setExpandedPlayers(!expandedPlayers)}
+              className="flex items-center gap-2 text-sm font-medium w-full text-left"
+              data-testid="button-toggle-player-financials"
+            >
+              <Users className="w-4 h-4" />
+              Player Breakdown ({players.length})
+              {expandedPlayers ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+            </button>
+
+            {expandedPlayers && (
+              <div className="space-y-2 pt-2" data-testid="list-player-financials">
+                {players.map((p: any) => (
+                  <div key={p.signupId} className="flex items-center gap-2 p-3 border rounded-md" data-testid={`row-player-financial-${p.playerId}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate" data-testid={`text-player-name-${p.playerId}`}>{p.fullName}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <Badge variant="secondary" className={`text-xs ${statusColors[p.paymentStatus] || ""}`}>
+                          {p.paymentStatus}
+                        </Badge>
+                        {p.paymentMethod !== "NONE" && (
+                          <Badge variant="outline" className="text-xs">{methodLabels[p.paymentMethod] || p.paymentMethod}</Badge>
+                        )}
+                        <span className="text-xs font-medium">{fmt(p.fee)}</span>
+                        {p.creditUsed > 0 && (
+                          <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400">
+                            Credit: {fmt(p.creditUsed)}
+                          </Badge>
+                        )}
+                        {p.verifiedByAdmin && (
+                          <Badge variant="secondary" className="text-xs bg-green-50 dark:bg-green-950">
+                            <CheckCircle className="w-3 h-3 mr-0.5" /> Verified
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {p.paymentStatus !== "PAID" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => confirmPaymentMutation.mutate({ signupId: p.signupId })}
+                          disabled={confirmPaymentMutation.isPending}
+                          title="Confirm Payment"
+                          data-testid={`button-confirm-payment-${p.playerId}`}
+                        >
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        </Button>
+                      )}
+                      {p.paymentStatus !== "PAID" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => sendReminderMutation.mutate({ signupId: p.signupId, playerId: p.playerId })}
+                          disabled={sendReminderMutation.isPending}
+                          title="Send Reminder"
+                          data-testid={`button-send-reminder-${p.playerId}`}
+                        >
+                          <Send className="w-4 h-4 text-amber-600" />
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setCreditTarget({ playerId: p.playerId, fullName: p.fullName, fee: p.fee });
+                          setCreditAmount(String(p.fee));
+                          setCreditDialogOpen(true);
+                        }}
+                        title="Issue Credit"
+                        data-testid={`button-issue-credit-${p.playerId}`}
+                      >
+                        <CreditCard className="w-4 h-4 text-blue-600" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Issue Credit</DialogTitle>
+            <DialogDescription>
+              Issue a credit to {creditTarget?.fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Amount (pence)</Label>
+              <Input
+                type="number"
+                min="1"
+                value={creditAmount}
+                onChange={(e) => setCreditAmount(e.target.value)}
+                placeholder="Amount in pence"
+                data-testid="input-credit-amount"
+              />
+              {creditAmount && Number(creditAmount) > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">= {fmt(Number(creditAmount))}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCreditDialogOpen(false)} data-testid="button-cancel-credit">Cancel</Button>
+            <Button
+              onClick={() => {
+                if (creditTarget && creditAmount && Number(creditAmount) > 0) {
+                  issueCreditMutation.mutate({
+                    playerId: creditTarget.playerId,
+                    amount: Number(creditAmount),
+                    reason: `Manual credit for session`,
+                  });
+                }
+              }}
+              disabled={issueCreditMutation.isPending || !creditAmount || Number(creditAmount) <= 0}
+              data-testid="button-confirm-credit"
+            >
+              {issueCreditMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Issue {creditAmount && Number(creditAmount) > 0 ? fmt(Number(creditAmount)) : "Credit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SessionBalancePrediction({ sessionId }: { sessionId: number }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId, "balance-prediction"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/balance-prediction`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  if (isLoading) return <Card><CardContent className="p-4 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></CardContent></Card>;
+  if (!data || data.playerCount === 0) return null;
+
+  const ratingColors: Record<string, string> = {
+    EXCELLENT: "text-emerald-600 dark:text-emerald-400",
+    GOOD: "text-blue-600 dark:text-blue-400",
+    FAIR: "text-amber-600 dark:text-amber-400",
+    POOR: "text-red-600 dark:text-red-400",
+  };
+
+  const ratingBg: Record<string, string> = {
+    EXCELLENT: "bg-emerald-500",
+    GOOD: "bg-blue-500",
+    FAIR: "bg-amber-500",
+    POOR: "bg-red-500",
+  };
+
+  const GRADE_ORDER_DISPLAY = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+  const maxDistCount = Math.max(1, ...Object.values(data.skillDistribution as Record<string, number>));
+
+  return (
+    <Card data-testid="card-balance-prediction">
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Brain className="w-5 h-5 text-primary" />
+            Pre-Session Intelligence
+          </h3>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className={ratingColors[data.balanceRating] || ""} data-testid="badge-balance-rating">
+              {data.balanceRating}
+            </Badge>
+            <span className="text-sm font-mono font-bold" data-testid="text-fairness-score">{data.predictedFairnessScore}/100</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="text-center">
+            <p className="text-2xl font-bold" data-testid="text-player-count">{data.playerCount}</p>
+            <p className="text-xs text-muted-foreground">Players</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold" data-testid="text-grade-range">{data.gradeRange}</p>
+            <p className="text-xs text-muted-foreground">Grade Spread</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold" data-testid="text-male-count">{data.genderBreakdown.male}</p>
+            <p className="text-xs text-muted-foreground">Male</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold" data-testid="text-female-count">{data.genderBreakdown.female}</p>
+            <p className="text-xs text-muted-foreground">Female</p>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Skill Distribution</p>
+          <div className="flex items-end gap-1 h-16">
+            {GRADE_ORDER_DISPLAY.map(grade => {
+              const count = (data.skillDistribution as Record<string, number>)[grade] || 0;
+              const height = count > 0 ? Math.max(8, (count / maxDistCount) * 100) : 0;
+              return (
+                <div key={grade} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div
+                    className={`w-full rounded-t-sm transition-all ${ratingBg[data.balanceRating] || "bg-primary"} opacity-70`}
+                    style={{ height: `${height}%` }}
+                    data-testid={`bar-grade-${grade}`}
+                  />
+                  <span className="text-[9px] text-muted-foreground">{grade}</span>
+                  {count > 0 && <span className="text-[9px] font-medium">{count}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {data.warnings.length > 0 && (
+          <div className="space-y-2">
+            {data.warnings.map((w: any, i: number) => (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-start gap-2 text-sm p-2 rounded-md",
+                  w.severity === "HIGH" ? "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200" :
+                  w.severity === "MEDIUM" ? "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200" :
+                  "bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                )}
+                data-testid={`warning-balance-${i}`}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{w.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SessionEngagementScore({ sessionId }: { sessionId: number }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId, "engagement-score"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/engagement-score`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  if (isLoading) return <Card><CardContent className="p-4 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></CardContent></Card>;
+  if (!data || data.totalMatches === 0) return null;
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return "text-emerald-600 dark:text-emerald-400";
+    if (score >= 60) return "text-blue-600 dark:text-blue-400";
+    if (score >= 40) return "text-amber-600 dark:text-amber-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 80) return "Excellent";
+    if (score >= 60) return "Good";
+    if (score >= 40) return "Fair";
+    return "Needs Improvement";
+  };
+
+  const getBarColor = (score: number) => {
+    if (score >= 80) return "bg-emerald-500";
+    if (score >= 60) return "bg-blue-500";
+    if (score >= 40) return "bg-amber-500";
+    return "bg-red-500";
+  };
+
+  const factors = [
+    { label: "Match Balance", value: data.matchBalanceFactor, weight: "40%", desc: `${data.breakdown.closeMatches}/${data.breakdown.totalCompleted} close matches` },
+    { label: "Participation Equity", value: data.participationEquity, weight: "30%", desc: `${data.breakdown.minMatchesPlayed}-${data.breakdown.maxMatchesPlayed} matches per player` },
+    { label: "Player Utilization", value: data.waitingTimeFactor, weight: "30%", desc: `${data.breakdown.playersWhoPlayed}/${data.breakdown.playersSignedUp} players active` },
+  ];
+
+  return (
+    <Card data-testid="card-engagement-score">
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-primary" />
+            Session Engagement Score
+          </h3>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className={getScoreColor(data.engagementScore)} data-testid="badge-engagement-rating">
+              {getScoreLabel(data.engagementScore)}
+            </Badge>
+            <span className="text-2xl font-bold font-mono" data-testid="text-engagement-score">{data.engagementScore}</span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {factors.map((f, i) => (
+            <div key={i} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{f.label} <span className="text-muted-foreground text-xs">({f.weight})</span></span>
+                <span className="text-sm font-mono font-bold" data-testid={`text-factor-${i}`}>{f.value}</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-muted/50 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${getBarColor(f.value)}`}
+                  style={{ width: `${f.value}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+          <div className="text-center">
+            <p className="text-lg font-bold" data-testid="text-unique-partners">{data.breakdown.uniquePartnerPairs}</p>
+            <p className="text-xs text-muted-foreground">Unique Partner Pairs</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold" data-testid="text-unique-opponents">{data.breakdown.uniqueOpponentPairs}</p>
+            <p className="text-xs text-muted-foreground">Unique Opponent Pairs</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AISessionDesigner({ sessionId }: { sessionId: number }) {
+  const [designData, setDesignData] = useState<any>(null);
+  const { toast } = useToast();
+
+  const designMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/ai-design`, {});
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (data) => setDesignData(data),
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const GRADE_ORDER_DISPLAY = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+
+  return (
+    <Card data-testid="card-ai-session-designer">
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-500" />
+            AI Session Designer
+          </h3>
+          <Button
+            size="sm"
+            onClick={() => designMutation.mutate()}
+            disabled={designMutation.isPending}
+            data-testid="button-ai-design"
+          >
+            {designMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Brain className="w-4 h-4 mr-2" />}
+            {designData ? "Refresh Analysis" : "Analyze Session"}
+          </Button>
+        </div>
+
+        {!designData && !designMutation.isPending && (
+          <p className="text-sm text-muted-foreground">Click "Analyze Session" to get AI-powered suggestions for optimal session structure, court usage, and revenue prediction.</p>
+        )}
+
+        {designData && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="text-center p-2 rounded-md bg-muted/30">
+                <p className="text-2xl font-bold" data-testid="text-ai-player-count">{designData.playerCount}</p>
+                <p className="text-xs text-muted-foreground">Players</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted/30">
+                <p className="text-2xl font-bold" data-testid="text-ai-rounds">{designData.suggestedRounds}</p>
+                <p className="text-xs text-muted-foreground">Rounds</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted/30">
+                <p className="text-2xl font-bold" data-testid="text-ai-matches-per-round">{designData.matchesPerRound}</p>
+                <p className="text-xs text-muted-foreground">Matches/Round</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted/30">
+                <p className="text-2xl font-bold" data-testid="text-ai-duration">{designData.estimatedDurationMinutes}m</p>
+                <p className="text-xs text-muted-foreground">Est. Duration</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Balance Score</span>
+                  <span className={cn("text-sm font-bold", designData.predictedBalanceScore >= 70 ? "text-emerald-600" : designData.predictedBalanceScore >= 40 ? "text-amber-600" : "text-red-600")} data-testid="text-ai-balance">
+                    {designData.predictedBalanceScore}%
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-muted/50 overflow-hidden">
+                  <div className={cn("h-full rounded-full", designData.predictedBalanceScore >= 70 ? "bg-emerald-500" : designData.predictedBalanceScore >= 40 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${designData.predictedBalanceScore}%` }} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Engagement Score</span>
+                  <span className={cn("text-sm font-bold", designData.predictedEngagementScore >= 70 ? "text-emerald-600" : designData.predictedEngagementScore >= 40 ? "text-amber-600" : "text-red-600")} data-testid="text-ai-engagement">
+                    {designData.predictedEngagementScore}%
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-muted/50 overflow-hidden">
+                  <div className={cn("h-full rounded-full", designData.predictedEngagementScore >= 70 ? "bg-emerald-500" : designData.predictedEngagementScore >= 40 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${designData.predictedEngagementScore}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {designData.courtOptimization && (
+              <div className="rounded-md border p-3 space-y-2">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4" />
+                  Court Optimization
+                </h4>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-lg font-bold" data-testid="text-court-utilization">{designData.courtOptimization.courtUtilization}%</p>
+                    <p className="text-xs text-muted-foreground">Court Usage</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold" data-testid="text-active-per-round">{designData.courtOptimization.playersActivePerRound}</p>
+                    <p className="text-xs text-muted-foreground">Active/Round</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold" data-testid="text-idle-per-round">{designData.courtOptimization.playersIdlePerRound}</p>
+                    <p className="text-xs text-muted-foreground">Idle/Round</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {designData.profitPrediction && designData.profitPrediction.expectedRevenue > 0 && (
+              <div className="rounded-md border p-3 space-y-2">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Revenue Prediction
+                </h4>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-profit-optimistic">
+                      {"\u00A3"}{(designData.profitPrediction.optimistic / 100).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Optimistic</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400" data-testid="text-profit-realistic">
+                      {"\u00A3"}{(designData.profitPrediction.realistic / 100).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Realistic</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400" data-testid="text-profit-pessimistic">
+                      {"\u00A3"}{(designData.profitPrediction.pessimistic / 100).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pessimistic</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
+                  <span>Confirmed: {"\u00A3"}{(designData.profitPrediction.confirmedRevenue / 100).toFixed(2)}</span>
+                  <span>Pending: {"\u00A3"}{(designData.profitPrediction.pendingAmount / 100).toFixed(2)}</span>
+                  <span>Unpaid: {"\u00A3"}{(designData.profitPrediction.unpaidAmount / 100).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            {designData.gradeDistribution && Object.keys(designData.gradeDistribution).length > 0 && (
+              <div className="rounded-md border p-3 space-y-2">
+                <h4 className="text-sm font-semibold">Grade Distribution</h4>
+                <div className="flex items-end gap-1.5 h-16">
+                  {GRADE_ORDER_DISPLAY.map(g => {
+                    const count = designData.gradeDistribution[g] || 0;
+                    const maxCount = Math.max(1, ...Object.values(designData.gradeDistribution as Record<string, number>));
+                    return (
+                      <div key={g} className="flex-1 flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] font-mono">{count || ""}</span>
+                        <div
+                          className={cn("w-full rounded-t-sm", count > 0 ? "bg-primary/60" : "bg-muted/30")}
+                          style={{ height: `${count > 0 ? Math.max(4, (count / maxCount) * 40) : 2}px` }}
+                        />
+                        <span className="text-[9px] text-muted-foreground">{g}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {designData.recommendations?.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-500" />
+                  Recommendations
+                </h4>
+                {designData.recommendations.map((r: string, i: number) => (
+                  <p key={i} className="text-xs text-muted-foreground flex items-start gap-2" data-testid={`text-recommendation-${i}`}>
+                    <span className="text-primary shrink-0">•</span>
+                    {r}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, aiBrainEnabled: initialAiBrainEnabled = false, savedQueueTargetSize = 3, clubId }: { 
   sessionId: number; 
   isOrganiser: boolean;
@@ -2134,6 +3085,80 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
   const [aiBrainActive, setAiBrainActive] = useState(initialAiBrainEnabled);
+  const [fullScheduleOpen, setFullScheduleOpen] = useState(false);
+  const [fullScheduleData, setFullScheduleData] = useState<any>(null);
+  const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [swapTarget, setSwapTarget] = useState<{ roundIdx: number; matchIdx: number; position: string; currentPlayerId: number } | null>(null);
+
+  const generateFullScheduleMutation = useMutation({
+    mutationFn: async (data: { numberOfRounds?: number; genderType?: string; mode?: string }) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/generate-full-schedule`, data);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to generate schedule" }));
+        throw new Error(errData.message || "Failed to generate schedule");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setFullScheduleData(data);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to generate full schedule.", variant: "destructive" });
+    },
+  });
+
+  const confirmScheduleMutation = useMutation({
+    mutationFn: async (rounds: any[]) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/confirm-full-schedule`, { rounds });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: "Failed to confirm schedule" }));
+        throw new Error(errData.message || "Failed to confirm schedule");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setFullScheduleData(null);
+      setFullScheduleOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "matches"] });
+      toast({ title: "Schedule Confirmed", description: `${data.matchesCreated} matches added to the queue.` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to confirm schedule.", variant: "destructive" });
+    },
+  });
+
+  const handleSwapInSchedule = (roundIdx: number, matchIdx: number, position: string, newPlayerId: number) => {
+    if (!fullScheduleData) return;
+    const newRounds = [...fullScheduleData.rounds];
+    const match = { ...newRounds[roundIdx].matches[matchIdx] };
+    const oldPlayerId = match[position as keyof typeof match];
+    match[position as keyof typeof match] = newPlayerId;
+    newRounds[roundIdx] = { ...newRounds[roundIdx], matches: [...newRounds[roundIdx].matches] };
+    newRounds[roundIdx].matches[matchIdx] = match;
+
+    for (let ri = 0; ri < newRounds.length; ri++) {
+      for (let mi = 0; mi < newRounds[ri].matches.length; mi++) {
+        if (ri === roundIdx && mi === matchIdx) continue;
+        const m = { ...newRounds[ri].matches[mi] };
+        let changed = false;
+        for (const pos of ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const) {
+          if (m[pos] === newPlayerId) {
+            (m as any)[pos] = oldPlayerId;
+            changed = true;
+          }
+        }
+        if (changed) {
+          newRounds[ri] = { ...newRounds[ri], matches: [...newRounds[ri].matches] };
+          newRounds[ri].matches[mi] = m;
+        }
+      }
+    }
+
+    setFullScheduleData({ ...fullScheduleData, rounds: newRounds });
+    setSwapDialogOpen(false);
+    setSwapTarget(null);
+  };
 
   const aiBrainToggleMutation = useMutation({
     mutationFn: async () => {
@@ -2777,11 +3802,293 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     </span>
                   )}
                 </button>
+
+                <button
+                  onClick={() => setFullScheduleOpen(true)}
+                  className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-white/10 bg-slate-800/80 text-white/50 hover:text-white/80 hover:bg-slate-800"
+                  data-testid="button-full-schedule"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Full Schedule</span>
+                </button>
               </div>
             )}
 
           </div>
         </div>
+      )}
+
+      {fullScheduleOpen && (
+        <Dialog open={fullScheduleOpen} onOpenChange={(open) => { setFullScheduleOpen(open); if (!open) setFullScheduleData(null); }}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <LayoutGrid className="w-5 h-5" />
+                AI Full Session Schedule Generator
+              </DialogTitle>
+              <DialogDescription>
+                Generate all matches for the entire session in one click. Preview, adjust, and confirm.
+              </DialogDescription>
+            </DialogHeader>
+
+            {!fullScheduleData ? (
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Number of Rounds (optional)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      placeholder="Auto-calculate"
+                      value={fullScheduleRounds}
+                      onChange={(e) => setFullScheduleRounds(e.target.value)}
+                      data-testid="input-schedule-rounds"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave empty to auto-calculate based on session duration</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Gender Type</Label>
+                    <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                      <SelectTrigger data-testid="select-schedule-gender">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MIXED">Mixed</SelectItem>
+                        <SelectItem value="FEMALE">Female Only</SelectItem>
+                        <SelectItem value="MALE">Male Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => generateFullScheduleMutation.mutate({
+                    numberOfRounds: fullScheduleRounds ? parseInt(fullScheduleRounds) : undefined,
+                    genderType: generateGenderType,
+                    mode: activeMode,
+                  })}
+                  disabled={generateFullScheduleMutation.isPending}
+                  data-testid="button-generate-full-schedule"
+                >
+                  {generateFullScheduleMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Generating Schedule...</>
+                  ) : (
+                    <><Shuffle className="w-4 h-4 mr-2" /> Generate Full Schedule</>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <div className="text-2xl font-bold" data-testid="text-total-rounds">{fullScheduleData.totalRounds}</div>
+                      <div className="text-xs text-muted-foreground">Rounds</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <div className="text-2xl font-bold" data-testid="text-total-matches">{fullScheduleData.totalMatches}</div>
+                      <div className="text-xs text-muted-foreground">Matches</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <div className={cn("text-2xl font-bold", fullScheduleData.overallFairnessScore >= 70 ? "text-emerald-600" : fullScheduleData.overallFairnessScore >= 40 ? "text-amber-600" : "text-red-600")} data-testid="text-fairness-score">
+                        {fullScheduleData.overallFairnessScore}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">Fairness</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <div className="text-2xl font-bold" data-testid="text-partner-diversity">{fullScheduleData.partnerDiversity}%</div>
+                      <div className="text-xs text-muted-foreground">Partner Diversity</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {fullScheduleData.courtUtilization && (
+                  <div className="flex items-center gap-4 rounded-md border p-3 text-sm flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Court Utilization:</span>
+                      <span className="font-semibold" data-testid="text-schedule-court-util">{fullScheduleData.courtUtilization.utilizationPercent}%</span>
+                    </div>
+                    {fullScheduleData.idleEquity !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">Idle Equity:</span>
+                        <span className={cn("font-semibold", fullScheduleData.idleEquity >= 80 ? "text-emerald-600" : fullScheduleData.idleEquity >= 50 ? "text-amber-600" : "text-red-600")} data-testid="text-idle-equity">{fullScheduleData.idleEquity}%</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {fullScheduleData.playerIdleTime && Object.keys(fullScheduleData.playerIdleTime).length > 0 && (
+                  <details className="rounded-md border">
+                    <summary className="px-3 py-2 text-sm font-medium cursor-pointer hover:bg-muted/30 transition-colors flex items-center gap-2" data-testid="toggle-idle-time">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      Player Idle Time
+                    </summary>
+                    <div className="px-3 pb-3 space-y-1 max-h-40 overflow-y-auto">
+                      {Object.entries(fullScheduleData.playerIdleTime as Record<string, { idleRounds: number; estimatedIdleMinutes: number; idleRoundNumbers: number[] }>)
+                        .sort(([, a], [, b]) => b.idleRounds - a.idleRounds)
+                        .map(([pid, info]) => {
+                          const player = fullScheduleData.playerLookup?.[Number(pid)];
+                          if (!player) return null;
+                          return (
+                            <div key={pid} className="flex items-center justify-between gap-2 text-xs" data-testid={`idle-player-${pid}`}>
+                              <span className="truncate">{player.fullName}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {info.idleRounds > 0 ? (
+                                  <>
+                                    <Badge variant="outline" className={cn("text-[10px]", info.idleRounds > 2 ? "text-red-600 border-red-300" : info.idleRounds > 0 ? "text-amber-600 border-amber-300" : "text-emerald-600 border-emerald-300")}>
+                                      {info.idleRounds} idle round{info.idleRounds !== 1 ? "s" : ""}
+                                    </Badge>
+                                    <span className="text-muted-foreground">~{info.estimatedIdleMinutes}m</span>
+                                  </>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">Active all rounds</Badge>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </details>
+                )}
+
+                {fullScheduleData.warnings?.length > 0 && (
+                  <div className="rounded-md border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/30 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Warnings ({fullScheduleData.warnings.length})</span>
+                    </div>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {fullScheduleData.warnings.slice(0, 5).map((w: any, i: number) => (
+                        <p key={i} className="text-xs text-amber-600 dark:text-amber-400">{w.playerName}: {w.message}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3 max-h-[40vh] overflow-y-auto">
+                  {fullScheduleData.rounds.map((round: any, roundIdx: number) => (
+                    <div key={roundIdx} className="border rounded-md">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/50 border-b">
+                        <span className="text-sm font-semibold" data-testid={`text-round-${round.round}`}>Round {round.round}</span>
+                        <Badge variant="outline">{round.matches.length} match{round.matches.length !== 1 ? "es" : ""}</Badge>
+                      </div>
+                      <div className="divide-y">
+                        {round.matches.map((match: any, matchIdx: number) => {
+                          const p = fullScheduleData.playerLookup;
+                          const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter(Boolean);
+                          const teamB = [match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean);
+                          return (
+                            <div key={matchIdx} className="flex items-center justify-between gap-2 px-3 py-2 text-sm" data-testid={`match-${roundIdx}-${matchIdx}`}>
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {teamA.map((id: number) => (
+                                    <button
+                                      key={id}
+                                      onClick={() => { setSwapTarget({ roundIdx, matchIdx, position: id === match.teamAPlayer1Id ? "teamAPlayer1Id" : "teamAPlayer2Id", currentPlayerId: id }); setSwapDialogOpen(true); }}
+                                      className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
+                                      data-testid={`player-swap-${roundIdx}-${matchIdx}-${id}`}
+                                    >
+                                      {p[id]?.fullName || `#${id}`}
+                                    </button>
+                                  ))}
+                                </div>
+                                <span className="text-muted-foreground font-medium mx-1">vs</span>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {teamB.map((id: number) => (
+                                    <button
+                                      key={id}
+                                      onClick={() => { setSwapTarget({ roundIdx, matchIdx, position: id === match.teamBPlayer1Id ? "teamBPlayer1Id" : "teamBPlayer2Id", currentPlayerId: id }); setSwapDialogOpen(true); }}
+                                      className="text-xs px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors cursor-pointer"
+                                      data-testid={`player-swap-${roundIdx}-${matchIdx}-${id}`}
+                                    >
+                                      {p[id]?.fullName || `#${id}`}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0",
+                                  match.fairnessScore >= 70 ? "text-emerald-600 border-emerald-300" : match.fairnessScore >= 40 ? "text-amber-600 border-amber-300" : "text-red-600 border-red-300"
+                                )}
+                                data-testid={`fairness-${roundIdx}-${matchIdx}`}
+                              >
+                                {match.fairnessScore}%
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <DialogFooter className="gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => generateFullScheduleMutation.mutate({
+                      numberOfRounds: fullScheduleRounds ? parseInt(fullScheduleRounds) : undefined,
+                      genderType: generateGenderType,
+                      mode: activeMode,
+                    })}
+                    disabled={generateFullScheduleMutation.isPending}
+                    data-testid="button-regenerate-schedule"
+                  >
+                    {generateFullScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                    Regenerate
+                  </Button>
+                  <Button
+                    onClick={() => confirmScheduleMutation.mutate(fullScheduleData.rounds)}
+                    disabled={confirmScheduleMutation.isPending}
+                    data-testid="button-confirm-schedule"
+                  >
+                    {confirmScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                    Confirm Schedule
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {swapDialogOpen && swapTarget && fullScheduleData && (
+        <Dialog open={swapDialogOpen} onOpenChange={setSwapDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Swap Player</DialogTitle>
+              <DialogDescription>
+                Replace {fullScheduleData.playerLookup?.[swapTarget.currentPlayerId]?.fullName || `Player #${swapTarget.currentPlayerId}`} with another player
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {Object.values((fullScheduleData.playerLookup || {}) as Record<string, any>)
+                .filter((p: any) => p.id !== swapTarget.currentPlayerId)
+                .sort((a: any, b: any) => a.fullName.localeCompare(b.fullName))
+                .map((p: any) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSwapInSchedule(swapTarget.roundIdx, swapTarget.matchIdx, swapTarget.position, p.id)}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors flex items-center justify-between gap-2"
+                    data-testid={`swap-player-${p.id}`}
+                  >
+                    <span>{p.fullName}</span>
+                    <Badge variant="outline" className="text-xs">{p.grade || "?"}</Badge>
+                  </button>
+                ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {aiBrainActive && (

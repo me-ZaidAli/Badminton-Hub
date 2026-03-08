@@ -132,7 +132,7 @@ export interface IStorage {
   createJuniorAccount(parentUserId: number, data: { fullName: string; dateOfBirth?: Date; gender?: string; emergencyContact?: string; medicalNotes?: string }): Promise<User>;
 
   // Enhanced session signups
-  createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup>;
+  createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; paymentStatus?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup>;
   updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string }): Promise<SessionSignup>;
   updateSessionSignupStatus(signupId: number, updates: { signupStatus?: string; waitingListPosition?: number | null }): Promise<SessionSignup>;
   getWaitingListForSession(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
@@ -1914,8 +1914,9 @@ export class DatabaseStorage implements IStorage {
     return junior;
   }
 
-  async createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup> {
-    const paymentStatus = data.paymentMethod === "CARD" ? "PAID" : data.paymentMethod === "BANK_TRANSFER" ? "PENDING" : "UNPAID";
+  async createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; paymentStatus?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup> {
+    const derivedStatus = data.paymentMethod === "CARD" ? "PAID" : data.paymentMethod === "BANK_TRANSFER" ? "PENDING" : data.paymentMethod === "CASH" ? "PENDING" : data.paymentMethod === "MEMBERSHIP_CREDIT" ? "PAID" : "UNPAID";
+    const paymentStatus = data.paymentStatus || derivedStatus;
     const [signup] = await db.insert(sessionSignups).values({
       sessionId: data.sessionId,
       playerId: data.playerId,

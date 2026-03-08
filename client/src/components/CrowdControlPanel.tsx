@@ -992,6 +992,12 @@ export function CrowdControlPanel({
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [open]);
 
+  const { data: reliabilityBulkData } = useQuery<{ scores: Record<number, { score: number; totalSessions: number; paidOnTime: number; unpaid: number; outstandingAmount: number; preferredMethod: string }> }>({
+    queryKey: ["/api/sessions", sessionId, "payment-reliability-bulk"],
+    enabled: open && !!sessionId,
+  });
+  const reliabilityScores = reliabilityBulkData?.scores;
+
   const pgs = useMemo(() => {
     void refreshKey;
     return computePGSEngine(players, matches, sessionMatchCounts);
@@ -1281,6 +1287,14 @@ export function CrowdControlPanel({
                             <span className="font-medium truncate max-w-[120px]" style={{ color: PGS.heading }}>{p.shortName}</span>
                             {p.grade && <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: PGS.muted }}>{p.grade}</Badge>}
                             {p.isPaused && <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ background: `${PGS.amber}20`, color: PGS.amber }}>P</Badge>}
+                            {reliabilityScores?.[p.id] && reliabilityScores[p.id].totalSessions > 0 && (
+                              <Badge className="text-[8px] px-1 h-4 border-0 shrink-0" style={{ 
+                                background: `${reliabilityScores[p.id].score >= 70 ? PGS.green : reliabilityScores[p.id].score >= 50 ? PGS.amber : PGS.red}20`, 
+                                color: reliabilityScores[p.id].score >= 70 ? PGS.green : reliabilityScores[p.id].score >= 50 ? PGS.amber : PGS.red 
+                              }} data-testid={`badge-reliability-${p.id}`}>
+                                {reliabilityScores[p.id].score}%
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="text-center px-3 py-2.5 tabular-nums font-bold" style={{ color: p.totalMatches === 0 ? PGS.muted : PGS.heading }}>{p.totalMatches}</td>
