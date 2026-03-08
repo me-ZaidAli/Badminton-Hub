@@ -330,8 +330,8 @@ export default function IncidentReports() {
   const seriousCount = incidents?.filter((i: any) => i.severity === "SERIOUS" || i.severity === "EMERGENCY").length || 0;
 
   const membersList = formData.sessionId
-    ? (sessionSignups || []).map((s: any) => ({ id: s.playerId || s.id, name: s.playerName || s.fullName || `Player ${s.id}` }))
-    : (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.user?.fullName || m.name || `Member ${m.userId || m.id}` }));
+    ? (sessionSignups || []).map((s: any) => ({ id: s.playerId || s.id, name: s.player?.user?.fullName || s.playerName || s.fullName || s.player?.fullName || `Player ${s.playerId || s.id}` }))
+    : (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.user?.fullName || `Member ${m.userId || m.id}` }));
 
   const [memberSearch, setMemberSearch] = useState("");
   const filteredMembers = membersList.filter((m: any) =>
