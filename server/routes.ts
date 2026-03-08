@@ -7394,7 +7394,6 @@ export async function registerRoutes(
         await db.execute(sql`DELETE FROM inventory_movements WHERE created_by_id = ${removeUserId}`);
         await db.execute(sql`DELETE FROM expenses WHERE created_by_id = ${removeUserId}`);
         await db.execute(sql`UPDATE session_signups SET signed_up_by_user_id = ${keepUserId} WHERE signed_up_by_user_id = ${removeUserId}`);
-        await db.execute(sql`UPDATE venues SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
         await db.execute(sql`UPDATE recurring_events SET created_by = ${keepUserId} WHERE created_by = ${removeUserId}`);
         await db.execute(sql`DELETE FROM referral_programs WHERE created_by_id = ${removeUserId}`);
         await db.execute(sql`DELETE FROM referrals WHERE referrer_id = ${removeUserId}`);

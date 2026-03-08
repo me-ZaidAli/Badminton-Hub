@@ -1036,7 +1036,6 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`UPDATE session_signups SET signed_up_by_user_id = NULL WHERE signed_up_by_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM expenses WHERE created_by_id = ${userId}`);
     await db.execute(sql`UPDATE discount_codes SET created_by = NULL WHERE created_by = ${userId}`);
-    await db.execute(sql`UPDATE venues SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`UPDATE discount_code_assignments SET assigned_by = NULL WHERE assigned_by = ${userId}`);
     await db.execute(sql`UPDATE recurring_events SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`UPDATE tournaments SET created_by = NULL WHERE created_by = ${userId}`);
