@@ -6,6 +6,7 @@ import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/hooks/use-theme";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { PwaInstallBanner, PwaInstallButton } from "@/components/PwaInstallPrompt";
 import { useState, useEffect, useCallback } from "react";
@@ -961,12 +962,17 @@ export function MobileTopNav() {
   const { groups: navGroups } = useNavGroups();
   const { data: badgeCounts } = useBadgeCounts();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { displayMode } = useTheme();
+  const isLiquidGlass = displayMode === "liquid-glass";
+
+  const lgMenuStyle = isLiquidGlass ? { backgroundColor: '#a8c8dc', color: '#ffffff' } as React.CSSProperties : undefined;
+  const lgTopBarStyle = isLiquidGlass ? { backgroundColor: '#b0cfe0', color: '#ffffff' } as React.CSSProperties : undefined;
 
   if (!user) return null;
 
   return (
     <div className="md:hidden sticky top-0 z-50" data-sidebar-mobile="wrapper">
-      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40" data-sidebar-mobile="topbar">
+      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/40" data-sidebar-mobile="topbar" style={lgTopBarStyle}>
         <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
             <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
@@ -989,7 +995,7 @@ export function MobileTopNav() {
       </div>
 
       {menuOpen && (
-        <div className="bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
+        <div className="bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown" style={lgMenuStyle}>
           <div className="px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
@@ -998,8 +1004,8 @@ export function MobileTopNav() {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-semibold text-sm text-foreground">{user.fullName}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user.role.toLowerCase()}</p>
+                <p className="font-semibold text-sm text-foreground" style={isLiquidGlass ? { color: '#ffffff' } : undefined}>{user.fullName}</p>
+                <p className="text-xs text-muted-foreground capitalize" style={isLiquidGlass ? { color: 'rgba(255,255,255,0.7)' } : undefined}>{user.role.toLowerCase()}</p>
               </div>
             </div>
           </div>
@@ -1008,7 +1014,7 @@ export function MobileTopNav() {
               <div key={group.key}>
                 {group.key === "admin" ? (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400" style={isLiquidGlass ? { color: '#ef4444' } : undefined}>
                       <ShieldCheck className="w-3 h-3" /> {group.label}
                     </span>
                     {group.items.map((item) => {
@@ -1021,6 +1027,7 @@ export function MobileTopNav() {
                               "w-full justify-start gap-3",
                               isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-emerald-700 dark:text-emerald-400"
                             )}
+                            style={isLiquidGlass && !isActive ? { color: '#ef4444' } : undefined}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1034,7 +1041,7 @@ export function MobileTopNav() {
                   </div>
                 ) : group.key === "godmode" ? (
                   <div className="rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
+                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive" style={isLiquidGlass ? { color: '#facc15' } : undefined}>
                       <Zap className="w-3 h-3" /> Super Admin
                     </span>
                     {group.items.map((item) => {
@@ -1047,6 +1054,7 @@ export function MobileTopNav() {
                               "w-full justify-start gap-3",
                               !isActive && "text-destructive"
                             )}
+                            style={isLiquidGlass && !isActive ? { color: '#facc15' } : undefined}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1067,6 +1075,7 @@ export function MobileTopNav() {
                           <Button
                             variant={isActive ? "secondary" : "ghost"}
                             className="w-full justify-start gap-3 font-semibold"
+                            style={isLiquidGlass ? { color: '#ffffff' } : undefined}
                             size="sm"
                             onClick={() => setMenuOpen(false)}
                             data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1080,7 +1089,7 @@ export function MobileTopNav() {
                   </div>
                 ) : (
                   <>
-                    <span className="flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    <span className="flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60" style={isLiquidGlass ? { color: 'rgba(255,255,255,0.7)' } : undefined}>
                       {group.label}
                     </span>
                     <div className="space-y-0.5">
@@ -1094,6 +1103,7 @@ export function MobileTopNav() {
                             <Button
                               variant={isActive ? "secondary" : "ghost"}
                               className="w-full justify-start gap-3"
+                              style={isLiquidGlass ? { color: '#ffffff' } : undefined}
                               size="sm"
                               onClick={() => setMenuOpen(false)}
                               data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1124,6 +1134,7 @@ export function MobileTopNav() {
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3"
+                style={isLiquidGlass ? { color: '#ffffff' } : undefined}
                 size="sm"
                 onClick={() => setMenuOpen(false)}
                 data-testid="mobile-nav-profile"
@@ -1135,6 +1146,7 @@ export function MobileTopNav() {
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-destructive"
+              style={isLiquidGlass ? { color: '#ef4444' } : undefined}
               size="sm"
               onClick={() => {
                 setMenuOpen(false);
