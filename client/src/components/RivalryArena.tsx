@@ -11,15 +11,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from "recharts";
+import maleSilhouetteSrc from "@assets/image_1773003848338.png";
 
 function MaleSilhouette({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 64 96" fill="currentColor">
-      <ellipse cx="32" cy="14" rx="10" ry="12" />
-      <path d="M20 28 C16 30 12 38 14 52 L16 52 L18 42 L22 56 L18 90 L26 90 L30 62 L34 62 L38 90 L46 90 L42 56 L46 42 L48 52 L50 52 C52 38 48 30 44 28 Z" />
-      <path d="M14 52 L6 46 L4 50 L14 56 Z" opacity="0.8" />
-      <path d="M50 52 L58 46 L60 50 L50 56 Z" opacity="0.8" />
-    </svg>
+    <img src={maleSilhouetteSrc} alt="Player silhouette" className={`${className} object-contain`} style={{ filter: "brightness(0) invert(0.45)" }} />
   );
 }
 
