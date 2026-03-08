@@ -1321,7 +1321,7 @@ export default function SessionDetail() {
               </div>
             )}
 
-            {isOrganiser && (
+            {isSuperAdmin && (
               <div className="border-t border-border/40 mt-4 pt-3">
                 <Button
                   variant="ghost"
@@ -1338,11 +1338,11 @@ export default function SessionDetail() {
                 {adminDashboardOpen && (
                   <div className="mt-3 space-y-3">
                     <Tabs value={adminDashboardTab} onValueChange={setAdminDashboardTab}>
-                      <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4" data-testid="admin-dashboard-tabs">
-                        <TabsTrigger value="payments" className="text-xs" data-testid="tab-payments">Payments</TabsTrigger>
-                        <TabsTrigger value="financials" className="text-xs" data-testid="tab-financials">Financials</TabsTrigger>
-                        <TabsTrigger value="intelligence" className="text-xs" data-testid="tab-intelligence">Intelligence</TabsTrigger>
-                        <TabsTrigger value="ai-tools" className="text-xs" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
+                      <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 h-auto p-1" data-testid="admin-dashboard-tabs">
+                        <TabsTrigger value="payments" className="text-xs py-2" data-testid="tab-payments">Payments</TabsTrigger>
+                        <TabsTrigger value="financials" className="text-xs py-2" data-testid="tab-financials">Financials</TabsTrigger>
+                        <TabsTrigger value="intelligence" className="text-xs py-2" data-testid="tab-intelligence">Intelligence</TabsTrigger>
+                        <TabsTrigger value="ai-tools" className="text-xs py-2" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
                       </TabsList>
                       <TabsContent value="payments" className="mt-3 space-y-3">
                         {riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
