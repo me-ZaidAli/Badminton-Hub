@@ -118,7 +118,7 @@ function PlayerBadge({
       <Badge
         variant="outline"
         className={cn(
-          "text-xs py-1 max-w-[160px] truncate inline-flex items-center gap-0.5",
+          "text-xs py-1 max-w-full truncate inline-flex items-center gap-0.5",
           isOrganiser && "cursor-pointer hover:bg-primary/10",
           isBusy && "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30"
         )}
@@ -391,8 +391,8 @@ export function MatchQueue({
           </div>
         ) : (
           <ScrollArea className="h-[420px]">
-            <div className="relative pl-8 pr-4 py-4 overflow-hidden">
-              <div className="absolute left-[1.35rem] top-4 bottom-4 w-px bg-border/60 dark:bg-border/40" />
+            <div className="relative pl-6 sm:pl-8 pr-2 sm:pr-4 py-4 overflow-hidden">
+              <div className="absolute left-[1.1rem] sm:left-[1.35rem] top-4 bottom-4 w-px bg-border/60 dark:bg-border/40" />
 
               {queuedMatches.map((match, index) => {
                 const matchTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
@@ -404,12 +404,12 @@ export function MatchQueue({
                     className={cn("relative", index < queuedMatches.length - 1 && "mb-4")}
                     data-testid={`queue-match-${match.id}`}
                   >
-                    <div className="absolute -left-[1.05rem] top-3 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground font-bold text-xs shadow-md shadow-primary/30">
+                    <div className="absolute -left-[0.85rem] sm:-left-[1.05rem] top-3 z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary text-primary-foreground font-bold text-[10px] sm:text-xs shadow-md shadow-primary/30">
                       {index + 1}
                     </div>
 
                     <div className="rounded-2xl bg-card dark:bg-[#161B22] border border-border/50 shadow-sm overflow-hidden">
-                      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 flex-wrap">
+                      <div className="flex items-center justify-between gap-1 sm:gap-2 px-2 sm:px-4 pt-3 pb-1 flex-wrap">
                         <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
                           Match {index + 1}
                         </span>
@@ -428,8 +428,8 @@ export function MatchQueue({
                         </div>
                       )}
 
-                      <div className="flex items-stretch min-h-[80px] px-2 pb-2 overflow-hidden">
-                        <div className="flex-1 min-w-0 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
+                      <div className="flex items-stretch min-h-[70px] px-1.5 sm:px-2 pb-2 overflow-hidden">
+                        <div className="flex-1 min-w-0 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-2 sm:p-3 flex flex-col items-center justify-center gap-1">
                           <PlayerBadge
                             player={match.teamAPlayer1}
                             position="teamAPlayer1Id"
@@ -456,13 +456,13 @@ export function MatchQueue({
                           )}
                         </div>
 
-                        <div className="flex items-center justify-center px-1.5 shrink-0">
-                          <span className="flex items-center justify-center w-9 h-9 rounded-full bg-muted dark:bg-muted/60 text-xs font-black uppercase tracking-widest text-muted-foreground shadow-inner">
+                        <div className="flex items-center justify-center px-1 sm:px-1.5 shrink-0">
+                          <span className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-muted dark:bg-muted/60 text-[10px] sm:text-xs font-black uppercase tracking-widest text-muted-foreground shadow-inner">
                             VS
                           </span>
                         </div>
 
-                        <div className="flex-1 min-w-0 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-3 flex flex-col items-center justify-center gap-1.5">
+                        <div className="flex-1 min-w-0 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-2 sm:p-3 flex flex-col items-center justify-center gap-1">
                           <PlayerBadge
                             player={match.teamBPlayer1}
                             position="teamBPlayer1Id"
