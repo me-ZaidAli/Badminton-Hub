@@ -989,7 +989,7 @@ export function MobileTopNav() {
       </div>
 
       {menuOpen && (
-        <div className="bg-white dark:bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
+        <div className="bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
           <div className="px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
