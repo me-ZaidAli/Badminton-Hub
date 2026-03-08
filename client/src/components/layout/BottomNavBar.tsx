@@ -37,6 +37,7 @@ import {
   GripVertical,
   Check,
   RotateCcw,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -205,6 +206,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
         { href: "/notifications", label: "Notifications", icon: Bell, badge: badgeCounts?.notifications },
         { href: "/inbox", label: "Inbox", icon: Mail, badge: badgeCounts?.messages },
         { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, badge: badgeCounts?.tickets },
+        { href: "/incidents", label: "Incidents", icon: Shield, badge: badgeCounts?.pendingIncidents },
       ],
     },
     {
