@@ -4,11 +4,14 @@ import { getAvatarUrl } from "@/components/AvatarPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
   Swords, Sparkles, Brain, Loader2, Trophy, Target,
-  TrendingUp, Calendar, Zap, BarChart3, Flame, Award
+  TrendingUp, Calendar, Zap, BarChart3, Flame, Award,
+  Shield, Activity, Crosshair, Clock
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  Tooltip, ResponsiveContainer, RadarChart, Radar,
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  BarChart, Bar, Cell
 } from "recharts";
 import maleSilhouetteSrc from "@assets/male_badminton_silhouette.png";
 import femaleSilhouetteSrc from "@assets/female_badminton_silhouette.png";
@@ -26,7 +29,7 @@ function getGenderSilhouette(gender?: string | null) {
   return isFemale ? femaleSilhouetteSrc : maleSilhouetteSrc;
 }
 
-function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: number }) {
+function AnimatedNumber({ value, duration = 1200, decimals = 0 }: { value: number; duration?: number; decimals?: number }) {
   const [display, setDisplay] = useState(0);
   const ref = useRef<number>();
   useEffect(() => {
@@ -35,13 +38,13 @@ function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: 
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(eased * value));
+      setDisplay(eased * value);
       if (progress < 1) ref.current = requestAnimationFrame(animate);
     };
     ref.current = requestAnimationFrame(animate);
     return () => { if (ref.current) cancelAnimationFrame(ref.current); };
   }, [value, duration]);
-  return <span>{display}</span>;
+  return <span>{decimals > 0 ? display.toFixed(decimals) : Math.round(display)}</span>;
 }
 
 function CourtBackground() {
@@ -56,7 +59,7 @@ function CourtBackground() {
   );
 }
 
-function ScoreRing({ percentage, color, size = 90, label }: {
+function ScoreRing({ percentage, color, size = 80, label }: {
   percentage: number; color: string; size?: number; label?: string;
 }) {
   const [animated, setAnimated] = useState(0);
@@ -75,28 +78,31 @@ function ScoreRing({ percentage, color, size = 90, label }: {
           strokeDasharray={circumference} strokeDashoffset={offset} className="transition-all duration-1000 ease-out" />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg sm:text-xl font-black text-white">{Math.round(animated)}%</span>
+        <span className="text-base sm:text-lg font-black text-white">{Math.round(animated)}%</span>
         {label && <span className="text-[7px] text-slate-500 uppercase tracking-widest font-semibold">{label}</span>}
       </div>
     </div>
   );
 }
 
-function ComparisonBar({ label, v1, v2, color1, color2, icon }: {
-  label: string; v1: number; v2: number; color1: string; color2: string; icon?: any;
+function ComparisonBar({ label, v1, v2, color1, color2, icon, formatFn, lowerIsBetter }: {
+  label: string; v1: number; v2: number; color1: string; color2: string; icon?: any; formatFn?: (n: number) => string; lowerIsBetter?: boolean;
 }) {
   const total = v1 + v2;
   const p1Pct = total > 0 ? (v1 / total) * 100 : 50;
   const Icon = icon;
+  const fmt = formatFn || ((n: number) => String(n));
+  const p1Better = lowerIsBetter ? v1 <= v2 : v1 >= v2;
+  const p2Better = lowerIsBetter ? v2 <= v1 : v2 >= v1;
   return (
     <div className="space-y-1.5" data-testid={`comparison-${label.toLowerCase().replace(/\s/g, '-')}`}>
       <div className="flex justify-between items-center">
-        <span className="text-sm font-bold tabular-nums" style={{ color: v1 >= v2 ? color1 : "rgba(148,163,184,0.6)" }}>{v1}</span>
+        <span className="text-sm font-bold tabular-nums" style={{ color: p1Better ? color1 : "rgba(148,163,184,0.5)" }}>{fmt(v1)}</span>
         <div className="flex items-center gap-1.5">
           {Icon && <Icon className="h-3 w-3 text-slate-500" />}
           <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{label}</span>
         </div>
-        <span className="text-sm font-bold tabular-nums" style={{ color: v2 >= v1 ? color2 : "rgba(148,163,184,0.6)" }}>{v2}</span>
+        <span className="text-sm font-bold tabular-nums" style={{ color: p2Better ? color2 : "rgba(148,163,184,0.5)" }}>{fmt(v2)}</span>
       </div>
       <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
         <div className="h-full rounded-l-full transition-all duration-1000 ease-out" style={{ width: `${p1Pct}%`, background: `linear-gradient(90deg, ${color1}44, ${color1})` }} />
@@ -171,6 +177,7 @@ function deriveRivalryStats(results: any[]) {
   };
 }
 
+/* ─── SECTION 1: Rivalry Header ─── */
 function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
   player1: any; player2: any; p1Wins: number; p2Wins: number; totalMatches: number;
 }) {
@@ -257,12 +264,159 @@ function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
             </div>
           </div>
         )}
+
+        {totalMatches === 0 && (
+          <div className="text-center mt-4">
+            <p className="text-xs text-slate-500">No head-to-head matches yet</p>
+          </div>
+        )}
       </div>
       <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${COLOR1}, transparent 45%, transparent 55%, ${COLOR2})` }} />
     </div>
   );
 }
 
+/* ─── SECTION 2: Overall Stats Comparison (ALWAYS VISIBLE) ─── */
+function OverallStatsComparison({ s1, s2, player1Name, player2Name }: {
+  s1: any; s2: any; player1Name: string; player2Name: string;
+}) {
+  const p1First = player1Name.split(" ")[0];
+  const p2First = player2Name.split(" ")[0];
+
+  const p1WinRate = s1?.winRate || 0;
+  const p2WinRate = s2?.winRate || 0;
+  const p1Matches = s1?.matchesPlayed || 0;
+  const p2Matches = s2?.matchesPlayed || 0;
+  const p1Wins = s1?.matchesWon || 0;
+  const p2Wins = s2?.matchesWon || 0;
+  const p1Points = s1?.pointsScored || 0;
+  const p2Points = s2?.pointsScored || 0;
+  const p1Sessions = s1?.sessionsAttended || 0;
+  const p2Sessions = s2?.sessionsAttended || 0;
+  const p1Hours = s1?.totalHoursPlayed || 0;
+  const p2Hours = s2?.totalHoursPlayed || 0;
+  const p1Sets = s1?.setsWon || 0;
+  const p2Sets = s2?.setsWon || 0;
+  const p1Conceded = s1?.pointsConceded || 0;
+  const p2Conceded = s2?.pointsConceded || 0;
+
+  const radarData = [
+    { stat: "Win %", p1: p1WinRate, p2: p2WinRate },
+    { stat: "Matches", p1: Math.min(p1Matches * 10, 100), p2: Math.min(p2Matches * 10, 100) },
+    { stat: "Points", p1: Math.min(p1Points, 100), p2: Math.min(p2Points, 100) },
+    { stat: "Sessions", p1: Math.min(p1Sessions * 10, 100), p2: Math.min(p2Sessions * 10, 100) },
+    { stat: "Sets", p1: Math.min(p1Sets * 15, 100), p2: Math.min(p2Sets * 15, 100) },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="overall-stats-comparison">
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+        <BarChart3 className="h-3.5 w-3.5 text-slate-500" />
+        Player Comparison
+      </h4>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="flex flex-col items-center">
+          <ScoreRing percentage={p1WinRate} color={COLOR1} size={80} label="Win Rate" />
+          <span className="text-[10px] text-slate-400 font-medium mt-1">{p1First}</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <ScoreRing percentage={p2WinRate} color={COLOR2} size={80} label="Win Rate" />
+          <span className="text-[10px] text-slate-400 font-medium mt-1">{p2First}</span>
+        </div>
+      </div>
+
+      <div className="h-48 sm:h-56 mb-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+            <PolarGrid stroke="rgba(255,255,255,0.06)" />
+            <PolarAngleAxis dataKey="stat" tick={{ fill: "#64748b", fontSize: 9 }} />
+            <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
+            <Radar name={p1First} dataKey="p1" stroke={COLOR1} fill={COLOR1} fillOpacity={0.15} strokeWidth={2} />
+            <Radar name={p2First} dataKey="p2" stroke={COLOR2} fill={COLOR2} fillOpacity={0.15} strokeWidth={2} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="space-y-3">
+        <ComparisonBar label="Matches Played" v1={p1Matches} v2={p2Matches} color1={COLOR1} color2={COLOR2} icon={Activity} />
+        <ComparisonBar label="Matches Won" v1={p1Wins} v2={p2Wins} color1={COLOR1} color2={COLOR2} icon={Trophy} />
+        <ComparisonBar label="Points Scored" v1={p1Points} v2={p2Points} color1={COLOR1} color2={COLOR2} icon={Target} />
+        <ComparisonBar label="Points Conceded" v1={p1Conceded} v2={p2Conceded} color1={COLOR1} color2={COLOR2} icon={Shield} lowerIsBetter />
+        <ComparisonBar label="Sets Won" v1={p1Sets} v2={p2Sets} color1={COLOR1} color2={COLOR2} icon={Award} />
+        <ComparisonBar label="Sessions" v1={p1Sessions} v2={p2Sessions} color1={COLOR1} color2={COLOR2} icon={Calendar} />
+        <ComparisonBar label="Hours Played" v1={p1Hours} v2={p2Hours} color1={COLOR1} color2={COLOR2} icon={Clock} formatFn={(n) => `${n}h`} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── SECTION 3: Points Efficiency (ALWAYS VISIBLE) ─── */
+function PointsEfficiency({ s1, s2, player1Name, player2Name }: {
+  s1: any; s2: any; player1Name: string; player2Name: string;
+}) {
+  const p1First = player1Name.split(" ")[0];
+  const p2First = player2Name.split(" ")[0];
+
+  const p1Matches = s1?.matchesPlayed || 0;
+  const p2Matches = s2?.matchesPlayed || 0;
+  const p1AvgScored = p1Matches > 0 ? ((s1?.pointsScored || 0) / p1Matches) : 0;
+  const p2AvgScored = p2Matches > 0 ? ((s2?.pointsScored || 0) / p2Matches) : 0;
+  const p1AvgConceded = p1Matches > 0 ? ((s1?.pointsConceded || 0) / p1Matches) : 0;
+  const p2AvgConceded = p2Matches > 0 ? ((s2?.pointsConceded || 0) / p2Matches) : 0;
+  const p1Margin = p1AvgScored - p1AvgConceded;
+  const p2Margin = p2AvgScored - p2AvgConceded;
+
+  const efficiencyData = [
+    { name: p1First, scored: parseFloat(p1AvgScored.toFixed(1)), conceded: parseFloat(p1AvgConceded.toFixed(1)) },
+    { name: p2First, scored: parseFloat(p2AvgScored.toFixed(1)), conceded: parseFloat(p2AvgConceded.toFixed(1)) },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="points-efficiency">
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+        <Crosshair className="h-3.5 w-3.5 text-slate-500" />
+        Scoring Efficiency
+      </h4>
+
+      <div className="h-36 sm:h-40 mb-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={efficiencyData} barGap={4} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ background: "#0f1729", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", fontSize: "11px" }}
+              labelStyle={{ color: "#94a3b8" }} />
+            <Bar dataKey="scored" name="Avg Scored" radius={[4, 4, 0, 0]} barSize={20}>
+              {efficiencyData.map((_, i) => <Cell key={i} fill={i === 0 ? COLOR1 : COLOR2} />)}
+            </Bar>
+            <Bar dataKey="conceded" name="Avg Conceded" radius={[4, 4, 0, 0]} barSize={20} fillOpacity={0.4}>
+              {efficiencyData.map((_, i) => <Cell key={i} fill={i === 0 ? `${COLOR1}66` : `${COLOR2}66`} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[{ name: p1First, margin: p1Margin, color: COLOR1, avgS: p1AvgScored, avgC: p1AvgConceded },
+          { name: p2First, margin: p2Margin, color: COLOR2, avgS: p2AvgScored, avgC: p2AvgConceded }].map(p => (
+          <div key={p.name} className="rounded-xl px-3 py-2.5 border border-white/[0.04]" style={{ background: "rgba(255,255,255,0.02)" }}>
+            <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium mb-1">{p.name}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-black tabular-nums" style={{ color: p.margin >= 0 ? "#22c55e" : "#ef4444" }}>
+                {p.margin >= 0 ? "+" : ""}{p.margin.toFixed(1)}
+              </span>
+              <span className="text-[9px] text-slate-500">avg margin</span>
+            </div>
+            <p className="text-[9px] text-slate-500 mt-0.5 tabular-nums">{p.avgS.toFixed(1)} scored / {p.avgC.toFixed(1)} conceded</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── SECTION 4: H2H Rivalry Analytics (when h2h data exists) ─── */
 function RivalryAnalytics({ stats, player1Name, player2Name }: {
   stats: ReturnType<typeof deriveRivalryStats>; player1Name: string; player2Name: string;
 }) {
@@ -273,12 +427,12 @@ function RivalryAnalytics({ stats, player1Name, player2Name }: {
   return (
     <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="rivalry-analytics">
       <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-        <BarChart3 className="h-3.5 w-3.5 text-slate-500" />
-        Rivalry Analytics
+        <Swords className="h-3.5 w-3.5 text-slate-500" />
+        Head-to-Head Analytics
       </h4>
 
       <div className="space-y-3">
-        <ComparisonBar label="Total Points" v1={stats.p1Total} v2={stats.p2Total} color1={COLOR1} color2={COLOR2} icon={Target} />
+        <ComparisonBar label="H2H Points" v1={stats.p1Total} v2={stats.p2Total} color1={COLOR1} color2={COLOR2} icon={Target} />
         <ComparisonBar label="Avg Points" v1={parseFloat(stats.p1Avg.toFixed(1))} v2={parseFloat(stats.p2Avg.toFixed(1))} color1={COLOR1} color2={COLOR2} />
       </div>
 
@@ -310,9 +464,7 @@ function RivalryAnalytics({ stats, player1Name, player2Name }: {
         {stats.biggestWin && (
           <div className="rounded-xl px-3 py-2.5 border border-white/[0.04]" style={{ background: "rgba(255,255,255,0.02)" }} data-testid="biggest-win">
             <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium mb-1">Biggest Win</p>
-            <p className="text-sm font-black text-white tabular-nums">
-              {stats.biggestWin.player1Score}–{stats.biggestWin.player2Score}
-            </p>
+            <p className="text-sm font-black text-white tabular-nums">{stats.biggestWin.player1Score}–{stats.biggestWin.player2Score}</p>
             <p className="text-[9px] font-semibold mt-0.5" style={{ color: stats.biggestWin.player1Score > stats.biggestWin.player2Score ? COLOR1 : COLOR2 }}>
               {stats.biggestWin.player1Score > stats.biggestWin.player2Score ? p1First : p2First}
             </p>
@@ -321,9 +473,7 @@ function RivalryAnalytics({ stats, player1Name, player2Name }: {
         {stats.closestMatch && (
           <div className="rounded-xl px-3 py-2.5 border border-white/[0.04]" style={{ background: "rgba(255,255,255,0.02)" }} data-testid="closest-match">
             <p className="text-[9px] text-slate-500 uppercase tracking-wider font-medium mb-1">Closest Match</p>
-            <p className="text-sm font-black text-white tabular-nums">
-              {stats.closestMatch.player1Score}–{stats.closestMatch.player2Score}
-            </p>
+            <p className="text-sm font-black text-white tabular-nums">{stats.closestMatch.player1Score}–{stats.closestMatch.player2Score}</p>
             <p className="text-[9px] font-semibold mt-0.5" style={{ color: stats.closestMatch.player1Score > stats.closestMatch.player2Score ? COLOR1 : COLOR2 }}>
               {stats.closestMatch.player1Score > stats.closestMatch.player2Score ? p1First : p2First}
             </p>
@@ -334,6 +484,7 @@ function RivalryAnalytics({ stats, player1Name, player2Name }: {
   );
 }
 
+/* ─── SECTION 5: Momentum Timeline ─── */
 function MomentumTimeline({ results, player1Name, player2Name }: {
   results: any[]; player1Name: string; player2Name: string;
 }) {
@@ -384,17 +535,16 @@ function MomentumTimeline({ results, player1Name, player2Name }: {
   );
 }
 
+/* ─── SECTION 6: Momentum Indicator ─── */
 function MomentumIndicator({ stats, player1Name, player2Name }: {
   stats: ReturnType<typeof deriveRivalryStats>; player1Name: string; player2Name: string;
 }) {
   if (!stats || stats.last3.length === 0) return null;
   const p1First = player1Name.split(" ")[0];
   const p2First = player2Name.split(" ")[0];
-
-  const last3Wins = stats.last3.map(r => r.player1Score > r.player2Score);
+  const last3Wins = stats.last3.map(r => (r.player1Score ?? 0) > (r.player2Score ?? 0));
   const p1Recent = last3Wins.filter(Boolean).length;
   const p2Recent = stats.last3.length - p1Recent;
-
   const momentumHolder = p1Recent > p2Recent ? p1First : p2Recent > p1Recent ? p2First : null;
   const momentumWins = Math.max(p1Recent, p2Recent);
 
@@ -404,10 +554,9 @@ function MomentumIndicator({ stats, player1Name, player2Name }: {
         <Flame className="h-3.5 w-3.5 text-orange-400" />
         Current Momentum
       </h4>
-
       <div className="flex items-center justify-center gap-2 mb-3">
         {stats.last3.map((r, i) => {
-          const p1Won = r.player1Score > r.player2Score;
+          const p1Won = (r.player1Score ?? 0) > (r.player2Score ?? 0);
           return (
             <div key={i} className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center"
               style={{ background: p1Won ? `${COLOR1}25` : `${COLOR2}25`, border: `2px solid ${p1Won ? COLOR1 : COLOR2}` }}>
@@ -418,7 +567,6 @@ function MomentumIndicator({ stats, player1Name, player2Name }: {
           );
         })}
       </div>
-
       {momentumHolder && (
         <p className="text-[11px] text-slate-400 text-center leading-relaxed">
           <span className="font-semibold text-white">{momentumHolder}</span> currently holds momentum with{" "}
@@ -429,6 +577,7 @@ function MomentumIndicator({ stats, player1Name, player2Name }: {
   );
 }
 
+/* ─── SECTION 7: Win Streaks ─── */
 function WinStreaks({ stats, player1Name, player2Name }: {
   stats: ReturnType<typeof deriveRivalryStats>; player1Name: string; player2Name: string;
 }) {
@@ -460,53 +609,8 @@ function WinStreaks({ stats, player1Name, player2Name }: {
   );
 }
 
-function ExperienceComparison({ s1, s2, player1Name, player2Name }: {
-  s1: any; s2: any; player1Name: string; player2Name: string;
-}) {
-  const p1First = player1Name.split(" ")[0];
-  const p2First = player2Name.split(" ")[0];
-  const p1Sessions = s1?.sessionsAttended || 0;
-  const p2Sessions = s2?.sessionsAttended || 0;
-  const p1Matches = s1?.matchesPlayed || 0;
-  const p2Matches = s2?.matchesPlayed || 0;
-  const p1WinRate = s1?.winRate || 0;
-  const p2WinRate = s2?.winRate || 0;
-
-  const moreExp = p1Sessions > p2Sessions ? p1First : p2Sessions > p1Sessions ? p2First : null;
-
-  return (
-    <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="experience-comparison">
-      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-        <Award className="h-3.5 w-3.5 text-emerald-400" />
-        Player Experience
-      </h4>
-
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="flex flex-col items-center">
-          <ScoreRing percentage={p1WinRate} color={COLOR1} size={80} label="Win Rate" />
-          <span className="text-[10px] text-slate-400 font-medium mt-1">{p1First}</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <ScoreRing percentage={p2WinRate} color={COLOR2} size={80} label="Win Rate" />
-          <span className="text-[10px] text-slate-400 font-medium mt-1">{p2First}</span>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <ComparisonBar label="Sessions" v1={p1Sessions} v2={p2Sessions} color1={COLOR1} color2={COLOR2} />
-        <ComparisonBar label="Matches" v1={p1Matches} v2={p2Matches} color1={COLOR1} color2={COLOR2} />
-      </div>
-
-      {moreExp && (
-        <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
-          <span className="text-slate-300 font-medium">{moreExp}</span> has participated in more sessions, which may contribute to an experience advantage.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function MomentumGraphTooltip({ active, payload, label, p1Label, p2Label }: any) {
+/* ─── SECTION 8: Momentum Graph with enhanced tooltip ─── */
+function MomentumGraphTooltip({ active, payload, p1Label, p2Label }: any) {
   if (!active || !payload?.length) return null;
   const entry = payload[0]?.payload;
   if (!entry) return null;
@@ -519,9 +623,7 @@ function MomentumGraphTooltip({ active, payload, label, p1Label, p2Label }: any)
       <p className="font-semibold mt-0.5" style={{ color: winnerColor }}>{winner} won</p>
       <p className="text-slate-500 mt-1">Rivalry: <span className="text-white font-bold">{entry.p1Wins}–{entry.p2Wins}</span></p>
       {entry.streakLabel && (
-        <p className="mt-1 font-semibold" style={{ color: winnerColor }}>
-          🔥 {entry.streakLabel}
-        </p>
+        <p className="mt-1 font-semibold" style={{ color: winnerColor }}>🔥 {entry.streakLabel}</p>
       )}
     </div>
   );
@@ -567,9 +669,8 @@ function MomentumGraph({ results, player1Name, player2Name }: {
     let count = 0;
     data.forEach((d, i) => {
       const w = d.p1Won ? "p1" : "p2";
-      if (w === currentPlayer) {
-        count++;
-      } else {
+      if (w === currentPlayer) { count++; }
+      else {
         if (count >= 2) segments.push({ player: currentPlayer, start: startIdx, end: i - 1 });
         currentPlayer = w;
         startIdx = i;
@@ -614,7 +715,7 @@ function MomentumGraph({ results, player1Name, player2Name }: {
               dot={(props: any) => {
                 const { cx, cy, payload } = props;
                 const isStreak = payload?.hasStreak && payload?.p1Won;
-                return <circle cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR1} stroke={isStreak ? COLOR1 : "none"} strokeWidth={isStreak ? 2 : 0}
+                return <circle key={`p1-${props.index}`} cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR1} stroke={isStreak ? COLOR1 : "none"} strokeWidth={isStreak ? 2 : 0}
                   filter={isStreak ? "url(#glowP1)" : undefined} style={{ opacity: isStreak ? 1 : 0.8 }} />;
               }}
               activeDot={{ r: 6, strokeWidth: 2, stroke: COLOR1 }} />
@@ -622,7 +723,7 @@ function MomentumGraph({ results, player1Name, player2Name }: {
               dot={(props: any) => {
                 const { cx, cy, payload } = props;
                 const isStreak = payload?.hasStreak && !payload?.p1Won;
-                return <circle cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR2} stroke={isStreak ? COLOR2 : "none"} strokeWidth={isStreak ? 2 : 0}
+                return <circle key={`p2-${props.index}`} cx={cx} cy={cy} r={isStreak ? 5 : 3} fill={COLOR2} stroke={isStreak ? COLOR2 : "none"} strokeWidth={isStreak ? 2 : 0}
                   filter={isStreak ? "url(#glowP2)" : undefined} style={{ opacity: isStreak ? 1 : 0.8 }} />;
               }}
               activeDot={{ r: 6, strokeWidth: 2, stroke: COLOR2 }} />
@@ -651,6 +752,54 @@ function MomentumGraph({ results, player1Name, player2Name }: {
   );
 }
 
+/* ─── SECTION 9: H2H Match History List ─── */
+function MatchHistory({ results, player1Name, player2Name }: {
+  results: any[]; player1Name: string; player2Name: string;
+}) {
+  if (!results || results.length === 0) return null;
+  const chronological = [...results].sort((a, b) => {
+    const da = a.date ? new Date(a.date).getTime() : 0;
+    const db = b.date ? new Date(b.date).getTime() : 0;
+    return db - da;
+  });
+  const p1First = player1Name.split(" ")[0];
+  const p2First = player2Name.split(" ")[0];
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] p-4 sm:p-5" style={{ background: CARD_BG }} data-testid="match-history">
+      <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+        <Activity className="h-3.5 w-3.5 text-slate-500" />
+        Match History
+      </h4>
+      <div className="space-y-2">
+        {chronological.map((r: any, i: number) => {
+          const p1Won = (r.player1Score ?? 0) > (r.player2Score ?? 0);
+          const winColor = p1Won ? COLOR1 : COLOR2;
+          const matchDate = r.date ? new Date(r.date) : null;
+          return (
+            <div key={i} className="flex items-center justify-between rounded-xl px-3 py-2.5 border border-white/[0.04] hover:border-white/[0.08] transition-colors"
+              style={{ background: "rgba(255,255,255,0.02)" }} data-testid={`match-history-${i}`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-1.5 h-6 rounded-full shrink-0" style={{ background: winColor }} />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base font-black tabular-nums" style={{ color: p1Won ? COLOR1 : "rgba(148,163,184,0.5)" }}>{r.player1Score ?? "?"}</span>
+                  <span className="text-[10px] text-slate-600 font-medium">—</span>
+                  <span className="text-base font-black tabular-nums" style={{ color: !p1Won ? COLOR2 : "rgba(148,163,184,0.5)" }}>{r.player2Score ?? "?"}</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {matchDate && <p className="text-[10px] text-slate-500 tabular-nums">{matchDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>}
+                <p className="text-[9px] font-semibold" style={{ color: winColor }}>{p1Won ? p1First : p2First}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── MAIN EXPORT ─── */
 type PlayerData = {
   id: number;
   fullName: string;
@@ -708,19 +857,30 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
   const totalMatches = h2h?.totalMatches || 0;
   const results = h2h?.recentResults || [];
   const rivalryStats = useMemo(() => deriveRivalryStats(results), [results]);
+  const hasH2H = results.length > 0;
 
   return (
     <div className="space-y-3 sm:space-y-4" data-testid="rivalry-arena">
+      {/* 1. Rivalry Header with avatars, VS, scoreboard */}
       <RivalryHeader player1={player1} player2={player2} p1Wins={p1Wins} p2Wins={p2Wins} totalMatches={totalMatches} />
 
-      {results.length > 0 && (
+      {/* 2. Overall Stats Comparison — ALWAYS VISIBLE (radar chart + bars) */}
+      <OverallStatsComparison s1={s1} s2={s2} player1Name={player1.fullName} player2Name={player2.fullName} />
+
+      {/* 3. Points Efficiency — ALWAYS VISIBLE (bar chart + margin cards) */}
+      <PointsEfficiency s1={s1} s2={s2} player1Name={player1.fullName} player2Name={player2.fullName} />
+
+      {/* 4. H2H Analytics — only when h2h data exists */}
+      {hasH2H && (
         <RivalryAnalytics stats={rivalryStats} player1Name={player1.fullName} player2Name={player2.fullName} />
       )}
 
-      {results.length > 0 && (
+      {/* 5. Momentum Timeline — only when h2h data exists */}
+      {hasH2H && (
         <MomentumTimeline results={results} player1Name={player1.fullName} player2Name={player2.fullName} />
       )}
 
+      {/* 6 & 7. Momentum Indicator + Win Streaks */}
       {rivalryStats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <MomentumIndicator stats={rivalryStats} player1Name={player1.fullName} player2Name={player2.fullName} />
@@ -728,12 +888,17 @@ export function RivalryArenaView({ player1, player2, compareData, h2h, clubs }: 
         </div>
       )}
 
+      {/* 8. Momentum Graph — only with 2+ h2h matches */}
       {results.length >= 2 && (
         <MomentumGraph results={results} player1Name={player1.fullName} player2Name={player2.fullName} />
       )}
 
-      <ExperienceComparison s1={s1} s2={s2} player1Name={player1.fullName} player2Name={player2.fullName} />
+      {/* 9. Match History List — only when h2h data exists */}
+      {hasH2H && (
+        <MatchHistory results={results} player1Name={player1.fullName} player2Name={player2.fullName} />
+      )}
 
+      {/* 10. AI Rivalry Analysis — ALWAYS VISIBLE */}
       <div className="rounded-2xl border border-white/[0.06] overflow-hidden" style={{ background: CARD_BG }}>
         <div className="p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
