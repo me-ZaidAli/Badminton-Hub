@@ -5277,6 +5277,7 @@ export async function registerRoutes(
         }
       }
 
+      const fixedPairs = extractFixedPairs(eligibleSignups);
       let generated: any;
       if (useAIBrain) {
         generated = applyAIBrainLayer({
@@ -5286,11 +5287,26 @@ export async function registerRoutes(
           genderType: gType,
           queueTarget: finalTarget,
           matchHistory,
-          fixedPairs: extractFixedPairs(eligibleSignups),
+          fixedPairs,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
           sessionDurationMinutes: session.durationMinutes || 120,
           elapsedMinutes: session.date ? Math.max(0, Math.round((Date.now() - new Date(session.date).getTime()) / 60000)) : undefined,
         });
+
+        if (generated.matches.length === 0 && !generated.pairConstraintBlocked) {
+          generated = generateSmartMatches({
+            mode: matchMode as "SOCIAL" | "COMPETITIVE",
+            players: activePlayers,
+            playersPerSide: playersPerSide as 1 | 2,
+            genderType: gType,
+            queueTarget: finalTarget,
+            recentPairings,
+            recentOpponents,
+            playerMatchCounts,
+            fixedPairs,
+            priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+          });
+        }
       } else {
         generated = generateSmartMatches({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
@@ -5301,7 +5317,7 @@ export async function registerRoutes(
           recentPairings,
           recentOpponents,
           playerMatchCounts,
-          fixedPairs: extractFixedPairs(eligibleSignups),
+          fixedPairs,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
         });
       }
