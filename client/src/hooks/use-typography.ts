@@ -337,13 +337,11 @@ export function useTypography() {
   const syncFromUser = useCallback((font: string | null | undefined, mode: string | null | undefined) => {
     const effectiveFont = font || "inter";
     const effectiveMode = (mode as FontMode) || "all";
-    if (effectiveFont !== localStorage.getItem("fontFamily") || effectiveMode !== localStorage.getItem("fontMode")) {
-      setFontIdState(effectiveFont);
-      setFontModeState(effectiveMode);
-      localStorage.setItem("fontFamily", effectiveFont);
-      localStorage.setItem("fontMode", effectiveMode);
-      applyFontToDOM(effectiveFont, effectiveMode);
-    }
+    setFontIdState(effectiveFont);
+    setFontModeState(effectiveMode);
+    localStorage.setItem("fontFamily", effectiveFont);
+    localStorage.setItem("fontMode", effectiveMode);
+    applyFontToDOM(effectiveFont, effectiveMode);
   }, []);
 
   const currentFont = FONT_OPTIONS.find(f => f.id === fontId) || FONT_OPTIONS[0];

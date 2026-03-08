@@ -1053,11 +1053,9 @@ export function useBackground() {
 
   const syncFromUser = useCallback((bg: string | null | undefined) => {
     const effective = bg || "none";
-    if (effective !== localStorage.getItem("dashboardBackground")) {
-      setBackgroundIdState(effective);
-      localStorage.setItem("dashboardBackground", effective);
-      applyBackgroundToDOM(effective);
-    }
+    setBackgroundIdState(effective);
+    localStorage.setItem("dashboardBackground", effective);
+    applyBackgroundToDOM(effective);
   }, []);
 
   const currentBackground = BACKGROUND_OPTIONS.find(b => b.id === backgroundId) || BACKGROUND_OPTIONS[0];

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -234,7 +234,6 @@ export { ThemeContext, THEME_CLASSES, ALL_THEME_CLASSES, DARK_THEMES };
 export function useThemeProvider() {
   const [displayMode, setDisplayModeState] = useState<DisplayMode>(getInitialMode);
   const [reducedMotion, setReducedMotionState] = useState<boolean>(getInitialReducedMotion);
-  const syncedUserIdRef = useRef<number | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: async (prefs: { displayMode: DisplayMode; reducedMotion: boolean }) => {
@@ -264,10 +263,7 @@ export function useThemeProvider() {
     saveMutation.mutate({ displayMode, reducedMotion: enabled });
   }, [displayMode]);
 
-  const syncFromUser = useCallback((mode: DisplayMode, motion: boolean, userId?: number) => {
-    if (userId !== undefined && syncedUserIdRef.current === userId) return;
-    if (userId !== undefined) syncedUserIdRef.current = userId;
-
+  const syncFromUser = useCallback((mode: DisplayMode, motion: boolean, _userId?: number) => {
     const effectiveMode = (mode && mode in THEME_CLASSES) ? mode : "light";
     const effectiveMotion = effectiveMode === "migraine" ? true : motion;
 
