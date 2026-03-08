@@ -12,6 +12,7 @@ import {
   Tooltip, ResponsiveContainer
 } from "recharts";
 import maleSilhouetteSrc from "@assets/image_1773003848338.png";
+import femaleSilhouetteSrc from "@assets/image_1773003911695.png";
 
 function MaleSilhouette({ className = "" }: { className?: string }) {
   return (
@@ -21,13 +22,7 @@ function MaleSilhouette({ className = "" }: { className?: string }) {
 
 function FemaleSilhouette({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 64 96" fill="currentColor">
-      <ellipse cx="32" cy="13" rx="9" ry="11" />
-      <path d="M36 6 C42 4 46 10 44 18 L40 14" opacity="0.7" />
-      <path d="M22 26 C18 28 16 34 17 42 L20 42 L22 36 L24 48 L18 68 L20 70 L28 52 L30 62 L24 90 L30 90 L32 68 L34 68 L36 90 L42 90 L36 62 L38 52 L46 70 L48 68 L42 48 L44 36 L46 42 L49 42 C50 34 48 28 44 26 Z" />
-      <path d="M17 42 L8 38 L6 42 L17 46 Z" opacity="0.8" />
-      <path d="M49 42 L58 38 L60 42 L49 46 Z" opacity="0.8" />
-    </svg>
+    <img src={femaleSilhouetteSrc} alt="Player silhouette" className={`${className} object-contain`} style={{ filter: "brightness(0) invert(0.45)" }} />
   );
 }
 
