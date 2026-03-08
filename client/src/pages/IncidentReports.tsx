@@ -192,7 +192,12 @@ export default function IncidentReports() {
 
   const { data: clubMembers = [] } = useQuery<any[]>({
     queryKey: ["/api/clubs", formData.clubId, "members-list"],
-    enabled: !!formData.clubId && !formData.sessionId,
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${formData.clubId}/members-list`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!formData.clubId,
   });
 
   const analyticsClubId = filterClub !== "ALL" ? filterClub : myClubs?.[0]?.id;
@@ -329,9 +334,7 @@ export default function IncidentReports() {
   const pendingCount = incidents?.filter((i: any) => i.status === "PENDING_REVIEW").length || 0;
   const seriousCount = incidents?.filter((i: any) => i.severity === "SERIOUS" || i.severity === "EMERGENCY").length || 0;
 
-  const membersList = formData.sessionId
-    ? (sessionSignups || []).map((s: any) => ({ id: s.playerId || s.id, name: s.player?.user?.fullName || s.playerName || s.fullName || s.player?.fullName || `Player ${s.playerId || s.id}` }))
-    : (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.user?.fullName || `Member ${m.userId || m.id}` }));
+  const membersList = (clubMembers || []).map((m: any) => ({ id: m.userId || m.id, name: m.fullName || m.user?.fullName || `Member ${m.userId || m.id}` }));
 
   const [memberSearch, setMemberSearch] = useState("");
   const filteredMembers = membersList.filter((m: any) =>
