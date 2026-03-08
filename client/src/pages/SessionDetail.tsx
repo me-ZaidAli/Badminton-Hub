@@ -1320,115 +1320,98 @@ export default function SessionDetail() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
 
-      {isOrganiser && (
-        <Card className="border-primary/20">
-          <CardContent className="p-0">
-            <Button
-              variant="ghost"
-              onClick={() => setAdminDashboardOpen(!adminDashboardOpen)}
-              className="w-full flex items-center justify-between h-auto py-4 px-4 sm:px-5 rounded-lg"
-              data-testid="button-toggle-admin-dashboard"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Lock className="w-5 h-5 text-primary" />
-                </div>
-                <div className="text-left">
-                  <h3 className="font-semibold text-sm sm:text-base">Admin Dashboard</h3>
-                  <p className="text-xs text-muted-foreground font-normal">Payments, financials, AI tools & analytics</p>
-                </div>
-              </div>
-              {adminDashboardOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
-            </Button>
-            {adminDashboardOpen && (
-              <div className="px-4 pb-4 sm:px-5 sm:pb-5 space-y-4">
-                <Tabs value={adminDashboardTab} onValueChange={setAdminDashboardTab}>
-                  <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4" data-testid="admin-dashboard-tabs">
-                    <TabsTrigger value="payments" data-testid="tab-payments">Payments</TabsTrigger>
-                    <TabsTrigger value="financials" data-testid="tab-financials">Financials</TabsTrigger>
-                    <TabsTrigger value="intelligence" data-testid="tab-intelligence">Intelligence</TabsTrigger>
-                    <TabsTrigger value="ai-tools" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="payments" className="mt-4 space-y-4">
-                    {riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
-                      <Card className="border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" data-testid="payment-risk-alert">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                            <div className="space-y-2 flex-1">
-                              <p className="font-semibold text-red-700 dark:text-red-400" data-testid="text-risk-alert-title">
-                                Payment Risk Alert
-                              </p>
-                              <p className="text-sm text-red-600 dark:text-red-400/80">
-                                {riskyPlayers.length} player{riskyPlayers.length !== 1 ? "s" : ""} signed up with low payment reliability:
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {riskyPlayers.map(rp => (
-                                  <Badge key={rp.playerId} variant="outline" className="text-xs border-red-300 dark:border-red-700 text-red-700 dark:text-red-400" data-testid={`badge-risky-player-${rp.playerId}`}>
-                                    {rp.name} (Score: {rp.score}, Outstanding: {"\u00A3"}{((rp.outstandingAmount || 0) / 100).toFixed(2)})
-                                  </Badge>
-                                ))}
+            {isOrganiser && (
+              <div className="border-t border-border/40 mt-4 pt-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => setAdminDashboardOpen(!adminDashboardOpen)}
+                  className="w-full flex items-center justify-between h-auto py-2 px-1 rounded-lg"
+                  data-testid="button-toggle-admin-dashboard"
+                >
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-primary" />
+                    <span className="font-semibold text-sm">Session Finance</span>
+                  </div>
+                  {adminDashboardOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </Button>
+                {adminDashboardOpen && (
+                  <div className="mt-3 space-y-3">
+                    <Tabs value={adminDashboardTab} onValueChange={setAdminDashboardTab}>
+                      <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4" data-testid="admin-dashboard-tabs">
+                        <TabsTrigger value="payments" className="text-xs" data-testid="tab-payments">Payments</TabsTrigger>
+                        <TabsTrigger value="financials" className="text-xs" data-testid="tab-financials">Financials</TabsTrigger>
+                        <TabsTrigger value="intelligence" className="text-xs" data-testid="tab-intelligence">Intelligence</TabsTrigger>
+                        <TabsTrigger value="ai-tools" className="text-xs" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="payments" className="mt-3 space-y-3">
+                        {riskyPlayers.length > 0 && session.status !== "COMPLETED" && (
+                          <Card className="border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20" data-testid="payment-risk-alert">
+                            <CardContent className="p-3">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                <div className="space-y-1.5 flex-1">
+                                  <p className="font-semibold text-sm text-red-700 dark:text-red-400" data-testid="text-risk-alert-title">
+                                    Payment Risk Alert
+                                  </p>
+                                  <p className="text-xs text-red-600 dark:text-red-400/80">
+                                    {riskyPlayers.length} player{riskyPlayers.length !== 1 ? "s" : ""} with low reliability:
+                                  </p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {riskyPlayers.map(rp => (
+                                      <Badge key={rp.playerId} variant="outline" className="text-[10px] border-red-300 dark:border-red-700 text-red-700 dark:text-red-400" data-testid={`badge-risky-player-${rp.playerId}`}>
+                                        {rp.name} ({rp.score}%, {"\u00A3"}{((rp.outstandingAmount || 0) / 100).toFixed(2)})
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                    {confirmedSignups.length > 0 ? (
-                      <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
-                    ) : (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        No confirmed players yet. Payment data will appear once players sign up.
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="financials" className="mt-4 space-y-4">
-                    {confirmedSignups.length > 0 ? (
-                      <SessionFinancialCommandCenter sessionId={id} />
-                    ) : (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        No confirmed players yet. Financial data will appear once players sign up.
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="intelligence" className="mt-4 space-y-4">
-                    {session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
-                      <SessionBalancePrediction sessionId={id} />
-                    )}
-                    {session.status === "COMPLETED" && (
-                      <SessionEngagementScore sessionId={id} />
-                    )}
-                    {session.status === "CANCELLED" && (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        Intelligence data is not available for cancelled sessions.
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="ai-tools" className="mt-4 space-y-4">
-                    {session.status !== "COMPLETED" && confirmedSignups.length >= 4 && (
-                      <AISessionDesigner sessionId={id} />
-                    )}
-                    {session.status !== "COMPLETED" && confirmedSignups.length < 4 && (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        AI Session Designer requires at least 4 confirmed players.
-                      </div>
-                    )}
-                    {session.status === "COMPLETED" && (
-                      <div className="text-sm text-muted-foreground text-center py-4">
-                        AI tools are not available for completed sessions.
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                            </CardContent>
+                          </Card>
+                        )}
+                        {confirmedSignups.length > 0 ? (
+                          <PaymentVerificationDashboard sessionId={id} session={session} signups={confirmedSignups} />
+                        ) : (
+                          <p className="text-xs text-muted-foreground text-center py-3">No players yet.</p>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="financials" className="mt-3 space-y-3">
+                        {confirmedSignups.length > 0 ? (
+                          <SessionFinancialCommandCenter sessionId={id} />
+                        ) : (
+                          <p className="text-xs text-muted-foreground text-center py-3">No players yet.</p>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="intelligence" className="mt-3 space-y-3">
+                        {session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+                          <SessionBalancePrediction sessionId={id} />
+                        )}
+                        {session.status === "COMPLETED" && (
+                          <SessionEngagementScore sessionId={id} />
+                        )}
+                        {session.status === "CANCELLED" && (
+                          <p className="text-xs text-muted-foreground text-center py-3">Not available for cancelled sessions.</p>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="ai-tools" className="mt-3 space-y-3">
+                        {session.status !== "COMPLETED" && confirmedSignups.length >= 4 && (
+                          <AISessionDesigner sessionId={id} />
+                        )}
+                        {session.status !== "COMPLETED" && confirmedSignups.length < 4 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">Needs at least 4 players.</p>
+                        )}
+                        {session.status === "COMPLETED" && (
+                          <p className="text-xs text-muted-foreground text-center py-3">Not available for completed sessions.</p>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
-      )}
+      </div>
 
       <MatchesView 
         sessionId={id} 
