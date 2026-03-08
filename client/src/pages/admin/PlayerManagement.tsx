@@ -831,6 +831,21 @@ function AdminEditMemberWrapper({
     },
   });
 
+  const moveToTrialMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeProfile) throw new Error("No profile found");
+      await apiRequest("POST", `/api/clubs/${activeProfile.clubId}/members/${activeProfile.id}/move-to-trial`);
+    },
+    onSuccess: () => {
+      toast({ title: "Moved to Trial", description: "The member has been moved to trial status and notified." });
+      queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to move to trial", description: err.message, variant: "destructive" });
+    },
+  });
+
   const editData: MemberEditData = {
     userId: player.id,
     fullName: player.fullName,
@@ -923,6 +938,8 @@ function AdminEditMemberWrapper({
         isBanning={banMutation.isPending}
         onRemove={() => removeMutation.mutate()}
         isRemoving={removeMutation.isPending}
+        onMoveToTrial={() => moveToTrialMutation.mutate()}
+        isMovingToTrial={moveToTrialMutation.isPending}
         extraContent={reliabilityData && reliabilityData.totalSessions > 0 ? (
           <div className="p-3 rounded-md border space-y-2" data-testid="payment-reliability-section">
             <div className="flex items-center gap-2">

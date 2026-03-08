@@ -1410,9 +1410,14 @@ export default function Sessions() {
                               </Button>
                             </div>
                           ) : !gradeEligible ? (
-                            <div className="flex items-center gap-2 text-sm justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 py-2.5 px-3" data-testid={`grade-restriction-${session.id}`}>
-                              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span className="text-amber-700 dark:text-amber-300 font-medium text-xs">Does not meet grading ({session.allowedCategories?.join(", ")})</span>
+                            <div className="space-y-2" data-testid={`grade-restriction-${session.id}`}>
+                              <div className="flex items-center gap-2 text-sm justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 py-2.5 px-3">
+                                <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <span className="text-amber-700 dark:text-amber-300 font-medium text-xs">Not available for your level</span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground text-center">
+                                Required: {session.allowedCategories?.join(", ")}
+                              </p>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  User, Pencil, Save, Trash2, Ban, Loader2, Lock, KeyRound, Copy, Plus, Building2, MapPin, Baby, Megaphone, BarChart3, Shield, UserPlus, Users, Search, X, Link2Off
+  User, Pencil, Save, Trash2, Ban, Loader2, Lock, KeyRound, Copy, Plus, Building2, MapPin, Baby, Megaphone, BarChart3, Shield, UserPlus, Users, Search, X, Link2Off, ClipboardList
 } from "lucide-react";
 
 export const ACQUISITION_SOURCES = [
@@ -77,6 +77,8 @@ interface UnifiedMemberEditDialogProps {
   isBanning?: boolean;
   onRemove?: () => void;
   isRemoving?: boolean;
+  onMoveToTrial?: () => void;
+  isMovingToTrial?: boolean;
   onResetPassword?: (password: string) => Promise<void>;
   isResettingPassword?: boolean;
   onGenerateResetLink?: () => Promise<string | null>;
@@ -107,6 +109,8 @@ export function UnifiedMemberEditDialog({
   isBanning,
   onRemove,
   isRemoving,
+  onMoveToTrial,
+  isMovingToTrial,
   onResetPassword,
   isResettingPassword,
   onGenerateResetLink,
@@ -949,6 +953,19 @@ export function UnifiedMemberEditDialog({
                     >
                       <Trash2 className="w-3 h-3" />
                       Remove from Club
+                    </Button>
+                  )}
+                  {onMoveToTrial && playerStatusValue === "ACTIVE" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-blue-600 border-blue-300 dark:text-blue-400 dark:border-blue-700"
+                      onClick={onMoveToTrial}
+                      disabled={isMovingToTrial}
+                      data-testid="button-move-to-trial"
+                    >
+                      {isMovingToTrial ? <Loader2 className="w-3 h-3 animate-spin" /> : <ClipboardList className="w-3 h-3" />}
+                      Move to Trial
                     </Button>
                   )}
                   {onBan && (playerStatusValue !== "BANNED") && (
