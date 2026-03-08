@@ -89,7 +89,7 @@ interface FinancialEntry {
   clubSessionFee: number | null;
   playerName: string;
   playerEmail: string;
-  playerUserId: number;
+  playerUserId: number | null;
   membershipStatus: string | null;
   membershipPlanName: string | null;
   membershipSessionFee: number | null;
@@ -674,9 +674,10 @@ export default function Financials() {
   const dashboardQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    if (sessionType !== "all") params.append("sessionType", sessionType);
     const qs = params.toString();
     return `/api/admin/financial-dashboard${qs ? `?${qs}` : ""}`;
-  }, [selectedClubId]);
+  }, [selectedClubId, sessionType]);
 
   interface MembershipMember {
     id: number;
@@ -861,7 +862,7 @@ export default function Financials() {
 
   const outstandingByPlayer = useMemo(() => {
     const unpaidEntries = filteredData.filter((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING");
-    const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number; totalOwed: number; sessions: { signupId: number; sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number; paymentStatus: string }[] }> = {};
+    const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number | null; totalOwed: number; sessions: { signupId: number; sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number; paymentStatus: string }[] }> = {};
     unpaidEntries.forEach((entry) => {
       const key = `${entry.playerUserId}`;
       if (!groups[key]) {
@@ -947,7 +948,7 @@ export default function Financials() {
   }, [filteredData, playerSearchQuery]);
 
   const clubRevenueData = useMemo(() => {
-    const clubs: Record<number, { clubId: number; clubName: string; totalRevenue: number; totalPaid: number; memberCount: number; members: Record<number, { userId: number; name: string; email: string; totalFee: number; paidFee: number; sessions: number }> }> = {};
+    const clubs: Record<number, { clubId: number; clubName: string; totalRevenue: number; totalPaid: number; memberCount: number; members: Record<string, { userId: number | null; name: string; email: string; totalFee: number; paidFee: number; sessions: number }> }> = {};
     filteredData.forEach(entry => {
       if (!clubs[entry.clubId]) {
         clubs[entry.clubId] = { clubId: entry.clubId, clubName: entry.clubName, totalRevenue: 0, totalPaid: 0, memberCount: 0, members: {} };
@@ -955,13 +956,14 @@ export default function Financials() {
       const club = clubs[entry.clubId];
       club.totalRevenue += entry.fee || 0;
       if (entry.paymentStatus === "PAID") club.totalPaid += entry.fee || 0;
-      if (!club.members[entry.playerUserId]) {
-        club.members[entry.playerUserId] = { userId: entry.playerUserId, name: entry.playerName, email: entry.playerEmail, totalFee: 0, paidFee: 0, sessions: 0 };
+      const memberKey = String(entry.playerUserId ?? "unknown");
+      if (!club.members[memberKey]) {
+        club.members[memberKey] = { userId: entry.playerUserId, name: entry.playerName, email: entry.playerEmail, totalFee: 0, paidFee: 0, sessions: 0 };
         club.memberCount++;
       }
-      club.members[entry.playerUserId].totalFee += entry.fee || 0;
-      if (entry.paymentStatus === "PAID") club.members[entry.playerUserId].paidFee += entry.fee || 0;
-      club.members[entry.playerUserId].sessions++;
+      club.members[memberKey].totalFee += entry.fee || 0;
+      if (entry.paymentStatus === "PAID") club.members[memberKey].paidFee += entry.fee || 0;
+      club.members[memberKey].sessions++;
     });
     return Object.values(clubs).sort((a, b) => b.totalRevenue - a.totalRevenue);
   }, [filteredData]);

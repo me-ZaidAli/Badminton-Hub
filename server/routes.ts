@@ -9258,7 +9258,7 @@ export async function registerRoutes(
     } else {
       const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
       const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
       if (clubIdSet.size === 0) return res.sendStatus(403);
       accessibleClubIds = [...clubIdSet];
@@ -9330,8 +9330,8 @@ export async function registerRoutes(
           clubId: sessions.clubId,
           clubName: clubs.name,
           clubSessionFee: clubs.sessionFee,
-          playerName: users.fullName,
-          playerEmail: users.email,
+          playerName: sql<string>`COALESCE(${users.fullName}, 'Unknown Player')`,
+          playerEmail: sql<string>`COALESCE(${users.email}, '')`,
           playerUserId: users.id,
           membershipStatus: clubMemberships.status,
           membershipPlanName: membershipPlans.name,
@@ -9341,8 +9341,8 @@ export async function registerRoutes(
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
         .innerJoin(clubs, eq(sessions.clubId, clubs.id))
-        .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
-        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .leftJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
+        .leftJoin(users, eq(playerProfiles.userId, users.id))
         .leftJoin(clubMemberships, and(
           eq(clubMemberships.userId, users.id),
           eq(clubMemberships.clubId, sessions.clubId),
@@ -13851,7 +13851,7 @@ export async function registerRoutes(
       } else {
         const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
         const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
         if (clubIdSet.size === 0) return res.sendStatus(403);
         accessibleClubIds = [...clubIdSet];
@@ -13867,6 +13867,11 @@ export async function registerRoutes(
       const sessionConditions: any[] = [inArray(sessions.clubId, filteredClubIds)];
       if (qDateFrom) sessionConditions.push(gte(sessions.date, qDateFrom));
       if (qDateTo) sessionConditions.push(lte(sessions.date, qDateTo));
+
+      const qSessionType = req.query.sessionType as string | undefined;
+      if (qSessionType && qSessionType !== "all") {
+        sessionConditions.push(eq(sessions.sessionType, qSessionType as any));
+      }
 
       sessionConditions.push(eq(sessionSignups.signupStatus, "CONFIRMED"));
 
