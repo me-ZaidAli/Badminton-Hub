@@ -89,3 +89,9 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Access Control**: Trial players are restricted to Trial Dashboard and Notifications only. PrivateRoute checks `/api/trial-players/me` and redirects non-approved trial players. Sidebar and BottomNavBar show limited navigation.
 - **Automated Notifications**: Status change notifications at every stage (registration, scheduled, attended, evaluated, decision).
 - **Key Files**: `shared/schema.ts` (trialPlayers, trialEvaluations), `server/storage.ts` (trial CRUD), `server/routes.ts` (trial API endpoints), `client/src/pages/TrialDashboard.tsx`, `client/src/pages/admin/TrialManagement.tsx`, `client/src/pages/auth/Register.tsx`
+
+### Rivalry Arena (Player Comparison)
+- **Component**: `client/src/components/RivalryArena.tsx` — Replaces old ComparisonView in PlayerIntelligence
+- **Features**: Badminton court background, gender-specific athletic silhouette avatars (male/female SVGs with layered shadow + glow), animated count-up scoreboard, rivalry strength indicator (Dominant/Competitive/Close), animated win ratio rings, match timeline with connected cards, momentum line graph (cumulative wins over time), AI rivalry analysis
+- **Integration**: Used in `client/src/pages/PlayerIntelligence.tsx` when Compare Players mode is active
+- **Data**: Uses existing `/api/players/analytics/compare`, `/api/players/analytics/head-to-head`, and `/api/players/analytics/ai-comparison` endpoints (no backend changes)

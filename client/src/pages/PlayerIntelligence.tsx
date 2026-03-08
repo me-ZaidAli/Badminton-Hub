@@ -5,6 +5,7 @@ import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAvatarUrl } from "@/components/AvatarPicker";
+import { RivalryArenaView } from "@/components/RivalryArena";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -361,196 +362,6 @@ function PlayerStatsRadar({ stats }: { stats: any }) {
   );
 }
 
-function ComparisonView({ player1, player2, compareData, h2h, clubs }: {
-  player1: PlayerData; player2: PlayerData; compareData: any; h2h: any; clubs: any[];
-}) {
-  const { toast } = useToast();
-  const [aiReview, setAiReview] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const lastCompareKey = useRef<string>("");
-
-  const generateAiReview = async () => {
-    const p1Id = player1.playerProfiles?.[0]?.id;
-    const p2Id = player2.playerProfiles?.[0]?.id;
-    if (!p1Id || !p2Id) return;
-    setAiLoading(true);
-    try {
-      const res = await fetch(`/api/players/analytics/ai-comparison/${p1Id}/${p2Id}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) throw new Error("Failed to generate review");
-      const data = await res.json();
-      setAiReview(data.review);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate AI review", variant: "destructive" });
-      setAiReview("Unable to generate AI comparison at this time. Please try again later.");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const p1Id = player1.playerProfiles?.[0]?.id;
-    const p2Id = player2.playerProfiles?.[0]?.id;
-    const key = `${p1Id}-${p2Id}`;
-    if (p1Id && p2Id && key !== lastCompareKey.current) {
-      lastCompareKey.current = key;
-      setAiReview(null);
-      generateAiReview();
-    }
-  }, [player1.id, player2.id]);
-
-  const s1 = compareData?.player1?.stats;
-  const s2 = compareData?.player2?.stats;
-  const compMetrics = [
-    { label: "Win Rate", v1: `${s1?.winRate || 0}%`, v2: `${s2?.winRate || 0}%`, n1: s1?.winRate || 0, n2: s2?.winRate || 0 },
-    { label: "Matches Played", v1: s1?.matchesPlayed || 0, v2: s2?.matchesPlayed || 0, n1: s1?.matchesPlayed || 0, n2: s2?.matchesPlayed || 0 },
-    { label: "Points Scored", v1: s1?.pointsScored || 0, v2: s2?.pointsScored || 0, n1: s1?.pointsScored || 0, n2: s2?.pointsScored || 0 },
-    { label: "Sessions", v1: s1?.sessionsAttended || 0, v2: s2?.sessionsAttended || 0, n1: s1?.sessionsAttended || 0, n2: s2?.sessionsAttended || 0 },
-    { label: "Hours Played", v1: s1?.totalHoursPlayed?.toFixed(1) || "0", v2: s2?.totalHoursPlayed?.toFixed(1) || "0", n1: s1?.totalHoursPlayed || 0, n2: s2?.totalHoursPlayed || 0 },
-  ];
-  return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
-        <div className="flex items-center justify-center gap-6 relative z-10">
-          <div className="text-center">
-            <PlayerAvatar name={player1.fullName} id={player1.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player1.profilePictureUrl} selectedAvatar={player1.selectedAvatar} gender={player1.playerProfiles[0]?.gender} grade={player1.playerProfiles[0]?.grade || player1.playerProfiles[0]?.category} />
-            <p className="font-bold text-sm text-slate-200">{player1.fullName}</p>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#1e293b] to-[#0f1729] flex items-center justify-center border border-[#1e293b] shadow-lg">
-              <span className="text-lg font-black text-slate-500">VS</span>
-            </div>
-          </div>
-          <div className="text-center">
-            <PlayerAvatar name={player2.fullName} id={player2.id} size="xl" className="mx-auto mb-2" profilePictureUrl={player2.profilePictureUrl} selectedAvatar={player2.selectedAvatar} gender={player2.playerProfiles[0]?.gender} grade={player2.playerProfiles[0]?.grade || player2.playerProfiles[0]?.category} />
-            <p className="font-bold text-sm text-slate-200">{player2.fullName}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {compMetrics.map((m) => {
-          const p1Better = m.n1 > m.n2;
-          const equal = m.n1 === m.n2;
-          const total = m.n1 + m.n2;
-          const p1Pct = total > 0 ? (m.n1 / total) * 100 : 50;
-          return (
-            <div key={m.label} className="space-y-1.5 bg-[#0c1322]/60 rounded-xl p-3 border border-[#1e293b]">
-              <div className="flex justify-between text-sm">
-                <span className={p1Better && !equal ? "font-bold text-cyan-300" : "text-slate-300"}>{m.v1}</span>
-                <span className="text-slate-500 text-xs font-medium uppercase tracking-wider">{m.label}</span>
-                <span className={!p1Better && !equal ? "font-bold text-purple-400" : "text-slate-300"}>{m.v2}</span>
-              </div>
-              <div className="flex h-2 rounded-full overflow-hidden bg-slate-800/50">
-                <div className="bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-l-full transition-all duration-500" style={{ width: `${p1Pct}%` }} />
-                <div className="bg-gradient-to-l from-purple-400 to-purple-500/70 rounded-r-full transition-all duration-500" style={{ width: `${100 - p1Pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {h2h && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
-          <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <Swords className="h-4 w-4 text-cyan-400" />
-            Head-to-Head Record
-          </h4>
-          <div className="grid grid-cols-3 gap-4 text-center py-2">
-            <div>
-              <p className="text-3xl font-black text-cyan-400">{h2h.player1Wins || 0}</p>
-              <p className="text-[11px] text-slate-500 font-medium">Wins</p>
-            </div>
-            <div>
-              <p className="text-3xl font-black text-slate-600">{h2h.totalMatches || 0}</p>
-              <p className="text-[11px] text-slate-500 font-medium">Total</p>
-            </div>
-            <div>
-              <p className="text-3xl font-black text-purple-400">{h2h.player2Wins || 0}</p>
-              <p className="text-[11px] text-slate-500 font-medium">Wins</p>
-            </div>
-          </div>
-          {h2h.recentResults && h2h.recentResults.length > 0 && (
-            <div className="mt-4 space-y-1.5">
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium mb-2">Recent Results</p>
-              {h2h.recentResults.slice(0, 5).map((r: any, i: number) => (
-                <div key={i} className="flex items-center justify-between text-xs bg-[#0c1322]/80 rounded-lg px-3 py-2 border border-[#1e293b]">
-                  <span className={r.player1Score > r.player2Score ? "font-bold text-cyan-300" : "text-slate-400"}>{r.player1Score ?? "?"}</span>
-                  <span className="text-slate-500">{r.date ? new Date(r.date).toLocaleDateString() : ""}</span>
-                  <span className={r.player2Score > r.player1Score ? "font-bold text-purple-400" : "text-slate-400"}>{r.player2Score ?? "?"}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-        <div className="p-5 relative z-10">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-400" />
-              AI Comparison Review
-            </h4>
-            {aiReview && !aiLoading && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={generateAiReview}
-                disabled={aiLoading}
-                className="text-xs bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-purple-500/30 hover:border-purple-500/50 text-slate-300 hover:text-white"
-                data-testid="button-generate-ai-review"
-              >
-                <Brain className="h-3 w-3 mr-1.5" />
-                Regenerate
-              </Button>
-            )}
-          </div>
-
-          {aiLoading && (
-            <div className="text-center py-10 space-y-3">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-400 mx-auto" />
-              <p className="text-sm text-slate-400 animate-pulse">Generating detailed comparison review...</p>
-            </div>
-          )}
-
-          {aiReview && !aiLoading && (
-            <div className="space-y-3" data-testid="text-ai-review">
-              {aiReview.split("\n").filter(line => line.trim()).map((paragraph, i) => {
-                const isBold = paragraph.startsWith("**") || paragraph.match(/^\d+\.\s*\*\*/);
-                const cleaned = paragraph.replace(/\*\*/g, "");
-                const isHeading = cleaned.match(/^(\d+\.\s*)?[A-Z].*[:—-]\s*/);
-
-                if (isHeading) {
-                  const parts = cleaned.split(/[:—-]\s*/);
-                  const heading = parts[0];
-                  const rest = parts.slice(1).join(": ");
-                  return (
-                    <div key={i} className="mt-4 first:mt-0">
-                      <h5 className="text-xs font-bold text-cyan-300 uppercase tracking-wider mb-1.5">{heading}</h5>
-                      {rest && <p className="text-[13px] leading-relaxed text-slate-300">{rest}</p>}
-                    </div>
-                  );
-                }
-
-                return (
-                  <p key={i} className={`text-[13px] leading-relaxed ${isBold ? "text-slate-200 font-medium" : "text-slate-400"}`}>
-                    {cleaned}
-                  </p>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
   playerId: number; clubId: number; isAdmin: boolean; isOwnProfile: boolean;
@@ -1613,7 +1424,7 @@ export default function PlayerIntelligence() {
         </div>
 
         {compareMode && selectedPlayer && comparePlayer ? (
-          <ComparisonView
+          <RivalryArenaView
             player1={selectedPlayer}
             player2={comparePlayer}
             compareData={compareStats1}

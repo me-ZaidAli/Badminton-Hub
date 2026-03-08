@@ -1,0 +1,302 @@
+Below is the **expanded master prompt** you can give to Replit AI. It includes:
+
+* Modern **Head-to-Head redesign**
+* **Male/Female silhouette avatar system**
+* **Grey shadow avatars**
+* **Body-part skill visualization**
+* **Badminton Rivalry Arena concept**
+* Mobile-first sports analytics UI
+
+This will push the feature toward a **professional sports analytics dashboard level**.
+
+---
+
+You are upgrading the **Player Comparison and Head-to-Head section** of a badminton analytics web application.
+
+The goal is to transform the current simple comparison layout into a **modern sports rivalry dashboard** similar to professional sports analytics interfaces.
+
+The app already contains player data, stats, and comparison logic. Do NOT change backend data logic. Only improve the **UI, avatars, visualization, and interaction**.
+
+The design must be **mobile-first, sleek, and highly visual**.
+
+---
+
+# PLAYER AVATAR SYSTEM (NO PLAYER PHOTOS)
+
+The system currently has **no player photos**, so implement a **premium silhouette avatar system**.
+
+Each player should have an avatar consisting of:
+
+• stylized athletic silhouette
+• gender-based design
+• soft circular frame
+• glow ring in player color
+• soft grey shadow behind the silhouette
+
+The grey shadow gives the illusion of depth and replaces the need for a photo.
+
+### Gender silhouettes
+
+Male players:
+• athletic male silhouette
+
+Female players:
+• athletic female silhouette with ponytail outline
+
+Silhouettes should look **modern, minimal, and sporty** rather than generic icons.
+
+### Visual layering
+
+Each avatar should be built with layers:
+
+1 Shadow silhouette (large blurred grey)
+2 Main silhouette (white or light grey)
+3 Circular glow border
+4 Player accent color ring
+
+This produces a **premium layered UI even without images**.
+
+---
+
+# AVATAR VARIATIONS
+
+Provide **six selectable avatar styles** for players:
+
+• male athletic stance
+• male smash stance
+• male neutral stance
+• female athletic stance
+• female smash stance
+• female neutral stance
+
+Players can select one during profile creation.
+
+---
+
+# BODY-PART SKILL VISUALIZATION
+
+When viewing player skills, the avatar should **transform into a body analysis view**.
+
+The silhouette divides into **highlight zones**:
+
+Head
+Arms
+Core
+Legs
+
+These correspond to badminton skill categories.
+
+Example:
+
+Head → tactics, awareness, rules knowledge
+Arms → smashes, clears, drives, drops
+Core → stamina, balance, power
+Legs → footwork, movement, agility
+
+When a skill category is selected, the **relevant body part glows**.
+
+Example:
+Selecting "Footwork" highlights the legs.
+
+This makes the player analysis feel like a **professional athlete performance breakdown**.
+
+---
+
+# BADMINTON RIVALRY ARENA (HEAD-TO-HEAD SECTION)
+
+Redesign the head-to-head comparison section into a **Badminton Rivalry Arena UI**.
+
+The layout should resemble a **sports broadcast rivalry screen**.
+
+---
+
+## 1 Rivalry Arena Header
+
+Display the two players facing each other.
+
+Layout:
+
+Player avatar (left)
+VS badge in center
+Player avatar (right)
+
+Add subtle glow effects and breathing animation.
+
+Behind the players, display a **faint badminton court graphic**.
+
+---
+
+## 2 Rivalry Scoreboard
+
+Show the rivalry score prominently.
+
+Example:
+
+HAIDER  1 — 2  TARIK
+
+Features:
+
+• large glowing numbers
+• animated count-up on load
+• highlight the leading player
+• subtle glow effect
+
+---
+
+## 3 Rivalry Strength Indicator
+
+Add a rivalry classification system.
+
+Based on win difference:
+
+Dominant Rivalry
+Competitive Rivalry
+Close Rivalry
+
+Display as a horizontal animated meter.
+
+Example:
+
+Dominant ←────●────────→ Close
+
+---
+
+## 4 Match Timeline
+
+Replace the simple list of results with a **match timeline**.
+
+Display matches as connected cards.
+
+Each match card shows:
+
+• match date
+• score (21-18 etc)
+• winning player highlight
+• colored indicator for player
+
+Cards appear sequentially with fade animation.
+
+---
+
+## 5 Win Ratio Rings
+
+Display animated circular stat rings for both players.
+
+Example:
+
+Haider
+33% wins
+
+Tarik
+67% wins
+
+Rings animate filling on load.
+
+---
+
+## 6 Momentum Graph
+
+Add a small graph showing **rivalry momentum over time**.
+
+Possible options:
+
+• cumulative wins line chart
+• match-by-match result graph
+• stacked bar chart
+
+Use Chart.js or SVG charts.
+
+Graph animates when section becomes visible.
+
+---
+
+# VISUAL DESIGN
+
+Follow the existing app style:
+
+Dark theme
+Gradient panels
+Rounded UI cards
+
+Enhance with:
+
+• subtle glassmorphism
+• gradient borders
+• glow effects
+• depth shadows
+
+Make the interface feel like a **modern sports analytics platform**.
+
+---
+
+# ANIMATIONS
+
+Add subtle animations throughout:
+
+• avatars breathing animation
+• scoreboard numbers counting up
+• timeline cards fade in sequentially
+• progress rings animate
+• graphs animate on load
+
+All animations must be smooth and lightweight.
+
+---
+
+# MOBILE-FIRST DESIGN
+
+Mobile layout order:
+
+1 Rivalry arena header
+2 Rivalry scoreboard
+3 Rivalry strength indicator
+4 Win ratio rings
+5 Match timeline
+6 Momentum graph
+
+Ensure touch-friendly spacing and readable stats.
+
+---
+
+# PERFORMANCE
+
+Animations must:
+
+• run at 60fps
+• use CSS transforms
+• avoid heavy JavaScript loops
+
+Prefer CSS animation when possible.
+
+---
+
+# OUTPUT
+
+Generate:
+
+1 HTML structure for the new head-to-head section
+2 CSS styling for avatars, shadows, glow effects
+3 SVG silhouettes for male and female avatars
+4 JavaScript for counters, animations, and timeline
+5 Responsive mobile layout
+6 Example mock player data bindings
+
+Do not break existing player comparison functionality.
+
+---
+
+# FINAL GOAL
+
+The comparison page should feel like a **professional sports rivalry analytics dashboard**, even without real player photos.
+
+---
+
+💡 **One final upgrade you may want later (very powerful):**
+
+Add **AI Rivalry Commentary**, where the system automatically generates insights like:
+
+* “Tarik dominates rallies lasting over 10 shots.”
+* “Haider performs better in early matches.”
+* “Momentum has shifted in the last two encounters.”
+
+This would make the app feel **very intelligent and unique**.
