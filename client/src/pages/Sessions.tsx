@@ -2853,7 +2853,27 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
               name="allowedCategories"
               render={() => (
                 <FormItem>
-                  <FormLabel>Allowed Categories</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Allowed Categories</FormLabel>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => {
+                        const allValues = CATEGORIES.map(c => c.value);
+                        const current = form.getValues("allowedCategories") || [];
+                        if (current.length === allValues.length) {
+                          form.setValue("allowedCategories", []);
+                        } else {
+                          form.setValue("allowedCategories", allValues);
+                        }
+                      }}
+                      data-testid="button-select-all-categories"
+                    >
+                      {(form.watch("allowedCategories") || []).length === CATEGORIES.length ? "Deselect All" : "Select All"}
+                    </Button>
+                  </div>
                   <FormDescription>
                     Select which player categories can join this session.
                   </FormDescription>
@@ -3452,7 +3472,26 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
             </div>
           )}
           <div>
-            <Label>Allowed Categories</Label>
+            <div className="flex items-center justify-between">
+              <Label>Allowed Categories</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => {
+                  const allValues = CATEGORIES.map(c => c.value);
+                  if (editCategories.length === allValues.length) {
+                    setEditCategories([]);
+                  } else {
+                    setEditCategories([...allValues]);
+                  }
+                }}
+                data-testid="button-edit-select-all-categories"
+              >
+                {editCategories.length === CATEGORIES.length ? "Deselect All" : "Select All"}
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-3 mt-2">
               {CATEGORIES.map((cat) => (
                 <div key={cat.value} className="flex items-center space-x-2">
