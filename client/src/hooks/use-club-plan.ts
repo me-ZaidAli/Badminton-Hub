@@ -42,3 +42,24 @@ export function useAdminClubId() {
   });
   return adminClubs?.[0]?.id || null;
 }
+
+export function useIsAnyClubPremium() {
+  const { data: user } = useUser();
+  const isSuperAdmin = user?.role === "OWNER";
+  const isAdmin = user?.role === "ADMIN";
+
+  const approvedClubIds: number[] = (user?.playerProfiles || [])
+    .filter((p: any) => p.membershipStatus === "APPROVED")
+    .map((p: any) => p.clubId);
+
+  const plan0 = useClubPlan(approvedClubIds[0] ?? null);
+  const plan1 = useClubPlan(approvedClubIds[1] ?? null);
+  const plan2 = useClubPlan(approvedClubIds[2] ?? null);
+  const plan3 = useClubPlan(approvedClubIds[3] ?? null);
+  const plan4 = useClubPlan(approvedClubIds[4] ?? null);
+
+  const plans = [plan0, plan1, plan2, plan3, plan4];
+  const anyClubPremium = plans.some(p => p.isPremium);
+
+  return isSuperAdmin || isAdmin || anyClubPremium;
+}

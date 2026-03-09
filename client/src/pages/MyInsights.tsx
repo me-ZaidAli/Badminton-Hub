@@ -4,7 +4,7 @@ import { useSessions } from "@/hooks/use-sessions";
 import { useQuery } from "@tanstack/react-query";
 import { useClubs, useSessionLeaderboard } from "@/hooks/use-clubs";
 import { SocialLinksDisplay } from "@/components/SocialLinks";
-import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
+import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -85,11 +85,7 @@ export default function MyInsights() {
   const { data: user, isLoading: userLoading } = useUser();
   const { data: sessions } = useSessions();
   const { data: clubs } = useClubs();
-  const adminClubId = useAdminClubId();
-  const { isPremium: adminClubIsPremium, isSuperAdmin } = useClubPlan(adminClubId);
-  const playerClubId = user?.playerProfiles?.find((p: any) => p.membershipStatus === "APPROVED")?.clubId || null;
-  const { isPremium: playerClubIsPremium } = useClubPlan(playerClubId);
-  const isPremium = adminClubIsPremium || playerClubIsPremium || isSuperAdmin;
+  const isPremium = useIsAnyClubPremium();
 
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [viewMode, setViewMode] = useState<"overview" | "analytics">("overview");

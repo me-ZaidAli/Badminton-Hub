@@ -442,7 +442,7 @@ function Router() {
         <PrivateRoute component={PlayerRankings} />
       </Route>
       <Route path="/player-intelligence">
-        <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><PlayerIntelligence /></Suspense>} />
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><PlayerIntelligence /></Suspense>} />
       </Route>
       <Route path="/all-rankings">
         <StrictAdminRoute component={AllRankings} />

@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
-import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
+import { useClubPlan, useAdminClubId, useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -106,10 +106,8 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const adminClubId = useAdminClubId();
-  const { isPremium: adminClubIsPremium, planStatus, isSuperAdmin } = useClubPlan(adminClubId);
-  const playerClubId = user?.playerProfiles?.find((p: any) => p.membershipStatus === "APPROVED")?.clubId || null;
-  const { isPremium: playerClubIsPremium } = useClubPlan(playerClubId);
-  const isPremium = adminClubIsPremium || playerClubIsPremium;
+  const { planStatus, isSuperAdmin } = useClubPlan(adminClubId);
+  const isPremium = useIsAnyClubPremium();
 
   const { data: trialData } = useQuery({
     queryKey: ["/api/trial-players/me"],

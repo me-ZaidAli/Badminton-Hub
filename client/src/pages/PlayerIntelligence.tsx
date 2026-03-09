@@ -1,7 +1,7 @@
 import { useUser } from "@/hooks/use-auth";
 import { usePlayers } from "@/hooks/use-players";
 import { useClubs } from "@/hooks/use-clubs";
-import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
+import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAvatarUrl } from "@/components/AvatarPicker";
@@ -1239,10 +1239,7 @@ export default function PlayerIntelligence() {
   const { data: user } = useUser();
   const { data: players, isLoading } = usePlayers();
   const { data: clubs } = useClubs();
-  const adminClubId = useAdminClubId();
-  const { isPremium: clubIsPremium, isSuperAdmin } = useClubPlan(adminClubId);
-  const playerClubId = user?.playerProfiles?.find((p: any) => p.membershipStatus === "APPROVED")?.clubId || null;
-  const { isPremium: playerClubIsPremium } = useClubPlan(playerClubId);
+  const isPremium = useIsAnyClubPremium();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
@@ -1250,9 +1247,6 @@ export default function PlayerIntelligence() {
   const [comparePlayer, setComparePlayer] = useState<PlayerData | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [mobileListOpen, setMobileListOpen] = useState(false);
-
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
-  const isPremium = clubIsPremium || playerClubIsPremium || isSuperAdmin || isAdmin;
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
