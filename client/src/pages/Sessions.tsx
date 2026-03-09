@@ -628,7 +628,8 @@ export default function Sessions() {
     if (!profile) return false;
     const playerGrade = profile?.grade || profile?.category;
     if (!playerGrade) return false;
-    return allowed.includes(playerGrade);
+    const playerCategory = playerGrade.charAt(0);
+    return allowed.includes(playerGrade) || allowed.includes(playerCategory);
   };
 
   const bulkDeleteMutation = useMutation({

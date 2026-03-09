@@ -2344,8 +2344,11 @@ export async function registerRoutes(
     // Check category/grade restriction
     if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 9) {
       const playerGrade = profile.grade || profile.category;
-      if (playerGrade && !session.allowedCategories.includes(playerGrade)) {
-        return res.status(400).json({ message: `This session is only open to grades: ${session.allowedCategories.join(", ")}` });
+      if (playerGrade) {
+        const playerCategory = playerGrade.charAt(0);
+        if (!session.allowedCategories.includes(playerGrade) && !session.allowedCategories.includes(playerCategory)) {
+          return res.status(400).json({ message: `This session is only open to grades: ${session.allowedCategories.join(", ")}` });
+        }
       }
     }
 
