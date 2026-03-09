@@ -86,7 +86,10 @@ export default function MyInsights() {
   const { data: sessions } = useSessions();
   const { data: clubs } = useClubs();
   const adminClubId = useAdminClubId();
-  const { isPremium, isSuperAdmin } = useClubPlan(adminClubId);
+  const { isPremium: adminClubIsPremium, isSuperAdmin } = useClubPlan(adminClubId);
+  const playerClubId = user?.playerProfiles?.find((p: any) => p.membershipStatus === "APPROVED")?.clubId || null;
+  const { isPremium: playerClubIsPremium } = useClubPlan(playerClubId);
+  const isPremium = adminClubIsPremium || playerClubIsPremium || isSuperAdmin;
 
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [viewMode, setViewMode] = useState<"overview" | "analytics">("overview");

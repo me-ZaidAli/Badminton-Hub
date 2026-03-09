@@ -106,7 +106,10 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const adminClubId = useAdminClubId();
-  const { isPremium, planStatus, isSuperAdmin } = useClubPlan(adminClubId);
+  const { isPremium: adminClubIsPremium, planStatus, isSuperAdmin } = useClubPlan(adminClubId);
+  const playerClubId = user?.playerProfiles?.find((p: any) => p.membershipStatus === "APPROVED")?.clubId || null;
+  const { isPremium: playerClubIsPremium } = useClubPlan(playerClubId);
+  const isPremium = adminClubIsPremium || playerClubIsPremium;
 
   const { data: trialData } = useQuery({
     queryKey: ["/api/trial-players/me"],
