@@ -335,7 +335,7 @@ export async function registerRoutes(
       durationMinutes: 120,
       maxPlayers: 24,
       courtsAvailable: 4,
-      allowedCategories: ["A", "B", "C", "D"],
+      allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
       matchMode: "SOCIAL",
       isPrivate: false,
       createdBy: admin.id,
@@ -1237,7 +1237,7 @@ export async function registerRoutes(
       const gradeVal = gradeUpdate || category;
       if (gradeVal) {
         const { GRADE_ORDER: GO } = await import("@shared/schema");
-        if (GO.includes(gradeVal) || ["A", "B", "C", "D"].includes(gradeVal)) {
+        if (GO.includes(gradeVal) || gradeVal === "D") {
           profileUpdates.grade = gradeVal;
         }
       }
@@ -3587,7 +3587,7 @@ export async function registerRoutes(
         updates.courtNames = courtNames.map((n: string) => n.trim());
       }
       if (allowedCategories !== undefined) {
-        const validCategories = ["A", "B", "C", "D", "C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+        const validCategories = ["D", "C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
         if (!Array.isArray(allowedCategories) || !allowedCategories.every(c => validCategories.includes(c))) {
           return res.status(400).json({ message: "Invalid categories" });
         }
@@ -8246,7 +8246,7 @@ export async function registerRoutes(
           durationMinutes: durationMinutes > 0 ? durationMinutes : 120,
           maxPlayers: 24,
           courtsAvailable: 4,
-          allowedCategories: ["A", "B", "C", "D"],
+          allowedCategories: ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
           matchMode: "SOCIAL",
           isPrivate: false,
           genderRestriction: "ALL",
