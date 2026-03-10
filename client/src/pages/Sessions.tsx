@@ -1346,6 +1346,17 @@ export default function Sessions() {
                   </div>
                 )}
 
+                {session.allowedCategories && session.allowedCategories.length > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid={`text-grades-${session.id}`}>
+                    <Layers className="h-3 w-3 shrink-0" />
+                    <span>
+                      {session.allowedCategories.length >= 9
+                        ? "All grades welcome"
+                        : `Grades: ${session.allowedCategories.join(", ")}`}
+                    </span>
+                  </div>
+                )}
+
                 {(() => {
                   const signup = mySignupsBySession.get(session.id);
                   const isSignedUp = signup && (signup.signupStatus === "CONFIRMED" || signup.signupStatus === "WAITING");
