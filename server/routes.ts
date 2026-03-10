@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -11473,6 +11473,202 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error cancelling membership:", err);
       res.status(500).json({ message: "Failed to cancel membership" });
+    }
+  });
+
+  // === LESSON REQUESTS ===
+
+  app.post("/api/lesson-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { coachId, lessonType, preferredDate, preferredTime, durationMinutes, location, playerMessage, clubId } = req.body;
+      if (!coachId || !preferredDate || !preferredTime) {
+        return res.status(400).json({ message: "Coach, date, and time are required" });
+      }
+      if (lessonType && !["ONE_TO_ONE", "GROUP"].includes(lessonType)) {
+        return res.status(400).json({ message: "Invalid lesson type" });
+      }
+      if (durationMinutes && (isNaN(Number(durationMinutes)) || Number(durationMinutes) < 15 || Number(durationMinutes) > 240)) {
+        return res.status(400).json({ message: "Duration must be between 15 and 240 minutes" });
+      }
+      const coach = await db.select().from(coaches).where(and(eq(coaches.id, Number(coachId)), eq(coaches.status, "APPROVED"))).then(r => r[0]);
+      if (!coach) return res.status(404).json({ message: "Coach not found" });
+
+      const [request] = await db.insert(lessonRequests).values({
+        playerId: req.user!.id,
+        coachId: Number(coachId),
+        clubId: clubId ? Number(clubId) : null,
+        lessonType: lessonType || "ONE_TO_ONE",
+        preferredDate,
+        preferredTime,
+        durationMinutes: durationMinutes || 60,
+        location: location || null,
+        playerMessage: playerMessage || null,
+        status: "PENDING",
+      }).returning();
+
+      await storage.createNotification({
+        userId: coach.userId,
+        type: "GENERAL",
+        title: "New Lesson Request",
+        message: `${req.user!.fullName} has requested a ${lessonType === "GROUP" ? "group" : "private"} lesson on ${preferredDate} at ${preferredTime}.`,
+        linkUrl: "/my-lessons",
+      });
+
+      res.status(201).json(request);
+    } catch (err) {
+      console.error("Error creating lesson request:", err);
+      res.status(500).json({ message: "Failed to create lesson request" });
+    }
+  });
+
+  app.get("/api/lesson-requests/my", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requests = await db.select({
+        request: lessonRequests,
+        coach: coaches,
+      })
+        .from(lessonRequests)
+        .innerJoin(coaches, eq(lessonRequests.coachId, coaches.id))
+        .where(eq(lessonRequests.playerId, req.user!.id))
+        .orderBy(desc(lessonRequests.createdAt));
+      res.json(requests.map(r => ({ ...r.request, coach: r.coach })));
+    } catch (err) {
+      console.error("Error fetching lesson requests:", err);
+      res.status(500).json({ message: "Failed to fetch lesson requests" });
+    }
+  });
+
+  app.get("/api/lesson-requests/coach", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const coachProfile = await db.select().from(coaches).where(eq(coaches.userId, req.user!.id)).then(r => r[0]);
+      if (!coachProfile) return res.json([]);
+
+      const requests = await db.select({
+        request: lessonRequests,
+        player: users,
+      })
+        .from(lessonRequests)
+        .innerJoin(users, eq(lessonRequests.playerId, users.id))
+        .where(eq(lessonRequests.coachId, coachProfile.id))
+        .orderBy(desc(lessonRequests.createdAt));
+      res.json(requests.map(r => ({ ...r.request, player: { id: r.player.id, fullName: r.player.fullName, email: r.player.email } })));
+    } catch (err) {
+      console.error("Error fetching coach lesson requests:", err);
+      res.status(500).json({ message: "Failed to fetch lesson requests" });
+    }
+  });
+
+  app.patch("/api/lesson-requests/:id/respond", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const { status, coachResponse, agreedPrice } = req.body;
+      if (!["ACCEPTED", "DECLINED"].includes(status)) {
+        return res.status(400).json({ message: "Status must be ACCEPTED or DECLINED" });
+      }
+
+      const request = await db.select().from(lessonRequests).where(eq(lessonRequests.id, requestId)).then(r => r[0]);
+      if (!request) return res.status(404).json({ message: "Request not found" });
+      if (request.status !== "PENDING") {
+        return res.status(400).json({ message: "Can only respond to pending requests" });
+      }
+
+      const coachProfile = await db.select().from(coaches).where(eq(coaches.userId, req.user!.id)).then(r => r[0]);
+      if (!coachProfile || coachProfile.id !== request.coachId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const [updated] = await db.update(lessonRequests)
+        .set({
+          status,
+          coachResponse: coachResponse || null,
+          agreedPrice: agreedPrice ? Number(agreedPrice) : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(lessonRequests.id, requestId))
+        .returning();
+
+      const statusText = status === "ACCEPTED" ? "accepted" : "declined";
+      await storage.createNotification({
+        userId: request.playerId,
+        type: "GENERAL",
+        title: `Lesson Request ${status === "ACCEPTED" ? "Accepted" : "Declined"}`,
+        message: `${coachProfile.fullName} has ${statusText} your lesson request for ${request.preferredDate}.${coachResponse ? ` Message: "${coachResponse}"` : ""}`,
+        linkUrl: "/my-lessons",
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Error responding to lesson request:", err);
+      res.status(500).json({ message: "Failed to respond to lesson request" });
+    }
+  });
+
+  app.patch("/api/lesson-requests/:id/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const request = await db.select().from(lessonRequests).where(eq(lessonRequests.id, requestId)).then(r => r[0]);
+      if (!request) return res.status(404).json({ message: "Request not found" });
+      if (request.playerId !== req.user!.id) return res.status(403).json({ message: "Not authorized" });
+      if (request.status !== "PENDING") return res.status(400).json({ message: "Can only cancel pending requests" });
+
+      const [updated] = await db.update(lessonRequests)
+        .set({ status: "CANCELLED", updatedAt: new Date() })
+        .where(eq(lessonRequests.id, requestId))
+        .returning();
+
+      const coach = await db.select().from(coaches).where(eq(coaches.id, request.coachId)).then(r => r[0]);
+      if (coach) {
+        await storage.createNotification({
+          userId: coach.userId,
+          type: "GENERAL",
+          title: "Lesson Request Cancelled",
+          message: `${req.user!.fullName} has cancelled their lesson request for ${request.preferredDate}.`,
+          linkUrl: "/my-lessons",
+        });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Error cancelling lesson request:", err);
+      res.status(500).json({ message: "Failed to cancel lesson request" });
+    }
+  });
+
+  app.patch("/api/lesson-requests/:id/complete", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const requestId = Number(req.params.id);
+      const request = await db.select().from(lessonRequests).where(eq(lessonRequests.id, requestId)).then(r => r[0]);
+      if (!request) return res.status(404).json({ message: "Request not found" });
+
+      const coachProfile = await db.select().from(coaches).where(eq(coaches.userId, req.user!.id)).then(r => r[0]);
+      if (!coachProfile || coachProfile.id !== request.coachId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      if (request.status !== "ACCEPTED") return res.status(400).json({ message: "Can only complete accepted lessons" });
+
+      const [updated] = await db.update(lessonRequests)
+        .set({ status: "COMPLETED", updatedAt: new Date() })
+        .where(eq(lessonRequests.id, requestId))
+        .returning();
+
+      await storage.createNotification({
+        userId: request.playerId,
+        type: "GENERAL",
+        title: "Lesson Completed",
+        message: `Your lesson with ${coachProfile.fullName} on ${request.preferredDate} has been marked as completed.`,
+        linkUrl: "/my-lessons",
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Error completing lesson request:", err);
+      res.status(500).json({ message: "Failed to complete lesson request" });
     }
   });
 

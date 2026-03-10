@@ -93,6 +93,8 @@ const PlayerIntelligence = lazy(() => import("@/pages/PlayerIntelligence"));
 const Juniors = lazy(() => import("@/pages/Juniors"));
 const JuniorDashboard = lazy(() => import("@/pages/JuniorDashboard"));
 const CoachJuniorSkillsDashboard = lazy(() => import("@/pages/coach/CoachJuniorSkillsDashboard"));
+const FindCoach = lazy(() => import("@/pages/FindCoach"));
+const MyLessons = lazy(() => import("@/pages/MyLessons"));
 const LeagueManagement = lazy(() => import("@/pages/admin/LeagueManagement"));
 const Venues = lazy(() => import("@/pages/Venues"));
 const ClubsManagement = lazy(() => import("@/pages/ClubsManagement"));
@@ -431,6 +433,12 @@ function Router() {
       </Route>
       <Route path="/coach/juniors/skills">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CoachJuniorSkillsDashboard /></Suspense>} />
+      </Route>
+      <Route path="/find-coach">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><FindCoach /></Suspense>} />
+      </Route>
+      <Route path="/my-lessons">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><MyLessons /></Suspense>} />
       </Route>
       <Route path="/sessions/:id">
         <PrivateRoute component={SessionDetail} />

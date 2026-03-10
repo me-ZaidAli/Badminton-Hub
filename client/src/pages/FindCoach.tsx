@@ -1,15 +1,20 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import L from "leaflet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, DollarSign, Languages, HeartHandshake, Trophy, Star } from "lucide-react";
+import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, DollarSign, Languages, HeartHandshake, Trophy, Star, SendHorizonal } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import ReviewSection from "@/components/ReviewSection";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -174,7 +179,119 @@ function CoachMap({ coaches, className = "" }: { coaches: Coach[]; className?: s
   );
 }
 
-function CoachDetailDialog({ coach, open, onOpenChange }: { coach: Coach | null; open: boolean; onOpenChange: (v: boolean) => void }) {
+function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | null; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [preferredDate, setPreferredDate] = useState("");
+  const [preferredTime, setPreferredTime] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("60");
+  const [lessonType, setLessonType] = useState("ONE_TO_ONE");
+  const [location, setLocation] = useState("");
+  const [playerMessage, setPlayerMessage] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/lesson-requests", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Lesson request sent!", description: "The coach will be notified and can accept or decline." });
+      queryClient.invalidateQueries({ queryKey: ["/api/lesson-requests/my"] });
+      onOpenChange(false);
+      setPreferredDate("");
+      setPreferredTime("");
+      setDurationMinutes("60");
+      setLessonType("ONE_TO_ONE");
+      setLocation("");
+      setPlayerMessage("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send request", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (!coach) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" data-testid="dialog-request-lesson">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <SendHorizonal className="w-5 h-5 text-primary" />
+            Request Lesson with {coach.fullName}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Preferred Date</Label>
+              <Input type="date" value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)} data-testid="input-lesson-date" />
+            </div>
+            <div>
+              <Label>Preferred Time</Label>
+              <Input type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} data-testid="input-lesson-time" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Duration</Label>
+              <Select value={durationMinutes} onValueChange={setDurationMinutes}>
+                <SelectTrigger data-testid="select-lesson-duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Lesson Type</Label>
+              <Select value={lessonType} onValueChange={setLessonType}>
+                <SelectTrigger data-testid="select-lesson-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ONE_TO_ONE">Private (1-to-1)</SelectItem>
+                  <SelectItem value="GROUP">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Preferred Location</Label>
+            <Input placeholder="e.g. Local leisure centre" value={location} onChange={(e) => setLocation(e.target.value)} data-testid="input-lesson-location" />
+          </div>
+          <div>
+            <Label>Message to Coach</Label>
+            <Textarea placeholder="Tell the coach about your skill level, what you'd like to work on..." value={playerMessage} onChange={(e) => setPlayerMessage(e.target.value)} rows={3} data-testid="input-lesson-message" />
+          </div>
+          <Button
+            className="w-full"
+            disabled={!preferredDate || !preferredTime || createMutation.isPending}
+            onClick={() => createMutation.mutate({
+              coachId: coach.id,
+              lessonType,
+              preferredDate,
+              preferredTime,
+              durationMinutes: parseInt(durationMinutes),
+              location: location || null,
+              playerMessage: playerMessage || null,
+            })}
+            data-testid="button-submit-lesson-request"
+          >
+            {createMutation.isPending ? "Sending..." : "Send Request"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CoachDetailDialog({ coach, open, onOpenChange, onRequestLesson }: { coach: Coach | null; open: boolean; onOpenChange: (v: boolean) => void; onRequestLesson?: (coach: Coach) => void }) {
   if (!coach) return null;
 
   const sections = [
@@ -318,6 +435,19 @@ function CoachDetailDialog({ coach, open, onOpenChange }: { coach: Coach | null;
           ))}
 
           <div className="border-t pt-4 mt-4">
+            {onRequestLesson && (
+              <Button
+                className="w-full mb-4"
+                onClick={() => {
+                  onOpenChange(false);
+                  onRequestLesson(coach);
+                }}
+                data-testid="button-request-lesson-detail"
+              >
+                <SendHorizonal className="w-4 h-4 mr-2" />
+                Request a Lesson
+              </Button>
+            )}
             <ReviewSection targetType="COACH" targetId={coach.id} />
           </div>
         </div>
@@ -333,6 +463,7 @@ export default function FindCoach() {
   const [minYears, setMinYears] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [requestLessonCoach, setRequestLessonCoach] = useState<Coach | null>(null);
 
   const { data: membership, isLoading: membershipLoading } = useQuery<Membership | null>({
     queryKey: ["/api/coach-seeker/me"],
@@ -551,7 +682,21 @@ export default function FindCoach() {
         </div>
       )}
 
-      <CoachDetailDialog coach={selectedCoach} open={!!selectedCoach} onOpenChange={(v) => { if (!v) setSelectedCoach(null); }} />
+      <CoachDetailDialog
+        coach={selectedCoach}
+        open={!!selectedCoach}
+        onOpenChange={(v) => { if (!v) setSelectedCoach(null); }}
+        onRequestLesson={(coach) => {
+          setSelectedCoach(null);
+          setTimeout(() => setRequestLessonCoach(coach), 150);
+        }}
+      />
+
+      <RequestLessonDialog
+        coach={requestLessonCoach}
+        open={!!requestLessonCoach}
+        onOpenChange={(v) => { if (!v) setRequestLessonCoach(null); }}
+      />
 
       <Dialog open={showPaywall} onOpenChange={setShowPaywall}>
         <DialogContent className="sm:max-w-md" data-testid="dialog-paywall">

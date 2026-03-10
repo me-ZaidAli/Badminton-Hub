@@ -29,7 +29,8 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing and flexible editing/deletion options.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system.
 - **Session Match Recovery**: Allows recovery of soft-deleted (archived) matches.
-- **Coach Directory & Marketplace**: Manages and lists public coach profiles.
+- **Coach Directory & Marketplace**: Manages and lists public coach profiles with interactive map.
+- **Coach Finder & Lesson Booking**: In-app private lesson request system. Players can request lessons from coaches (date, time, duration, type, location, message). Coaches accept/decline with response message and agreed price. Both parties manage requests via `/my-lessons` page. Status lifecycle: PENDING → ACCEPTED/DECLINED/CANCELLED → COMPLETED. Schema: `lessonRequests` table. Routes: `/api/lesson-requests/*`.
 - **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support system with RBAC, enhanced with a credit claim workflow.
 - **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.

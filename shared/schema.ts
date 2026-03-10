@@ -2290,3 +2290,28 @@ export type InsertTrialPlayer = z.infer<typeof insertTrialPlayerSchema>;
 export const insertTrialEvaluationSchema = createInsertSchema(trialEvaluations).omit({ id: true, createdAt: true });
 export type TrialEvaluation = typeof trialEvaluations.$inferSelect;
 export type InsertTrialEvaluation = z.infer<typeof insertTrialEvaluationSchema>;
+
+export const lessonRequestStatusEnum = pgEnum("lesson_request_status", ["PENDING", "ACCEPTED", "DECLINED", "CANCELLED", "COMPLETED"]);
+export const lessonTypeEnum = pgEnum("lesson_type", ["ONE_TO_ONE", "GROUP"]);
+
+export const lessonRequests = pgTable("lesson_requests", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => users.id).notNull(),
+  coachId: integer("coach_id").references(() => coaches.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  status: lessonRequestStatusEnum("status").default("PENDING").notNull(),
+  lessonType: lessonTypeEnum("lesson_type").default("ONE_TO_ONE").notNull(),
+  preferredDate: text("preferred_date").notNull(),
+  preferredTime: text("preferred_time").notNull(),
+  durationMinutes: integer("duration_minutes").default(60).notNull(),
+  location: text("location"),
+  playerMessage: text("player_message"),
+  coachResponse: text("coach_response"),
+  agreedPrice: integer("agreed_price"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertLessonRequestSchema = createInsertSchema(lessonRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export type LessonRequest = typeof lessonRequests.$inferSelect;
+export type InsertLessonRequest = z.infer<typeof insertLessonRequestSchema>;
