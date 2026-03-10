@@ -5,8 +5,8 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User, users } from "@shared/schema";
-import { eq, isNotNull, gt, and } from "drizzle-orm";
+import { User, users, clubMemberships } from "@shared/schema";
+import { eq, isNotNull, gt, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
 import { sendEmail } from "./email";
@@ -478,6 +478,15 @@ export function setupAuth(app: Express) {
     const profiles = await storage.getPlayerProfilesByUser(req.user!.id);
     const profile = profiles.length > 0 ? profiles[0] : null;
     const children = await storage.getJuniorAccounts(req.user!.id);
-    res.json({ ...req.user, playerProfile: profile, playerProfiles: profiles, hasChildren: children.length > 0 });
+    const activeMemberships = await db.select({ id: clubMemberships.id })
+      .from(clubMemberships)
+      .where(and(
+        eq(clubMemberships.userId, req.user!.id),
+        eq(clubMemberships.status, "ACTIVE"),
+        gte(clubMemberships.endDate, new Date())
+      ))
+      .limit(1);
+    const hasActiveAnnualMembership = activeMemberships.length > 0;
+    res.json({ ...req.user, playerProfile: profile, playerProfiles: profiles, hasChildren: children.length > 0, hasActiveAnnualMembership });
   });
 }

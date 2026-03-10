@@ -1,7 +1,6 @@
 import { useUser } from "@/hooks/use-auth";
 import { usePlayers } from "@/hooks/use-players";
 import { useClubs } from "@/hooks/use-clubs";
-import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAvatarUrl } from "@/components/AvatarPicker";
@@ -1239,9 +1238,9 @@ export default function PlayerIntelligence() {
   const { data: user } = useUser();
   const { data: players, isLoading } = usePlayers();
   const { data: clubs } = useClubs();
-  const isPremium = useIsAnyClubPremium();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const hasAccess = isAdmin || !!(user as any)?.hasActiveAnnualMembership;
   const [search, setSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerData | null>(null);
@@ -1354,13 +1353,13 @@ export default function PlayerIntelligence() {
     </div>
   );
 
-  if (!isPremium) {
+  if (!hasAccess) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="max-w-md text-center p-8 rounded-2xl bg-card border border-border">
+        <div className="max-w-md text-center p-8 rounded-2xl bg-card border border-border" data-testid="membership-required-message">
           <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-bold mb-2 text-foreground">Premium Feature</h2>
-          <p className="text-muted-foreground">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
+          <h2 className="text-xl font-bold mb-2 text-foreground">Annual Membership Required</h2>
+          <p className="text-muted-foreground">Player Intelligence & Analytics is available to players with an active annual club membership. Contact your club admin to set up your membership.</p>
         </div>
       </div>
     );

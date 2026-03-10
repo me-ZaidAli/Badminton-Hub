@@ -46,7 +46,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Premium Recognition Cards System**: Admin-gifted recognition cards with 3D flippable RPG-style display, unlocking exclusive theme tiers.
 - **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with customizable shortcut icons.
 - **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions and leave threaded comments.
-- **Player Intelligence & Analytics System**: Premium feature offering comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs.
+- **Player Intelligence & Analytics System**: Available to players with an active annual club membership (and admins/owners). Offers comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs. Access gated via `hasActiveAnnualMembership` flag from `/api/auth/me` (checks `clubMemberships` table for ACTIVE status with non-expired end date).
 - **Session Intelligence Layer**: Provides pre-session balance prediction, post-session engagement scores, and smart session recommendations.
 - **AI Full Session Schedule Generator**: One-click full session schedule generation using the match engine with fairness optimization, preview functionality, and an AI Session Designer for optimal session structure suggestions.
 - **Payment Flow Enhancement**: Session signup includes payment method selection, a Payment Verification Dashboard, and a Payment Reliability Score for players.
