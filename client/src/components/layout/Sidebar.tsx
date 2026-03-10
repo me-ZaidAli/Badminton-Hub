@@ -148,7 +148,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasChildren },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
-    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasActiveAnnualMembership },
+    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity" },
     // { href: "/find-coach", label: "Find a Coach", icon: GraduationCap, group: "activity", premiumOnly: true },
     // { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity", premiumOnly: true },
 

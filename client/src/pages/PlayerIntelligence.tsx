@@ -1234,6 +1234,314 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
   );
 }
 
+const DEMO_PLAYERS: PlayerData[] = [
+  {
+    id: -1, fullName: "Alex Morgan", email: "alex@demo.com", role: "PLAYER",
+    selectedAvatar: null, profilePictureUrl: null,
+    playerProfiles: [{
+      id: -1, userId: -1, clubId: 1, membershipStatus: "APPROVED",
+      gender: "male", category: "B", grade: "B2", rankingPoints: 1450,
+      matchesPlayed: 78, matchesWon: 52,
+    }],
+  },
+  {
+    id: -2, fullName: "Sam Taylor", email: "sam@demo.com", role: "PLAYER",
+    selectedAvatar: null, profilePictureUrl: null,
+    playerProfiles: [{
+      id: -2, userId: -2, clubId: 1, membershipStatus: "APPROVED",
+      gender: "female", category: "B", grade: "B1", rankingPoints: 1620,
+      matchesPlayed: 92, matchesWon: 64,
+    }],
+  },
+];
+
+const DEMO_PERF_DATA = {
+  "-1": [
+    { month: "Sep", winRate: 55 }, { month: "Oct", winRate: 60 },
+    { month: "Nov", winRate: 58 }, { month: "Dec", winRate: 65 },
+    { month: "Jan", winRate: 62 }, { month: "Feb", winRate: 67 },
+  ],
+  "-2": [
+    { month: "Sep", winRate: 62 }, { month: "Oct", winRate: 68 },
+    { month: "Nov", winRate: 65 }, { month: "Dec", winRate: 72 },
+    { month: "Jan", winRate: 70 }, { month: "Feb", winRate: 74 },
+  ],
+};
+
+const DEMO_STATS: Record<string, any> = {
+  "-1": {
+    totalMatches: 78, wins: 52, losses: 26, winRate: 66.7,
+    currentStreak: 3, longestStreak: 7, avgPointsScored: 17.2,
+    avgPointsConceded: 14.1, sessionImpactScore: 72, uniqueOpponents: 18,
+    recentForm: ["W", "W", "W", "L", "W"],
+  },
+  "-2": {
+    totalMatches: 92, wins: 64, losses: 28, winRate: 69.6,
+    currentStreak: 5, longestStreak: 9, avgPointsScored: 18.5,
+    avgPointsConceded: 13.2, sessionImpactScore: 81, uniqueOpponents: 22,
+    recentForm: ["W", "W", "W", "W", "W"],
+  },
+};
+
+function DemoPlayerIntelligence() {
+  const [selectedDemo, setSelectedDemo] = useState<PlayerData | null>(DEMO_PLAYERS[0]);
+  const [compareDemo, setCompareDemo] = useState<PlayerData | null>(null);
+  const [demoCompareMode, setDemoCompareMode] = useState(false);
+
+  const handleDemoSelect = (p: PlayerData) => {
+    if (demoCompareMode && selectedDemo && selectedDemo.id !== p.id) {
+      setCompareDemo(p);
+    } else {
+      setSelectedDemo(p);
+      setCompareDemo(null);
+    }
+  };
+
+  const demoStats = selectedDemo ? DEMO_STATS[String(selectedDemo.id)] : null;
+  const demoPerfData = selectedDemo ? (DEMO_PERF_DATA as any)[String(selectedDemo.id)] : null;
+  const demoProfile = selectedDemo?.playerProfiles?.[0];
+
+  return (
+    <div className="space-y-0">
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 mb-6" data-testid="demo-membership-banner">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Crown className="h-5 w-5 text-amber-500" />
+          </div>
+          <div>
+            <h3 className="font-bold text-foreground text-sm">Get Your Full Player Analytics</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              You're viewing a demo with sample players. Get an annual club membership to unlock your own stats, compare with real players, track your progress, and get detailed AI-powered performance summaries.
+            </p>
+            <a href="/clubs" className="inline-flex items-center gap-1 text-sm font-semibold text-amber-500 hover:text-amber-400 mt-2 transition-colors" data-testid="link-join-club">
+              Join a Club <ChevronRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-0 min-h-[calc(100vh-280px)]">
+        <div className="hidden lg:block w-72 shrink-0 border-r border-border pr-4">
+          <div className="sticky top-4">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                <Activity className="h-4 w-4 text-cyan-400" />
+              </div>
+              <h1 className="text-base font-bold text-foreground">Demo Players</h1>
+              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-500">DEMO</Badge>
+            </div>
+            <div className="space-y-1">
+              {DEMO_PLAYERS.map((p) => (
+                <PlayerListItem
+                  key={p.id}
+                  player={p}
+                  isSelected={selectedDemo?.id === p.id}
+                  onSelect={() => handleDemoSelect(p)}
+                  clubId="all"
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 lg:pl-6">
+          <div className="lg:hidden flex flex-wrap items-center gap-2 mb-4">
+            {DEMO_PLAYERS.map((p) => (
+              <Button
+                key={p.id}
+                variant={selectedDemo?.id === p.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleDemoSelect(p)}
+                className="rounded-xl text-xs"
+                data-testid={`demo-player-btn-${p.id}`}
+              >
+                {p.fullName}
+              </Button>
+            ))}
+            <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-500">DEMO</Badge>
+          </div>
+
+          <div className="flex items-center gap-2 mb-5">
+            <Button
+              variant={demoCompareMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setDemoCompareMode(!demoCompareMode);
+                if (demoCompareMode) setCompareDemo(null);
+              }}
+              className="rounded-xl"
+              data-testid="button-demo-compare"
+            >
+              <GitCompare className="h-4 w-4 mr-1" />
+              {demoCompareMode ? "Exit Compare" : "Compare Players"}
+            </Button>
+            {demoCompareMode && !compareDemo && selectedDemo && (
+              <span className="text-sm text-muted-foreground animate-pulse">Select the other demo player to compare</span>
+            )}
+          </div>
+
+          {demoCompareMode && selectedDemo && compareDemo ? (
+            <DemoCompareView player1={selectedDemo} player2={compareDemo} />
+          ) : selectedDemo && demoStats ? (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 mb-2">
+                <PlayerAvatar
+                  name={selectedDemo.fullName}
+                  id={selectedDemo.id}
+                  size="lg"
+                  gender={demoProfile?.gender}
+                  grade={demoProfile?.grade}
+                />
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">{selectedDemo.fullName}</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="rounded-lg text-xs">{demoProfile?.grade || "Ungraded"}</Badge>
+                    <span className="text-sm text-muted-foreground">{demoProfile?.rankingPoints} pts</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Matches", value: demoStats.totalMatches, icon: Swords },
+                  { label: "Win Rate", value: `${demoStats.winRate}%`, icon: TrendingUp },
+                  { label: "Current Streak", value: `${demoStats.currentStreak}W`, icon: Flame },
+                  { label: "Opponents", value: demoStats.uniqueOpponents, icon: Users },
+                ].map((s) => (
+                  <Card key={s.label} className="rounded-xl border-border/50">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                        <s.icon className="h-3.5 w-3.5" />
+                        {s.label}
+                      </div>
+                      <p className="text-xl font-bold text-foreground">{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <Card className="rounded-xl border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-cyan-400" />
+                    Win Rate Trend
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PerformanceChart data={demoPerfData} />
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-xl border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-orange-400" />
+                    Recent Form
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    {demoStats.recentForm.map((r: string, i: number) => (
+                      <div
+                        key={i}
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                          r === "W" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}
+                        data-testid={`demo-form-${i}`}
+                      >
+                        {r}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-center" data-testid="demo-upgrade-cta">
+                <Lock className="h-8 w-8 mx-auto mb-2 text-amber-500/60" />
+                <p className="text-sm font-semibold text-foreground">Want to see more?</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                  Achievements, skill reviews, AI analysis, match logs, development trends, and head-to-head comparisons are available with an annual club membership.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center min-h-[50vh]">
+              <div className="text-center text-muted-foreground">
+                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-muted/30 flex items-center justify-center border border-border">
+                  <Users className="h-10 w-10 opacity-30" />
+                </div>
+                <h2 className="text-lg font-bold mb-1 text-foreground">Select a Demo Player</h2>
+                <p className="text-sm">Choose one of the demo players to preview the analytics experience</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoCompareView({ player1, player2 }: { player1: PlayerData; player2: PlayerData }) {
+  const stats1 = DEMO_STATS[String(player1.id)];
+  const stats2 = DEMO_STATS[String(player2.id)];
+  const p1 = player1.playerProfiles[0];
+  const p2 = player2.playerProfiles[0];
+
+  const comparisons = [
+    { label: "Win Rate", v1: `${stats1.winRate}%`, v2: `${stats2.winRate}%`, n1: stats1.winRate, n2: stats2.winRate },
+    { label: "Matches", v1: stats1.totalMatches, v2: stats2.totalMatches, n1: stats1.totalMatches, n2: stats2.totalMatches },
+    { label: "Wins", v1: stats1.wins, v2: stats2.wins, n1: stats1.wins, n2: stats2.wins },
+    { label: "Best Streak", v1: stats1.longestStreak, v2: stats2.longestStreak, n1: stats1.longestStreak, n2: stats2.longestStreak },
+    { label: "Avg Scored", v1: stats1.avgPointsScored, v2: stats2.avgPointsScored, n1: stats1.avgPointsScored, n2: stats2.avgPointsScored },
+    { label: "Opponents", v1: stats1.uniqueOpponents, v2: stats2.uniqueOpponents, n1: stats1.uniqueOpponents, n2: stats2.uniqueOpponents },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-around gap-4">
+        <div className="text-center">
+          <PlayerAvatar name={player1.fullName} id={player1.id} size="lg" gender={p1?.gender} grade={p1?.grade} />
+          <p className="font-bold text-foreground mt-2 text-sm">{player1.fullName}</p>
+          <Badge variant="outline" className="text-[10px] mt-1">{p1?.grade}</Badge>
+        </div>
+        <div className="text-2xl font-black text-muted-foreground/30">VS</div>
+        <div className="text-center">
+          <PlayerAvatar name={player2.fullName} id={player2.id} size="lg" gender={p2?.gender} grade={p2?.grade} />
+          <p className="font-bold text-foreground mt-2 text-sm">{player2.fullName}</p>
+          <Badge variant="outline" className="text-[10px] mt-1">{p2?.grade}</Badge>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {comparisons.map((c) => {
+          const winner = c.n1 > c.n2 ? 1 : c.n1 < c.n2 ? 2 : 0;
+          return (
+            <div key={c.label} className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50" data-testid={`demo-compare-${c.label}`}>
+              <span className={`text-sm font-bold w-16 text-right ${winner === 1 ? "text-cyan-400" : "text-foreground"}`}>{c.v1}</span>
+              <div className="flex-1 text-center">
+                <span className="text-xs text-muted-foreground font-medium">{c.label}</span>
+              </div>
+              <span className={`text-sm font-bold w-16 ${winner === 2 ? "text-cyan-400" : "text-foreground"}`}>{c.v2}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-center" data-testid="demo-compare-upgrade-cta">
+        <Lock className="h-8 w-8 mx-auto mb-2 text-amber-500/60" />
+        <p className="text-sm font-semibold text-foreground">Full Comparison Locked</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+          Head-to-head match history, AI rivalry analysis, momentum graphs, and detailed comparisons are available with an annual club membership.
+        </p>
+        <a href="/clubs" className="inline-flex items-center gap-1 text-sm font-semibold text-amber-500 hover:text-amber-400 mt-3 transition-colors" data-testid="link-compare-join-club">
+          Join a Club <ChevronRight className="h-4 w-4" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function PlayerIntelligence() {
   const { data: user } = useUser();
   const { data: players, isLoading } = usePlayers();
@@ -1354,15 +1662,7 @@ export default function PlayerIntelligence() {
   );
 
   if (!hasAccess) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="max-w-md text-center p-8 rounded-2xl bg-card border border-border" data-testid="membership-required-message">
-          <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-bold mb-2 text-foreground">Annual Membership Required</h2>
-          <p className="text-muted-foreground">Player Intelligence & Analytics is available to players with an active annual club membership. Contact your club admin to set up your membership.</p>
-        </div>
-      </div>
-    );
+    return <DemoPlayerIntelligence />;
   }
 
   return (

@@ -140,14 +140,8 @@ export function BottomNavBar() {
     );
   }
 
-  const isAdminOrOwner = user.role === "OWNER" || user.role === "ADMIN";
-  const hasAnnualMembership = !!(user as any)?.hasActiveAnnualMembership;
-  const availableOptions = ALL_NAV_OPTIONS.filter(o => {
-    if (o.id === "player-intel" && !isAdminOrOwner && !hasAnnualMembership) return false;
-    return true;
-  });
   const navItems = selectedItems
-    .map((id: string) => availableOptions.find((o) => o.id === id))
+    .map((id: string) => ALL_NAV_OPTIONS.find((o) => o.id === id))
     .filter(Boolean) as typeof ALL_NAV_OPTIONS;
 
   return (
@@ -301,7 +295,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
         { href: "/juniors", label: "Juniors", icon: Baby },
         { href: "/league", label: "League", icon: Swords },
         { href: "/rankings", label: "Rankings", icon: Trophy },
-        ...(isAdminOrOwner || (user as any)?.hasActiveAnnualMembership ? [{ href: "/player-intelligence", label: "Player Intel", icon: Activity }] : []),
+        { href: "/player-intelligence", label: "Player Intel", icon: Activity },
       ],
     },
     {
@@ -447,13 +441,6 @@ export function BottomNavSettings() {
   const { toast } = useToast();
   const currentItems = useBottomNavItems();
   const [selected, setSelected] = useState<string[]>(currentItems);
-  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
-  const hasAnnualMembership = !!(user as any)?.hasActiveAnnualMembership;
-  const filteredNavOptions = ALL_NAV_OPTIONS.filter(o => {
-    if (o.id === "player-intel" && !isAdminOrOwner && !hasAnnualMembership) return false;
-    return true;
-  });
-
   useEffect(() => {
     setSelected(currentItems);
   }, [currentItems.join(",")]);
@@ -506,7 +493,7 @@ export function BottomNavSettings() {
         <h3 className="text-sm font-semibold mb-3">Preview</h3>
         <div className="flex items-center justify-around bg-background rounded-xl border border-border/40 py-3 px-2">
           {selected
-            .map((id) => filteredNavOptions.find((o) => o.id === id))
+            .map((id) => ALL_NAV_OPTIONS.find((o) => o.id === id))
             .filter(Boolean)
             .map((item: any) => (
               <div key={item.id} className="flex flex-col items-center gap-0.5">
@@ -536,7 +523,7 @@ export function BottomNavSettings() {
           </Button>
         </div>
 
-        {filteredNavOptions.map((option) => {
+        {ALL_NAV_OPTIONS.map((option) => {
           const isSelected = selected.includes(option.id);
           const idx = selected.indexOf(option.id);
           return (
