@@ -110,9 +110,9 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
       <div className={`rounded-full bg-gradient-to-br ${gradeGradient} ${outerPadding[size]} ${glowSize} ${glowColor}`}>
         <Avatar className={`${sizeMap[size]} border-2 border-background`}>
           {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
-          <AvatarFallback className={`${textSize[size]} bg-gradient-to-br from-slate-800 to-slate-900 font-bold`}>
+          <AvatarFallback className={`${textSize[size]} bg-muted font-bold`}>
             {avatarSrc ? initials : (
-              <svg className={`${silhouetteSize[size]} text-slate-500`} viewBox="0 0 24 24" fill="currentColor">
+              <svg className={`${silhouetteSize[size]} text-muted-foreground`} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
               </svg>
             )}
@@ -138,14 +138,14 @@ function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-cya
   label: string; value: string | number; icon: any; trend?: number; subtitle?: string; color?: string; sparkColor?: string;
 }) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] rounded-2xl p-4 flex flex-col gap-1.5 group hover:border-cyan-500/30 transition-all duration-300" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+    <div className="relative overflow-hidden bg-card border border-border rounded-2xl p-4 flex flex-col gap-1.5 group hover:border-cyan-500/30 transition-all duration-300" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, '-')}`}>
       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-cyan-500/3 to-transparent rounded-bl-full" />
       <div className="flex items-center justify-between relative z-10">
-        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">{label}</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{label}</span>
         <StatIcon icon={Icon} color={sparkColor || "#22d3ee"} />
       </div>
       <div className="flex items-end gap-2 relative z-10">
-        <span className="text-2xl font-bold tracking-tight text-white">{value}</span>
+        <span className="text-2xl font-bold tracking-tight text-foreground">{value}</span>
         {trend !== undefined && (
           <span className={`text-[11px] flex items-center gap-0.5 mb-0.5 ${trend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
             {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -153,7 +153,7 @@ function StatCard({ label, value, icon: Icon, trend, subtitle, color = "text-cya
           </span>
         )}
       </div>
-      {subtitle && <span className="text-[10px] text-slate-500">{subtitle}</span>}
+      {subtitle && <span className="text-[10px] text-muted-foreground">{subtitle}</span>}
     </div>
   );
 }
@@ -174,19 +174,19 @@ function AchievementBadge({ badge }: { badge: any }) {
     <div
       className={`relative rounded-2xl p-4 text-center transition-all duration-300 ${
         isLocked
-          ? "bg-[#0c1322]/50 border border-dashed border-[#1e293b] opacity-40"
-          : "bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/5"
+          ? "bg-muted/30 dark:bg-muted/10 border border-dashed border-border opacity-40"
+          : "bg-card border border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/5"
       }`}
       data-testid={`badge-${badgeName?.replace(/\s+/g, '-')}`}
     >
-      {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-slate-500" />}
-      <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-slate-800/50" : "bg-cyan-500/10"}`}>
-        <Icon className={`h-6 w-6 ${isLocked ? "text-slate-500" : "text-cyan-400"}`} />
+      {isLocked && <Lock className="h-3 w-3 absolute top-2 right-2 text-muted-foreground" />}
+      <div className={`w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center ${isLocked ? "bg-muted/50" : "bg-cyan-500/10"}`}>
+        <Icon className={`h-6 w-6 ${isLocked ? "text-muted-foreground" : "text-cyan-400"}`} />
       </div>
-      <p className="text-xs font-semibold truncate text-slate-200">{badgeName}</p>
-      {badge.description && <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{badge.description}</p>}
+      <p className="text-xs font-semibold truncate text-foreground">{badgeName}</p>
+      {badge.description && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{badge.description}</p>}
       {progressPercent !== undefined && isLocked && (
-        <div className="mt-2 h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+        <div className="mt-2 h-1.5 bg-muted/50 rounded-full overflow-hidden">
           <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/70 rounded-full transition-all" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
         </div>
       )}
@@ -210,14 +210,14 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
       className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left ${
         isSelected
           ? "bg-cyan-500/10 border border-cyan-500/30 shadow-lg shadow-cyan-500/5"
-          : "border border-transparent hover:bg-[#0f1729]/60 hover:border-[#1e293b]"
+          : "border border-transparent hover:bg-muted/40 hover:border-border"
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
       <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} selectedAvatar={player.selectedAvatar} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-300" : "text-slate-300"}`}>{player.fullName}</p>
-        <p className="text-[11px] text-slate-500 mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
+        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-300" : "text-foreground"}`}>{player.fullName}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
       </div>
       {isSelected && <ChevronRight className="h-4 w-4 text-cyan-400 shrink-0" />}
     </button>
@@ -225,7 +225,7 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
 }
 
 function PerformanceChart({ data }: { data: any[] }) {
-  if (!data || data.length === 0) return <p className="text-slate-500 text-sm text-center py-8">No performance data yet</p>;
+  if (!data || data.length === 0) return <p className="text-muted-foreground text-sm text-center py-8">No performance data yet</p>;
   return (
     <ResponsiveContainer width="100%" height={280}>
       <AreaChart data={data}>
@@ -239,20 +239,20 @@ function PerformanceChart({ data }: { data: any[] }) {
             <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
         <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
         <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" domain={[0, 100]} axisLine={false} />
         <Tooltip
           contentStyle={{
-            backgroundColor: "#0f172a",
-            border: "1px solid #1e293b",
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
             borderRadius: "12px",
             fontSize: "12px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            color: "#e2e8f0",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+            color: "hsl(var(--foreground))",
           }}
         />
-        <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#winRateGradientCyan)" strokeWidth={2.5} name="Win Rate %" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
+        <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#winRateGradientCyan)" strokeWidth={2.5} name="Win Rate %" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "hsl(var(--background))", strokeWidth: 2 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -278,20 +278,20 @@ function DifficultyChart({ data }: { data: any }) {
             <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.05} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
         <XAxis dataKey="level" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
         <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
-        <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }} />
-        <Legend wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }} />
-        <Area type="monotone" dataKey="wins" stroke="#22d3ee" fill="url(#winsGradientFill)" strokeWidth={2.5} name="Wins" dot={{ r: 4, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
-        <Area type="monotone" dataKey="losses" stroke="#a78bfa" fill="url(#lossesGradientFill)" strokeWidth={2.5} name="Losses" dot={{ r: 4, fill: "#a78bfa", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#a78bfa", stroke: "#0f172a", strokeWidth: 2 }} />
+        <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", color: "hsl(var(--foreground))" }} />
+        <Legend wrapperStyle={{ fontSize: "11px", color: "hsl(var(--muted-foreground))" }} />
+        <Area type="monotone" dataKey="wins" stroke="#22d3ee" fill="url(#winsGradientFill)" strokeWidth={2.5} name="Wins" dot={{ r: 4, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#22d3ee", stroke: "hsl(var(--background))", strokeWidth: 2 }} />
+        <Area type="monotone" dataKey="losses" stroke="#a78bfa" fill="url(#lossesGradientFill)" strokeWidth={2.5} name="Losses" dot={{ r: 4, fill: "#a78bfa", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#a78bfa", stroke: "hsl(var(--background))", strokeWidth: 2 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
 function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
-  if (!evaluations || evaluations.length === 0) return <p className="text-slate-500 text-sm text-center py-8">No skill evaluations yet</p>;
+  if (!evaluations || evaluations.length === 0) return <p className="text-muted-foreground text-sm text-center py-8">No skill evaluations yet</p>;
   const categoryMap: Record<string, { total: number; count: number }> = {};
   evaluations.forEach((e: any) => {
     const cat = e.categoryName || "Other";
@@ -307,7 +307,7 @@ function SkillRadarChart({ evaluations }: { evaluations: any[] }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <RadarChart data={radarData} cx="50%" cy="50%">
-        <PolarGrid stroke="#1e293b" opacity={0.5} />
+        <PolarGrid stroke="hsl(var(--border))" opacity={0.5} />
         <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: "#64748b" }} />
         <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} />
         <Radar name="Skill" dataKey="rating" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.15} strokeWidth={2} />
@@ -328,7 +328,7 @@ function PlayerStatsRadar({ stats }: { stats: any }) {
     { stat: "Experience", value: Math.min(Math.round((stats.uniqueOpponents || 0) * 8), 100), fullMark: 100 },
   ];
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/80 to-slate-950/90 border border-cyan-500/20 p-4" data-testid="player-stats-radar">
+    <div className="relative overflow-hidden rounded-2xl bg-card border border-cyan-500/20 p-4" data-testid="player-stats-radar">
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-cyan-400/5 pointer-events-none" />
       <h4 className="text-sm font-semibold text-cyan-300/90 mb-2 flex items-center gap-2 relative z-10">
         <Activity className="h-4 w-4" />
@@ -449,7 +449,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold flex items-center gap-2 text-slate-200">
+        <h3 className="font-semibold flex items-center gap-2 text-foreground">
           <Target className="h-5 w-5 text-cyan-400" />
           Skill Assessment
         </h3>
@@ -471,22 +471,22 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
             const avg = Math.round(catEvals.reduce((s: number, e: any) => s + e.rating, 0) / catEvals.length);
             const Icon = CATEGORY_ICONS[cat.iconName] || Target;
             return (
-              <div key={cat.id} className="bg-[#0c1322]/60 border border-[#1e293b] rounded-2xl p-4">
+              <div key={cat.id} className="bg-muted/30 dark:bg-muted/10 border border-border rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Icon className="h-4 w-4 text-cyan-400" />
                     {cat.name}
                   </span>
-                  <Badge variant="outline" className="rounded-lg border-[#1e293b] text-cyan-300">{avg}%</Badge>
+                  <Badge variant="outline" className="rounded-lg border-border text-cyan-300">{avg}%</Badge>
                 </div>
                 <div className="space-y-2">
                   {catEvals.map((e: any) => (
                     <div key={e.skillId || e.id} className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 w-32 truncate">{e.skillName}</span>
-                      <div className="flex-1 h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+                      <span className="text-xs text-muted-foreground w-32 truncate">{e.skillName}</span>
+                      <div className="flex-1 h-1.5 bg-muted/50 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500/60 rounded-full transition-all" style={{ width: `${e.rating}%` }} />
                       </div>
-                      <span className="text-xs font-bold w-8 text-right text-slate-300">{e.rating}%</span>
+                      <span className="text-xs font-bold w-8 text-right text-foreground">{e.rating}%</span>
                     </div>
                   ))}
                 </div>
@@ -497,13 +497,13 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
       )}
 
       {isAdmin && pendingRequests && (pendingRequests as any[]).filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED").length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
-          <h4 className="text-sm font-semibold text-slate-300 mb-3">Pending Review Requests</h4>
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
+          <h4 className="text-sm font-semibold text-foreground mb-3">Pending Review Requests</h4>
           <div className="space-y-2">
             {(pendingRequests as any[])
               .filter((r: any) => r.status === "PENDING" || r.status === "ACCEPTED")
               .map((r: any) => (
-                <div key={r.id} className="flex items-center justify-between bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
+                <div key={r.id} className="flex items-center justify-between bg-muted/40 dark:bg-muted/15 rounded-xl p-3 border border-border">
                   <div>
                     <p className="text-sm font-medium">{r.playerName || `Player #${r.playerId}`}</p>
                     <Badge variant={r.status === "PENDING" ? "secondary" : "default"} className="text-[10px] rounded-lg">{r.status}</Badge>
@@ -527,8 +527,8 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
       )}
 
       {canViewCoachNotes && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
-          <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
+          <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-cyan-400" />
             Coach Notes
           </h4>
@@ -538,7 +538,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Add a coach note..."
-                className="min-h-[60px] rounded-xl bg-[#0c1322] border-[#1e293b] text-slate-200 placeholder:text-slate-600"
+                className="min-h-[60px] rounded-xl bg-background border-border"
                 data-testid="textarea-coach-note"
               />
               <Button size="sm" onClick={() => addNote.mutate()} disabled={!newNote.trim() || addNote.isPending} className="rounded-xl" data-testid="button-add-note">
@@ -548,13 +548,13 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
           )}
           <div className="space-y-3">
             {(coachNotes as any[])?.map((n: any) => (
-              <div key={n.id} className="bg-[#0c1322]/80 rounded-xl p-3 border border-[#1e293b]">
-                <p className="text-sm text-slate-300">{n.note}</p>
-                <p className="text-[10px] text-slate-500 mt-1">
+              <div key={n.id} className="bg-muted/40 dark:bg-muted/15 rounded-xl p-3 border border-border">
+                <p className="text-sm text-foreground">{n.note}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
                   {n.createdByName || "Coach"} • {new Date(n.createdAt).toLocaleDateString()}
                 </p>
               </div>
-            )) || <p className="text-sm text-slate-500">No coach notes yet</p>}
+            )) || <p className="text-sm text-muted-foreground">No coach notes yet</p>}
           </div>
         </div>
       )}
@@ -567,7 +567,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
           </DialogHeader>
           <div className="py-4 text-center">
             <div className="text-3xl font-bold text-cyan-400">£20</div>
-            <p className="text-sm text-slate-400 mt-2">Comprehensive skill assessment by a qualified coach</p>
+            <p className="text-sm text-muted-foreground mt-2">Comprehensive skill assessment by a qualified coach</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRequestDialog(false)} className="rounded-xl">Cancel</Button>
@@ -674,7 +674,7 @@ function AIStyleBadge({ playerId }: { playerId: number }) {
         <Brain className="h-3 w-3 mr-1" />
         {data.style} Player
       </Badge>
-      {data.explanation && <p className="text-[11px] text-slate-500 leading-relaxed">{data.explanation}</p>}
+      {data.explanation && <p className="text-[11px] text-muted-foreground leading-relaxed">{data.explanation}</p>}
     </div>
   );
 }
@@ -740,7 +740,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-6">
+      <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-6">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
         <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-cyan-500/5 to-transparent rounded-bl-full" />
         <div className="relative z-10 flex items-start gap-5">
@@ -754,16 +754,16 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               gender={profile?.gender}
               grade={grade}
             />
-            <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""} border border-white/20`}>
+            <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-foreground bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""} border border-white/20`}>
               {grade}
             </div>
           </div>
           <div className="flex-1 min-w-0 pt-1">
-            <h2 className="text-2xl font-black tracking-tight text-white">{player.fullName}</h2>
+            <h2 className="text-2xl font-black tracking-tight text-foreground">{player.fullName}</h2>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-              <span className="text-sm text-slate-400 font-medium">{clubName}</span>
+              <span className="text-sm text-muted-foreground font-medium">{clubName}</span>
               {profile && (
-                <span className="text-sm text-slate-400 flex items-center gap-1">
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Trophy className="h-3.5 w-3.5 text-amber-400" />
                   <span className="font-semibold text-amber-300">{profile.rankingPoints}</span> pts
                 </span>
@@ -778,8 +778,8 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     <Trophy className="h-4 w-4 text-cyan-400" />
                   </div>
                   <div>
-                    <p className="text-lg font-black leading-none text-white">{stats.matchesWon || 0}</p>
-                    <p className="text-[10px] text-slate-500">Wins</p>
+                    <p className="text-lg font-black leading-none text-foreground">{stats.matchesWon || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Wins</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -787,8 +787,8 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     <XCircle className="h-4 w-4 text-purple-400" />
                   </div>
                   <div>
-                    <p className="text-lg font-black leading-none text-white">{stats.matchesLost || 0}</p>
-                    <p className="text-[10px] text-slate-500">Losses</p>
+                    <p className="text-lg font-black leading-none text-foreground">{stats.matchesLost || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Losses</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -796,8 +796,8 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     <Star className="h-4 w-4 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-lg font-black leading-none text-white">{stats.winRate || 0}%</p>
-                    <p className="text-[10px] text-slate-500">Win Rate</p>
+                    <p className="text-lg font-black leading-none text-foreground">{stats.winRate || 0}%</p>
+                    <p className="text-[10px] text-muted-foreground">Win Rate</p>
                   </div>
                 </div>
               </div>
@@ -807,20 +807,20 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
       </div>
 
       <Tabs value={dashTab} onValueChange={setDashTab}>
-        <TabsList className="w-full bg-[#0c1322] border border-[#1e293b] rounded-xl p-1">
-          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-overview">
+        <TabsList className="w-full bg-muted/30 dark:bg-muted/10 border border-border rounded-xl p-1">
+          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-overview">
             <Activity className="h-4 w-4 mr-1" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-achievements">
+          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-achievements">
             <Award className="h-4 w-4 mr-1" /> Badges
           </TabsTrigger>
-          <TabsTrigger value="matches" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-matches">
+          <TabsTrigger value="matches" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-matches">
             <ClipboardList className="h-4 w-4 mr-1" /> Matches
           </TabsTrigger>
-          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-skills">
+          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
           </TabsTrigger>
-          <TabsTrigger value="development" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-slate-400" data-testid="tab-development">
+          <TabsTrigger value="development" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-development">
             <TrendingUp className="h-4 w-4 mr-1" /> Development
           </TabsTrigger>
         </TabsList>
@@ -846,19 +846,19 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
               <PlayerStatsRadar stats={stats} />
 
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10">
                   <TrendingUp className="h-4 w-4 text-cyan-400" />
                   Performance Analytics
-                  <span className="ml-auto text-[10px] text-slate-500 font-normal">Win Rate %</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground font-normal">Win Rate %</span>
                 </h4>
                 <PerformanceChart data={perfHistory?.monthlyWinRate || []} />
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10">
                   <Swords className="h-4 w-4 text-cyan-400" />
                   Wins vs Losses by Difficulty
                 </h4>
@@ -866,18 +866,18 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               </div>
 
               {perfHistory?.monthlyHours && perfHistory.monthlyHours.length > 0 && (
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                   <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10">
                     <Clock className="h-4 w-4 text-cyan-400" />
                     Hours Per Month
                   </h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={perfHistory.monthlyHours}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                       <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" axisLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }} />
+                      <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", color: "hsl(var(--foreground))" }} />
                       <Bar dataKey="hours" fill="#22d3ee" radius={[6, 6, 0, 0]} fillOpacity={0.8} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -885,9 +885,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               )}
             </>
           ) : (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-16 text-muted-foreground">
               <Activity className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-slate-400">No analytics data available yet</p>
+              <p className="font-medium text-muted-foreground">No analytics data available yet</p>
               <p className="text-sm mt-1">Play some matches to see your stats!</p>
             </div>
           )}
@@ -900,9 +900,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
             </div>
           ) : matchLog && matchLog.length > 0 ? (
             <div className="space-y-5">
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10">
                   <BarChart3 className="h-4 w-4 text-cyan-400" />
                   Match Results Overview
                 </h4>
@@ -916,11 +916,11 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                         fill: m.result === "W" ? "#22d3ee" : m.result === "L" ? "#ef4444" : "#64748b",
                       }));
                     })()}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                       <XAxis dataKey="match" tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} />
                       <YAxis tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }}
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", color: "hsl(var(--foreground))" }}
                         formatter={(value: number) => [`${value > 0 ? "+" : ""}${value} pts`, "Point Diff"]}
                       />
                       <Bar dataKey="diff" radius={[4, 4, 0, 0]} fillOpacity={0.85}>
@@ -936,56 +936,56 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                   <div className="flex items-center justify-center gap-4 mt-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-                      <span className="text-[10px] text-slate-400">Win</span>
+                      <span className="text-[10px] text-muted-foreground">Win</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                      <span className="text-[10px] text-slate-400">Loss</span>
+                      <span className="text-[10px] text-muted-foreground">Loss</span>
                     </div>
-                    <span className="text-[10px] text-slate-500">Last 20 matches</span>
+                    <span className="text-[10px] text-muted-foreground">Last 20 matches</span>
                   </div>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
                 <div className="relative z-10 overflow-x-auto">
                   <table className="w-full text-left" data-testid="match-log-table">
                     <thead>
-                      <tr className="border-b border-[#1e293b]">
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">#</th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <tr className="border-b border-border">
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">#</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                           <MapPin className="h-3 w-3 inline mr-1" />Session
                         </th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Partner</th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Opponents</th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Result</th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Partner</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Opponents</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Result</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">
                           <CheckCircle className="h-3 w-3 inline" />
                         </th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">
                           <XCircle className="h-3 w-3 inline" />
                         </th>
-                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">+/-</th>
+                        <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">+/-</th>
                       </tr>
                     </thead>
                     <tbody>
                       {matchLog.map((m: any, idx: number) => (
                         <tr
                           key={idx}
-                          className="border-b border-[#1e293b]/50 hover:bg-[#1e293b]/30 transition-colors"
+                          className="border-b border-border/50 hover:bg-muted/30 transition-colors"
                           data-testid={`match-log-row-${idx}`}
                         >
-                          <td className="px-3 py-2 text-xs font-bold text-slate-400">{m.matchNumber}</td>
+                          <td className="px-3 py-2 text-xs font-bold text-muted-foreground">{m.matchNumber}</td>
                           <td className="px-3 py-2">
-                            <div className="text-xs font-medium text-slate-300 truncate max-w-[120px]">{m.sessionTitle}</div>
+                            <div className="text-xs font-medium text-foreground truncate max-w-[120px]">{m.sessionTitle}</div>
                             {m.sessionDate && (
-                              <div className="text-[9px] text-slate-500">{new Date(m.sessionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}</div>
+                              <div className="text-[9px] text-muted-foreground">{new Date(m.sessionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}</div>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-xs text-slate-400 truncate max-w-[100px]">{m.partner || "—"}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-[100px]">{m.partner || "—"}</td>
                           <td className="px-3 py-2">
-                            <div className="text-xs text-slate-300 truncate max-w-[130px]">
+                            <div className="text-xs text-foreground truncate max-w-[130px]">
                               {[m.opponent1, m.opponent2].filter(Boolean).join(" & ") || "—"}
                             </div>
                           </td>
@@ -996,7 +996,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                                   ? "bg-emerald-500/20 text-emerald-400"
                                   : m.result === "L"
                                   ? "bg-red-500/20 text-red-400"
-                                  : "bg-slate-500/20 text-slate-400"
+                                  : "bg-slate-500/20 text-muted-foreground"
                               }`}
                               data-testid={`match-result-${idx}`}
                             >
@@ -1007,18 +1007,18 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                             {m.result === "W" ? (
                               <CheckCircle className="h-3.5 w-3.5 text-emerald-400 mx-auto" />
                             ) : (
-                              <span className="text-slate-600">—</span>
+                              <span className="text-muted-foreground/50">—</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {m.result === "L" ? (
                               <XCircle className="h-3.5 w-3.5 text-red-400 mx-auto" />
                             ) : (
-                              <span className="text-slate-600">—</span>
+                              <span className="text-muted-foreground/50">—</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-center">
-                            <span className={`text-xs font-mono font-bold ${m.pointDiff > 0 ? "text-emerald-400" : m.pointDiff < 0 ? "text-red-400" : "text-slate-500"}`}>
+                            <span className={`text-xs font-mono font-bold ${m.pointDiff > 0 ? "text-emerald-400" : m.pointDiff < 0 ? "text-red-400" : "text-muted-foreground"}`}>
                               {m.pointDiff > 0 ? `+${m.pointDiff}` : m.pointDiff}
                             </span>
                           </td>
@@ -1027,20 +1027,20 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-3 py-2 border-t border-[#1e293b] flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">{matchLog.length} match{matchLog.length !== 1 ? "es" : ""} played</span>
+                <div className="px-3 py-2 border-t border-border flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">{matchLog.length} match{matchLog.length !== 1 ? "es" : ""} played</span>
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] text-emerald-400 font-semibold">{matchLog.filter((m: any) => m.result === "W").length}W</span>
                     <span className="text-[10px] text-red-400 font-semibold">{matchLog.filter((m: any) => m.result === "L").length}L</span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{matchLog.filter((m: any) => m.result === "D").length}D</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold">{matchLog.filter((m: any) => m.result === "D").length}D</span>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-16 text-muted-foreground">
               <ClipboardList className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-slate-400">No match history yet</p>
+              <p className="font-medium text-muted-foreground">No match history yet</p>
               <p className="text-sm mt-1">Completed matches will appear here</p>
             </div>
           )}
@@ -1061,9 +1061,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16 text-slate-500">
+              <div className="text-center py-16 text-muted-foreground">
                 <Award className="h-14 w-14 mx-auto mb-3 opacity-30" />
-                <p className="font-medium text-slate-400">No achievements yet</p>
+                <p className="font-medium text-muted-foreground">No achievements yet</p>
                 <p className="text-sm mt-1">Keep playing to unlock badges!</p>
               </div>
             );
@@ -1100,12 +1100,12 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                 />
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-win-rate-trend-title">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10" data-testid="text-win-rate-trend-title">
                   <TrendingUp className="h-4 w-4 text-cyan-400" />
                   Win Rate Trend (Per Session)
-                  <span className="ml-auto text-[10px] text-slate-500 font-normal">Last {developmentData.winRateTrend?.length || 0} sessions</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground font-normal">Last {developmentData.winRateTrend?.length || 0} sessions</span>
                 </h4>
                 {developmentData.winRateTrend && developmentData.winRateTrend.length > 0 ? (
                   <ResponsiveContainer width="100%" height={260}>
@@ -1116,86 +1116,86 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                           <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                       <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#64748b" }} stroke="transparent" axisLine={false} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth() + 1}`; }} />
                       <YAxis tick={{ fontSize: 10, fill: "#64748b" }} stroke="transparent" domain={[0, 100]} axisLine={false} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", color: "#e2e8f0" }}
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", color: "hsl(var(--foreground))" }}
                         labelFormatter={(v: string) => new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                         formatter={(value: number, name: string) => [`${value}%`, name === "winRate" ? "Win Rate" : name]}
                       />
-                      <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#devWinRateGrad)" strokeWidth={2.5} name="Win Rate" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "#0f172a", strokeWidth: 2 }} />
+                      <Area type="monotone" dataKey="winRate" stroke="#22d3ee" fill="url(#devWinRateGrad)" strokeWidth={2.5} name="Win Rate" dot={{ r: 3, fill: "#22d3ee", strokeWidth: 0 }} activeDot={{ r: 5, fill: "#22d3ee", stroke: "hsl(var(--background))", strokeWidth: 2 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="text-slate-500 text-sm text-center py-8">No session data available yet</p>
+                  <p className="text-muted-foreground text-sm text-center py-8">No session data available yet</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/3 via-transparent to-cyan-500/3 pointer-events-none" />
-                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-best-partners-title">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10" data-testid="text-best-partners-title">
                     <Heart className="h-4 w-4 text-emerald-400" />
                     Best Partners
                   </h4>
                   {developmentData.topPartners && developmentData.topPartners.length > 0 ? (
                     <div className="space-y-2 relative z-10">
                       {developmentData.topPartners.slice(0, 5).map((p: any, idx: number) => (
-                        <div key={p.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`partner-row-${idx}`}>
+                        <div key={p.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50" data-testid={`partner-row-${idx}`}>
                           <div className="w-6 h-6 rounded-full bg-emerald-500/15 flex items-center justify-center text-[10px] font-bold text-emerald-400">{idx + 1}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-300 truncate">{p.name}</p>
-                            <p className="text-[10px] text-slate-500">{p.games} games together</p>
+                            <p className="text-xs font-semibold text-foreground truncate">{p.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{p.games} games together</p>
                           </div>
                           <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">{p.winRate}% WR</Badge>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-slate-500 text-sm text-center py-6">No partner data yet</p>
+                    <p className="text-muted-foreground text-sm text-center py-6">No partner data yet</p>
                   )}
                 </div>
 
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                   <div className="absolute inset-0 bg-gradient-to-br from-red-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-challenging-opponents-title">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10" data-testid="text-challenging-opponents-title">
                     <Swords className="h-4 w-4 text-red-400" />
                     Challenging Opponents
                   </h4>
                   {developmentData.challengingOpponents && developmentData.challengingOpponents.length > 0 ? (
                     <div className="space-y-2 relative z-10">
                       {developmentData.challengingOpponents.slice(0, 5).map((o: any, idx: number) => (
-                        <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`challenging-opponent-row-${idx}`}>
+                        <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50" data-testid={`challenging-opponent-row-${idx}`}>
                           <div className="w-6 h-6 rounded-full bg-red-500/15 flex items-center justify-center text-[10px] font-bold text-red-400">{idx + 1}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-300 truncate">{o.name}</p>
-                            <p className="text-[10px] text-slate-500">{o.games} games against</p>
+                            <p className="text-xs font-semibold text-foreground truncate">{o.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{o.games} games against</p>
                           </div>
                           <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">{o.winRate}% WR</Badge>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-slate-500 text-sm text-center py-6">No challenging opponents identified</p>
+                    <p className="text-muted-foreground text-sm text-center py-6">No challenging opponents identified</p>
                   )}
                 </div>
               </div>
 
               {developmentData.bestOpponents && developmentData.bestOpponents.length > 0 && (
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                   <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-amber-500/3 pointer-events-none" />
-                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-dominant-opponents-title">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10" data-testid="text-dominant-opponents-title">
                     <Crown className="h-4 w-4 text-amber-400" />
                     Dominant Against
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 relative z-10">
                     {developmentData.bestOpponents.slice(0, 6).map((o: any, idx: number) => (
-                      <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-[#0c1322]/60 border border-[#1e293b]/50" data-testid={`best-opponent-row-${idx}`}>
+                      <div key={o.playerId} className="flex items-center gap-3 p-2 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50" data-testid={`best-opponent-row-${idx}`}>
                         <div className="w-6 h-6 rounded-full bg-amber-500/15 flex items-center justify-center text-[10px] font-bold text-amber-400">{idx + 1}</div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-slate-300 truncate">{o.name}</p>
-                          <p className="text-[10px] text-slate-500">{o.games} games</p>
+                          <p className="text-xs font-semibold text-foreground truncate">{o.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{o.games} games</p>
                         </div>
                         <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">{o.winRate}% WR</Badge>
                       </div>
@@ -1205,9 +1205,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               )}
 
               {developmentData.improvementAreas && developmentData.improvementAreas.length > 0 && (
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5">
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-500/3 via-transparent to-cyan-500/3 pointer-events-none" />
-                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2 relative z-10" data-testid="text-improvement-areas-title">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2 relative z-10" data-testid="text-improvement-areas-title">
                     <Lightbulb className="h-4 w-4 text-purple-400" />
                     Improvement Areas
                   </h4>
@@ -1215,7 +1215,7 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     {developmentData.improvementAreas.map((area: string, idx: number) => (
                       <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/10" data-testid={`improvement-area-${idx}`}>
                         <Sparkles className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
-                        <p className="text-xs text-slate-300">{area}</p>
+                        <p className="text-xs text-foreground">{area}</p>
                       </div>
                     ))}
                   </div>
@@ -1223,9 +1223,9 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
               )}
             </div>
           ) : (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-16 text-muted-foreground">
               <TrendingUp className="h-14 w-14 mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-slate-400">No development data available yet</p>
+              <p className="font-medium text-muted-foreground">No development data available yet</p>
               <p className="text-sm mt-1">Play matches to see your development trends!</p>
             </div>
           )}
@@ -1290,7 +1290,7 @@ export default function PlayerIntelligence() {
   const playerList = (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-slate-500">{filteredPlayers.length} players</span>
+        <span className="text-sm font-semibold text-muted-foreground">{filteredPlayers.length} players</span>
         {clubs && clubs.length > 1 && (
           <Select value={selectedClubId} onValueChange={setSelectedClubId}>
             <SelectTrigger className="w-auto h-7 text-xs rounded-lg border-border/30 bg-transparent gap-1 px-2" data-testid="select-club-filter">
@@ -1306,10 +1306,10 @@ export default function PlayerIntelligence() {
         )}
       </div>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
         <Input
           placeholder="Search players..."
-          className="pl-10 bg-[#0c1322]/60 border-[#1e293b] rounded-xl h-9 text-sm text-slate-200 placeholder:text-slate-600"
+          className="pl-10 bg-background border-border rounded-xl h-9 text-sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid="input-search-players"
@@ -1327,7 +1327,7 @@ export default function PlayerIntelligence() {
             </div>
           ))
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-10 text-slate-500">
+          <div className="text-center py-10 text-muted-foreground">
             <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">No players found</p>
           </div>
@@ -1357,10 +1357,10 @@ export default function PlayerIntelligence() {
   if (!isPremium) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="max-w-md text-center p-8 rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
-          <Lock className="h-12 w-12 mx-auto mb-4 text-slate-500" />
-          <h2 className="text-xl font-bold mb-2 text-slate-200">Premium Feature</h2>
-          <p className="text-slate-400">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
+        <div className="max-w-md text-center p-8 rounded-2xl bg-card border border-border">
+          <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-xl font-bold mb-2 text-foreground">Premium Feature</h2>
+          <p className="text-muted-foreground">Player Intelligence & Analytics is a Premium feature. Upgrade your club plan to access comprehensive player analytics, comparisons, skill assessments, and more.</p>
         </div>
       </div>
     );
@@ -1368,13 +1368,13 @@ export default function PlayerIntelligence() {
 
   return (
     <div className="flex gap-0 min-h-[calc(100vh-140px)]">
-      <div className="hidden lg:block w-72 shrink-0 border-r border-[#1e293b] pr-4">
+      <div className="hidden lg:block w-72 shrink-0 border-r border-border pr-4">
         <div className="sticky top-4">
           <div className="flex items-center gap-2 mb-5">
             <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center">
               <Activity className="h-4 w-4 text-cyan-400" />
             </div>
-            <h1 className="text-base font-bold text-slate-200">Players</h1>
+            <h1 className="text-base font-bold text-foreground">Players</h1>
           </div>
           {playerList}
         </div>
@@ -1395,7 +1395,7 @@ export default function PlayerIntelligence() {
               <div className="mt-4">{playerList}</div>
             </SheetContent>
           </Sheet>
-          <h1 className="text-lg font-bold flex items-center gap-2 text-slate-200">
+          <h1 className="text-lg font-bold flex items-center gap-2 text-foreground">
             <Activity className="h-5 w-5 text-cyan-400" />
             Player Intelligence
           </h1>
@@ -1416,7 +1416,7 @@ export default function PlayerIntelligence() {
             {compareMode ? "Exit Compare" : "Compare Players"}
           </Button>
           {compareMode && !comparePlayer && selectedPlayer && (
-            <span className="text-sm text-slate-500 animate-pulse">Select a second player to compare</span>
+            <span className="text-sm text-muted-foreground animate-pulse">Select a second player to compare</span>
           )}
         </div>
 
@@ -1438,11 +1438,11 @@ export default function PlayerIntelligence() {
           />
         ) : (
           <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="text-center text-slate-500">
-              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-[#0f1729]/50 flex items-center justify-center border border-[#1e293b]">
+            <div className="text-center text-muted-foreground">
+              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-muted/30 flex items-center justify-center border border-border">
                 <Users className="h-10 w-10 opacity-30" />
               </div>
-              <h2 className="text-lg font-bold mb-1 text-slate-300">Select a Player</h2>
+              <h2 className="text-lg font-bold mb-1 text-foreground">Select a Player</h2>
               <p className="text-sm">Choose a player from the list to view their analytics</p>
             </div>
           </div>
