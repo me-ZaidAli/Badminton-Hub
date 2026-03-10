@@ -1241,6 +1241,7 @@ export default function PlayerIntelligence() {
   const { data: clubs } = useClubs();
   const isPremium = useIsAnyClubPremium();
   const queryClient = useQueryClient();
+  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const [search, setSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerData | null>(null);
