@@ -25324,6 +25324,59 @@ Keep it to about 300 words. Be encouraging but honest.`;
         paymentMethod: paymentMethod || null,
         paymentConfirmed: false,
       }).returning();
+
+      const requestingUser = await storage.getUser(profile.userId);
+      const requestingName = requestingUser?.fullName || "A player";
+      const [clubInfo] = await db.select().from(clubs).where(eq(clubs.id, Number(clubId))).limit(1);
+      const clubDisplayName = clubInfo?.name || "the club";
+
+      const ticketNumber = "TK-" + randomBytes(4).toString("hex").toUpperCase();
+      const ticketSubject = `Coach Review Request - ${requestingName}`;
+      const ticketDescription = `${requestingName} has requested a coach skill review at ${clubDisplayName}.\n\nPlayer ID: ${playerId}\nClub: ${clubDisplayName}\nPayment Method: ${paymentMethod || "Not specified"}\n\nPlease review and evaluate this player's skills.`;
+
+      const now = new Date();
+      const autoCloseAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const [ticket] = await db.insert(tickets).values({
+        ticketNumber,
+        clubId: Number(clubId),
+        createdByUserId: profile.userId,
+        subject: ticketSubject,
+        description: ticketDescription,
+        category: "GENERAL",
+        priority: "MEDIUM",
+        isConfidential: false,
+        autoCloseAt,
+      }).returning();
+
+      await db.insert(ticketAuditLogs).values({
+        ticketId: ticket.id,
+        actorUserId: profile.userId,
+        action: "CREATED",
+        toStatus: "SUBMITTED",
+      });
+
+      const [ownerUser] = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
+      if (ownerUser) {
+        const msgBody = `📋 Coach Review Request\n\nHi, ${requestingName} from ${clubDisplayName} has requested a coach skill review.\n\nTicket: ${ticketNumber}\n\nPlease check the skill review requests to evaluate this player.\n\nThank you!`;
+
+        await db.insert(internalMessages).values({
+          senderId: profile.userId,
+          recipientId: ownerUser.id,
+          subject: "",
+          body: msgBody,
+          clubId: Number(clubId),
+        });
+
+        await storage.createNotification({
+          userId: ownerUser.id,
+          type: "TICKET_UPDATE",
+          title: "New Coach Review Request",
+          message: `${requestingName} has requested a coach skill review at ${clubDisplayName}. Ticket: ${ticketNumber}`,
+          linkUrl: `/tickets/${ticket.id}`,
+        });
+      }
+
       res.json(request);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -28305,6 +28358,61 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         message,
         linkUrl: "/trial-dashboard",
       });
+
+      if (decision === "APPROVED" && trial.finalDecision !== "APPROVED") {
+        const existingCredit = await db.select().from(creditLedger)
+          .where(and(
+            eq(creditLedger.userId, trial.userId),
+            eq(creditLedger.clubId, trial.clubId),
+            eq(creditLedger.reason, "Welcome credit for passing trial"),
+          )).limit(1);
+
+        if (existingCredit.length === 0) {
+        const welcomeCreditAmount = 400;
+        await db.insert(creditLedger).values({
+          userId: trial.userId,
+          clubId: trial.clubId,
+          amount: welcomeCreditAmount,
+          reason: "Welcome credit for passing trial",
+          createdById: user.id,
+        });
+
+        const [club] = await db.select().from(clubs).where(eq(clubs.id, trial.clubId)).limit(1);
+        const clubName = club?.name || "the club";
+        const clubSessionFee = club?.sessionFee ? `£${(club.sessionFee / 100).toFixed(2)}` : "the standard rate";
+
+        const annualPlans = await db.select().from(membershipPlans)
+          .where(and(eq(membershipPlans.clubId, trial.clubId), eq(membershipPlans.isActive, true)));
+        let membershipInfo = "";
+        if (annualPlans.length > 0) {
+          const plan = annualPlans[0];
+          const planFee = plan.defaultSessionFee ? `£${(plan.defaultSessionFee / 100).toFixed(2)}` : clubSessionFee;
+          const planPrice = plan.annualPrice ? `£${(plan.annualPrice / 100).toFixed(2)}` : "a yearly fee";
+          membershipInfo = `\n\n💎 Annual Membership Benefits:\n• Reduced session fee of ${planFee} per session (instead of ${clubSessionFee})\n• Access to Player Intelligence & Analytics\n• Full access to all club features\n• Priority booking for sessions\n• Annual membership costs ${planPrice}/year\n\nConsider joining as an annual member to get the most out of your club experience!`;
+        }
+
+        const congratsBody = `🎉 Congratulations! You've passed your trial at ${clubName}!\n\n💰 Welcome Credit: £${(welcomeCreditAmount / 100).toFixed(2)} has been added to your wallet. This credit will be automatically applied towards your session fees.\n\nTo use your credit, simply sign up for a session and select "Use Credit" as your payment method.\n\n📋 Session Fee: The standard session fee at ${clubName} is ${clubSessionFee}. Your welcome credit covers your first session!${membershipInfo}\n\nWelcome to the club! We look forward to seeing you on court. 🏸`;
+
+        const [ownerUser] = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
+        const systemSenderId = ownerUser?.id || user.id;
+
+        await db.insert(internalMessages).values({
+          senderId: systemSenderId,
+          recipientId: trial.userId,
+          subject: "",
+          body: congratsBody,
+          clubId: trial.clubId,
+        });
+
+        await storage.createNotification({
+          userId: trial.userId,
+          type: "GENERAL",
+          title: "Welcome Credit Added!",
+          message: `£${(welcomeCreditAmount / 100).toFixed(2)} welcome credit has been added to your wallet at ${clubName}. Check your messages for details!`,
+          linkUrl: "/inbox",
+        });
+        }
+      }
 
       res.json(updated);
     } catch (err: any) {
