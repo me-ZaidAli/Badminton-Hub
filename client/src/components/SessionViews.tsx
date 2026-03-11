@@ -42,6 +42,8 @@ function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionI
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date();
   const isLive = session.status === "ACTIVE";
+  const venue = (session as any).venue;
+  const venueName = venue?.name || "";
 
   return (
     <div
@@ -57,7 +59,7 @@ function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionI
         {isLive && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
         <span className="font-semibold text-sm truncate">{session.title}</span>
       </div>
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
           {session.startTime}
@@ -66,7 +68,13 @@ function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionI
           <Users className="h-3 w-3" />
           {session.signupCount || 0}/{session.maxPlayers}
         </span>
-        {clubName && <span className="truncate">{clubName}</span>}
+        {venueName && (
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
+            <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
+          </span>
+        )}
+        {!venueName && clubName && <span className="truncate">{clubName}</span>}
       </div>
     </div>
   );
@@ -129,7 +137,7 @@ function TimelineSessionCard({
             {venueName && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{venueName}</span>
+                <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
               </div>
             )}
             {session.sessionFee != null && (
@@ -260,7 +268,7 @@ function SessionPreviewDialog({
             {venueName && (
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>{venueName}</span>
+                <span>{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
               </div>
             )}
             {clubName && (
@@ -742,7 +750,7 @@ export function GroupedView({ sessions, clubs, onSessionClick }: SessionViewProp
                             <span className="font-medium text-sm">
                               {format(new Date(s.date), "EEE, d MMM")}
                             </span>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                               <span>{s.startTime}</span>
                               <span>·</span>
                               <span>{s.signupCount || 0}/{s.maxPlayers} players</span>
@@ -750,6 +758,15 @@ export function GroupedView({ sessions, clubs, onSessionClick }: SessionViewProp
                                 <>
                                   <span>·</span>
                                   <span>£{(s.sessionFee / 100).toFixed(2)}</span>
+                                </>
+                              )}
+                              {(s as any).venue?.name && (
+                                <>
+                                  <span>·</span>
+                                  <span className="flex items-center gap-0.5">
+                                    <MapPin className="h-3 w-3" />
+                                    {(s as any).venue.name}{(s as any).venue.city ? `, ${(s as any).venue.city}` : ""}
+                                  </span>
                                 </>
                               )}
                             </div>

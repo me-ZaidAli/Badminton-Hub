@@ -1319,13 +1319,13 @@ export default function Sessions() {
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 cursor-pointer">RSVP</Badge>
                   </div>
                   <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium">{session.courtsAvailable}</span>
                     <span className="text-[10px] text-muted-foreground">Courts</span>
                   </div>
                   {venue && (
                     <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="text-xs font-medium truncate max-w-[120px]">{venue.name}{venue.city ? `, ${venue.city}` : ''}</span>
                     </div>
                   )}
