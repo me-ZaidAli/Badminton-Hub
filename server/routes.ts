@@ -3552,7 +3552,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -3585,6 +3585,7 @@ export async function registerRoutes(
       if (defaultPointsToPlayTo !== undefined) updates.defaultPointsToPlayTo = Number(defaultPointsToPlayTo);
       if (queueTargetSize !== undefined) updates.queueTargetSize = Number(queueTargetSize);
       if (venueId !== undefined) updates.venueId = venueId !== null ? Number(venueId) : null;
+      if (numberOfSets !== undefined) updates.numberOfSets = Number(numberOfSets);
       if (courtNames !== undefined) {
         if (!Array.isArray(courtNames) || !courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
           return res.status(400).json({ message: "Court names must be an array of non-empty strings" });
@@ -3593,10 +3594,14 @@ export async function registerRoutes(
       }
       if (allowedCategories !== undefined) {
         const validCategories = ["D", "C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
-        if (!Array.isArray(allowedCategories) || !allowedCategories.every(c => validCategories.includes(c))) {
-          return res.status(400).json({ message: "Invalid categories" });
+        if (!Array.isArray(allowedCategories)) {
+          return res.status(400).json({ message: "Invalid categories: must be an array" });
         }
-        updates.allowedCategories = allowedCategories;
+        const filtered = allowedCategories.filter((c: string) => validCategories.includes(c));
+        if (filtered.length === 0) {
+          return res.status(400).json({ message: "At least one valid category is required" });
+        }
+        updates.allowedCategories = filtered;
       }
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
 
