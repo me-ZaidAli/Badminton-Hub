@@ -576,8 +576,8 @@ export default function Sessions() {
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const canManageSessions = isPlatformAdmin || (sessionClubs && sessionClubs.length > 0) || false;
-  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
-  const editableClubIds = new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || []));
+  const managedClubIds = useMemo(() => new Set(sessionClubs?.map(c => c.id) || []), [sessionClubs]);
+  const editableClubIds = useMemo(() => new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || [])), [isPlatformAdmin, clubs, adminClubs]);
 
   const { data: memberships } = useQuery<{ clubId: number; membershipStatus: string }[]>({
     queryKey: ["/api/user/memberships"],
@@ -851,6 +851,21 @@ export default function Sessions() {
   const handleSessionClickFromView = (session: any) => {
     setLocation(`/sessions/${session.id}`);
   };
+
+  const viewAdminActions = useMemo(() => {
+    if (!canManageSessions) return undefined;
+    return {
+      editableClubIds,
+      isOrganiserOnly,
+      onCrowdControl: (id: number) => setCrowdSessionId(id),
+      onFinances: (s: any) => setFinanceSession(s),
+      onEdit: (s: any) => setEditSessionFromView(s),
+      onDuplicate: (s: any) => setCopySession(s),
+      onToggleJunior: (s: any) => handleToggleSessionType(s),
+      onDelete: (s: any) => setDeleteSession({ id: s.id, recurringEventId: s.recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
+      onDetails: (s: any) => setDetailsSession(s),
+    };
+  }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 
   // Group sessions by club for super user view
   const sessionsByClub = sessions?.reduce((acc, session) => {
@@ -1204,17 +1219,7 @@ export default function Sessions() {
           sessions={filteredSessions}
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
-          adminActions={canManageSessions ? {
-            editableClubIds,
-            isOrganiserOnly,
-            onCrowdControl: (id) => setCrowdSessionId(id),
-            onFinances: (s) => setFinanceSession(s),
-            onEdit: (s) => setEditSessionFromView(s),
-            onDuplicate: (s) => setCopySession(s),
-            onToggleJunior: (s) => handleToggleSessionType(s),
-            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
-            onDetails: (s) => setDetailsSession(s),
-          } : undefined}
+          adminActions={viewAdminActions}
         />
       )}
 
@@ -1225,17 +1230,7 @@ export default function Sessions() {
           onSessionClick={handleSessionClickFromView}
           mySignupsBySession={mySignupsBySession}
           onSignUp={(session) => setJoinSession(session)}
-          adminActions={canManageSessions ? {
-            editableClubIds,
-            isOrganiserOnly,
-            onCrowdControl: (id) => setCrowdSessionId(id),
-            onFinances: (s) => setFinanceSession(s),
-            onEdit: (s) => setEditSessionFromView(s),
-            onDuplicate: (s) => setCopySession(s),
-            onToggleJunior: (s) => handleToggleSessionType(s),
-            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
-            onDetails: (s) => setDetailsSession(s),
-          } : undefined}
+          adminActions={viewAdminActions}
         />
       )}
 
@@ -1244,17 +1239,7 @@ export default function Sessions() {
           sessions={filteredSessions}
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
-          adminActions={canManageSessions ? {
-            editableClubIds,
-            isOrganiserOnly,
-            onCrowdControl: (id) => setCrowdSessionId(id),
-            onFinances: (s) => setFinanceSession(s),
-            onEdit: (s) => setEditSessionFromView(s),
-            onDuplicate: (s) => setCopySession(s),
-            onToggleJunior: (s) => handleToggleSessionType(s),
-            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
-            onDetails: (s) => setDetailsSession(s),
-          } : undefined}
+          adminActions={viewAdminActions}
         />
       )}
 
