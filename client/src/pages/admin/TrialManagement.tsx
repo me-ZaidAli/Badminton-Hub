@@ -512,7 +512,7 @@ function TrialActions({
           Evaluate
         </Button>
       )}
-      {(trial.status === "EVALUATED" || trial.status === "ATTENDED") && !trial.finalDecision && (
+      {!trial.finalDecision && (
         <div className="flex gap-1">
           <Button size="sm" onClick={() => onDecide("APPROVED")} data-testid={`button-approve-${trial.id}`}>
             <CheckCircle className="h-3 w-3 mr-1" />

@@ -28420,7 +28420,8 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
 
-      const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const upcomingSessions = await db.select({
         session: sessions,
         venue: venues,
@@ -28428,7 +28429,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         .innerJoin(venues, eq(sessions.venueId, venues.id))
         .where(and(
           eq(sessions.clubId, trial.clubId),
-          gt(sessions.date, now),
+          gte(sessions.date, today),
         ))
         .orderBy(asc(sessions.date))
         .limit(20);
