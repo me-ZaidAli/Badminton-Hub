@@ -547,6 +547,7 @@ export default function Sessions() {
   const [crowdSessionId, setCrowdSessionId] = useState<number | null>(null);
   const [joinSession, setJoinSession] = useState<any>(null);
   const [copySession, setCopySession] = useState<any>(null);
+  const [editSessionFromView, setEditSessionFromView] = useState<any>(null);
   const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
   const { mutate: toggleSessionTypeMut } = useUpdateSession();
   const handleToggleSessionType = async (session: any) => {
@@ -1203,6 +1204,17 @@ export default function Sessions() {
           sessions={filteredSessions}
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
+          adminActions={canManageSessions ? {
+            editableClubIds,
+            isOrganiserOnly,
+            onCrowdControl: (id) => setCrowdSessionId(id),
+            onFinances: (s) => setFinanceSession(s),
+            onEdit: (s) => setEditSessionFromView(s),
+            onDuplicate: (s) => setCopySession(s),
+            onToggleJunior: (s) => handleToggleSessionType(s),
+            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
+            onDetails: (s) => setDetailsSession(s),
+          } : undefined}
         />
       )}
 
@@ -1213,6 +1225,17 @@ export default function Sessions() {
           onSessionClick={handleSessionClickFromView}
           mySignupsBySession={mySignupsBySession}
           onSignUp={(session) => setJoinSession(session)}
+          adminActions={canManageSessions ? {
+            editableClubIds,
+            isOrganiserOnly,
+            onCrowdControl: (id) => setCrowdSessionId(id),
+            onFinances: (s) => setFinanceSession(s),
+            onEdit: (s) => setEditSessionFromView(s),
+            onDuplicate: (s) => setCopySession(s),
+            onToggleJunior: (s) => handleToggleSessionType(s),
+            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
+            onDetails: (s) => setDetailsSession(s),
+          } : undefined}
         />
       )}
 
@@ -1221,6 +1244,17 @@ export default function Sessions() {
           sessions={filteredSessions}
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
+          adminActions={canManageSessions ? {
+            editableClubIds,
+            isOrganiserOnly,
+            onCrowdControl: (id) => setCrowdSessionId(id),
+            onFinances: (s) => setFinanceSession(s),
+            onEdit: (s) => setEditSessionFromView(s),
+            onDuplicate: (s) => setCopySession(s),
+            onToggleJunior: (s) => handleToggleSessionType(s),
+            onDelete: (s) => setDeleteSession({ id: s.id, recurringEventId: (s as any).recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
+            onDetails: (s) => setDetailsSession(s),
+          } : undefined}
         />
       )}
 
@@ -1691,6 +1725,16 @@ export default function Sessions() {
           session={copySession}
           sessionClubs={sessionClubs || []}
           onClose={() => setCopySession(null)}
+        />
+      )}
+
+      {editSessionFromView && (
+        <EditSessionDialog
+          session={editSessionFromView}
+          venues={[]}
+          adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])}
+          externalOpen={true}
+          onExternalClose={() => setEditSessionFromView(null)}
         />
       )}
 
@@ -3058,8 +3102,16 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
   );
 }
 
-function EditSessionDialog({ session, venues: propVenues, adminClubs }: { session: any; venues: any[]; adminClubs?: { id: number; name: string }[] }) {
-  const [open, setOpen] = useState(false);
+function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOpen, onExternalClose }: { session: any; venues: any[]; adminClubs?: { id: number; name: string }[]; externalOpen?: boolean; onExternalClose?: () => void }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (externalOpen !== undefined) {
+      if (!val && onExternalClose) onExternalClose();
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const { mutate: updateSession, isPending } = useUpdateSession();
   const [editClubId, setEditClubId] = useState<number>(session.clubId);
   const { data: venues } = useVenues(editClubId || null);
@@ -3172,6 +3224,14 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
     setInviteesLoaded(true);
   };
 
+  const [formInitialized, setFormInitialized] = useState(false);
+  useEffect(() => {
+    if (externalOpen && !formInitialized) {
+      setFormInitialized(true);
+      initializeForm();
+    }
+  }, [externalOpen]);
+
   const getUpdatesPayload = () => {
     const publishAt = editScheduleEnabled ? computePublishAt(editDate, editWeeksBefore) : null;
     return {
@@ -3242,22 +3302,24 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs }: { sessio
       setOpen(isOpen);
       if (isOpen) initializeForm();
     }}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
-              data-testid={`button-edit-session-${session.id}`}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
-          </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Edit Session</TooltipContent>
-      </Tooltip>
+      {externalOpen === undefined && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+                data-testid={`button-edit-session-${session.id}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Edit Session</TooltipContent>
+        </Tooltip>
+      )}
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Session</DialogTitle>

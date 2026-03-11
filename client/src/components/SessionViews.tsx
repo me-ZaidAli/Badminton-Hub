@@ -3,8 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -27,10 +29,23 @@ type SessionItem = {
   [key: string]: any;
 };
 
+type AdminActions = {
+  editableClubIds: Set<number>;
+  isOrganiserOnly: boolean;
+  onCrowdControl: (sessionId: number) => void;
+  onFinances: (session: SessionItem) => void;
+  onEdit: (session: SessionItem) => void;
+  onDuplicate: (session: SessionItem) => void;
+  onToggleJunior: (session: SessionItem) => void;
+  onDelete: (session: SessionItem) => void;
+  onDetails: (session: SessionItem) => void;
+};
+
 type SessionViewProps = {
   sessions: SessionItem[];
   clubs: any[];
   onSessionClick: (session: SessionItem) => void;
+  adminActions?: AdminActions;
 };
 
 type TimelineViewProps = SessionViewProps & {
@@ -38,7 +53,7 @@ type TimelineViewProps = SessionViewProps & {
   onSignUp?: (session: SessionItem) => void;
 };
 
-function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void }) {
+function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void; adminActions?: AdminActions }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date();
   const isLive = session.status === "ACTIVE";
@@ -76,6 +91,60 @@ function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionI
         )}
         {!venueName && clubName && <span className="truncate">{clubName}</span>}
       </div>
+      {adminActions?.editableClubIds.has(session.clubId) && (
+        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => adminActions.onDetails(session)} data-testid={`button-rsvp-mini-${session.id}`}>
+                <Users className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>RSVP</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => adminActions.onEdit(session)} data-testid={`button-edit-mini-${session.id}`}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => adminActions.onCrowdControl(session.id)} data-testid={`button-crowd-mini-${session.id}`}>
+                <BarChart3 className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Crowd</TooltipContent>
+          </Tooltip>
+          <div className="flex-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" data-testid={`button-more-mini-${session.id}`}>
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {!adminActions.isOrganiserOnly && (
+                <DropdownMenuItem onClick={() => adminActions.onFinances(session)}>
+                  <Wallet className="h-4 w-4 mr-2" />Finances
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => adminActions.onDuplicate(session)}>
+                <Copy className="h-4 w-4 mr-2" />Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => adminActions.onToggleJunior(session)}>
+                <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+                {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={() => adminActions.onDelete(session)}>
+                <Trash2 className="h-4 w-4 mr-2" />Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 }
@@ -186,6 +255,118 @@ function TimelineSessionCard({
   );
 }
 
+function AdminControlsBar({ session, adminActions }: { session: SessionItem; adminActions: AdminActions }) {
+  const canManage = adminActions.editableClubIds.has(session.clubId);
+  if (!canManage) return null;
+
+  return (
+    <div className="pt-3 border-t border-border/30">
+      <div className="flex items-center gap-1 flex-wrap">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+              onClick={(e) => { e.stopPropagation(); adminActions.onDetails(session); }}
+              data-testid={`button-rsvp-view-${session.id}`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">RSVP</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>RSVP List</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+              onClick={(e) => { e.stopPropagation(); adminActions.onCrowdControl(session.id); }}
+              data-testid={`button-crowd-view-${session.id}`}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Crowd</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Crowd Control</TooltipContent>
+        </Tooltip>
+        {!adminActions.isOrganiserOnly && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+                onClick={(e) => { e.stopPropagation(); adminActions.onFinances(session); }}
+                data-testid={`button-finance-view-${session.id}`}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Finances</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Session Finances</TooltipContent>
+          </Tooltip>
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+              onClick={(e) => { e.stopPropagation(); adminActions.onEdit(session); }}
+              data-testid={`button-edit-view-${session.id}`}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit Session</TooltipContent>
+        </Tooltip>
+        <div className="flex-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-lg h-8 w-8 p-0 text-muted-foreground"
+              data-testid={`button-more-view-${session.id}`}
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={(e) => { e.stopPropagation(); adminActions.onDuplicate(session); }}
+              data-testid={`button-copy-view-${session.id}`}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate Session
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => { e.stopPropagation(); adminActions.onToggleJunior(session); }}
+              data-testid={`button-toggle-junior-view-${session.id}`}
+            >
+              <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+              {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+              onClick={(e) => { e.stopPropagation(); adminActions.onDelete(session); }}
+              data-testid={`button-delete-view-${session.id}`}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Session
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
 function SessionPreviewDialog({
   session,
   clubs,
@@ -194,6 +375,7 @@ function SessionPreviewDialog({
   onOpenChange,
   onSignUp,
   onNavigate,
+  adminActions,
 }: {
   session: SessionItem;
   clubs: any[];
@@ -202,6 +384,7 @@ function SessionPreviewDialog({
   onOpenChange: (open: boolean) => void;
   onSignUp: (session: SessionItem) => void;
   onNavigate: (session: SessionItem) => void;
+  adminActions?: AdminActions;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
@@ -357,13 +540,46 @@ function SessionPreviewDialog({
               Sign Up
             </Button>
           )}
+
+          {adminActions && (
+            <AdminControlsBar
+              session={session}
+              adminActions={{
+                ...adminActions,
+                onDetails: (s) => { onOpenChange(false); adminActions.onDetails(s); },
+                onCrowdControl: (id) => { onOpenChange(false); adminActions.onCrowdControl(id); },
+                onFinances: (s) => { onOpenChange(false); adminActions.onFinances(s); },
+                onEdit: (s) => { onOpenChange(false); adminActions.onEdit(s); },
+                onDuplicate: (s) => { onOpenChange(false); adminActions.onDuplicate(s); },
+                onToggleJunior: (s) => { onOpenChange(false); adminActions.onToggleJunior(s); },
+                onDelete: (s) => { onOpenChange(false); adminActions.onDelete(s); },
+              }}
+            />
+          )}
+
+          {adminActions?.editableClubIds.has(session.clubId) && (
+            <div className="flex justify-center">
+              <Link href={`/sessions/${session.id}`}>
+                <Button
+                  className="rounded-xl font-medium gap-2"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  data-testid={`button-start-session-view-${session.id}`}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                  Open Session
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-export function CalendarView({ sessions, clubs, onSessionClick }: SessionViewProps) {
+export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: SessionViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
@@ -472,7 +688,7 @@ export function CalendarView({ sessions, clubs, onSessionClick }: SessionViewPro
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {selectedDaySessions.map(s => (
-                <SessionMiniCard key={s.id} session={s} clubs={clubs} onSessionClick={onSessionClick} />
+                <SessionMiniCard key={s.id} session={s} clubs={clubs} onSessionClick={onSessionClick} adminActions={adminActions} />
               ))}
             </div>
           )}
@@ -482,7 +698,7 @@ export function CalendarView({ sessions, clubs, onSessionClick }: SessionViewPro
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp }: TimelineViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, adminActions }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
 
   const grouped = useMemo(() => {
@@ -523,7 +739,8 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
   const handleCardClick = (session: SessionItem) => {
     const mySignup = mySignupsBySession?.get(session.id);
     const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
-    if (isSignedUp) {
+    const isAdmin = adminActions?.editableClubIds.has(session.clubId);
+    if (isSignedUp && !isAdmin) {
       onSessionClick(session);
     } else {
       setPreviewSession(session);
@@ -594,13 +811,14 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
             setPreviewSession(null);
             onSessionClick(s);
           }}
+          adminActions={adminActions}
         />
       )}
     </div>
   );
 }
 
-export function GroupedView({ sessions, clubs, onSessionClick }: SessionViewProps) {
+export function GroupedView({ sessions, clubs, onSessionClick, adminActions }: SessionViewProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const groups = useMemo(() => {
@@ -775,6 +993,54 @@ export function GroupedView({ sessions, clubs, onSessionClick }: SessionViewProp
                         <div className="flex items-center gap-2">
                           {isLive && <Badge className="bg-green-600 text-white text-[10px]">LIVE</Badge>}
                           {isPast && <Badge variant="outline" className="text-[10px]">Past</Badge>}
+                          {adminActions?.editableClubIds.has(s.clubId) && (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={(e) => { e.stopPropagation(); adminActions.onDetails(s); }} data-testid={`button-rsvp-grouped-${s.id}`}>
+                                    <Users className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>RSVP List</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={(e) => { e.stopPropagation(); adminActions.onEdit(s); }} data-testid={`button-edit-grouped-${s.id}`}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit</TooltipContent>
+                              </Tooltip>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={(e) => e.stopPropagation()} data-testid={`button-more-grouped-${s.id}`}>
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onCrowdControl(s.id); }}>
+                                    <BarChart3 className="h-4 w-4 mr-2" />Crowd Control
+                                  </DropdownMenuItem>
+                                  {!adminActions.isOrganiserOnly && (
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onFinances(s); }}>
+                                      <Wallet className="h-4 w-4 mr-2" />Finances
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onDuplicate(s); }}>
+                                    <Copy className="h-4 w-4 mr-2" />Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onToggleJunior(s); }}>
+                                    <Baby className={`h-4 w-4 mr-2 ${s.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
+                                    {s.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={(e) => { e.stopPropagation(); adminActions.onDelete(s); }}>
+                                    <Trash2 className="h-4 w-4 mr-2" />Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </>
+                          )}
                           <Link href={`/sessions/${s.id}`}>
                             <Button size="sm" variant="ghost" className="text-xs" data-testid={`button-view-grouped-${s.id}`}>
                               View
