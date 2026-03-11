@@ -2953,10 +2953,15 @@ export async function registerRoutes(
         continue;
       }
 
-      const alreadySignedUp = signups.some(s => s.playerId === profile.id);
-      if (alreadySignedUp) {
+      const activeSignup = signups.find(s => s.playerId === profile.id && ((s as any).signupStatus === "CONFIRMED" || (s as any).signupStatus === "WAITING" || !(s as any).signupStatus));
+      if (activeSignup) {
         errors.push(`${targetUser.fullName}: Already signed up`);
         continue;
+      }
+
+      const cancelledSignup = signups.find(s => s.playerId === profile.id && (s as any).signupStatus === "CANCELLED");
+      if (cancelledSignup) {
+        await db.delete(sessionSignups).where(eq(sessionSignups.id, cancelledSignup.id));
       }
 
       let fee = baseFee;
