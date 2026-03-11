@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -30,6 +31,11 @@ type SessionViewProps = {
   sessions: SessionItem[];
   clubs: any[];
   onSessionClick: (session: SessionItem) => void;
+};
+
+type TimelineViewProps = SessionViewProps & {
+  mySignupsBySession?: Map<number, any>;
+  onSignUp?: (session: SessionItem) => void;
 };
 
 function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void }) {
@@ -63,6 +69,289 @@ function SessionMiniCard({ session, clubs, onSessionClick }: { session: SessionI
         {clubName && <span className="truncate">{clubName}</span>}
       </div>
     </div>
+  );
+}
+
+function TimelineSessionCard({
+  session,
+  clubs,
+  mySignup,
+  onClick,
+}: {
+  session: SessionItem;
+  clubs: any[];
+  mySignup?: any;
+  onClick: () => void;
+}) {
+  const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
+  const isPast = new Date(session.date) < new Date(new Date().toDateString());
+  const isLive = session.status === "ACTIVE";
+  const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
+  const isWaiting = mySignup?.signupStatus === "WAITING";
+  const venue = (session as any).venue;
+  const venueName = venue?.name || "";
+  const spotsLeft = session.maxPlayers - (session.signupCount || 0);
+  const isFull = spotsLeft <= 0;
+
+  return (
+    <div
+      className={`p-4 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
+        isSignedUp ? "border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/15 ring-1 ring-emerald-300/40" :
+        isLive ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" :
+        isPast ? "border-border/30 opacity-70" :
+        "border-border/50 hover:border-primary/30 bg-card"
+      }`}
+      onClick={onClick}
+      data-testid={`timeline-session-${session.id}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            {isLive && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />}
+            {isSignedUp && (
+              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+            )}
+            <h4 className="font-bold text-sm sm:text-base truncate">{session.title}</h4>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{session.startTime} · {session.durationMinutes}min</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Users className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className={isFull && !isPast ? "text-red-500 font-medium" : ""}>
+                {session.signupCount || 0}/{session.maxPlayers}
+                {!isPast && (isFull ? " (Full)" : ` (${spotsLeft} left)`)}
+              </span>
+            </div>
+            {venueName && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{venueName}</span>
+              </div>
+            )}
+            {session.sessionFee != null && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <PoundSterling className="h-3.5 w-3.5 flex-shrink-0" />
+                <span>£{(session.sessionFee / 100).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+              session.matchMode === "COMPETITIVE"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                : session.matchMode === "TRAINING"
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            }`}>
+              {session.matchMode}
+            </span>
+            {session.genderRestriction === "FEMALE_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females</span>
+            )}
+            {session.sessionType === "JUNIORS_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
+            )}
+            {clubName && (
+              <span className="text-[10px] text-muted-foreground">{clubName}</span>
+            )}
+            {isLive && <Badge className="bg-green-600 text-white text-[10px] h-5">LIVE</Badge>}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {isSignedUp && (
+            <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
+              {isWaiting ? "Waiting" : "Signed Up"}
+            </Badge>
+          )}
+          {session.courtsAvailable > 0 && (
+            <span className="text-[10px] text-muted-foreground">{session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionPreviewDialog({
+  session,
+  clubs,
+  mySignup,
+  open,
+  onOpenChange,
+  onSignUp,
+  onNavigate,
+}: {
+  session: SessionItem;
+  clubs: any[];
+  mySignup?: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSignUp: (session: SessionItem) => void;
+  onNavigate: (session: SessionItem) => void;
+}) {
+  const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
+  const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
+  const isWaiting = mySignup?.signupStatus === "WAITING";
+  const isPast = new Date(session.date) < new Date(new Date().toDateString());
+  const isCompleted = session.status === "COMPLETED" || session.status === "CANCELLED";
+  const isLive = session.status === "ACTIVE";
+  const venue = (session as any).venue;
+  const venueName = venue?.name || "";
+  const spotsLeft = session.maxPlayers - (session.signupCount || 0);
+  const isFull = spotsLeft <= 0;
+  const isScheduledLater = (session as any).publishAt && new Date((session as any).publishAt) > new Date();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" data-testid="dialog-session-preview">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2" data-testid="text-preview-title">
+            {isLive && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />}
+            {session.title}
+          </DialogTitle>
+          <DialogDescription>
+            {format(new Date(session.date), "EEEE, d MMMM yyyy")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Time</p>
+                <p className="text-sm font-medium">{session.startTime}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+              <Timer className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Duration</p>
+                <p className="text-sm font-medium">{session.durationMinutes} min</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Players</p>
+                <p className={`text-sm font-medium ${isFull ? "text-red-500" : ""}`}>
+                  {session.signupCount || 0} / {session.maxPlayers}
+                </p>
+              </div>
+            </div>
+            {session.sessionFee != null && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                <PoundSterling className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Fee</p>
+                  <p className="text-sm font-medium">£{(session.sessionFee / 100).toFixed(2)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {venueName && (
+              <div className="flex items-center gap-2 text-sm">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span>{venueName}</span>
+              </div>
+            )}
+            {clubName && (
+              <div className="flex items-center gap-2 text-sm">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <span>{clubName}</span>
+              </div>
+            )}
+            {session.courtsAvailable > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <Swords className="h-4 w-4 text-muted-foreground" />
+                <span>{session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase ${
+              session.matchMode === "COMPETITIVE"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                : session.matchMode === "TRAINING"
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            }`}>
+              {session.matchMode}
+            </span>
+            {session.genderRestriction === "FEMALE_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females Only</span>
+            )}
+            {session.sessionType === "JUNIORS_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
+            )}
+            {session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 9 && (
+              <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium bg-muted text-muted-foreground">
+                {session.allowedCategories.join(", ")}
+              </span>
+            )}
+            {isLive && <Badge className="bg-green-600 text-white">LIVE</Badge>}
+          </div>
+
+          {isSignedUp ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-4 py-3">
+                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  {isWaiting ? "You're on the waiting list" : "You're signed up for this session"}
+                </span>
+              </div>
+              <Button
+                className="w-full rounded-xl font-semibold"
+                onClick={() => {
+                  onOpenChange(false);
+                  onNavigate(session);
+                }}
+                data-testid="button-go-to-session"
+              >
+                Go to Session
+              </Button>
+            </div>
+          ) : isPast || isCompleted ? (
+            <Button
+              variant="outline"
+              className="w-full rounded-xl"
+              onClick={() => {
+                onOpenChange(false);
+                onNavigate(session);
+              }}
+              data-testid="button-view-session"
+            >
+              View Session
+            </Button>
+          ) : isScheduledLater ? (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              Signups not yet open
+            </div>
+          ) : (
+            <Button
+              className="w-full rounded-xl font-semibold text-base py-5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+              onClick={() => {
+                onOpenChange(false);
+                onSignUp(session);
+              }}
+              data-testid="button-signup-session"
+            >
+              <Zap className="h-5 w-5 mr-2" />
+              Sign Up
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -185,7 +474,9 @@ export function CalendarView({ sessions, clubs, onSessionClick }: SessionViewPro
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick }: SessionViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp }: TimelineViewProps) {
+  const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
+
   const grouped = useMemo(() => {
     const groups: { label: string; key: string; sessions: SessionItem[] }[] = [];
     const map = new Map<string, SessionItem[]>();
@@ -221,6 +512,16 @@ export function TimelineView({ sessions, clubs, onSessionClick }: SessionViewPro
     return <p className="text-center text-muted-foreground py-8">No sessions to display</p>;
   }
 
+  const handleCardClick = (session: SessionItem) => {
+    const mySignup = mySignupsBySession?.get(session.id);
+    const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
+    if (isSignedUp) {
+      onSessionClick(session);
+    } else {
+      setPreviewSession(session);
+    }
+  };
+
   return (
     <div className="relative">
       <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-0.5 bg-border" />
@@ -252,17 +553,41 @@ export function TimelineView({ sessions, clubs, onSessionClick }: SessionViewPro
                 </Badge>
               </div>
 
-              <div className="ml-8 sm:ml-10 space-y-2">
+              <div className="ml-8 sm:ml-10 space-y-3">
                 {group.sessions
                   .sort((a, b) => a.startTime.localeCompare(b.startTime))
                   .map(s => (
-                    <SessionMiniCard key={s.id} session={s} clubs={clubs} onSessionClick={onSessionClick} />
+                    <TimelineSessionCard
+                      key={s.id}
+                      session={s}
+                      clubs={clubs}
+                      mySignup={mySignupsBySession?.get(s.id)}
+                      onClick={() => handleCardClick(s)}
+                    />
                   ))}
               </div>
             </div>
           );
         })}
       </div>
+
+      {previewSession && (
+        <SessionPreviewDialog
+          session={previewSession}
+          clubs={clubs}
+          mySignup={mySignupsBySession?.get(previewSession.id)}
+          open={!!previewSession}
+          onOpenChange={(open) => { if (!open) setPreviewSession(null); }}
+          onSignUp={(s) => {
+            setPreviewSession(null);
+            if (onSignUp) onSignUp(s);
+          }}
+          onNavigate={(s) => {
+            setPreviewSession(null);
+            onSessionClick(s);
+          }}
+        />
+      )}
     </div>
   );
 }

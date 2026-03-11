@@ -2910,7 +2910,7 @@ export async function registerRoutes(
     }
 
     const signups = await storage.getSessionSignups(sessionId);
-    const confirmedCount = signups.filter(s => (s as any).signupStatus !== "CANCELLED").length;
+    const confirmedCount = signups.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus).length;
     let baseFee = session.sessionFee;
     if (baseFee == null) {
       const club = await storage.getClub(session.clubId);

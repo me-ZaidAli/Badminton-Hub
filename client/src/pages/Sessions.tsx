@@ -536,7 +536,7 @@ export default function Sessions() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"cards" | "calendar" | "timeline" | "grouped">(() => {
     const saved = localStorage.getItem("sessionsViewMode");
-    return (saved as any) || "cards";
+    return (saved as any) || "timeline";
   });
   const [timeRange, setTimeRange] = useState<"all" | "week" | "2weeks" | "month">("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -1012,9 +1012,9 @@ export default function Sessions() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
           {([
+            { key: "timeline" as const, icon: AlignJustify, label: "Timeline" },
             { key: "cards" as const, icon: LayoutGrid, label: "Cards" },
             { key: "calendar" as const, icon: CalendarDays, label: "Calendar" },
-            { key: "timeline" as const, icon: AlignJustify, label: "Timeline" },
             { key: "grouped" as const, icon: Layers, label: "Grouped" },
           ]).map(v => (
             <Button
@@ -1211,6 +1211,8 @@ export default function Sessions() {
           sessions={filteredSessions}
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
+          mySignupsBySession={mySignupsBySession}
+          onSignUp={(session) => setJoinSession(session)}
         />
       )}
 
