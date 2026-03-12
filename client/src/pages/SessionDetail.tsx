@@ -4124,12 +4124,21 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       )}
 
       {isOrganiser && (() => {
-        const allCounts = Object.values(sessionMatchCounts);
-        if (allCounts.length === 0) return null;
-        const maxGames = Math.max(...allCounts);
-        if (maxGames === 0) return null;
-        const minGames = Math.min(...allCounts);
         const confirmedIds = new Set(confirmedSignups.map(s => s.player?.id || s.playerId));
+        const allPlayerCounts = confirmedSignups.map(s => {
+          const pid = s.player?.id || s.playerId;
+          return sessionMatchCounts[pid] || 0;
+        });
+        if (allPlayerCounts.length === 0) return null;
+        const maxGames = Math.max(...allPlayerCounts);
+        if (maxGames === 0) return null;
+        const minGames = Math.min(...allPlayerCounts);
+        const fairnessPercent = Math.round((minGames / maxGames) * 100);
+        const fairnessColor = fairnessPercent >= 80 ? "text-emerald-600 dark:text-emerald-400" : fairnessPercent >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-500 dark:text-red-400";
+        const fairnessBg = fairnessPercent >= 80 ? "bg-emerald-500" : fairnessPercent >= 50 ? "bg-amber-500" : "bg-red-500";
+        const fairnessBorder = fairnessPercent >= 80 ? "border-emerald-200 dark:border-emerald-800/40" : fairnessPercent >= 50 ? "border-amber-200 dark:border-amber-800/40" : "border-red-200 dark:border-red-800/40";
+        const fairnessBgLight = fairnessPercent >= 80 ? "bg-emerald-50 dark:bg-emerald-950/30" : fairnessPercent >= 50 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-red-50 dark:bg-red-950/30";
+
         const zeroGamePlayers = confirmedSignups
           .filter(s => {
             const pid = s.player?.id || s.playerId;
@@ -4147,7 +4156,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           ...zeroGamePlayers.map(n => `${n} (0)`),
           ...belowAvgPlayers.map(p => `${p.name} (${p.count})`)
         ];
-        if (lowGameNames.length === 0 && minGames >= maxGames - 1) return null;
+        const hasLowPlayers = lowGameNames.length > 0 || minGames < maxGames - 1;
         const playersNeedingGames = lowGameNames.length > 0 ? lowGameNames : 
           confirmedSignups
             .filter(s => {
@@ -4155,14 +4164,34 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               return sessionMatchCounts[pid] === minGames && minGames < maxGames;
             })
             .map(s => `${s.player?.user?.fullName || "Unknown"} (${minGames})`);
-        if (playersNeedingGames.length === 0) return null;
+
         return (
-          <div className="flex items-start gap-2 text-sm rounded-md px-3 py-2 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40" data-testid="fairness-alert">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-medium">Priority for next games: </span>
-              <span>{playersNeedingGames.join(", ")}</span>
-              <span className="text-amber-600/70 dark:text-amber-400/60 ml-1">(max: {maxGames} games)</span>
+          <div className={cn("rounded-md border overflow-hidden", fairnessBorder, fairnessBgLight)} data-testid="fairness-gauge-container">
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="relative w-10 h-10">
+                  <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-200 dark:text-gray-700" />
+                    <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeDasharray={`${fairnessPercent * 0.975} 100`} strokeLinecap="round" className={fairnessBg} />
+                  </svg>
+                  <div className={cn("absolute inset-0 flex items-center justify-center text-[10px] font-bold", fairnessColor)} data-testid="text-fairness-percent">
+                    {fairnessPercent}%
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <span className={cn("text-sm font-semibold", fairnessColor)}>Fairness</span>
+                  <span className="text-[10px] text-muted-foreground">{minGames}–{maxGames} games</span>
+                </div>
+              </div>
+              {hasLowPlayers && playersNeedingGames.length > 0 && (
+                <div className="flex-1 min-w-0 border-l border-border/40 pl-3">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    <span className="font-medium">Priority:</span>
+                    <span className="truncate">{playersNeedingGames.join(", ")}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
