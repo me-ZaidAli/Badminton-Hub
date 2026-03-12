@@ -393,6 +393,37 @@ function scorePairing(
       score += 5;
       factors.push(`both teams have 1+ female: +5`);
     }
+
+    const allMatchPlayers = [...team, ...opponents];
+    const grades = allMatchPlayers.map(id => {
+      const p = getPlayer(id);
+      return p ? getGradeRank(p.grade) : 1;
+    });
+    const gradeMin = Math.min(...grades);
+    const gradeMax = Math.max(...grades);
+    const gradeSpread = gradeMax - gradeMin;
+
+    if (gradeSpread <= 2) {
+      score += 50;
+      factors.push(`tight grade spread(${gradeSpread}): +50`);
+      if (gradeSpread === 0) {
+        score += 30;
+        factors.push(`same grade all: +30`);
+      }
+    } else {
+      const gradePenalty = -(gradeSpread - 2) * 25;
+      score += gradePenalty;
+      factors.push(`wide grade spread(${gradeSpread}): ${gradePenalty}`);
+    }
+
+    const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
+    if (avgGrade >= 6 && gradeSpread <= 2) {
+      score += 40;
+      factors.push(`high-level quality match(avg ${avgGrade.toFixed(1)}): +40`);
+    } else if (avgGrade >= 4 && gradeSpread <= 2) {
+      score += 20;
+      factors.push(`mid-level quality match(avg ${avgGrade.toFixed(1)}): +20`);
+    }
   }
 
   return { score, factors };
@@ -985,9 +1016,9 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
         const teamBAvg = (gradeB1 + gradeB2) / 2;
         const diff = Math.abs(teamAAvg - teamBAvg);
         if (diff > 0) {
-          const balancePenalty = -diff * 5;
+          const balancePenalty = -diff * 15;
           s += balancePenalty;
-          factors.push(`grade balance diff(${diff.toFixed(1)}): ${balancePenalty.toFixed(1)}`);
+          factors.push(`comp grade balance diff(${diff.toFixed(1)}): ${balancePenalty.toFixed(1)}`);
         }
 
         const catA1 = getCategoryFromGrade(pA1.grade);
@@ -997,17 +1028,17 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
         const allCats = [catA1, catA2, catB1, catB2];
         const uniqueCats = new Set(allCats);
         if (uniqueCats.size === 1) {
-          s += 20;
-          factors.push(`all same category(${catA1}): +20`);
+          s += 35;
+          factors.push(`all same category(${catA1}): +35`);
         } else if (catA1 === catA2 && catB1 === catB2) {
-          s += 10;
-          factors.push(`teams same category(${catA1} vs ${catB1}): +10`);
+          s += 15;
+          factors.push(`teams same category(${catA1} vs ${catB1}): +15`);
         }
 
         const highCount = [gradeA1, gradeA2, gradeB1, gradeB2].filter(g => g >= 6).length;
         if (highCount === 4) {
-          s += 15;
-          factors.push(`all high ranked: +15`);
+          s += 30;
+          factors.push(`all high ranked: +30`);
         } else if (highCount >= 3) {
           s += 8;
           factors.push(`mostly high ranked(${highCount}/4): +8`);
@@ -1194,16 +1225,27 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       const countB = localCounts.get(candidate.teamBPlayer1Id) || 0;
       const deficitA = countA - globalMin;
       const deficitB = countB - globalMin;
-      const gradeBalancePenalty = -gradeDiff * 5;
-      let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20) + gradeBalancePenalty;
+      let gradeQuality = 0;
       const factors: string[] = [];
+      if (gradeDiff <= 2) {
+        gradeQuality = 50 + (gradeDiff === 0 ? 30 : 0);
+        factors.push(`tight grade match(diff ${gradeDiff}): +${gradeQuality}`);
+      } else {
+        gradeQuality = -(gradeDiff - 2) * 25;
+        factors.push(`wide grade gap(${gradeDiff}): ${gradeQuality}`);
+      }
+      const gradeBalancePenalty = -gradeDiff * 15;
+      let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20) + gradeBalancePenalty + gradeQuality;
       if (oppCount > 0) factors.push(`opponent repeat x${oppCount}: ${-oppCount * 10}`);
       if (gradeDiff > 0) factors.push(`grade diff(${gradeDiff}): ${gradeBalancePenalty}`);
       if (deficitA > 0 || deficitB > 0) factors.push(`deficit(${deficitA}+${deficitB}): ${-(deficitA + deficitB) * 100}`);
       const catA = getCategoryFromGrade(pA.grade);
       const catB = getCategoryFromGrade(pB.grade);
-      if (catA === catB) { total += 15; factors.push(`same category(${catA}): +15`); }
-      if (getGradeRank(pA.grade) >= 6 && getGradeRank(pB.grade) >= 6) { total += 10; factors.push(`both high ranked: +10`); }
+      if (catA === catB) { total += 25; factors.push(`same category(${catA}): +25`); }
+      const gA = getGradeRank(pA.grade);
+      const gB = getGradeRank(pB.grade);
+      if (gA >= 6 && gB >= 6 && gradeDiff <= 2) { total += 40; factors.push(`high-level quality: +40`); }
+      else if (gA >= 4 && gB >= 4 && gradeDiff <= 2) { total += 20; factors.push(`mid-level quality: +20`); }
       if (priorityPlayerIds && priorityPlayerIds.length > 0) {
         if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
         if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
