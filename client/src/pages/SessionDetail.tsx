@@ -3178,6 +3178,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
   const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{ roundIdx: number; matchIdx: number; position: string; currentPlayerId: number } | null>(null);
+  const [fairnessListOpen, setFairnessListOpen] = useState(false);
 
   const generateFullScheduleMutation = useMutation({
     mutationFn: async (data: { numberOfRounds?: number; genderType?: string; mode?: string }) => {
@@ -3764,6 +3765,81 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               )}
             </div>
 
+            {isOrganiser && (() => {
+              const allPlayerCounts = confirmedSignups.map(s => {
+                const pid = s.player?.id || s.playerId;
+                return sessionMatchCounts[pid] || 0;
+              });
+              const maxGames = allPlayerCounts.length > 0 ? Math.max(...allPlayerCounts) : 0;
+              const minGames = allPlayerCounts.length > 0 ? Math.min(...allPlayerCounts) : 0;
+              const fairnessPercent = maxGames > 0 ? Math.round((minGames / maxGames) * 100) : 100;
+              const fairnessColor = fairnessPercent >= 80 ? "text-emerald-500" : fairnessPercent >= 50 ? "text-amber-500" : "text-red-500";
+              const fairnessStroke = fairnessPercent >= 80 ? "stroke-emerald-500" : fairnessPercent >= 50 ? "stroke-amber-500" : "stroke-red-500";
+              const fairnessGlow = fairnessPercent >= 80 ? "drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" : fairnessPercent >= 50 ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]";
+              const playerList = confirmedSignups
+                .map(s => ({ name: s.player?.user?.fullName || "Unknown", count: sessionMatchCounts[s.player?.id || s.playerId] || 0 }))
+                .sort((a, b) => a.count - b.count);
+              if (maxGames === 0) return null;
+              return (
+                <div className="rounded-2xl border border-slate-200 dark:border-white/[0.07] bg-slate-50/50 dark:bg-white/[0.03] p-4" data-testid="fairness-panel">
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-16 h-16 shrink-0">
+                      <svg viewBox="0 0 36 36" className={cn("w-16 h-16 -rotate-90", fairnessGlow)}>
+                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" className="stroke-gray-200 dark:stroke-white/10" />
+                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" strokeDasharray={`${fairnessPercent * 0.975} 100`} strokeLinecap="round" className={fairnessStroke} />
+                      </svg>
+                      <div className={cn("absolute inset-0 flex items-center justify-center text-base font-bold", fairnessColor)} data-testid="text-fairness-percent">
+                        {fairnessPercent}%
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={cn("text-sm font-bold", fairnessColor)}>Fairness</span>
+                          <span className="text-xs text-gray-400 dark:text-white/40 ml-2">{minGames}–{maxGames} games</span>
+                        </div>
+                        <button
+                          onClick={() => setFairnessListOpen(prev => !prev)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 transition-colors rounded-full border border-slate-200 dark:border-white/10 px-2.5 py-1"
+                          data-testid="button-toggle-fairness-list"
+                        >
+                          {playerList.length} players
+                          {fairnessListOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+                      </div>
+                      {!fairnessListOpen && (() => {
+                        const needPriority = playerList.filter(p => p.count < maxGames && (maxGames - p.count) >= 2);
+                        if (needPriority.length === 0) return null;
+                        return (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{needPriority.map(p => `${p.name} (${p.count})`).join(", ")}</span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  {fairnessListOpen && (
+                    <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.07] bg-white dark:bg-slate-900/60 divide-y divide-slate-100 dark:divide-white/[0.05]" data-testid="fairness-player-list">
+                      {playerList.map((p, i) => {
+                        const barWidth = maxGames > 0 ? Math.round((p.count / maxGames) * 100) : 0;
+                        const isLow = p.count < maxGames && (maxGames - p.count) >= 2;
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-3 py-2">
+                            <span className={cn("text-xs font-medium flex-1 min-w-0 truncate", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-700 dark:text-white/70")}>{p.name}</span>
+                            <div className="w-20 h-1.5 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0">
+                              <div className={cn("h-full rounded-full transition-all", isLow ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${barWidth}%` }} />
+                            </div>
+                            <span className={cn("text-xs font-bold tabular-nums w-5 text-right", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/50")}>{p.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {isOrganiser && (
               <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
                 <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
@@ -4122,80 +4198,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           )}
         </div>
       )}
-
-      {isOrganiser && (() => {
-        const confirmedIds = new Set(confirmedSignups.map(s => s.player?.id || s.playerId));
-        const allPlayerCounts = confirmedSignups.map(s => {
-          const pid = s.player?.id || s.playerId;
-          return sessionMatchCounts[pid] || 0;
-        });
-        if (allPlayerCounts.length === 0) return null;
-        const maxGames = Math.max(...allPlayerCounts);
-        if (maxGames === 0) return null;
-        const minGames = Math.min(...allPlayerCounts);
-        const fairnessPercent = Math.round((minGames / maxGames) * 100);
-        const fairnessColor = fairnessPercent >= 80 ? "text-emerald-600 dark:text-emerald-400" : fairnessPercent >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-500 dark:text-red-400";
-        const fairnessBg = fairnessPercent >= 80 ? "bg-emerald-500" : fairnessPercent >= 50 ? "bg-amber-500" : "bg-red-500";
-        const fairnessBorder = fairnessPercent >= 80 ? "border-emerald-200 dark:border-emerald-800/40" : fairnessPercent >= 50 ? "border-amber-200 dark:border-amber-800/40" : "border-red-200 dark:border-red-800/40";
-        const fairnessBgLight = fairnessPercent >= 80 ? "bg-emerald-50 dark:bg-emerald-950/30" : fairnessPercent >= 50 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-red-50 dark:bg-red-950/30";
-
-        const zeroGamePlayers = confirmedSignups
-          .filter(s => {
-            const pid = s.player?.id || s.playerId;
-            return confirmedIds.has(pid) && !(pid in sessionMatchCounts);
-          })
-          .map(s => s.player?.user?.fullName || "Unknown");
-        const belowAvgPlayers = confirmedSignups
-          .filter(s => {
-            const pid = s.player?.id || s.playerId;
-            const count = sessionMatchCounts[pid];
-            return count !== undefined && count < maxGames && (maxGames - count) >= 2;
-          })
-          .map(s => ({ name: s.player?.user?.fullName || "Unknown", count: sessionMatchCounts[s.player?.id || s.playerId] }));
-        const lowGameNames = [
-          ...zeroGamePlayers.map(n => `${n} (0)`),
-          ...belowAvgPlayers.map(p => `${p.name} (${p.count})`)
-        ];
-        const hasLowPlayers = lowGameNames.length > 0 || minGames < maxGames - 1;
-        const playersNeedingGames = lowGameNames.length > 0 ? lowGameNames : 
-          confirmedSignups
-            .filter(s => {
-              const pid = s.player?.id || s.playerId;
-              return sessionMatchCounts[pid] === minGames && minGames < maxGames;
-            })
-            .map(s => `${s.player?.user?.fullName || "Unknown"} (${minGames})`);
-
-        return (
-          <div className={cn("rounded-md border overflow-hidden", fairnessBorder, fairnessBgLight)} data-testid="fairness-gauge-container">
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="relative w-10 h-10">
-                  <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
-                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-200 dark:text-gray-700" />
-                    <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeDasharray={`${fairnessPercent * 0.975} 100`} strokeLinecap="round" className={fairnessBg} />
-                  </svg>
-                  <div className={cn("absolute inset-0 flex items-center justify-center text-[10px] font-bold", fairnessColor)} data-testid="text-fairness-percent">
-                    {fairnessPercent}%
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <span className={cn("text-sm font-semibold", fairnessColor)}>Fairness</span>
-                  <span className="text-[10px] text-muted-foreground">{minGames}–{maxGames} games</span>
-                </div>
-              </div>
-              {hasLowPlayers && playersNeedingGames.length > 0 && (
-                <div className="flex-1 min-w-0 border-l border-border/40 pl-3">
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
-                    <span className="font-medium">Priority:</span>
-                    <span className="truncate">{playersNeedingGames.join(", ")}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
