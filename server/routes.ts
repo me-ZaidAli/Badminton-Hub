@@ -5117,7 +5117,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/sessions/:sessionId/matches/auto-generate", requirePremium(clubIdFromSession), async (req, res) => {
+  app.post("/api/sessions/:sessionId/matches/auto-generate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
@@ -5271,7 +5271,7 @@ export async function registerRoutes(
   });
 
   // === Smart Match Generation ===
-  app.post("/api/sessions/:sessionId/matches/smart-generate", requirePremium(clubIdFromSession), async (req, res) => {
+  app.post("/api/sessions/:sessionId/matches/smart-generate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
