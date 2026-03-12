@@ -301,6 +301,17 @@ export async function registerRoutes(
   // Set up authentication first
   setupAuth(app);
 
+  const numericParams = ["id", "clubId", "userId", "profileId", "sessionId", "matchId", "signupId", "playerId", "player1Id", "player2Id", "commentId", "contactId", "reportId", "categoryId", "childId", "skillId"];
+  for (const paramName of numericParams) {
+    app.param(paramName, (req, res, next, val) => {
+      const num = Number(val);
+      if (!Number.isSafeInteger(num) || num <= 0) {
+        return res.status(400).json({ message: `Invalid ${paramName}` });
+      }
+      next();
+    });
+  }
+
   // Serve uploaded files
   const express = await import("express");
   app.use("/uploads", express.default.static(path.join(process.cwd(), "public", "uploads")));
