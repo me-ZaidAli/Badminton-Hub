@@ -12,10 +12,16 @@ interface ClubPlan {
 export function useClubPlan(clubId: number | null | undefined) {
   const { data: user } = useUser();
   const isSuperAdmin = user?.role === "OWNER";
+  const validClubId = clubId && Number.isFinite(clubId) && clubId > 0 ? clubId : null;
 
   const { data: plan, isLoading } = useQuery<ClubPlan>({
-    queryKey: ["/api/clubs", clubId, "plan"],
-    enabled: !!clubId && !!user,
+    queryKey: ["/api/clubs", validClubId, "plan"],
+    enabled: !!validClubId && !!user,
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${validClubId}/plan`, { credentials: "include" });
+      if (!res.ok) return { planType: "FREE", planStatus: "FREE", premiumEndDate: null, premiumStartDate: null, sportTypes: ["badminton"] } as ClubPlan;
+      return res.json();
+    },
   });
 
   const isPremium = isSuperAdmin || plan?.planStatus === "ACTIVE_PREMIUM";

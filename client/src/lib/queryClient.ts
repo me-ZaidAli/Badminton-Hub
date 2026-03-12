@@ -41,7 +41,12 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const hasInvalidSegment = queryKey.some((seg, i) => i > 0 && (seg === null || seg === undefined || (typeof seg === "number" && !Number.isFinite(seg))));
+    if (hasInvalidSegment) {
+      throw new Error("Invalid query: contains null/undefined parameter segment");
+    }
+    const url = queryKey.join("/");
+    const res = await fetch(url as string, {
       credentials: "include",
     });
 

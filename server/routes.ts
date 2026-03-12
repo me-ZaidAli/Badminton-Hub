@@ -504,6 +504,9 @@ export async function registerRoutes(
   app.get("/api/clubs/:id/plan", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.id);
+    if (!Number.isSafeInteger(clubId) || clubId <= 0) {
+      return res.status(400).json({ planType: "FREE", planStatus: "FREE", premiumEndDate: null, premiumStartDate: null, sportTypes: ["badminton"] });
+    }
     try {
       const plan = await getClubPlanStatus(clubId);
       const [club] = await db.select({
