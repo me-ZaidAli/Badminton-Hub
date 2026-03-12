@@ -11,7 +11,7 @@ import {
 import {
   Users, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, ChevronUp,
   Activity, Target, Zap, Info, Filter, BarChart3,
-  X, Shield, ChevronRight, ChevronLeft, ArrowUpDown, HelpCircle, Brain
+  X, Shield, ChevronRight, ChevronLeft, ArrowUpDown, HelpCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -53,7 +53,6 @@ type CrowdControlPanelProps = {
   completedCount: number;
   matches?: MatchData[];
   sessionId?: number;
-  aiBrainEnabled?: boolean;
 };
 
 const PGS = {
@@ -852,126 +851,11 @@ function PlayerSidePanel({ player, onClose }: { player: PGSPlayerStats | null; o
   );
 }
 
-function AIIntelligenceMonitor({ sessionId, refreshKey }: { sessionId: number; refreshKey: number }) {
-  const { data: metrics } = useQuery<any>({
-    queryKey: ["/api/sessions", sessionId, "ai-metrics", refreshKey],
-    queryFn: async () => {
-      const res = await fetch(`/api/sessions/${sessionId}/ai-metrics`);
-      if (!res.ok) return null;
-      return res.json();
-    },
-    refetchInterval: 5000,
-  });
-
-  if (!metrics) return null;
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return PGS.green;
-    if (score >= 60) return PGS.amber;
-    return PGS.red;
-  };
-
-  const getBarWidth = (score: number) => `${Math.min(100, Math.max(0, score))}%`;
-
-  return (
-    <div
-      className="rounded-2xl p-4 sm:p-5 space-y-4"
-      style={{ background: PGS.card, border: `1px solid ${PGS.cardBorder}` }}
-      data-testid="ai-intelligence-monitor"
-    >
-      <div className="flex items-center gap-2.5">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: `linear-gradient(135deg, ${PGS.purple}30, ${PGS.blue}20)` }}
-        >
-          <Brain className="w-4.5 h-4.5" style={{ color: PGS.purple }} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold" style={{ color: PGS.heading }}>AI Intelligence Monitor</h3>
-          <p className="text-[10px]" style={{ color: PGS.muted }}>Real-time adaptive fairness metrics</p>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: PGS.green }} />
-          <span className="text-[10px]" style={{ color: PGS.green }}>ACTIVE</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Fairness", value: metrics.fairnessScore ?? 0, icon: Shield },
-          { label: "Gender Balance", value: metrics.genderBalance ?? 0, icon: Users },
-          { label: "Match Quality", value: metrics.matchQualityAvg ?? 0, icon: Target },
-          { label: "Diversity", value: metrics.partnerDiversity ?? 0, icon: Activity },
-        ].map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-xl p-3 space-y-2"
-            style={{ background: PGS.dimBg }}
-            data-testid={`ai-metric-${label.toLowerCase().replace(/\s/g, "-")}`}
-          >
-            <div className="flex items-center gap-1.5">
-              <Icon className="w-3.5 h-3.5" style={{ color: getScoreColor(value) }} />
-              <span className="text-[10px] font-medium" style={{ color: PGS.secondary }}>{label}</span>
-            </div>
-            <div className="text-lg font-bold" style={{ color: getScoreColor(value) }}>
-              {Math.round(value)}
-              <span className="text-[10px] font-normal" style={{ color: PGS.muted }}>/100</span>
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: getBarWidth(value), background: getScoreColor(value) }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {metrics.sessionStage && (
-        <div className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: PGS.dimBg }}>
-          <span className="text-[10px] font-medium" style={{ color: PGS.muted }}>SESSION STAGE</span>
-          <Badge
-            className="text-[10px] px-2 py-0.5 border-0"
-            style={{
-              background: metrics.sessionStage === "EARLY" ? `${PGS.blue}20` : metrics.sessionStage === "MID" ? `${PGS.amber}20` : `${PGS.green}20`,
-              color: metrics.sessionStage === "EARLY" ? PGS.blue : metrics.sessionStage === "MID" ? PGS.amber : PGS.green,
-            }}
-          >
-            {metrics.sessionStage}
-          </Badge>
-          <span className="text-[10px]" style={{ color: PGS.secondary }}>
-            Round {metrics.currentRound || 0} · {metrics.totalMatchesGenerated || 0} matches generated
-          </span>
-        </div>
-      )}
-
-      {metrics.warnings && metrics.warnings.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 mb-1">
-            <AlertTriangle className="w-3.5 h-3.5" style={{ color: PGS.amber }} />
-            <span className="text-[10px] font-semibold" style={{ color: PGS.amber }}>WARNINGS ({metrics.warnings.length})</span>
-          </div>
-          {metrics.warnings.slice(0, 5).map((warning: any, i: number) => (
-            <div
-              key={i}
-              className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]"
-              style={{ background: `${PGS.amber}08`, border: `1px solid ${PGS.amber}20`, color: PGS.secondary }}
-              data-testid={`ai-warning-${i}`}
-            >
-              <span className="text-[8px] mt-0.5" style={{ color: PGS.amber }}>●</span>
-              {typeof warning === "string" ? warning : warning?.message || String(warning)}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function CrowdControlPanel({
   open, onOpenChange, sessionMatchCounts, players,
   liveCount, queuedCount, completedCount, matches = [],
-  sessionId, aiBrainEnabled = false,
+  sessionId,
 }: CrowdControlPanelProps) {
   const [sortColumn, setSortColumn] = useState<string>("challenge");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -1527,10 +1411,6 @@ export function CrowdControlPanel({
                 </div>
               )}
             </div>
-
-            {aiBrainEnabled && sessionId && (
-              <AIIntelligenceMonitor sessionId={sessionId} refreshKey={refreshKey} />
-            )}
 
             <div className="flex items-center justify-center gap-2 pt-1">
               <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: PGS.green }} />

@@ -13,7 +13,7 @@ import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
-import { applyAIBrainLayer, computeSessionMetrics } from "./adaptiveFairnessAI";
+import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
 import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
@@ -5229,9 +5229,6 @@ export async function registerRoutes(
         }
       }
 
-      const clubPlan = await getClubPlanStatus(session.clubId);
-      const useAIBrain = session.aiBrainEnabled && isClubPremium(clubPlan.planStatus);
-
       const matchHistory = existingMatches.map(m => ({
         id: m.id,
         status: m.status,
@@ -5291,49 +5288,18 @@ export async function registerRoutes(
       }
 
       const fixedPairs = extractFixedPairs(eligibleSignups);
-      let generated: any;
-      if (useAIBrain) {
-        generated = applyAIBrainLayer({
-          mode: matchMode as "SOCIAL" | "COMPETITIVE",
-          players: activePlayers,
-          playersPerSide: playersPerSide as 1 | 2,
-          genderType: gType,
-          queueTarget: finalTarget,
-          matchHistory,
-          fixedPairs,
-          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-          sessionDurationMinutes: session.durationMinutes || 120,
-          elapsedMinutes: session.date ? Math.max(0, Math.round((Date.now() - new Date(session.date).getTime()) / 60000)) : undefined,
-        });
-
-        if (generated.matches.length === 0 && !generated.pairConstraintBlocked) {
-          generated = generateSmartMatches({
-            mode: matchMode as "SOCIAL" | "COMPETITIVE",
-            players: activePlayers,
-            playersPerSide: playersPerSide as 1 | 2,
-            genderType: gType,
-            queueTarget: finalTarget,
-            recentPairings,
-            recentOpponents,
-            playerMatchCounts,
-            fixedPairs,
-            priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-          });
-        }
-      } else {
-        generated = generateSmartMatches({
-          mode: matchMode as "SOCIAL" | "COMPETITIVE",
-          players: activePlayers,
-          playersPerSide: playersPerSide as 1 | 2,
-          genderType: gType,
-          queueTarget: finalTarget,
-          recentPairings,
-          recentOpponents,
-          playerMatchCounts,
-          fixedPairs,
-          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-        });
-      }
+      const generated = generateSmartMatches({
+        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+        players: activePlayers,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: gType,
+        queueTarget: finalTarget,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+        fixedPairs,
+        priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+      });
 
       if (generated.pairConstraintBlocked) {
         return res.json({ status: "pair_blocked", message: generated.pairConstraintMessage || "Pair constraint blocked match generation", matches: [] });
@@ -5467,34 +5433,18 @@ export async function registerRoutes(
           }
         }
 
-        let generated = applyAIBrainLayer({
+        const generated = generateSmartMatches({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
           players: allPlayers,
           playersPerSide: playersPerSide as 1 | 2,
           genderType: gType,
           queueTarget: matchesPerRound,
-          matchHistory: simulatedMatchHistory,
-          fixedPairs,
+          recentPairings,
+          recentOpponents,
+          playerMatchCounts,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-          sessionDurationMinutes: session.durationMinutes || 120,
-          elapsedMinutes: round * 20,
+          fixedPairs,
         });
-
-        if (generated.matches.length === 0) {
-          const fallback = generateSmartMatches({
-            mode: matchMode as "SOCIAL" | "COMPETITIVE",
-            players: allPlayers,
-            playersPerSide: playersPerSide as 1 | 2,
-            genderType: gType,
-            queueTarget: matchesPerRound,
-            recentPairings,
-            recentOpponents,
-            playerMatchCounts,
-            priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-            fixedPairs,
-          });
-          generated = { ...generated, matches: fallback.matches };
-        }
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
 
@@ -5503,7 +5453,7 @@ export async function registerRoutes(
           teamAPlayer2Id: m.teamAPlayer2Id,
           teamBPlayer1Id: m.teamBPlayer1Id,
           teamBPlayer2Id: m.teamBPlayer2Id,
-          fairnessScore: generated.matchQualities?.[i] ?? 75,
+          fairnessScore: 75,
         }));
 
         allRounds.push({ round, matches: roundMatchesWithScores });

@@ -1449,7 +1449,6 @@ export default function SessionDetail() {
         defaultPointsToPlayTo={(session as any).defaultPointsToPlayTo || 21}
         sessionStatus={session.status || "UPCOMING"}
         autoGenerateActive={(session as any).autoGenerateActive || false}
-        aiBrainEnabled={(session as any).aiBrainEnabled || false}
         savedQueueTargetSize={(session as any).queueTargetSize ?? 3}
         clubId={session.clubId}
       />
@@ -3117,7 +3116,7 @@ function AISessionDesigner({ sessionId }: { sessionId: number }) {
   );
 }
 
-function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, aiBrainEnabled: initialAiBrainEnabled = false, savedQueueTargetSize = 3, clubId }: { 
+function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3, clubId }: { 
   sessionId: number; 
   isOrganiser: boolean;
   isSignedUp: boolean;
@@ -3131,7 +3130,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   defaultPointsToPlayTo?: number;
   sessionStatus: string;
   autoGenerateActive: boolean;
-  aiBrainEnabled?: boolean;
   savedQueueTargetSize?: number;
   clubId?: number;
 }) {
@@ -3162,10 +3160,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [courtsToUse, setCourtsToUse] = useState(courtsAvailable);
   const [courtNamesState, setCourtNamesState] = useState<string[]>(initialCourtNames || []);
   const [activeMode, setActiveMode] = useState<"SOCIAL" | "COMPETITIVE">(matchMode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL");
-  const [matchViewMode, setMatchViewMode] = useState<"court" | "compact">(() => {
-    const saved = localStorage.getItem("matchViewMode");
-    return saved === "compact" ? "compact" : "court";
-  });
   const [crowdControlOpen, setCrowdControlOpen] = useState(false);
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
@@ -3179,7 +3173,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
-  const [aiBrainActive, setAiBrainActive] = useState(initialAiBrainEnabled);
   const [fullScheduleOpen, setFullScheduleOpen] = useState(false);
   const [fullScheduleData, setFullScheduleData] = useState<any>(null);
   const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
@@ -3254,26 +3247,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     setSwapDialogOpen(false);
     setSwapTarget(null);
   };
-
-  const aiBrainToggleMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/sessions/${sessionId}/ai-brain-toggle`);
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      setAiBrainActive(data.aiBrainEnabled);
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
-      toast({
-        title: data.aiBrainEnabled ? "AI Match Brain Activated" : "AI Match Brain Deactivated",
-        description: data.aiBrainEnabled
-          ? "Adaptive fairness analysis is now enhancing match generation."
-          : "Switched back to Standard Smart Match Engine.",
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to toggle AI brain.", variant: "destructive" });
-    },
-  });
 
   const isSessionCompleted = sessionStatus === "COMPLETED";
 
@@ -3754,34 +3727,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 </div>
               )}
 
-              <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/60 overflow-hidden ml-auto" data-testid="match-view-toggle">
-                <button
-                  onClick={() => { setMatchViewMode("court"); localStorage.setItem("matchViewMode", "court"); }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
-                    matchViewMode === "court"
-                      ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70"
-                  )}
-                  data-testid="button-court-view"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  Courts
-                </button>
-                <button
-                  onClick={() => { setMatchViewMode("compact"); localStorage.setItem("matchViewMode", "compact"); }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95",
-                    matchViewMode === "compact"
-                      ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70"
-                  )}
-                  data-testid="button-compact-view"
-                >
-                  <List className="w-3.5 h-3.5" />
-                  Cards
-                </button>
-              </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -3876,27 +3821,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
                   </span>
                 </div>
-
-                <button
-                  onClick={() => aiBrainToggleMutation.mutate()}
-                  disabled={aiBrainToggleMutation.isPending}
-                  className={cn(
-                    "relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300",
-                    aiBrainActive
-                      ? "bg-gradient-to-r from-blue-600/80 to-indigo-600/80 text-white border border-blue-400/30 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
-                      : "border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
-                  )}
-                  data-testid="button-ai-brain-toggle"
-                >
-                  <Brain className={cn("w-4 h-4 transition-all duration-300", aiBrainActive && "text-blue-200 drop-shadow-[0_0_8px_rgba(147,197,253,0.8)]")} />
-                  <span className="hidden sm:inline">{aiBrainActive ? "AI Brain ON" : "AI Brain"}</span>
-                  {aiBrainActive && (
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-                    </span>
-                  )}
-                </button>
 
                 <button
                   onClick={() => setFullScheduleOpen(true)}
@@ -4186,13 +4110,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         </Dialog>
       )}
 
-      {aiBrainActive && (
-        <div className="flex items-center gap-2 text-sm rounded-md px-3 py-2 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40" data-testid="ai-brain-indicator">
-          <Brain className="w-4 h-4" />
-          <span>AI Match Brain is active — adaptive fairness analysis enhancing match generation</span>
-        </div>
-      )}
-
       {autoGenerateActive && !autoGenLocallyStopped && (
         <div className={`flex items-center gap-2 text-sm rounded-md px-3 py-2 ${autoGenWaiting ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' : 'text-muted-foreground bg-muted/50'}`} data-testid="auto-generate-indicator">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -4206,62 +4123,52 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         </div>
       )}
 
-      {matchViewMode === "compact" ? (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-6">
-            <CompactMatchView
-              matches={typedMatches}
-              courtsToUse={courtsToUse}
-              availablePlayers={availablePlayers}
-              isOrganiser={isOrganiser}
-              isSignedUp={isSignedUp}
-              currentPlayerProfileId={currentPlayerProfileId}
-              courtNames={courtNamesState}
-              defaultPointsToPlayTo={defaultPointsToPlayTo}
-              sessionMatchCounts={sessionMatchCounts}
-              onStartMatch={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-              onCompleteMatch={(matchId, scoreA, scoreB) => completeMatch({ matchId, scoreA, scoreB })}
-              onEndSet={(matchId, setNumber, scoreA, scoreB) => endSet({ matchId, setNumber, scoreA, scoreB })}
-              onCancelMatch={(matchId) => cancelLiveMatch({ matchId })}
-              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-              onEditScore={(matchId, scoreA, scoreB) => editMatchScore({ matchId, scoreA, scoreB })}
-              onCourtNameChange={handleCourtNameChange}
-              onUpdatePointsTarget={(matchId, pts) => updateMatchTarget({ matchId, pointsToPlayTo: pts })}
-              onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
-              busyPlayerIds={busyPlayerIds}
-              queueSlot={isOrganiser ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                  <MatchQueue
-                    matches={typedMatches}
-                    availablePlayers={availablePlayers}
-                    isOrganiser={isOrganiser}
-                    onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                    onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-                    availableCourts={availableCourts}
-                    activeMode={activeMode}
-                    genderType={generateGenderType}
-                    defaultPointsToPlayTo={defaultPointsToPlayTo}
-                    onGenerateMatch={handleSmartGenerate}
-                    isGenerating={isSmartGenerating}
-                    queueTargetSize={queueTargetSize}
-                    onQueueTargetSizeChange={handleQueueTargetSizeChange}
-                    onClearQueue={handleClearQueue}
-                    notEnoughPlayersMessage={notEnoughPlayersMessage}
-                    sessionId={sessionId}
-                    busyPlayerIds={busyPlayerIds}
-                    sessionMatchCounts={sessionMatchCounts}
-                    achievements={playerAchievements}
-                  />
-                </div>
-              ) : undefined}
-            />
+      {isOrganiser && (() => {
+        const allCounts = Object.values(sessionMatchCounts);
+        if (allCounts.length === 0) return null;
+        const maxGames = Math.max(...allCounts);
+        if (maxGames === 0) return null;
+        const minGames = Math.min(...allCounts);
+        const confirmedIds = new Set(confirmedSignups.map(s => s.player?.id || s.playerId));
+        const zeroGamePlayers = confirmedSignups
+          .filter(s => {
+            const pid = s.player?.id || s.playerId;
+            return confirmedIds.has(pid) && !(pid in sessionMatchCounts);
+          })
+          .map(s => s.player?.user?.fullName || "Unknown");
+        const belowAvgPlayers = confirmedSignups
+          .filter(s => {
+            const pid = s.player?.id || s.playerId;
+            const count = sessionMatchCounts[pid];
+            return count !== undefined && count < maxGames && (maxGames - count) >= 2;
+          })
+          .map(s => ({ name: s.player?.user?.fullName || "Unknown", count: sessionMatchCounts[s.player?.id || s.playerId] }));
+        const lowGameNames = [
+          ...zeroGamePlayers.map(n => `${n} (0)`),
+          ...belowAvgPlayers.map(p => `${p.name} (${p.count})`)
+        ];
+        if (lowGameNames.length === 0 && minGames >= maxGames - 1) return null;
+        const playersNeedingGames = lowGameNames.length > 0 ? lowGameNames : 
+          confirmedSignups
+            .filter(s => {
+              const pid = s.player?.id || s.playerId;
+              return sessionMatchCounts[pid] === minGames && minGames < maxGames;
+            })
+            .map(s => `${s.player?.user?.fullName || "Unknown"} (${minGames})`);
+        if (playersNeedingGames.length === 0) return null;
+        return (
+          <div className="flex items-start gap-2 text-sm rounded-md px-3 py-2 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40" data-testid="fairness-alert">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-medium">Priority for next games: </span>
+              <span>{playersNeedingGames.join(", ")}</span>
+              <span className="text-amber-600/70 dark:text-amber-400/60 ml-1">(max: {maxGames} games)</span>
+            </div>
           </div>
-          <div className="xl:sticky xl:top-4 xl:self-start">
-            <SessionLiveLeaderboard sessionId={sessionId} />
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+        );
+      })()}
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
             <ProLiveMatches
               liveMatches={liveMatches}
@@ -4313,8 +4220,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             <SessionLiveLeaderboard sessionId={sessionId} />
           </div>
         </div>
-      )}
-
 
       {isOrganiser && (
         <CrowdControlPanel
@@ -4350,7 +4255,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           completedCount={completedCount}
           matches={typedMatches as any}
           sessionId={sessionId}
-          aiBrainEnabled={aiBrainActive}
         />
       )}
 

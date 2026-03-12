@@ -150,7 +150,6 @@ function StandaloneCrowdControl({ sessionId, open, onOpenChange }: { sessionId: 
       completedCount={completedCount}
       matches={matches}
       sessionId={sessionId}
-      aiBrainEnabled={sessionData?.aiBrainEnabled || false}
     />
   );
 }
