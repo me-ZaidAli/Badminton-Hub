@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Lock, Crown } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -32,6 +32,7 @@ type SessionItem = {
 type AdminActions = {
   editableClubIds: Set<number>;
   isOrganiserOnly: boolean;
+  isPremiumClub: boolean;
   onCrowdControl: (sessionId: number) => void;
   onFinances: (session: SessionItem) => void;
   onEdit: (session: SessionItem) => void;
@@ -111,11 +112,11 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => adminActions.onCrowdControl(session.id)} data-testid={`button-crowd-mini-${session.id}`}>
-                <BarChart3 className="h-3 w-3" />
+              <Button size="sm" variant="ghost" className={`h-6 w-6 p-0 ${adminActions.isPremiumClub ? "text-muted-foreground" : "text-muted-foreground/50"}`} onClick={() => adminActions.isPremiumClub && adminActions.onCrowdControl(session.id)} data-testid={`button-crowd-mini-${session.id}`}>
+                {adminActions.isPremiumClub ? <BarChart3 className="h-3 w-3" /> : <div className="relative"><BarChart3 className="h-3 w-3" /><Lock className="h-2 w-2 absolute -top-0.5 -right-0.5 text-amber-500" /></div>}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Crowd</TooltipContent>
+            <TooltipContent>{adminActions.isPremiumClub ? "Crowd" : "Crowd (Premium)"}</TooltipContent>
           </Tooltip>
           <div className="flex-1" />
           <DropdownMenu>
@@ -126,8 +127,9 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               {!adminActions.isOrganiserOnly && (
-                <DropdownMenuItem onClick={() => adminActions.onFinances(session)}>
+                <DropdownMenuItem onClick={() => adminActions.isPremiumClub && adminActions.onFinances(session)} className={!adminActions.isPremiumClub ? "opacity-60" : ""}>
                   <Wallet className="h-4 w-4 mr-2" />Finances
+                  {!adminActions.isPremiumClub && <Lock className="h-3 w-3 ml-auto text-amber-500" />}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => adminActions.onDuplicate(session)}>
@@ -289,15 +291,16 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
-              onClick={(e) => { e.stopPropagation(); adminActions.onCrowdControl(session.id); }}
+              className={`rounded-lg h-8 px-2 text-xs gap-1 ${adminActions.isPremiumClub ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+              onClick={(e) => { e.stopPropagation(); if (adminActions.isPremiumClub) adminActions.onCrowdControl(session.id); }}
               data-testid={`button-crowd-view-${session.id}`}
             >
               <BarChart3 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Crowd</span>
+              {!adminActions.isPremiumClub && <Lock className="h-3 w-3 text-amber-500" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Crowd Control</TooltipContent>
+          <TooltipContent>{adminActions.isPremiumClub ? "Crowd Control" : "Crowd Control (Premium)"}</TooltipContent>
         </Tooltip>
         {!adminActions.isOrganiserOnly && (
           <Tooltip>
@@ -305,15 +308,16 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
-                onClick={(e) => { e.stopPropagation(); adminActions.onFinances(session); }}
+                className={`rounded-lg h-8 px-2 text-xs gap-1 ${adminActions.isPremiumClub ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+                onClick={(e) => { e.stopPropagation(); if (adminActions.isPremiumClub) adminActions.onFinances(session); }}
                 data-testid={`button-finance-view-${session.id}`}
               >
                 <Wallet className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Finances</span>
+                {!adminActions.isPremiumClub && <Lock className="h-3 w-3 text-amber-500" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Session Finances</TooltipContent>
+            <TooltipContent>{adminActions.isPremiumClub ? "Session Finances" : "Session Finances (Premium)"}</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
@@ -1035,12 +1039,14 @@ export function GroupedView({ sessions, clubs, onSessionClick, adminActions }: S
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onCrowdControl(s.id); }}>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); if (adminActions.isPremiumClub) adminActions.onCrowdControl(s.id); }} className={!adminActions.isPremiumClub ? "opacity-60" : ""}>
                                     <BarChart3 className="h-4 w-4 mr-2" />Crowd Control
+                                    {!adminActions.isPremiumClub && <Lock className="h-3 w-3 ml-auto text-amber-500" />}
                                   </DropdownMenuItem>
                                   {!adminActions.isOrganiserOnly && (
-                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onFinances(s); }}>
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); if (adminActions.isPremiumClub) adminActions.onFinances(s); }} className={!adminActions.isPremiumClub ? "opacity-60" : ""}>
                                       <Wallet className="h-4 w-4 mr-2" />Finances
+                                      {!adminActions.isPremiumClub && <Lock className="h-3 w-3 ml-auto text-amber-500" />}
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); adminActions.onDuplicate(s); }}>
