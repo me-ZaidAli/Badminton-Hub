@@ -332,14 +332,13 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
   }
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
-  const isSuperUser = user?.role === "OWNER";
 
-  if (!isPlatformAdmin || (!isSuperUser && !hasClubAdminAccess)) {
+  if (!isPlatformAdmin && !hasClubAdminAccess) {
     setLocation("/dashboard");
     return null;
   }
 
-  if (!isPremium && !isSuperAdmin && !isPlatformAdmin) {
+  if (!isPremium && !isSuperAdmin && !isPlatformAdmin && !hasClubAdminAccess) {
     return (
       <AuthenticatedShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
@@ -464,7 +463,7 @@ function Router() {
         <PublicRoute component={PublicSession} />
       </Route>
       <Route path="/create-club">
-        <PrivateRoute component={CreateClub} />
+        <OwnerRoute component={CreateClub} />
       </Route>
       <Route path="/clubs">
         <PublicRoute component={Clubs} />
@@ -593,13 +592,13 @@ function Router() {
         <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><RewardsDashboard /></Suspense>} />
       </Route>
       <Route path="/admin/announcements">
-        <OwnerRoute component={AdminAnnouncements} />
+        <AdminRoute component={AdminAnnouncements} />
       </Route>
       <Route path="/admin/match-engine-lab">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><MatchEngineLab /></Suspense>} />
       </Route>
       <Route path="/admin/calendar">
-        <OwnerRoute component={CalendarImport} />
+        <AdminRoute component={CalendarImport} />
       </Route>
       <Route path="/admin/approvals">
         <OwnerRoute component={UserApproval} />
@@ -636,7 +635,7 @@ function Router() {
         <AdminRoute component={PasswordResets} />
       </Route>
       <Route path="/admin/messages">
-        <OwnerRoute component={Messages} />
+        <AdminRoute component={Messages} />
       </Route>
       <Route path="/admin/chat-moderation">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><ChatModeration /></Suspense>} />

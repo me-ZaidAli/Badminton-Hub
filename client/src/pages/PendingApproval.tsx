@@ -60,12 +60,6 @@ export default function PendingApproval() {
                 Browse Other Clubs
               </Button>
             </Link>
-            <Link href="/create-club">
-              <Button variant="outline" className="w-full" data-testid="button-create-own-club">
-                <Building2 className="w-4 h-4 mr-2" />
-                Start Your Own Club
-              </Button>
-            </Link>
             <Button 
               variant="ghost" 
               className="w-full text-muted-foreground"

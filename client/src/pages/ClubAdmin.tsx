@@ -209,7 +209,7 @@ export default function ClubAdmin() {
         <Card>
           <CardContent className="py-12 text-center">
             <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Create a club to start managing members.</p>
+            <p className="text-muted-foreground">You don't have any clubs to manage. Contact your platform administrator.</p>
           </CardContent>
         </Card>
       </div>
