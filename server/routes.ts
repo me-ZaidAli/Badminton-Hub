@@ -4780,6 +4780,7 @@ export async function registerRoutes(
           male_only: "male",
           high_grade: "high grade (A/B)",
           low_grade: "low grade (C/D)",
+          low_games: "low game count",
         };
         const label = filterType ? filterLabels[filterType] || filterType : "";
         return res.status(400).json({ message: `Not enough ${label} players available` });
@@ -4797,6 +4798,24 @@ export async function registerRoutes(
           }))
       );
 
+      for (const p of players) {
+        if (!playerMatchCounts.has(p.id)) {
+          playerMatchCounts.set(p.id, 0);
+        }
+      }
+
+      let priorityPlayerIds: number[] | undefined;
+      if (filterType === "low_games") {
+        const selectableCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
+        const globalMin = selectableCounts.length > 0 ? Math.min(...selectableCounts) : 0;
+        const maxCount = selectableCounts.length > 0 ? Math.max(...selectableCounts) : 0;
+        const threshold = globalMin + Math.max(1, Math.floor((maxCount - globalMin) / 2));
+        priorityPlayerIds = players
+          .filter(p => (playerMatchCounts.get(p.id) || 0) <= threshold)
+          .sort((a, b) => (playerMatchCounts.get(a.id) || 0) - (playerMatchCounts.get(b.id) || 0))
+          .map(p => p.id);
+      }
+
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players,
@@ -4807,6 +4826,7 @@ export async function registerRoutes(
         recentOpponents,
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
+        priorityPlayerIds,
       });
 
       if (generated.matches.length === 0) {
@@ -4824,6 +4844,118 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error reshuffling match:", err);
       res.status(500).json({ message: err.message || "Failed to reshuffle match" });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/matches/prioritize-low-games", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const playersPerSide = session.playersPerSide || 2;
+      const playersPerMatch = playersPerSide * 2;
+      const matchMode = session.matchMode || "SOCIAL";
+      const gType = session.matchGenderType || "MIXED";
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const attendedSignups = confirmedSignups.filter(s => s.attendanceStatus === "ATTENDED");
+      const eligibleSignups = attendedSignups.length >= playersPerMatch ? attendedSignups : confirmedSignups;
+
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const queuedMatches = existingMatches.filter(m => m.status === "QUEUED")
+        .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+      if (queuedMatches.length === 0) {
+        return res.status(400).json({ message: "No queued matches to update" });
+      }
+
+      const busyPlayerIds = new Set<number>();
+      existingMatches
+        .filter(m => m.status === "LIVE")
+        .forEach(m => {
+          if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
+          if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
+          if (m.teamBPlayer1Id) busyPlayerIds.add(m.teamBPlayer1Id);
+          if (m.teamBPlayer2Id) busyPlayerIds.add(m.teamBPlayer2Id);
+        });
+
+      const players = eligibleSignups
+        .filter(s => !s.isPaused)
+        .filter(s => !busyPlayerIds.has(s.player.id))
+        .map(s => ({
+          id: s.player.id,
+          gender: s.player.gender,
+          grade: s.player.grade || s.player.category || "C3",
+          isPaused: s.isPaused,
+          genderOverride: s.genderOverride,
+        }));
+
+      const nonQueuedMatches = existingMatches.filter(m => !queuedMatches.some(q => q.id === m.id));
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        nonQueuedMatches.map(m => ({
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          status: m.status,
+        }))
+      );
+
+      for (const p of players) {
+        if (!playerMatchCounts.has(p.id)) {
+          playerMatchCounts.set(p.id, 0);
+        }
+      }
+
+      const selectableCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
+      const globalMin = selectableCounts.length > 0 ? Math.min(...selectableCounts) : 0;
+      const maxCount = selectableCounts.length > 0 ? Math.max(...selectableCounts) : 0;
+      const threshold = globalMin + Math.max(1, Math.floor((maxCount - globalMin) / 2));
+      const lowGamePlayers = players
+        .filter(p => (playerMatchCounts.get(p.id) || 0) <= threshold)
+        .sort((a, b) => (playerMatchCounts.get(a.id) || 0) - (playerMatchCounts.get(b.id) || 0))
+        .map(p => p.id);
+
+      const generated = generateSmartMatches({
+        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+        players,
+        playersPerSide: playersPerSide as 1 | 2,
+        genderType: gType,
+        queueTarget: queuedMatches.length,
+        recentPairings,
+        recentOpponents,
+        playerMatchCounts,
+        fixedPairs: extractFixedPairs(signups),
+        priorityPlayerIds: lowGamePlayers.length > 0 ? lowGamePlayers : undefined,
+      });
+
+      if (generated.matches.length === 0) {
+        return res.status(400).json({ message: "Could not generate matches with low-game priority players" });
+      }
+
+      const updatedMatches = [];
+      for (let i = 0; i < queuedMatches.length; i++) {
+        if (i < generated.matches.length) {
+          const updated = await storage.updateMatch(queuedMatches[i].id, {
+            teamAPlayer1Id: generated.matches[i].teamAPlayer1Id,
+            teamAPlayer2Id: generated.matches[i].teamAPlayer2Id,
+            teamBPlayer1Id: generated.matches[i].teamBPlayer1Id,
+            teamBPlayer2Id: generated.matches[i].teamBPlayer2Id,
+          });
+          updatedMatches.push(updated);
+        }
+      }
+
+      res.json({ message: `${updatedMatches.length} match(es) updated with low-game priority players`, matches: updatedMatches });
+    } catch (err: any) {
+      console.error("Error prioritizing low games:", err);
+      res.status(500).json({ message: err.message || "Failed to prioritize low-game players" });
     }
   });
 

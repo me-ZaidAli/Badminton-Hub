@@ -6,12 +6,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame, Lightbulb } from "lucide-react";
+import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame, Lightbulb, TrendingDown } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch, usePrioritizeLowGames } from "@/hooks/use-matches";
 import { format } from "date-fns";
 
 type Player = {
@@ -258,6 +258,7 @@ export function MatchQueue({
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
   const { mutate: updateTarget } = useUpdateMatchTarget();
   const { mutate: createEmptyMatch, isPending: isCreatingEmpty } = useCreateEmptyMatch();
+  const { mutate: prioritizeLowGames, isPending: isPrioritizing } = usePrioritizeLowGames();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
   const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
@@ -372,6 +373,20 @@ export function MatchQueue({
                     title="Create empty match"
                   >
                     {isCreatingEmpty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                  </Button>
+                )}
+                {isOrganiser && sessionId && queuedMatches.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => prioritizeLowGames({ sessionId })}
+                    disabled={isPrioritizing}
+                    className="border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                    data-testid="button-prioritize-low-games"
+                    title="Replace all queued match players with those who have fewest games"
+                  >
+                    {isPrioritizing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+                    Low Games
                   </Button>
                 )}
                 {onClearQueue && queuedMatches.length > 0 && (
@@ -592,6 +607,17 @@ export function MatchQueue({
                               title="Low grade (C/D)"
                             >
                               <ArrowDown className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleFilteredReshuffle(match.id, "low_games")}
+                              disabled={isReshuffling}
+                              data-testid={`button-reshuffle-low-games-${match.id}`}
+                              title="Fill with low-game players"
+                              className="text-amber-500"
+                            >
+                              <TrendingDown className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"

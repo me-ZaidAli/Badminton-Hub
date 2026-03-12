@@ -304,6 +304,32 @@ export function useReshuffleMatch() {
   });
 }
 
+export function usePrioritizeLowGames() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches/prioritize-low-games`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to prioritize low-game players");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+      toast({ title: "Low-Game Priority Applied", description: data.message || "Queue updated with low-game players." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useDeleteQueuedMatch() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
