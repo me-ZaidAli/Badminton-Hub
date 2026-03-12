@@ -1,7 +1,6 @@
 import { useSessions, useCreateSession, useUpdateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs, useMySessionClubs, useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
-import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -576,7 +575,6 @@ export default function Sessions() {
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
-  const isPremiumClub = useIsAnyClubPremium();
   const canManageSessions = isPlatformAdmin || (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = useMemo(() => new Set(sessionClubs?.map(c => c.id) || []), [sessionClubs]);
   const editableClubIds = useMemo(() => new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || [])), [isPlatformAdmin, clubs, adminClubs]);
@@ -859,7 +857,6 @@ export default function Sessions() {
     return {
       editableClubIds,
       isOrganiserOnly,
-      isPremiumClub: isPremiumClub || isPlatformAdmin,
       onCrowdControl: (id: number) => { setCrowdSessionId(id); },
       onFinances: (s: any) => setFinanceSession(s),
       onEdit: (s: any) => setEditSessionFromView(s),
@@ -868,7 +865,7 @@ export default function Sessions() {
       onDelete: (s: any) => setDeleteSession({ id: s.id, recurringEventId: s.recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
       onDetails: (s: any) => setDetailsSession(s),
     };
-  }, [canManageSessions, editableClubIds, isOrganiserOnly, isPremiumClub, isPlatformAdmin]);
+  }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 
   // Group sessions by club for super user view
   const sessionsByClub = sessions?.reduce((acc, session) => {
@@ -910,12 +907,10 @@ export default function Sessions() {
               <>
                 <Button 
                   variant="outline" 
-                  onClick={() => { if (isPremiumClub || isPlatformAdmin) setLocation("/admin/calendar"); }}
-                  className={(isPremiumClub || isPlatformAdmin) ? "" : "opacity-60"}
+                  onClick={() => setLocation("/admin/calendar")}
                   data-testid="button-import-from-calendar"
                 >
                   <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
-                  {!(isPremiumClub || isPlatformAdmin) && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
                 </Button>
                 <EventTypeChooser sessionClubs={sessionClubs || []} />
               </>
@@ -1511,19 +1506,18 @@ export default function Sessions() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={`rounded-lg h-8 px-2 text-xs gap-1 ${(isPremiumClub || isPlatformAdmin) ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+                            className="rounded-lg h-8 px-2 text-xs gap-1 text-muted-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (isPremiumClub || isPlatformAdmin) setCrowdSessionId(session.id);
+                              setCrowdSessionId(session.id);
                             }}
                             data-testid={`button-crowd-session-${session.id}`}
                           >
                             <BarChart3 className="h-3.5 w-3.5" />
                             <span className="hidden sm:inline">Crowd</span>
-                            {!(isPremiumClub || isPlatformAdmin) && <Lock className="h-3 w-3 text-amber-500" />}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{(isPremiumClub || isPlatformAdmin) ? "Crowd Control" : "Crowd Control (Premium)"}</TooltipContent>
+                        <TooltipContent>Crowd Control</TooltipContent>
                       </Tooltip>
                       {!isOrganiserOnly && (
                         <Tooltip>
@@ -1531,16 +1525,15 @@ export default function Sessions() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className={`rounded-lg h-8 px-2 text-xs gap-1 ${(isPremiumClub || isPlatformAdmin) ? "text-muted-foreground" : "text-muted-foreground/50"}`}
-                              onClick={() => { if (isPremiumClub || isPlatformAdmin) setFinanceSession(session); }}
+                              className="rounded-lg h-8 px-2 text-xs gap-1 text-muted-foreground"
+                              onClick={() => setFinanceSession(session)}
                               data-testid={`button-finance-session-${session.id}`}
                             >
                               <Wallet className="h-3.5 w-3.5" />
                               <span className="hidden sm:inline">Finances</span>
-                              {!(isPremiumClub || isPlatformAdmin) && <Lock className="h-3 w-3 text-amber-500" />}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>{(isPremiumClub || isPlatformAdmin) ? "Session Finances" : "Session Finances (Premium)"}</TooltipContent>
+                          <TooltipContent>Session Finances</TooltipContent>
                         </Tooltip>
                       )}
                       <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />

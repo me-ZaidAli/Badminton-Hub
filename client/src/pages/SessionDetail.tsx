@@ -4,7 +4,6 @@ import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useA
 import { usePlayers } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
 import { useMySessionClubs, useMyAdminClubs, useSessionLeaderboard, useClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
-import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { useVenues } from "@/hooks/use-venues";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -313,7 +312,6 @@ export default function SessionDetail() {
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
-  const isPremiumClub = useIsAnyClubPremium();
 
   const { data: deletedMatchesData } = useQuery<{ count: number }>({
     queryKey: ["/api/sessions", id, "deleted-matches-count"],
@@ -870,7 +868,7 @@ export default function SessionDetail() {
                 </DialogContent>
               </Dialog>
             )}
-            {isOrganiser && confirmedSignups.length > 0 && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (isPremiumClub || isSuperAdmin) && (
+            {isOrganiser && confirmedSignups.length > 0 && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
               <AlertDialog open={cancelCreditDialogOpen} onOpenChange={(open) => {
                 setCancelCreditDialogOpen(open);
                 if (open) {
@@ -1369,8 +1367,8 @@ export default function SessionDetail() {
                     <Tabs value={adminDashboardTab} onValueChange={setAdminDashboardTab}>
                       <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 h-auto p-1" data-testid="admin-dashboard-tabs">
                         <TabsTrigger value="payments" className="text-xs py-2" data-testid="tab-payments">Payments</TabsTrigger>
-                        <TabsTrigger value="financials" className="text-xs py-2" data-testid="tab-financials" disabled={!isPremiumClub && !isSuperAdmin}>
-                          {!isPremiumClub && !isSuperAdmin && <Lock className="w-3 h-3 mr-1" />}Financials
+                        <TabsTrigger value="financials" className="text-xs py-2" data-testid="tab-financials">
+                          Financials
                         </TabsTrigger>
                         <TabsTrigger value="intelligence" className="text-xs py-2" data-testid="tab-intelligence">Intelligence</TabsTrigger>
                         <TabsTrigger value="ai-tools" className="text-xs py-2" data-testid="tab-ai-tools">AI Tools</TabsTrigger>
@@ -3762,7 +3760,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 <span className="text-gray-600 dark:text-white/70">{completedCount} Done</span>
               </span>
               {!isOrganiser && <MatchAlgorithmInfoButton />}
-              {isOrganiser && (isPremiumClub || isSuperAdmin) && (
+              {isOrganiser && (
                 <button
                   onClick={() => setCrowdControlOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
@@ -3907,7 +3905,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   </span>
                 </div>
 
-                {(isPremiumClub || isSuperAdmin) && (
                 <button
                   onClick={() => setFullScheduleOpen(true)}
                   className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
@@ -3916,7 +3913,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                   <LayoutGrid className="w-4 h-4" />
                   <span className="hidden sm:inline">Full Schedule</span>
                 </button>
-                )}
               </div>
             )}
 
