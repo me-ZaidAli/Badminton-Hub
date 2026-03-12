@@ -157,7 +157,7 @@ async function isAnyClubAdmin(userId: number, userRole: string): Promise<boolean
 }
 
 async function getUserAdminClubIds(userId: number, userRole: string): Promise<number[]> {
-  if (userRole === "OWNER") {
+  if (userRole === "OWNER" || userRole === "ADMIN") {
     const allClubs = await db.select({ id: clubs.id }).from(clubs);
     return allClubs.map(c => c.id);
   }
@@ -287,7 +287,9 @@ function requirePremium(getClubId: (req: any) => number | null | Promise<number 
   return async (req: any, res: any, next: any) => {
     if (!req.isAuthenticated?.()) return res.status(401).json({ message: "Not authenticated" });
     const user = req.user as any;
-    if (user.role === "OWNER") return next();
+    if (user.role === "OWNER" || user.role === "ADMIN") return next();
+    const hasClubAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (hasClubAdmin) return next();
     const clubId = await Promise.resolve(getClubId(req));
     if (!clubId) return res.status(400).json({ message: "Club context required" });
     const plan = await getClubPlanStatus(clubId);
@@ -1980,16 +1982,16 @@ export async function registerRoutes(
     const isPlatformAdmin = user.role === "ADMIN";
 
     if (!isOwner && !isPlatformAdmin) {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-      const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-      if (clubIdSet.size === 0) return res.sendStatus(403);
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      if (adminClubIds.length === 0) return res.sendStatus(403);
+      const clubIdSet = new Set(adminClubIds);
 
       const allUsers = await storage.getAllUsers();
-      const scopedUsers = (allUsers as any[]).filter((u: any) =>
-        u.playerProfiles?.some((p: any) => clubIdSet.has(p.clubId))
-      );
+      const scopedUsers = (allUsers as any[]).filter((u: any) => {
+        if (u.role === "OWNER" || u.role === "ADMIN") return false;
+        const hasClubProfile = u.playerProfiles?.some((p: any) => clubIdSet.has(p.clubId));
+        return hasClubProfile;
+      });
       return res.json(scopedUsers);
     }
 
@@ -8598,28 +8600,16 @@ export async function registerRoutes(
   app.get("/api/admin/search-users", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isOwner = user.role === "OWNER";
-    const isAdmin = user.role === "ADMIN";
+    const isSuperAdmin = user.role === "OWNER" || user.role === "ADMIN";
 
-    if (!isOwner && !isAdmin) {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
-    }
+    const adminClubIds = isSuperAdmin ? null : await getUserAdminClubIds(user.id, user.role);
+    if (!isSuperAdmin && (!adminClubIds || adminClubIds.length === 0)) return res.sendStatus(403);
 
     try {
       const q = (req.query.q as string || "").trim().toLowerCase();
       if (q.length < 2) return res.json([]);
 
-      let accessibleClubIds: number[] | null = null;
-      if (!isOwner && !isAdmin) {
-        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-        accessibleClubIds = [...clubIdSet];
-      }
+      const accessibleClubIds = adminClubIds;
 
       let results;
       if (accessibleClubIds && accessibleClubIds.length > 0) {
@@ -8632,6 +8622,7 @@ export async function registerRoutes(
           .innerJoin(playerProfiles, eq(users.id, playerProfiles.userId))
           .where(and(
             inArray(playerProfiles.clubId, accessibleClubIds),
+            sql`${users.role} NOT IN ('OWNER', 'ADMIN')`,
             or(
               sql`LOWER(${users.fullName}) LIKE ${'%' + q + '%'}`,
               sql`LOWER(${users.email}) LIKE ${'%' + q + '%'}`
@@ -8662,25 +8653,13 @@ export async function registerRoutes(
   app.get("/api/admin/password-resets", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isOwner = user.role === "OWNER";
-    const isAdmin = user.role === "ADMIN";
+    const isSuperAdmin = user.role === "OWNER" || user.role === "ADMIN";
 
-    if (!isOwner && !isAdmin) {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
-    }
+    const adminClubIds = isSuperAdmin ? null : await getUserAdminClubIds(user.id, user.role);
+    if (!isSuperAdmin && (!adminClubIds || adminClubIds.length === 0)) return res.sendStatus(403);
 
     try {
-      let accessibleClubIds: number[] | null = null;
-      if (!isOwner && !isAdmin) {
-        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-        accessibleClubIds = [...clubIdSet];
-      }
+      const accessibleClubIds = adminClubIds;
 
       let pendingResets;
       if (accessibleClubIds && accessibleClubIds.length > 0) {
@@ -8695,7 +8674,8 @@ export async function registerRoutes(
           .where(and(
             isNotNull(users.passwordResetToken),
             gt(users.passwordResetExpiry!, new Date()),
-            inArray(playerProfiles.clubId, accessibleClubIds)
+            inArray(playerProfiles.clubId, accessibleClubIds),
+            sql`${users.role} NOT IN ('OWNER', 'ADMIN')`
           ));
       } else {
         pendingResets = await db.select({
@@ -8721,15 +8701,10 @@ export async function registerRoutes(
   app.post("/api/admin/generate-reset", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isOwner = user.role === "OWNER";
-    const isAdmin = user.role === "ADMIN";
+    const isSuperAdmin = user.role === "OWNER" || user.role === "ADMIN";
 
-    if (!isOwner && !isAdmin) {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
-    }
+    const adminClubIds = isSuperAdmin ? null : await getUserAdminClubIds(user.id, user.role);
+    if (!isSuperAdmin && (!adminClubIds || adminClubIds.length === 0)) return res.sendStatus(403);
 
     try {
       const { email } = req.body;
@@ -8738,11 +8713,11 @@ export async function registerRoutes(
       const targetUser = await storage.getUserByUsername(email);
       if (!targetUser) return res.status(404).json({ message: "User not found" });
 
-      if (!isOwner && !isAdmin) {
-        const ownedClubs2 = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles2 = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const myClubIds = new Set([...ownedClubs2.map(c => c.id), ...adminProfiles2.map(p => p.clubId)]);
+      if (!isSuperAdmin && adminClubIds) {
+        if (targetUser.role === "OWNER" || targetUser.role === "ADMIN") {
+          return res.status(403).json({ message: "You cannot reset passwords for platform administrators" });
+        }
+        const myClubIds = new Set(adminClubIds);
         const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
           .where(eq(playerProfiles.userId, targetUser.id));
         const hasAccess = targetProfiles.some(p => myClubIds.has(p.clubId));
@@ -8815,26 +8790,22 @@ export async function registerRoutes(
   app.post("/api/admin/set-password", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isOwner = user.role === "OWNER";
-    const isAdmin = user.role === "ADMIN";
+    const isSuperAdmin = user.role === "OWNER" || user.role === "ADMIN";
 
-    if (!isOwner && !isAdmin) {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-      if (ownedClubs.length === 0 && adminProfiles.length === 0) return res.sendStatus(403);
-    }
+    const adminClubIds = isSuperAdmin ? null : await getUserAdminClubIds(user.id, user.role);
+    if (!isSuperAdmin && (!adminClubIds || adminClubIds.length === 0)) return res.sendStatus(403);
 
     try {
       const { userId, password } = req.body;
       if (!userId || !password) return res.status(400).json({ message: "userId and password are required" });
       if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
 
-      if (!isOwner && !isAdmin) {
-        const ownedClubs2 = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles2 = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const myClubIds = new Set([...ownedClubs2.map(c => c.id), ...adminProfiles2.map(p => p.clubId)]);
+      if (!isSuperAdmin && adminClubIds) {
+        const [targetUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+        if (targetUser && (targetUser.role === "OWNER" || targetUser.role === "ADMIN")) {
+          return res.status(403).json({ message: "You cannot set passwords for platform administrators" });
+        }
+        const myClubIds = new Set(adminClubIds);
         const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
           .where(eq(playerProfiles.userId, userId));
         const hasAccess = targetProfiles.some(p => myClubIds.has(p.clubId));
@@ -9419,12 +9390,8 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
 
-    const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-    const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-      .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-    const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-    if (clubIdSet.size === 0) return res.sendStatus(403);
-    const accessibleClubIds = [...clubIdSet];
+    const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
+    if (accessibleClubIds.length === 0) return res.sendStatus(403);
 
     try {
       const allClubs = await storage.getClubs();
@@ -9487,20 +9454,9 @@ export async function registerRoutes(
   app.get("/api/admin/financial-summary", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isOwner = user.role === "OWNER";
 
-    let accessibleClubIds: number[] = [];
-    if (isOwner) {
-      const allClubs = await db.select({ id: clubs.id }).from(clubs);
-      accessibleClubIds = allClubs.map(c => c.id);
-    } else {
-      const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-      const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-        .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
-      const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-      if (clubIdSet.size === 0) return res.sendStatus(403);
-      accessibleClubIds = [...clubIdSet];
-    }
+    const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
+    if (accessibleClubIds.length === 0) return res.sendStatus(403);
 
     try {
       const queryConditions: any[] = [];
@@ -14075,25 +14031,11 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      const isOwner = user.role === "OWNER";
       const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
 
-      let accessibleClubIds: number[] = [];
-      if (isOwner) {
-        if (qClubId) {
-          accessibleClubIds = [qClubId];
-        } else {
-          const allClubs = await db.select({ id: clubs.id }).from(clubs);
-          accessibleClubIds = allClubs.map(c => c.id);
-        }
-      } else {
-        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-        if (clubIdSet.size === 0) return res.sendStatus(403);
-        accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
-      }
+      const allAdminClubIds = await getUserAdminClubIds(user.id, user.role);
+      if (allAdminClubIds.length === 0) return res.sendStatus(403);
+      const accessibleClubIds = qClubId && allAdminClubIds.includes(qClubId) ? [qClubId] : allAdminClubIds;
 
       const conditions: any[] = [inArray(inventoryMovements.clubId, accessibleClubIds)];
 
@@ -14149,25 +14091,11 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      const isOwner = user.role === "OWNER";
       const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
 
-      let accessibleClubIds: number[] = [];
-      if (isOwner) {
-        if (qClubId) {
-          accessibleClubIds = [qClubId];
-        } else {
-          const allClubs = await db.select({ id: clubs.id }).from(clubs);
-          accessibleClubIds = allClubs.map(c => c.id);
-        }
-      } else {
-        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
-        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-        if (clubIdSet.size === 0) return res.sendStatus(403);
-        accessibleClubIds = qClubId && clubIdSet.has(qClubId) ? [qClubId] : [...clubIdSet];
-      }
+      const allAdminClubIds = await getUserAdminClubIds(user.id, user.role);
+      if (allAdminClubIds.length === 0) return res.sendStatus(403);
+      const accessibleClubIds = qClubId && allAdminClubIds.includes(qClubId) ? [qClubId] : allAdminClubIds;
 
       const conditions: any[] = [inArray(expenses.clubId, accessibleClubIds)];
 
@@ -14283,20 +14211,9 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      const isOwner = user.role === "OWNER";
 
-      let accessibleClubIds: number[] = [];
-      if (isOwner) {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        accessibleClubIds = allClubs.map(c => c.id);
-      } else {
-        const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id));
-        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "ORGANISER"])));
-        const clubIdSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
-        if (clubIdSet.size === 0) return res.sendStatus(403);
-        accessibleClubIds = [...clubIdSet];
-      }
+      const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
+      if (accessibleClubIds.length === 0) return res.sendStatus(403);
 
       const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
       const filteredClubIds = qClubId ? accessibleClubIds.filter(id => id === qClubId) : accessibleClubIds;
@@ -20105,19 +20022,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json({ kpis: { totalSessions: 0, totalAttendances: 0, uniqueMembers: 0, avgAttendance: 0, growthPercent: 0, noShowRate: 0, noShowCount: 0, previousPeriodAttendances: 0 }, topMembers: [], distribution: [], overTime: [], sessionPerformance: [] });
 
       const { dateFrom, dateTo, clubId, sessionType, membershipStatus } = req.query;
@@ -20370,19 +20275,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json([]);
 
       const { dateFrom, dateTo, clubId } = req.query;
@@ -20511,19 +20404,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
 
       const profileId = Number(req.params.profileId);
@@ -20610,19 +20491,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json([]);
 
       const dateStr = req.params.date;
@@ -20679,19 +20548,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json([]);
 
       const { dateFrom, dateTo } = req.query;
@@ -20770,19 +20627,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json([]);
 
       const { dateFrom, dateTo } = req.query;
@@ -20842,19 +20687,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.json([]);
 
       const threshold = Number(req.query.threshold) || 30;
@@ -20963,22 +20796,14 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
 
       const targetUserId = Number(req.params.userId);
+      const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUserId));
+      const targetInMyClubs = targetProfiles.some(p => adminClubIds.includes(p.clubId));
+      if (!targetInMyClubs) return res.status(403).json({ message: "You can only manage members in your club" });
+
       const { subject, body, clubId } = req.body;
       if (!subject || !body) return res.status(400).json({ message: "Subject and body are required" });
 
@@ -21013,22 +20838,14 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
 
       const targetUserId = Number(req.params.userId);
+      const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUserId));
+      const targetInMyClubs = targetProfiles.some(p => adminClubIds.includes(p.clubId));
+      if (!targetInMyClubs) return res.status(403).json({ message: "You can only manage members in your club" });
+
       const { note, clubId } = req.body;
       if (!note) return res.status(400).json({ message: "Note is required" });
 
@@ -21055,22 +20872,14 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
 
       const targetUserId = Number(req.params.userId);
+      const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUserId));
+      const targetInMyClubs = targetProfiles.some(p => adminClubIds.includes(p.clubId));
+      if (!targetInMyClubs) return res.status(403).json({ message: "You can only manage members in your club" });
+
       const { reason } = req.body;
       const deletionDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
@@ -21107,22 +20916,13 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      let adminClubIds: number[] = [];
-      if (user.role === "OWNER") {
-        const allClubs = await db.select({ id: clubs.id }).from(clubs);
-        adminClubIds = allClubs.map(c => c.id);
-      } else {
-        const profiles = await db.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles)
-          .where(and(
-            eq(playerProfiles.userId, user.id),
-            or(eq(playerProfiles.clubRole, "ADMIN"), eq(playerProfiles.clubRole, "OWNER"))
-          ));
-        adminClubIds = profiles.map(p => p.clubId);
-      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.status(403).json({ message: "Access denied" });
 
       const targetUserId = Number(req.params.userId);
+      const targetProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUserId));
+      const targetInMyClubs = targetProfiles.some(p => adminClubIds.includes(p.clubId));
+      if (!targetInMyClubs) return res.status(403).json({ message: "You can only manage members in your club" });
 
       await db.update(users).set({
         deletionScheduledAt: null,
