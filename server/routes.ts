@@ -3949,6 +3949,9 @@ export async function registerRoutes(
       if (playerProfileData[0].clubId !== session.clubId) {
         return res.status(400).json({ message: "Player does not belong to this club" });
       }
+      if (playerProfileData[0].membershipStatus !== "APPROVED") {
+        return res.status(400).json({ message: "Player membership is not approved" });
+      }
       const playerUser = await storage.getUser(playerProfileData[0].userId);
       if (playerUser && (playerUser.role === "OWNER" || playerUser.role === "ADMIN")) {
         return res.status(400).json({ message: "Admins and owners cannot be added to sessions" });
