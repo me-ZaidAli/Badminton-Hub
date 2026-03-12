@@ -3552,7 +3552,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -3604,6 +3604,7 @@ export async function registerRoutes(
         updates.allowedCategories = filtered;
       }
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
+      if (sessionDetails !== undefined) updates.sessionDetails = sessionDetails || null;
 
       const updated = await storage.updateSession(sessionId, updates);
       console.log(`[AUDIT] SESSION_UPDATE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} changes=${JSON.stringify(Object.keys(updates))} at ${new Date().toISOString()}`);
@@ -3640,7 +3641,7 @@ export async function registerRoutes(
         "matchMode", "playersPerSide", "matchGenderType", "genderRestriction",
         "isPrivate", "sessionType", "juniorAgeGroups", "allowedCategories",
         "sessionFee", "shuttlecockType", "defaultPointsToPlayTo", "numberOfSets",
-        "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt"
+        "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt", "sessionDetails"
       ];
 
       const updates: any = {};

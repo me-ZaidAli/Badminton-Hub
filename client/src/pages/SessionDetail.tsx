@@ -1059,6 +1059,11 @@ export default function SessionDetail() {
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
             {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Equipment Used`}
           </p>
+          {session.sessionDetails && (
+            <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line" data-testid="text-session-details">
+              {session.sessionDetails}
+            </p>
+          )}
           {session.liveStreamUrl && (
             <a href={session.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">
               <Button variant="outline" size="sm" className="gap-2" data-testid="button-live-stream">

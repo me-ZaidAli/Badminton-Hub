@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -216,6 +216,13 @@ function TimelineSessionCard({
               </div>
             )}
           </div>
+
+          {session.sessionDetails && (
+            <div className="flex items-start gap-1.5 mt-2 text-xs text-muted-foreground">
+              <FileText className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+              <span className="line-clamp-2">{session.sessionDetails}</span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
@@ -467,6 +474,16 @@ function SessionPreviewDialog({
               </div>
             )}
           </div>
+
+          {session.sessionDetails && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50" data-testid="text-session-details">
+              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs text-muted-foreground">Details</p>
+                <p className="text-sm whitespace-pre-line">{session.sessionDetails}</p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase ${

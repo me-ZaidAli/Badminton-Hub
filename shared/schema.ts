@@ -365,6 +365,7 @@ export const sessions = pgTable("sessions", {
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
   publishAt: timestamp("publish_at"),
   invoiceNumber: text("invoice_number"),
+  sessionDetails: text("session_details"),
 });
 
 // === SESSION SIGNUPS ===
@@ -830,6 +831,7 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   matchGenderType: z.enum(["MIXED", "FEMALE", "MALE"]).default("MIXED"),
   numberOfSets: z.number().min(1).max(3).default(1),
   publishAt: z.coerce.date().optional().nullable(),
+  sessionDetails: z.string().optional().nullable(),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true }).extend({
   clubId: z.number().nullable().optional(),

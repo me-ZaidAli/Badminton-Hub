@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -16,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -2141,6 +2142,7 @@ function extractSessionPrefill(session: any) {
     defaultPointsToPlayTo: session.defaultPointsToPlayTo || 21,
     numberOfSets: session.numberOfSets || 1,
     venueId: session.venueId || undefined,
+    sessionDetails: session.sessionDetails || "",
   };
 }
 
@@ -2519,6 +2521,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       liveStreamUrl: prefillData?.liveStreamUrl ?? undefined,
       defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
       numberOfSets: prefillData?.numberOfSets ?? 1,
+      sessionDetails: prefillData?.sessionDetails ?? "",
     }
   });
 
@@ -2654,6 +2657,27 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   <FormControl>
                     <Input placeholder="Friday Night Social" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sessionDetails"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Session Details</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Add any additional details about the session..."
+                      className="resize-none"
+                      rows={3}
+                      {...field}
+                      value={field.value || ""}
+                      data-testid="input-session-details"
+                    />
+                  </FormControl>
+                  <FormDescription>Optional notes visible to all players</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -3124,6 +3148,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
+  const [editSessionDetails, setEditSessionDetails] = useState("");
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
   const [editWeeksBefore, setEditWeeksBefore] = useState(1);
   const [showSeriesConfirm, setShowSeriesConfirm] = useState(false);
@@ -3181,6 +3206,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditLiveStreamUrl(session.liveStreamUrl || "");
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
     setEditNumberOfSets(session.numberOfSets || 1);
+    setEditSessionDetails(session.sessionDetails || "");
     if (session.publishAt) {
       setEditScheduleEnabled(true);
       const sessionDate = new Date(session.date);
@@ -3241,6 +3267,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       venueId: editVenueId,
       liveStreamUrl: editLiveStreamUrl || "",
       shuttleTubesUsed: editShuttleTubes,
+      sessionDetails: editSessionDetails || null,
       publishAt: publishAt?.toISOString() || null,
       scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
     };
@@ -3365,6 +3392,18 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
               className="mt-2"
               data-testid="input-edit-title"
             />
+          </div>
+          <div>
+            <Label>Session Details</Label>
+            <Textarea
+              value={editSessionDetails}
+              onChange={(e) => setEditSessionDetails(e.target.value)}
+              placeholder="Add any additional details about the session..."
+              className="mt-2 resize-none"
+              rows={3}
+              data-testid="input-edit-session-details"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Optional notes visible to all players</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
